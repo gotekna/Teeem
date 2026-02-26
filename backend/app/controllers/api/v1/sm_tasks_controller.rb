@@ -208,10 +208,39 @@ module Api
         # Used by: PO detail page task dropdown
         # Handle early to avoid heavy includes/ordered scope
         if params[:for] == "select"
-          tasks_data = @job.sm_tasks
-            .order(:sequence_order, :id)
-            .pluck(:id, :name, :task_number, :start_date, :po_required)
-            .map { |id, name, task_number, start_date, po_required| { id: id, name: name, task_number: task_number, start_date: start_date, po_required: po_required } }
+          tasks = @job.sm_tasks.order(:sequence_order, :id)
+
+          # Filter by cost centre code - SmTask.cost_centre is SSoT
+          # (kept in sync via SmScheduleMaster after_save callback)
+          if params[:cost_centre_code].present?
+            cc = CostCentre.find_by(code: params[:cost_centre_code])
+            tasks = tasks.where(cost_centre: cc.id) if cc
+          end
+
+          # Filter by stage
+          if params[:stage_name].present?
+            stage = SmStage.find_by(name: params[:stage_name])
+            tasks = tasks.where(stage: stage.id) if stage
+          end
+
+          # Filter by tender section - tasks whose SmScheduleMaster links to this tender
+          if params[:tender_id].present?
+            master_ids = SmScheduleMaster.where(tender_id: params[:tender_id]).pluck(:id)
+            tasks = tasks.where(sm_schedule_master_id: master_ids)
+          end
+
+          tasks_data = tasks.includes(:purchase_order).map do |task|
+            {
+              id: task.id,
+              name: task.name,
+              task_number: task.task_number,
+              start_date: task.start_date,
+              po_required: task.po_required,
+              cost_centre: task.cost_centre,
+              has_existing_po: task.purchase_order.present?,
+              existing_po_id: task.purchase_order&.id
+            }
+          end
           return render json: { success: true, sm_tasks: tasks_data }
         end
 

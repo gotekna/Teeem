@@ -11,7 +11,7 @@ import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { X } from "lucide-react";
+import { X, Link2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ComboboxDropdown, type ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { ResizableColumnHeader } from '../../components/ResizableColumnHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Spinner } from "@/components/ui/spinner";
@@ -337,6 +338,18 @@ export function TableHeaderSection({
                   ) : (
                     <span className="truncate">{column.label}</span>
                   )}
+                  {isLookupColumn(column.column_type) && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Link2 className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p>Lookup → {column.lookup_foundation_slug?.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'linked table'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </ResizableColumnHeader>
               )}
             </TableHead>
@@ -375,7 +388,7 @@ export function TableHeaderSection({
                     ...stickyStyles,
                   }}
                   className={cn(
-                    "sticky top-[28px] py-1 px-1",
+                    "sticky top-[28px] py-1 px-1 pointer-events-none",
                     isSticky ? "z-30" : "z-20",
                     column.key === "select" && "!border-r-0",
                     column.key === "actions" && "!border-l-0"
@@ -419,54 +432,62 @@ export function TableHeaderSection({
                 }
 
                 if (options.length > 0) {
+                  const lookupItems: ComboboxItem[] = [
+                    { id: 'all', label: 'All' },
+                    { id: FILTER_EMPTY, label: 'Empty' },
+                    { id: FILTER_NOT_EMPTY, label: 'Not Empty' },
+                    ...options
+                      .filter(opt => opt.display != null && String(opt.display) !== '')
+                      .map((opt) => ({ id: String(opt.display), label: String(opt.display) }))
+                      .sort((a, b) => a.label.localeCompare(b.label)),
+                  ];
+                  const selectedLookup = lookupItems.find(item => item.id === (filterValue || 'all'));
+
                   return (
-                    <Select
-                      value={filterValue || 'all'}
-                      onValueChange={(value) => handleDropdownFilterChange(column.key, value, '=')}
-                    >
-                      <SelectTrigger className={cn("h-7 text-xs", hasFilter && "border-primary")}>
-                        <SelectValue placeholder="All" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value={FILTER_EMPTY} className="text-muted-foreground italic">Empty</SelectItem>
-                        <SelectItem value={FILTER_NOT_EMPTY} className="text-muted-foreground italic">Not Empty</SelectItem>
-                        <SelectSeparator />
-                        {/* Filter out options with empty display values - use display for filtering since data contains display values */}
-                        {options.filter(opt => opt.display != null && String(opt.display) !== '').map((opt) => (
-                          <SelectItem key={opt.id} value={String(opt.display)}>
-                            {opt.display}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className={cn(
+                      "[&>div]:h-7 [&_input]:h-7 [&_input]:text-xs [&_input]:py-0 [&_input]:px-2 [&_input]:pr-6",
+                      "[&_button]:h-7 [&_button]:text-xs [&_button]:px-2",
+                      hasFilter && "[&_input]:border-primary [&_button]:border-primary"
+                    )}>
+                      <ComboboxDropdown
+                        items={lookupItems}
+                        selectedItem={selectedLookup}
+                        onSelect={(item) => handleDropdownFilterChange(column.key, item.id, '=')}
+                        placeholder="All"
+                        searchPlaceholder="Search..."
+                      />
+                    </div>
                   );
                 }
               }
 
-              // Choice column - dropdown with choices
+              // Choice column - searchable dropdown with choices
               if ((isChoice || hasChoices) && colMeta.choices && colMeta.choices.length > 0) {
+                const choiceItems: ComboboxItem[] = [
+                  { id: 'all', label: 'All' },
+                  { id: FILTER_EMPTY, label: 'Empty' },
+                  { id: FILTER_NOT_EMPTY, label: 'Not Empty' },
+                  ...colMeta.choices
+                    .filter(c => c && c !== '')
+                    .map((choice) => ({ id: choice, label: choice }))
+                    .sort((a, b) => a.label.localeCompare(b.label)),
+                ];
+                const selectedChoice = choiceItems.find(item => item.id === (filterValue || 'all'));
+
                 return (
-                  <Select
-                    value={filterValue || 'all'}
-                    onValueChange={(value) => handleDropdownFilterChange(column.key, value, '=')}
-                  >
-                    <SelectTrigger className={cn("h-7 text-xs", hasFilter && "border-primary")}>
-                      <SelectValue placeholder="All" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value={FILTER_EMPTY} className="text-muted-foreground italic">Empty</SelectItem>
-                      <SelectItem value={FILTER_NOT_EMPTY} className="text-muted-foreground italic">Not Empty</SelectItem>
-                      <SelectSeparator />
-                      {/* Filter out empty strings - Select.Item cannot have empty string value */}
-                      {colMeta.choices.filter(c => c && c !== '').map((choice) => (
-                        <SelectItem key={choice} value={choice}>
-                          {choice}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className={cn(
+                    "[&>div]:h-7 [&_input]:h-7 [&_input]:text-xs [&_input]:py-0 [&_input]:px-2 [&_input]:pr-6",
+                    "[&_button]:h-7 [&_button]:text-xs [&_button]:px-2",
+                    hasFilter && "[&_input]:border-primary [&_button]:border-primary"
+                  )}>
+                    <ComboboxDropdown
+                      items={choiceItems}
+                      selectedItem={selectedChoice}
+                      onSelect={(item) => handleDropdownFilterChange(column.key, item.id, '=')}
+                      placeholder="All"
+                      searchPlaceholder="Search..."
+                    />
+                  </div>
                 );
               }
 

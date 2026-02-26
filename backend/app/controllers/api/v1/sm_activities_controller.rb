@@ -126,7 +126,8 @@ module Api
       def activity_json(activity)
         metadata = begin
           JSON.parse(activity.metadata || "{}")
-        rescue StandardError
+        rescue StandardError => e
+          Rails.logger.warn("[SmActivities] Failed to parse metadata for activity ##{activity.id}: #{e.message}")
           {}
         end
 

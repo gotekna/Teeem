@@ -110,7 +110,8 @@ module DocumentProviderAware
   def provider_connected?
     return false unless @document_provider
     @document_provider.connected?
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[DocumentProviderAware] Failed to check provider connection: #{e.message}"
     false
   end
 

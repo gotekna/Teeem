@@ -10,7 +10,7 @@
  * Props follow TaskFormProps interface from lib/workflow-task-forms.ts.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +34,7 @@ import {
   ArrowRight,
   CalendarIcon,
   Check,
+  Eye,
   Mail,
   Pencil,
   Plus,
@@ -43,7 +44,9 @@ import {
   X,
 } from "lucide-react";
 import { format } from "date-fns";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { pollPdfGeneration } from "@/lib/pdf-generation";
 import type { TaskFormProps } from "@/lib/workflow-task-forms";
 import { DATE_DISPLAY, DATE_ISO } from "@/lib/constants/date-formats";
 
@@ -206,10 +209,36 @@ export default function DirectorChangeForm({
   const [ceasingDirectors, setCeasingDirectors] = useState<CeasingDirector[]>([]);
   const [newAppointments, setNewAppointments] = useState<NewAppointment[]>([]);
 
+  // Document type names from DB (SSoT - not hardcoded)
+  const [docTypeNames, setDocTypeNames] = useState<Record<string, string>>({});
+
+  // PDF preview state
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewMessage, setPreviewMessage] = useState("");
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [previewPage, setPreviewPage] = useState<number | null>(null);
+  const [generatedDocs, setGeneratedDocs] = useState<Array<{ type: string; name: string; page?: number }>>([]);
+
   // Contact search
   const [contactSearch, setContactSearch] = useState("");
   const [contactResults, setContactResults] = useState<ContactSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside (but not when clicking inside popovers like Calendar)
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(target)) {
+        // Don't close if clicking inside a Radix popover portal (e.g. Calendar date picker)
+        if ((target as HTMLElement).closest?.("[data-radix-popper-content-wrapper]")) return;
+        setContactResults([]);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const currentOfficers = officers.filter((o) => o.is_current);
 
@@ -232,6 +261,21 @@ export default function DirectorChangeForm({
           directors: OfficerRecord[];
         }>(`/api/v1/companies/${subject.id}/directors`);
         setOfficers(officerRes.directors || []);
+
+        // Fetch document type names by abbreviation (SSoT from DB, not hardcoded)
+        try {
+          const dtRes = await api.get<{
+            success: boolean;
+            data: Array<{ abbreviation: string; name: string }>;
+          }>(`/api/v1/document_types?abbreviations=DM,RD,RS,RPO,CAD,CAS,CAPO,F484`);
+          const nameMap: Record<string, string> = {};
+          (dtRes.data || []).forEach((dt) => {
+            if (dt.abbreviation) nameMap[dt.abbreviation] = dt.name;
+          });
+          setDocTypeNames(nameMap);
+        } catch {
+          // Non-critical - falls back to hardcoded names
+        }
 
         // Restore form data if resuming
         if (existingFormData && Object.keys(existingFormData).length > 0) {
@@ -257,13 +301,11 @@ export default function DirectorChangeForm({
       setSearchLoading(true);
       try {
         const response = await api.get<{ contacts: ContactSearchResult[] }>(
-          `/api/v1/contacts?search=${encodeURIComponent(contactSearch)}&per_page=10`
+          `/api/v1/contacts?search=${encodeURIComponent(contactSearch)}&entity_type=person,sole_trader`
         );
-        const people = (response.contacts || []).filter(
-          (c) => c.entity_type === "person" || c.entity_type === "sole_trader"
-        );
-        setContactResults(people);
-      } catch {
+        setContactResults(response.contacts || []);
+      } catch (err) {
+        console.error("[DirectorChangeForm] Contact search failed:", err);
         setContactResults([]);
       } finally {
         setSearchLoading(false);
@@ -280,16 +322,12 @@ export default function DirectorChangeForm({
       const contactId = officer.contact?.id;
       if (contactId && ceasingDirectors.some((cd) => cd.contact_id === contactId)) return;
 
+      const knownPositionValues = new Set(POSITION_OPTIONS.map((p) => p.value));
       const allPositions = currentOfficers
         .filter((o) => o.contact?.id === contactId && o.is_current)
-        .map((o) => o.position);
-      const deduped = [...new Set(allPositions)];
-      const uniquePositions = deduped.filter((pos) => {
-        const others = deduped.filter(
-          (p) => p !== pos && pos.toLowerCase().includes(p.toLowerCase())
-        );
-        return others.length < 2;
-      });
+        .map((o) => o.position.toLowerCase().trim().replace(/\s+/g, "_"));
+      // Filter to only known positions (drops compound strings like "director_secretary_public_officer")
+      const normalizedPositions = [...new Set(allPositions)].filter((p) => knownPositionValues.has(p));
 
       const officerIds = currentOfficers
         .filter((o) => o.contact?.id === contactId && o.is_current)
@@ -346,7 +384,7 @@ export default function DirectorChangeForm({
           officer_ids: officerIds,
           name: officer.contact?.display_name || "Unknown",
           position: officer.position,
-          positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
+          positions: normalizedPositions.length > 0 ? normalizedPositions : ["director"],
           cessation_date: format(new Date(), DATE_ISO),
           has_dob: hasDob,
           has_address: hasAddress,
@@ -361,6 +399,27 @@ export default function DirectorChangeForm({
     },
     [ceasingDirectors, currentOfficers]
   );
+
+  // Auto-fill: if company has only one current director, add them as ceasing automatically
+  const autoFillTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (autoFillTriggeredRef.current || currentOfficers.length === 0 || ceasingDirectors.length > 0) return;
+
+    // Group current officers by contact to find unique directors
+    const uniqueContacts = new Map<number, OfficerRecord>();
+    currentOfficers.forEach((o) => {
+      if (o.contact?.id && !uniqueContacts.has(o.contact.id)) {
+        uniqueContacts.set(o.contact.id, o);
+      }
+    });
+
+    // If exactly one unique director, auto-add as ceasing
+    if (uniqueContacts.size === 1) {
+      const [, officer] = [...uniqueContacts.entries()][0];
+      autoFillTriggeredRef.current = true;
+      addCeasingDirector(officer);
+    }
+  }, [currentOfficers, ceasingDirectors.length, addCeasingDirector]);
 
   const removeCeasingDirector = (id: number) => {
     setCeasingDirectors((prev) => prev.filter((cd) => cd.corporate_director_id !== id));
@@ -427,13 +486,18 @@ export default function DirectorChangeForm({
         /* keep search-level values */
       }
 
+      // Default positions from ceasing directors (new person takes over same roles)
+      const defaultPositions = ceasingDirectors.length > 0
+        ? [...new Set(ceasingDirectors.flatMap((cd) => cd.positions))]
+        : ["director"];
+
       setNewAppointments((prev) => [
         ...prev,
         {
           contact_id: contact.id,
           name: contact.display_name,
           email: contact.email || "",
-          positions: ["director"],
+          positions: defaultPositions,
           appointment_date: defaultDate,
           has_dob: hasDob,
           has_address: hasAddress,
@@ -469,7 +533,154 @@ export default function DirectorChangeForm({
 
   // --- Submit ---
 
-  const canSubmit = ceasingDirectors.length > 0 || newAppointments.length > 0;
+  // Validation: all people must have DOB, address, and email before proceeding
+  const ceasingValid = ceasingDirectors.every(
+    (cd) => cd.has_dob && cd.has_address && !!cd.selected_email
+  );
+  const appointmentsValid = newAppointments.every(
+    (a) => a.has_dob && a.has_address && !!a.selected_email
+  );
+  const hasChanges = ceasingDirectors.length > 0 || newAppointments.length > 0;
+  const canProceedToReview = hasChanges && ceasingValid && appointmentsValid;
+  const canSubmit = canProceedToReview;
+
+  // SSoT: Document list mirrors DirectorChangeService (backend)
+  // Names come from DocumentType DB records (fetched at load), not hardcoded
+  const documentList = useMemo(() => {
+    // Position → abbreviation mapping
+    const resignationCodes: Record<string, string> = {
+      director: "RD", secretary: "RS", public_officer: "RPO",
+    };
+    const consentCodes: Record<string, string> = {
+      director: "CAD", secretary: "CAS", public_officer: "CAPO",
+    };
+    const knownPositions = new Set(Object.keys(resignationCodes));
+    const dn = (code: string) => docTypeNames[code] || code;
+
+    const docs: { key: string; label: string; docTypes: { code: string; name: string }[] }[] = [
+      { key: "minutes", label: dn("DM"), docTypes: [{ code: "DM", name: dn("DM") }] },
+    ];
+    // One resignation document per position per ceasing director
+    ceasingDirectors.forEach((cd) => {
+      cd.positions.filter((pos) => knownPositions.has(pos)).forEach((pos) => {
+        const code = resignationCodes[pos];
+        docs.push({
+          key: `res-${cd.corporate_director_id}-${pos}`,
+          label: `${dn(code)} — ${cd.name}`,
+          docTypes: [{ code, name: dn(code) }],
+        });
+      });
+    });
+    // One consent document per position per new appointment
+    newAppointments.forEach((appt) => {
+      appt.positions.filter((pos) => knownPositions.has(pos)).forEach((pos) => {
+        const code = consentCodes[pos];
+        docs.push({
+          key: `con-${appt.contact_id}-${pos}`,
+          label: `${dn(code)} — ${appt.name}`,
+          docTypes: [{ code, name: dn(code) }],
+        });
+      });
+    });
+    // Split Form 484 into cessation and appointment (matches backend service)
+    if (ceasingDirectors.length > 0) {
+      docs.push({
+        key: "form484_cessation",
+        label: `${dn("F484")} — Cessation`,
+        docTypes: [{ code: "F484", name: dn("F484") }],
+      });
+    }
+    if (newAppointments.length > 0) {
+      docs.push({
+        key: "form484_appointment",
+        label: `${dn("F484")} — Appointment`,
+        docTypes: [{ code: "F484", name: dn("F484") }],
+      });
+    }
+    return docs;
+  }, [ceasingDirectors, newAppointments, docTypeNames]);
+
+  // Signers who will receive e-signature emails
+  const signerList = useMemo(() => {
+    const signers: { name: string; email: string; role: string }[] = [];
+    ceasingDirectors.forEach((cd) => {
+      if (cd.selected_email) {
+        signers.push({ name: cd.name, email: cd.selected_email, role: "Resignation" });
+      }
+    });
+    newAppointments.forEach((appt) => {
+      if (appt.selected_email) {
+        signers.push({ name: appt.name, email: appt.selected_email, role: "Consent" });
+      }
+    });
+    return signers;
+  }, [ceasingDirectors, newAppointments]);
+
+  // Generate PDF preview
+  const generatePreview = async () => {
+    setPreviewLoading(true);
+    setPreviewMessage("Starting PDF generation...");
+    setError(null);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { pdfGenerationId: number };
+        error?: string;
+      }>(`/api/v1/companies/${subject.id}/director_changes`, {
+        ceasing_directors: ceasingDirectors.map((cd) => ({
+          corporate_director_id: cd.corporate_director_id,
+          positions: cd.positions,
+          cessation_date: cd.cessation_date,
+          email: cd.selected_email,
+          address: cd.address,
+        })),
+        new_appointments: newAppointments.map((a) => ({
+          contact_id: a.contact_id,
+          positions: a.positions,
+          appointment_date: a.appointment_date,
+          email: a.selected_email,
+          address: a.address,
+        })),
+      });
+
+      if (!response?.success || !response.data?.pdfGenerationId) {
+        setError("Failed to start PDF generation");
+        return;
+      }
+
+      setPreviewMessage("Generating PDF documents...");
+      const result = await pollPdfGeneration(response.data.pdfGenerationId, {
+        intervalMs: 1500,
+        maxWaitMs: 120_000,
+        onProgress: (status) => {
+          if (status.status === "processing") setPreviewMessage("Generating PDF documents...");
+          else if (status.status === "pending") setPreviewMessage("Queued — waiting for worker...");
+        },
+      });
+
+      if (result.status === "completed" && result.downloadUrl) {
+        setPreviewMessage("Downloading preview...");
+        const baseUrl = getApiBaseUrl();
+        const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
+        const resp = await fetch(`${baseUrl}${result.downloadUrl}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (resp.ok) {
+          const blob = await resp.blob();
+          setPdfBlobUrl(URL.createObjectURL(blob));
+        }
+        const docs = result.result?.documents as Array<{ type: string; name: string; page?: number }> | undefined;
+        if (docs) setGeneratedDocs(docs);
+      } else {
+        setError(result.error || "PDF generation failed");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate preview");
+    } finally {
+      setPreviewLoading(false);
+      setPreviewMessage("");
+    }
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -559,50 +770,74 @@ export default function DirectorChangeForm({
         )}
 
         {/* Step 1: Company Details */}
-        {step === 1 && company && (
-          <div className="space-y-4">
-            <div className="p-4 border rounded-lg space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Company Name</Label>
-                <p className="font-medium">{company.name}</p>
-              </div>
-              {company.formatted_acn && (
+        {step === 1 && company && (() => {
+          const missingCompanyFields: string[] = [];
+          if (!company.formatted_acn) missingCompanyFields.push("ACN");
+          if (!company.registered_office_address) missingCompanyFields.push("Registered Office Address");
+          const canProceedStep1 = missingCompanyFields.length === 0;
+
+          return (
+            <div className="space-y-4">
+              <div className="p-4 border rounded-lg space-y-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Company Name</Label>
+                  <p className="font-medium">{company.name}</p>
+                </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">ACN</Label>
-                  <p>{company.formatted_acn}</p>
+                  {company.formatted_acn ? (
+                    <p>{company.formatted_acn}</p>
+                  ) : (
+                    <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                      <AlertCircle className="w-3 h-3" /> Required — edit on company page
+                    </div>
+                  )}
                 </div>
-              )}
-              {company.formatted_abn && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">ABN</Label>
-                  <p>{company.formatted_abn}</p>
-                </div>
-              )}
-              {company.registered_office_address && (
+                {company.formatted_abn && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">ABN</Label>
+                    <p>{company.formatted_abn}</p>
+                  </div>
+                )}
                 <div>
                   <Label className="text-xs text-muted-foreground">Registered Office</Label>
-                  <p className="text-sm">{company.registered_office_address}</p>
+                  {company.registered_office_address ? (
+                    <p className="text-sm">{company.registered_office_address}</p>
+                  ) : (
+                    <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                      <AlertCircle className="w-3 h-3" /> Required — edit on company page
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {!canProceedStep1 && (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-200 text-sm">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  Missing: {missingCompanyFields.join(", ")}. Update the company details before proceeding.
                 </div>
               )}
-            </div>
 
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                Confirm the company details above are correct before proceeding. If any details need
-                updating, edit them on the company page first.
-              </p>
-            </div>
+              {canProceedStep1 && (
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Confirm the company details above are correct before proceeding. If any details need
+                    updating, edit them on the company page first.
+                  </p>
+                </div>
+              )}
 
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button onClick={() => setStep(2)}>
-                Next <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={onCancel}>
+                  Cancel
+                </Button>
+                <Button onClick={() => setStep(2)} disabled={!canProceedStep1}>
+                  Next <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Step 2: Changes */}
         {step === 2 && (
@@ -856,7 +1091,7 @@ export default function DirectorChangeForm({
                 </div>
               ))}
 
-              {/* Add ceasing director dropdown */}
+              {/* Available officers to add as ceasing */}
               {(() => {
                 const availableByContact = currentOfficers
                   .filter(
@@ -875,26 +1110,47 @@ export default function DirectorChangeForm({
                     new Map<number, { officer: OfficerRecord; positions: string[] }>()
                   );
 
+                if (availableByContact.size === 0 && ceasingDirectors.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground py-2">
+                      No current officers found for this company.
+                    </p>
+                  );
+                }
+
                 if (availableByContact.size === 0) return null;
 
                 return (
-                  <Select
-                    onValueChange={(val) => {
-                      const officer = currentOfficers.find((o) => o.id === Number(val));
-                      if (officer) addCeasingDirector(officer);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Select officer to resign..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[...availableByContact.values()].map(({ officer, positions }) => (
-                        <SelectItem key={officer.id} value={String(officer.id)}>
-                          {officer.contact?.display_name} - {positions.join(", ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Current officers — click to add as ceasing:</p>
+                    {[...availableByContact.values()].map(({ officer, positions }) => (
+                      <button
+                        key={officer.id}
+                        onClick={() => addCeasingDirector(officer)}
+                        className="w-full text-left p-2.5 border border-dashed rounded-lg hover:border-red-300 hover:bg-red-50/50 dark:hover:border-red-800 dark:hover:bg-red-950/20 transition-colors group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-medium">
+                              {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{officer.contact?.display_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {positions.join(", ")}
+                                {officer.appointment_date && (
+                                  <> &bull; Appointed {format(new Date(officer.appointment_date + "T00:00:00"), DATE_DISPLAY)}</>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-red-600 dark:group-hover:text-red-400">
+                            <Plus className="w-3.5 h-3.5" /> Add
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 );
               })()}
             </div>
@@ -1141,7 +1397,7 @@ export default function DirectorChangeForm({
               ))}
 
               {/* Contact Search */}
-              <div className="relative">
+              <div className="relative" ref={searchDropdownRef}>
                 <Input
                   placeholder="Search contacts to appoint..."
                   value={contactSearch}
@@ -1173,12 +1429,20 @@ export default function DirectorChangeForm({
               </div>
             </div>
 
+            {/* Validation message */}
+            {hasChanges && !canProceedToReview && (
+              <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-200 text-sm">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                All people must have a date of birth, residential address, and email before proceeding.
+              </div>
+            )}
+
             {/* Navigation */}
             <div className="flex justify-between pt-4 border-t">
               <Button variant="outline" onClick={() => setStep(1)}>
                 <ArrowLeft className="w-4 h-4 mr-1" /> Back
               </Button>
-              <Button onClick={() => setStep(3)} disabled={!canSubmit}>
+              <Button onClick={() => setStep(3)} disabled={!canProceedToReview}>
                 Review <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
@@ -1226,29 +1490,150 @@ export default function DirectorChangeForm({
               )}
             </div>
 
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                Submitting will generate the ASIC document package (Form 484, Resignation Letters,
-                Consent to Act, Directors Minutes) and send them for e-signature automatically.
+            {/* Document list - clickable when preview is loaded */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  Documents ({documentList.length}):
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={generatePreview}
+                  disabled={previewLoading}
+                >
+                  {previewLoading ? (
+                    <><Spinner size={14} className="mr-1.5" /> {previewMessage}</>
+                  ) : pdfBlobUrl ? (
+                    <><Eye className="w-3.5 h-3.5 mr-1.5" /> Regenerate Preview</>
+                  ) : (
+                    <><Eye className="w-3.5 h-3.5 mr-1.5" /> Preview PDF</>
+                  )}
+                </Button>
+              </div>
+
+              {generatedDocs.length > 0 ? (
+                // Show generated docs with page navigation
+                <div className="space-y-1">
+                  {generatedDocs.map((doc, i) => {
+                    const isSelected = previewPage === (doc.page || 1);
+                    return (
+                      <div
+                        key={i}
+                        className={cn(
+                          "flex items-center gap-2 p-2 rounded text-sm cursor-pointer transition-colors",
+                          isSelected
+                            ? "bg-primary/10 border border-primary/30"
+                            : "bg-muted/50 hover:bg-muted",
+                        )}
+                        onClick={() => doc.page && setPreviewPage(doc.page)}
+                      >
+                        <Eye className={cn("w-4 h-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                        <span className="flex-1 select-none">{doc.name}</span>
+                        {doc.page && (
+                          <span className="text-[10px] text-muted-foreground shrink-0">p.{doc.page}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Show planned document list before generation
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-0.5">
+                  {documentList.map((doc) => (
+                    <div key={doc.key} className="flex items-start justify-between text-sm py-1">
+                      <span className="text-blue-700 dark:text-blue-300">{doc.label}</span>
+                      <div className="flex flex-col items-end gap-0.5 shrink-0 ml-3">
+                        {doc.docTypes.map((dt) => (
+                          <Badge key={dt.code} variant="outline" className="text-[10px] font-mono border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400">
+                            {dt.code}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Combined into a single PDF &bull; Folder: ASIC &bull; Sent for e-signature automatically.
               </p>
             </div>
 
-            <div className="flex justify-between pt-4 border-t">
-              <Button variant="outline" onClick={() => setStep(2)}>
-                <ArrowLeft className="w-4 h-4 mr-1" /> Back
-              </Button>
-              <Button onClick={handleSubmit} disabled={submitting}>
-                {submitting ? (
-                  <>
-                    <Spinner size={16} className="mr-2" /> Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4 mr-1" /> Submit & Start Workflow
-                  </>
+            {/* PDF Preview */}
+            {pdfBlobUrl && (
+              <div className="border rounded-lg overflow-hidden" style={{ height: "500px" }}>
+                <object
+                  key={previewPage || 0}
+                  data={`${pdfBlobUrl}#toolbar=1&navpanes=0${previewPage ? `&page=${previewPage}` : ""}`}
+                  type="application/pdf"
+                  className="w-full h-full"
+                >
+                  <p className="p-4 text-center text-muted-foreground">
+                    PDF preview not available in this browser.
+                  </p>
+                </object>
+              </div>
+            )}
+
+            {/* Confirmation Panel */}
+            {showConfirmation && (
+              <div className="p-4 border-2 border-primary/30 bg-primary/5 rounded-lg space-y-3">
+                <h4 className="text-sm font-semibold">Confirm Submission</h4>
+                <p className="text-sm text-muted-foreground">
+                  This will start the workflow and generate{" "}
+                  <span className="font-medium text-foreground">{documentList.length} documents</span> combined
+                  into a single PDF, then sent for e-signature.
+                </p>
+
+                {signerList.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Signers who will receive emails:</p>
+                    {signerList.map((s, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="font-medium">{s.name}</span>
+                        <span className="text-muted-foreground">{s.email}</span>
+                        <Badge variant="outline" className="text-[10px] ml-auto">{s.role}</Badge>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </Button>
-            </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowConfirmation(false)}
+                    disabled={submitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <><Spinner size={14} className="mr-1.5" /> Submitting...</>
+                    ) : (
+                      <><Check className="w-3.5 h-3.5 mr-1" /> Confirm & Start</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {!showConfirmation && (
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setStep(2)}>
+                  <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                </Button>
+                <Button onClick={() => setShowConfirmation(true)} disabled={submitting}>
+                  <Send className="w-4 h-4 mr-1" /> Submit & Start Workflow
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

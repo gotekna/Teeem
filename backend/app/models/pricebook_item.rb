@@ -10,10 +10,23 @@ class PricebookItem < ApplicationRecord
   belongs_to :supplier, class_name: "Contact", foreign_key: "supplier_id", optional: true
   belongs_to :default_supplier, class_name: "Contact", foreign_key: "default_supplier_id", optional: true
   belongs_to :pricebook_category, foreign_key: "category_id", optional: true
+  belongs_to :pricebook_brand, foreign_key: "brand_id", optional: true
+  belongs_to :pricebook_range, foreign_key: "range_id", optional: true
+  belongs_to :uom_record, class_name: "UnitOfMeasure", foreign_key: "unit_of_measure_id", optional: true
+  belongs_to :gst_code_record, class_name: "GstCode", foreign_key: "gst_code_id", optional: true
   belongs_to :image_storage_blob, class_name: "StorageBlob", optional: true
   belongs_to :spec_storage_blob, class_name: "StorageBlob", optional: true
   belongs_to :qr_code_storage_blob, class_name: "StorageBlob", optional: true
   has_many :price_histories, dependent: :destroy
+
+  # Safe eager load associations for Foundation API (records_controller apply_eager_loading)
+  # Uses explicit whitelist to prevent include(:gst_code) errors from the old association name
+  # (before rename: belongs_to :gst_code → now: belongs_to :gst_code_record)
+  # Blob associations excluded: heavy and loaded only when needed (show/image actions)
+  def self.safe_eager_load_associations
+    [:supplier, :default_supplier, :pricebook_category, :pricebook_brand, :pricebook_range,
+     :uom_record, :gst_code_record]
+  end
 
   # Attribute for skipping price history callback
   attr_accessor :skip_price_history_callback
@@ -23,6 +36,8 @@ class PricebookItem < ApplicationRecord
   validates :item_name, presence: true
   validates :current_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
   validates :unit_of_measure, presence: true
+  validate :supplier_belongs_to_same_tenant
+  validate :default_supplier_belongs_to_same_tenant
 
   # Callbacks
   before_save :check_pricing_review_status
@@ -37,7 +52,9 @@ class PricebookItem < ApplicationRecord
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :needs_pricing, -> { where(needs_pricing_review: true) }
-  scope :by_category, ->(category) { where(category: category) if category.present? }
+  scope :by_category, ->(category_name) {
+    joins(:pricebook_category).where(pricebook_categories: { name: category_name }) if category_name.present?
+  }
   scope :by_colour, ->(colour) { where(colour: colour) if colour.present? }
   scope :with_colour, -> { where.not(colour: [nil, ""]) }
   scope :by_supplier, ->(supplier_id) {
@@ -76,7 +93,7 @@ class PricebookItem < ApplicationRecord
       # Medium risk: price < 3 months but missing supplier info
       where("current_price IS NOT NULL AND current_price > 0")
         .where("price_last_updated_at >= ?", 3.months.ago)
-        .where("supplier_id IS NULL OR brand IS NULL OR category IS NULL")
+        .where("supplier_id IS NULL OR brand IS NULL OR category_id IS NULL")
     when "low"
       # Low risk: recent price AND has supplier info
       where("current_price IS NOT NULL AND current_price > 0")
@@ -112,7 +129,9 @@ class PricebookItem < ApplicationRecord
 
   # Class methods
   def self.categories
-    where.not(category: nil).distinct.pluck(:category).sort
+    PricebookCategory.where(
+      id: select(:category_id).where.not(category_id: nil).distinct
+    ).order(:name).pluck(:name)
   end
 
   def self.units_of_measure
@@ -276,7 +295,7 @@ class PricebookItem < ApplicationRecord
     score = 0
     score += 30 unless supplier_id.present?
     score += 20 unless brand.present?
-    score += 10 unless category.present?
+    score += 10 unless category_id.present?
     score
   end
 
@@ -351,6 +370,25 @@ class PricebookItem < ApplicationRecord
 
   private
 
+  # Tenant isolation: suppliers must belong to the same tenant as the pricebook item.
+  # Uses unscoped lookup because acts_as_tenant would hide the cross-tenant contact,
+  # making the validation silently pass instead of catching the violation.
+  def supplier_belongs_to_same_tenant
+    return if supplier_id.blank? || tenant_id.blank?
+    supplier_tenant = ActsAsTenant.without_tenant { Contact.where(id: supplier_id).pick(:tenant_id) }
+    if supplier_tenant && supplier_tenant != tenant_id
+      errors.add(:supplier_id, "must belong to the same tenant (supplier tenant: #{supplier_tenant}, item tenant: #{tenant_id})")
+    end
+  end
+
+  def default_supplier_belongs_to_same_tenant
+    return if default_supplier_id.blank? || tenant_id.blank?
+    supplier_tenant = ActsAsTenant.without_tenant { Contact.where(id: default_supplier_id).pick(:tenant_id) }
+    if supplier_tenant && supplier_tenant != tenant_id
+      errors.add(:default_supplier_id, "must belong to the same tenant (supplier tenant: #{supplier_tenant}, item tenant: #{tenant_id})")
+    end
+  end
+
   def check_pricing_review_status
     # Flag items without prices for review
     if current_price.nil? || current_price.zero?
@@ -376,7 +414,8 @@ class PricebookItem < ApplicationRecord
       old_price: old_price,
       new_price: new_price,
       change_reason: "manual_edit",
-      supplier_id: tracking_supplier_id
+      supplier_id: tracking_supplier_id,
+      date_effective: TenantSetting.today
     )
   end
 

@@ -14,7 +14,7 @@
 #   EmailMailboxFavorite.toggle!(user_id, account_id)
 #
 class EmailMailboxFavorite < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
 
   validates :account_id, presence: true
   validates :account_id, uniqueness: { scope: :user_id }

@@ -53,9 +53,10 @@ module Api
             error: "Contact not found: #{e.message}"
           }, status: :not_found
         rescue => e
+          Rails.logger.error("[ContactMerge] Failed: #{e.message}\n#{e.backtrace&.first(5)&.join("\n")}")
           render json: {
             success: false,
-            error: "Failed to merge contacts: #{e.message}"
+            error: "Merge failed: #{e.message}"
           }, status: :internal_server_error
         end
 
@@ -181,8 +182,33 @@ module Api
           # Transfer job and case associations
           transfer_associations(source, target_contact)
 
-          # Delete the source contact
-          source.destroy
+          # FRC (Feb 2026): Transfer user link before destroy.
+          # Contact#before_destroy :prevent_destruction_if_has_user blocks deletion
+          # if a User is still linked. Must handle this BEFORE the dynamic FK transfer
+          # and before calling destroy.
+          transfer_user_link(source, target_contact)
+
+          # Transfer ALL remaining FK references that Rails dependent options don't cover.
+          # This dynamically finds every FK constraint pointing to contacts and moves
+          # references from source → target. Without this, postgres blocks the DELETE
+          # for any table with a FK constraint but no Rails dependent option.
+          transfer_all_remaining_fk_references(source, target_contact)
+
+          # FRC (Feb 2026): Reset ALL association caches before destroy.
+          # Contact has TWO has_many pointing at contact_external_links:
+          #   has_many :external_links (dependent: :destroy)
+          #   has_many :xero_links (dependent: :destroy)
+          # If association caches hold stale references, dependent: :destroy
+          # cascade-deletes links that were already transferred to the target.
+          # Reload + reset ensures destroy only affects records still owned by source.
+          source.reload
+          source.external_links.reset
+          source.xero_links.reset
+
+          # Delete the source contact (destroy! raises on failure for clear error)
+          unless source.destroy
+            raise "Failed to destroy Contact with id=#{source.id}: #{source.errors.full_messages.join(', ')}"
+          end
         end
 
         def merge_contact_emails(source, target_contact)
@@ -329,12 +355,15 @@ module Api
 
             if existing
               if xero_link.external_contact_id != existing.external_contact_id
-                xero_link.mark_stale!('not_found')
+                # FRC (Feb 2026): Keep as 'active' - this is a REAL Xero contact that
+                # should stay linked to the merged target. Marking as 'not_found' causes
+                # CleanupStaleXeroLinksJob to delete it after 7 days, then Xero sync
+                # recreates the contact as a duplicate.
                 xero_link.update!(
                   contact_id: target_contact.id,
-                  sync_error: "Contact merged - duplicate Xero link marked as stale"
+                  sync_error: "Contact merged - secondary Xero link for same org"
                 )
-                Rails.logger.info "[ContactMerge] Transferred stale Xero link: #{xero_link.external_contact_id}"
+                Rails.logger.info "[ContactMerge] Transferred Xero link (kept active): #{xero_link.external_contact_id}"
               else
                 Rails.logger.info "[ContactMerge] Deleting duplicate Xero link to #{xero_link.tenant_name}"
                 xero_link.destroy
@@ -373,6 +402,82 @@ module Api
         def normalize_name(name)
           return nil if name.blank?
           name.to_s.downcase.gsub(/\s+/, " ").strip
+        end
+
+        # Dynamically find ALL FK constraints pointing to the contacts table
+        # and transfer references from source → target. This prevents postgres
+        # from blocking the DELETE when tables exist that Rails doesn't know about
+        # via dependent options.
+        def transfer_all_remaining_fk_references(source, target)
+          fk_query = <<-SQL
+            SELECT tc.table_name, kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON tc.constraint_name = kcu.constraint_name
+              AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+              ON tc.constraint_name = ccu.constraint_name
+              AND tc.table_schema = ccu.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+              AND ccu.table_name = 'contacts'
+              AND ccu.column_name = 'id'
+          SQL
+
+          fk_refs = ActiveRecord::Base.connection.execute(fk_query)
+
+          # Tables already handled by explicit merge methods above, or where
+          # Rails dependent: :destroy should clean up (small record counts).
+          # FRC (Feb 2026): contact_activities and sms_messages REMOVED from skip
+          # so they get TRANSFERRED via fast SQL UPDATE instead of destroyed
+          # one-by-one via dependent: :destroy (1000+ records = 30s+ timeout).
+          skip_transfer = Set.new(%w[
+            contact_emails contact_phones contact_addresses
+            contact_persons contact_group_memberships contact_external_links
+            contact_company_group_memberships contact_relationships
+            contact_quality_reviews users
+          ])
+
+          fk_refs.each do |row|
+            table = row["table_name"]
+            column = row["column_name"]
+            next if skip_transfer.include?(table)
+
+            # Self-referential contacts FK (parent_company_contact_id, primary_company_id, etc.)
+            # Nullify instead of transferring to avoid circular references
+            if table == "contacts"
+              ActiveRecord::Base.connection.execute(
+                "UPDATE contacts SET #{column} = NULL WHERE #{column} = #{source.id}"
+              )
+            else
+              count = ActiveRecord::Base.connection.execute(
+                "SELECT COUNT(*) FROM #{table} WHERE #{column} = #{source.id}"
+              ).first["count"].to_i
+
+              if count > 0
+                ActiveRecord::Base.connection.execute(
+                  "UPDATE #{table} SET #{column} = #{target.id} WHERE #{column} = #{source.id}"
+                )
+                Rails.logger.info("[ContactMerge] Transferred #{count} #{table}.#{column} refs: #{source.id} → #{target.id}")
+              end
+            end
+          end
+        end
+
+        # FRC (Feb 2026): Contact#before_destroy :prevent_destruction_if_has_user
+        # blocks deletion if a User record is linked via has_one :user.
+        # Transfer user to target or unlink before destroying source.
+        def transfer_user_link(source, target_contact)
+          return unless source.user.present?
+
+          if target_contact.user.blank?
+            # Transfer user to target (same person, merged contact)
+            source.user.update!(contact_id: target_contact.id)
+            Rails.logger.info("[ContactMerge] Transferred user #{source.user.email} from contact #{source.id} → #{target_contact.id}")
+          else
+            # Both have users - unlink from source (user account preserved but unlinked)
+            Rails.logger.warn("[ContactMerge] Both contacts have users (source: #{source.user.email}, target: #{target_contact.user.email}). Unlinking source user.")
+            source.user.update!(contact_id: nil)
+          end
         end
 
         def contact_duplicate_json(contact)

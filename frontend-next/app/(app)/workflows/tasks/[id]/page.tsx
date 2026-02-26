@@ -11,6 +11,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { getFormComponent, type TaskFormProps } from "@/lib/workflow-task-forms";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton } from "@/components/ui/back-button";
-import { AlertCircle, CheckCircle, Workflow } from "lucide-react";
+import { AlertCircle, CheckCircle, Pen, Workflow } from "lucide-react";
 import { WorkflowProgress } from "@/components/workflows/WorkflowProgress";
 
 interface TaskDetail {
@@ -48,11 +49,18 @@ export default function WorkflowTaskDetailPage() {
   const router = useRouter();
   const taskId = params?.id as string;
 
+  const queryClient = useQueryClient();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [workflowProcessing, setWorkflowProcessing] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{
+    current: number | null;
+    total: number | null;
+    document_name: string | null;
+  } | null>(null);
 
   const fetchTask = useCallback(async () => {
     if (!taskId) return;
@@ -90,7 +98,59 @@ export default function WorkflowTaskDetailPage() {
           { form_data: formData }
         );
         if (res?.success) {
-          setCompleted(true);
+          // Show processing state while background jobs execute (PDF generation, e-signature creation)
+          setWorkflowProcessing(true);
+
+          // Poll process variables until esign_result appears (background job creates it)
+          // Poll fast initially (1.5s) to catch progress quickly, then slow to 3s
+          const maxAttempts = 60;
+          let esignRequestId: number | null = null;
+
+          for (let i = 0; i < maxAttempts; i++) {
+            const pollInterval = i < 10 ? 1500 : 3000;
+            await new Promise((r) => setTimeout(r, pollInterval));
+            try {
+              const pollRes = await api.get<{ success: boolean; task: TaskDetail }>(
+                `/api/v1/bpmn_tasks/${task.id}`
+              );
+              if (pollRes?.success) {
+                const vars = pollRes.task.process_variables || {};
+
+                // Update generation progress from process variables
+                const progress = vars.generation_progress as {
+                  current?: number;
+                  total?: number;
+                  document_name?: string;
+                } | undefined;
+                if (progress) {
+                  setGenerationProgress({
+                    current: progress.current ?? null,
+                    total: progress.total ?? null,
+                    document_name: progress.document_name ?? null,
+                  });
+                }
+
+                const esignResult = vars.esign_result as { request_id?: number } | undefined;
+                if (esignResult?.request_id) {
+                  esignRequestId = esignResult.request_id;
+                  break;
+                }
+              }
+            } catch {
+              // Ignore poll errors, keep trying
+            }
+          }
+
+          setWorkflowProcessing(false);
+          queryClient.invalidateQueries({ queryKey: ["e-signature-requests"] });
+
+          if (esignRequestId) {
+            // Auto-navigate to the specific e-signature request
+            router.push(`/e-signature/${esignRequestId}`);
+          } else {
+            // Fallback: show completion page if polling timed out
+            setCompleted(true);
+          }
         } else {
           setError(res?.error || "Failed to complete task");
         }
@@ -100,7 +160,7 @@ export default function WorkflowTaskDetailPage() {
         setCompleting(false);
       }
     },
-    [task]
+    [task, queryClient, router]
   );
 
   const handleCancel = useCallback(() => {
@@ -135,6 +195,54 @@ export default function WorkflowTaskDetailPage() {
 
   if (!task) return null;
 
+  // Processing state - polling while background jobs run
+  if (workflowProcessing) {
+    const hasProgress = generationProgress?.current != null && generationProgress?.total != null;
+    const progressPercent = hasProgress
+      ? Math.round(((generationProgress!.current! ) / generationProgress!.total!) * 100)
+      : 0;
+
+    return (
+      <div className="p-6 space-y-4">
+        <BackButton fallbackHref="/workflows" label="Back to Workflows" />
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Spinner className="h-10 w-10 mx-auto mb-4" />
+            <p className="text-lg font-medium">Processing Workflow...</p>
+
+            {hasProgress ? (
+              <>
+                <p className="text-muted-foreground mt-1">
+                  Generating document {generationProgress!.current} of {generationProgress!.total}
+                </p>
+                {generationProgress!.document_name && (
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {generationProgress!.document_name}
+                  </p>
+                )}
+                {/* Progress bar */}
+                <div className="mx-auto mt-4 w-64 h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground mt-1">
+                Preparing documents... This may take up to a minute.
+              </p>
+            )}
+
+            <p className="text-xs text-muted-foreground mt-3">
+              You&apos;ll be redirected automatically when ready.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Completed state
   if (completed) {
     return (
@@ -154,11 +262,19 @@ export default function WorkflowTaskDetailPage() {
               </Button>
               {task.subject_type === "Corporate" && (
                 <Button
-                  onClick={() => router.push(`/corporate/${task.subject_id}`)}
+                  variant="outline"
+                  onClick={() => router.push(`/corporate/companies/${task.subject_id}`)}
                 >
                   View Company
                 </Button>
               )}
+              <Button onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["e-signature-requests"] });
+                router.push("/e-signature");
+              }}>
+                <Pen className="w-4 h-4 mr-1.5" />
+                E-Signature
+              </Button>
             </div>
           </CardContent>
         </Card>

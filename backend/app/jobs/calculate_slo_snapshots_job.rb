@@ -8,6 +8,7 @@
 # Schedule: Daily at 1:00 AM Brisbane time (after midnight data is complete)
 #
 class CalculateSloSnapshotsJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   def perform(date: Date.yesterday)

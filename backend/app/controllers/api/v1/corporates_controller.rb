@@ -13,7 +13,7 @@ module Api
       # By default, only shows companies linked to a corporate group (have company_group_id)
       # Use include_unlinked=true to show all companies
       def index
-        @companies = Corporate.includes(:corporate_directors, :corporate_xero_connection, :company_group).all
+        @companies = Corporate.includes(:corporate_directors, :current_directors, :corporate_xero_connection, :company_group).all
 
         # By default, only show companies linked to corporate (have company_group_id)
         # Unless include_unlinked=true is passed
@@ -71,9 +71,14 @@ module Api
             contact: {}, # Include contact with ABN verification fields
             company_group: {} # Include company group for display
           },
-          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :storage_folder_url, :has_consolidated_children? ]
-          # Note: total_asset_value removed - depends on assets table
+          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :storage_folder_url, :has_consolidated_children? ],
+          except: [ :tfn, :encrypted_asic_password, :encrypted_recovery_answer ]
         )
+
+        # Include boolean flags so UI knows whether to show reveal toggle
+        company_json["has_tfn"] = @company.tfn.present?
+        company_json["has_asic_password"] = @company.encrypted_asic_password.present?
+        company_json["has_recovery_answer"] = @company.encrypted_recovery_answer.present?
 
         # Serialize current directors separately (corporate_directors returns CorporateDirector objects)
         company_json["current_directors"] = @company.corporate_directors.current.includes(:contact).map do |director|
@@ -197,10 +202,39 @@ module Api
       # POST /api/v1/companies/:id/add_director
       def add_director
         contact = Contact.find(params[:contact_id])
+        new_position = params[:position] || "director"
+
+        # Check if contact already has a current record - merge positions if so
+        existing = @company.corporate_directors.current.find_by(contact_id: contact.id)
+        if existing
+          merged = merge_officer_positions(existing.position, new_position)
+          unless merged
+            render json: { success: false, errors: [ "Cannot combine #{existing.formatted_position} with #{new_position.humanize}" ] }, status: :unprocessable_entity
+            return
+          end
+          if merged == existing.position
+            render json: {
+              success: true,
+              message: "#{contact.display_name} already holds this position",
+              director: existing.as_json(include: { contact: {} }, methods: [ :formatted_position ])
+            }
+            return
+          end
+          if existing.update(position: merged)
+            render json: {
+              success: true,
+              message: "Position updated to #{existing.formatted_position}",
+              director: existing.as_json(include: { contact: {} }, methods: [ :formatted_position ])
+            }
+          else
+            render_validation_errors(existing)
+          end
+          return
+        end
 
         director = @company.corporate_directors.build(
           contact: contact,
-          position: params[:position],
+          position: new_position,
           appointment_date: params[:appointment_date] || Date.current,
           is_current: true
         )
@@ -238,14 +272,15 @@ module Api
       end
 
       # DELETE /api/v1/companies/:id/directors/:director_id
+      # Pass ?hard_delete=true to permanently remove (for mistakes)
       def remove_director
         director = @company.corporate_directors.find(params[:director_id])
 
-        if director.update(resignation_date: params[:resignation_date] || Date.current, is_current: false)
-          render json: {
-            success: true,
-            message: "Director removed successfully"
-          }
+        if params[:hard_delete] == "true"
+          director.destroy!
+          render json: { success: true, message: "Director permanently deleted" }
+        elsif director.update(resignation_date: params[:resignation_date] || Date.current, is_current: false)
+          render json: { success: true, message: "Director removed successfully" }
         else
           render_validation_errors(director)
         end
@@ -555,6 +590,23 @@ module Api
         else
           render_error("Could not calculate health", status: :unprocessable_entity)
         end
+      end
+
+      # POST /api/v1/companies/:id/reveal_sensitive
+      # Returns sensitive fields (TFN, ASIC password, recovery answer) after password verification
+      def reveal_sensitive
+        unless current_user.authenticate(params[:password].to_s)
+          return render json: { success: false, error: "Invalid password" }, status: :unauthorized
+        end
+
+        render json: {
+          success: true,
+          data: {
+            tfn: @company.tfn,
+            encrypted_asic_password: @company.encrypted_asic_password,
+            encrypted_recovery_answer: @company.encrypted_recovery_answer
+          }
+        }
       end
 
       # GET /api/v1/companies/:id/data_stats
@@ -914,9 +966,9 @@ module Api
               company_group_name: company.company_group&.name,
               corporate_key: company.corporate_key,
               asic_username: company.asic_username,
-              asic_password: company.encrypted_asic_password,
+              has_asic_password: company.encrypted_asic_password.present?,
               recovery_question: company.recovery_question,
-              recovery_answer: company.encrypted_recovery_answer,
+              has_recovery_answer: company.encrypted_recovery_answer.present?,
               has_credentials: company.asic_username.present?
             }
           end,
@@ -964,6 +1016,39 @@ module Api
       end
 
       private
+
+      # Merge two officer positions into a valid compound position.
+      # Returns the merged position string, or nil if the combination is invalid.
+      # Returns the existing position unchanged if the new role is already included.
+      def merge_officer_positions(existing_position, new_position)
+        existing_roles = extract_base_roles(existing_position)
+        new_roles = extract_base_roles(new_position)
+        combined = (existing_roles + new_roles).uniq
+
+        # Chairman is standalone - doesn't combine with other roles
+        return "chairman" if combined == [ "chairman" ]
+        return nil if combined.include?("chairman") && combined.size > 1
+
+        # Rebuild in canonical order (matches CorporateDirector::POSITIONS naming)
+        merged = %w[director secretary public_officer corporate_officer]
+          .select { |r| combined.include?(r) }.join("_")
+
+        CorporateDirector::POSITIONS.include?(merged) ? merged : nil
+      end
+
+      # Extract individual base roles from a compound position string.
+      # e.g. "director_secretary_public_officer" → ["director", "secretary", "public_officer"]
+      def extract_base_roles(position)
+        return [] if position.blank?
+        return [ "chairman" ] if position == "chairman"
+
+        roles = []
+        roles << "director" if position.include?("director")
+        roles << "secretary" if position.include?("secretary")
+        roles << "public_officer" if position.include?("public_officer")
+        roles << "corporate_officer" if position.include?("corporate_officer")
+        roles
+      end
 
       def set_company
         @company = Corporate.find_by_slug_or_id(params[:id])

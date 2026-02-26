@@ -85,11 +85,13 @@ export function useUndoSend() {
     try {
       // SSoT: Start with pre-uploaded attachments (files already in S3 with filenames)
       // Ultra fix (Jan 2026): Documents from task attachments already have storage_key and filename
-      const attachmentData: { key: string; filename: string; content_type?: string }[] =
+      // FRC (Feb 2026): Support document_id for SharePoint-only files without S3 storage key
+      const attachmentData: { key: string; filename: string; content_type?: string; document_id?: number }[] =
         email.preUploadedAttachments.map(att => ({
           key: att.storageKey,
           filename: att.filename,
           content_type: att.contentType,
+          document_id: att.documentId,
         }));
 
       if (email.preUploadedAttachments.length > 0) {

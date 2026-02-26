@@ -249,14 +249,14 @@ module Api
         if @template.bank_code.present? && @template.bank_code != "default"
           account = BankAccount.joins(:corporate)
                                .where(bank_code: @template.bank_code)
-                               .where.not(corporate_companies: { registered_office_address: [ nil, "" ] })
+                               .where.not(corporates: { registered_office_address: [ nil, "" ] })
                                .first
           return account if account
         end
 
         # Fall back to any account with good address data
         BankAccount.joins(:corporate)
-                   .where.not(corporate_companies: { registered_office_address: [ nil, "" ] })
+                   .where.not(corporates: { registered_office_address: [ nil, "" ] })
                    .where.not(bsb: [ nil, "" ])
                    .where.not(account_number: [ nil, "" ])
                    .first

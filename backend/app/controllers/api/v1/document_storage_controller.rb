@@ -31,13 +31,15 @@ module Api
 
       # Handle decryption errors gracefully - this happens when credentials were encrypted
       # with different encryption keys (e.g., production vs development environments)
+      # FRC (Feb 2026): Use 503 not 401 - decryption failure is a service/config issue,
+      # not an auth issue. 401 triggers frontend logout via handleErrorResponse.
       rescue_from ActiveRecord::Encryption::Errors::Decryption do |e|
         Rails.logger.warn "[SharePoint] Decryption error: #{e.message}"
         render json: {
           connected: false,
           error: "SharePoint credentials could not be decrypted. Please reconnect SharePoint in Admin > System > Connections.",
           decryption_error: true
-        }, status: :unauthorized
+        }, status: :service_unavailable
       end
 
       # GET /api/v1/documents/status
@@ -1188,9 +1190,12 @@ module Api
         rescue DocumentProviders::NotFoundError => e
           render_error("File not found: #{e.message}", status: :not_found)
         rescue DocumentProviders::NotConnectedError => e
-          render_error("Storage not connected: #{e.message}", status: :unauthorized)
+          # FRC (Feb 2026): Use 503 not 401 - "storage not connected" is a service issue,
+          # not an auth issue. 401 triggers frontend logout via handleErrorResponse.
+          render_error("Storage not connected: #{e.message}", status: :service_unavailable)
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
-          render_error("Authentication failed: #{e.message}", status: :unauthorized)
+          # FRC (Feb 2026): Use 503 not 401 - storage credential failure is a service issue
+          render_error("Storage authentication failed: #{e.message}", status: :service_unavailable)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
           render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
@@ -1240,9 +1245,12 @@ module Api
         rescue DocumentProviders::NotFoundError => e
           render_error("File not found: #{e.message}", status: :not_found)
         rescue DocumentProviders::NotConnectedError => e
-          render_error("Storage not connected: #{e.message}", status: :unauthorized)
+          # FRC (Feb 2026): Use 503 not 401 - "storage not connected" is a service issue,
+          # not an auth issue. 401 triggers frontend logout via handleErrorResponse.
+          render_error("Storage not connected: #{e.message}", status: :service_unavailable)
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
-          render_error("Authentication failed: #{e.message}", status: :unauthorized)
+          # FRC (Feb 2026): Use 503 not 401 - storage credential failure is a service issue
+          render_error("Storage authentication failed: #{e.message}", status: :service_unavailable)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
           render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
@@ -2171,7 +2179,8 @@ module Api
         end
 
         blob = document.storage_blob
-        unless blob&.storage_path.present?
+        # FRC (Feb 2026): Allow SharePoint-only docs (no blob) if they have sharepoint_item_id
+        unless blob&.storage_path.present? || document.meta("sharepoint_item_id").present?
           return render_error("Document has no storage reference", status: :unprocessable_entity)
         end
 

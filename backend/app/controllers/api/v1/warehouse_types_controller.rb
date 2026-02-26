@@ -8,6 +8,8 @@ module Api
     # Replaces the hardcoded WAREHOUSE_TYPES constant with database table
     #
     class WarehouseTypesController < ApplicationController
+      include WarehouseFolderPathLookup
+
       before_action :set_warehouse_type, only: [:show, :update, :destroy, :update_warehouse_folders]
       before_action :set_warehouse_type_by_code, only: [:records]
 
@@ -159,7 +161,7 @@ module Api
         folder_id_counts.each do |wf_id, count|
           wf = WarehouseFolder.find_by(id: wf_id)
           next unless wf
-          name_path = build_folder_name_path(wf)
+          name_path = lookup_folder_name_path(wf)
           folder_counts[name_path] = (folder_counts[name_path] || 0) + count
         end
 
@@ -252,12 +254,30 @@ module Api
           }
         end
 
+        # SM Task info: if this folder has a linked Schedule Master task for this entity
+        sm_task_info = nil
+        if linkable_type == "Job" && linkable_id.present?
+          sm_task = SmTask.find_by(warehouse_folder_id: folder_id, job_id: linkable_id)
+          if sm_task
+            sm_task_info = {
+              taskId: sm_task.id,
+              taskName: sm_task.name,
+              startDate: sm_task.start_date&.iso8601,
+              endDate: sm_task.end_date&.iso8601,
+              startedAt: sm_task.started_at&.iso8601,
+              completedAt: sm_task.completed_at&.iso8601,
+              status: sm_task.status
+            }
+          end
+        end
+
         render json: {
           success: true,
           data: {
             folders: folders,
             files: files,
-            count: { folders: folders.size, files: files.size, total: folders.size + files.size }
+            count: { folders: folders.size, files: files.size, total: folders.size + files.size },
+            smTaskInfo: sm_task_info
           }
         }
       end
@@ -644,7 +664,24 @@ module Api
         parts.join("/")
       end
 
+      # ⚠️ DO NOT SIMPLIFY - N+1 prevention (Feb 2026)
+      # ════════════════════════════════════════════════════════
+      # Why: Scoped queries (.enabled, .ordered, .includes) bypass eager-loaded
+      # associations and trigger new DB queries. With 42 types × 547 folders ×
+      # 764 doc types, this caused ~1,200 queries, 30s+ response, and OOM crashes.
+      # ❌ WRONG: warehouse_type.warehouse_folders.enabled.ordered (new query per type)
+      # ❌ WRONG: wf.document_types.includes(...) (new query per folder)
+      # ❌ WRONG: wf.children.count (COUNT query per folder)
+      # ✅ CORRECT: Filter/sort eager-loaded collections in Ruby
+      # ════════════════════════════════════════════════════════
       def serialize_warehouse_type(warehouse_type)
+        # Use eager-loaded association, filter/sort in Ruby to avoid N+1
+        all_folders = warehouse_type.warehouse_folders
+        enabled_folders = all_folders.select(&:enabled).sort_by { |f| [f.order_position || 999, f.name || ""] }
+
+        # Pre-compute children counts from the eager-loaded collection
+        children_counts = all_folders.group_by(&:parent_id).transform_values(&:size)
+
         {
           id: warehouse_type.id,
           code: warehouse_type.code,
@@ -655,57 +692,44 @@ module Api
           is_system: warehouse_type.is_system,
           enabled: warehouse_type.enabled,
           order_position: warehouse_type.order_position,
-          warehouse_folders_count: warehouse_type.warehouse_folders.count,
-          warehouse_folders: warehouse_type.warehouse_folders.enabled.ordered.map do |wf|
-            # SSoT (Feb 2026): Return full_path_template for tree building
-            # FRC: Build full path by combining:
-            # 1. Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
-            # 2. Ancestor path from parent hierarchy (e.g., "Xero/Balance Sheet/Statement")
-            #
-            # Example: Corporate type has "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
-            #          Statement has parent Balance Sheet, which has parent Xero
-            #          Full path = "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Balance Sheet/Statement"
+          warehouse_folders_count: all_folders.size,
+          warehouse_folders: enabled_folders.map do |wf|
             wt_template = warehouse_type.folder_path_template.presence || warehouse_type.display_name
 
-            # Build path from parent hierarchy
-            ancestor_path = build_ancestor_path(wf)
+            ancestor_path = lookup_ancestor_path(wf)
 
             full_template = if wt_template.blank?
-              # No warehouse type template → just use ancestor path
               ancestor_path
             else
-              # FRC (Feb 2026): Compare first FOLDER exactly, not string prefix
-              # "Assets".start_with?("Asset") was returning true incorrectly
               scope_root = wt_template.split('/').first
               first_folder = ancestor_path.split('/').first
               if first_folder == scope_root
-                # Already a full path → use as-is
                 ancestor_path
               else
-                # Combine warehouse type template + ancestor path
                 "#{wt_template}/#{ancestor_path}"
               end
             end
 
-            # SSoT (Feb 2026): WarehouseFolder now contains all UI config directly
-            # Document types linked via warehouse_folder_document_types join table
-            document_types = wf.document_types.includes(:warehouse_folder_document_types)
+            # Use already eager-loaded document_types - do NOT call .includes() again
+            doc_types = wf.document_types
+
+            # FRC (Feb 2026): Use lookup_* methods to avoid N+1 parent chain walks
+            computed_full_folder_path = lookup_full_folder_path(wf, warehouse_type)
 
             {
               id: wf.id,
               name: wf.name,
               parent_id: wf.parent_id,
               parent_name: wf.parent&.name,
-              children_count: wf.children.count,
+              children_count: children_counts[wf.id] || 0,
               folder_segment: wf.folder_segment,
               folder_path_suffix: wf.folder_path_suffix,
               full_path_template: full_template,
-              full_folder_path: wf.full_folder_path,
-              scope_base_template: wt_template,  # SSoT: Warehouse type's base template for folder editor grey prefix
-              path_preview: wf.path_preview,
+              full_folder_path: computed_full_folder_path,
+              scope_base_template: wt_template,
+              path_preview: lookup_path_preview(wf, warehouse_type),
               is_system: wf.is_system,
               warehouse_type_code: warehouse_type.code,
-              # SSoT (Feb 2026): UI config now directly on WarehouseFolder
               display_name: wf.display_name,
               icon_name: wf.icon_name,
               ui_name_template: wf.ui_name_template,
@@ -719,33 +743,35 @@ module Api
               is_cad_category: wf.is_cad_category,
               is_mailbox: wf.is_mailbox,
               dynamic_type: wf.dynamic_type,
-              # Document types via join table - SSoT: NO FALLBACKS (Feb 2026)
-              document_types: document_types.map { |dt|
+              # Use eager-loaded warehouse_folder_document_types from the association
+              document_types: doc_types.map { |dt|
                 wfdt = dt.warehouse_folder_document_types.find { |j| j.warehouse_folder_id == wf.id }
                 {
                   id: dt.id,
                   name: dt.name,
                   abbreviation: dt.abbreviation,
                   is_primary: wfdt&.is_primary || false,
-                  # SSoT: Templates from join table ONLY - no fallback to DocumentType
                   ui_name_template: wfdt&.ui_name_template,
                   download_name_template: wfdt&.download_name_template
                 }
               }
             }
           end,
-          can_delete: warehouse_type.can_delete?,
+          # Inline can_delete? to avoid N+1 (.exists? bypasses eager loading)
+          can_delete: !warehouse_type.is_system && all_folders.empty?,
           created_at: warehouse_type.created_at,
           updated_at: warehouse_type.updated_at
         }
       end
 
       def warehouse_type_summary
+        # Use already-loaded @warehouse_types to avoid 4 extra COUNT queries
+        all_types = @warehouse_types.to_a
         {
-          total: WarehouseType.count,
-          enabled: WarehouseType.enabled.count,
-          system: WarehouseType.system_types.count,
-          custom: WarehouseType.custom_types.count
+          total: all_types.size,
+          enabled: all_types.count(&:enabled),
+          system: all_types.count(&:is_system),
+          custom: all_types.count { |t| !t.is_system }
         }
       end
 
@@ -829,11 +855,19 @@ module Api
       end
 
       # Build a tree node for a warehouse type
+      # ⚠️ DO NOT SIMPLIFY - N+1 prevention (Feb 2026)
+      # ════════════════════════════════════════════════════════════════════
+      # Why: .enabled.ordered.where(parent_id: nil) creates a NEW scoped query per
+      # warehouse type, bypassing the eager-loaded collection from tree action's .includes().
+      # ❌ WRONG: warehouse_type.warehouse_folders.enabled.ordered.where(parent_id: nil)
+      # ✅ CORRECT: Filter the eager-loaded collection in Ruby
+      # ════════════════════════════════════════════════════════════════════
       def warehouse_type_tree_node(warehouse_type, counts)
-        # Get only root-level folders (parent_id: nil) - children are nested via children association
-        # FRC (Feb 2026): Without this filter, .includes() eager-loads ALL folders into memory,
-        # so warehouse_type.warehouse_folders returns root AND children at the same level
-        warehouse_folders = warehouse_type.warehouse_folders.enabled.ordered.where(parent_id: nil)
+        # Filter eager-loaded collection in Ruby to avoid N+1 (one query per type)
+        all_folders = warehouse_type.warehouse_folders
+        root_folders = all_folders
+          .select { |wf| wf.parent_id.nil? && wf.enabled }
+          .sort_by { |wf| [wf.order_position || 999, wf.name || ""] }
 
         # Get count for this warehouse type
         file_count = counts[warehouse_type.code] || 0
@@ -847,16 +881,18 @@ module Api
           folderPathTemplate: warehouse_type.folder_path_template.presence || warehouse_type.display_name,
           pathPreview: resolve_template_tokens(warehouse_type.folder_path_template.presence || warehouse_type.display_name),
           fileCount: file_count,
-          warehouseFolders: warehouse_folders.map { |wf| warehouse_folder_tree_node(wf, warehouse_type) }
+          warehouseFolders: root_folders.map { |wf| warehouse_folder_tree_node(wf, warehouse_type, all_folders) }
         }
       end
 
       # Build a tree node for a warehouse folder
       # SSoT (Feb 2026): WarehouseFolder is THE ONE
-      def warehouse_folder_tree_node(warehouse_folder, warehouse_type)
-        # Build full path template
+      # ⚠️ DO NOT SIMPLIFY - N+1 prevention (Feb 2026)
+      # Uses all_folders array for Ruby filtering + lookup_* for path computation
+      def warehouse_folder_tree_node(warehouse_folder, warehouse_type, all_folders = nil)
+        # Build full path template using pre-loaded lookup (no parent chain DB walks)
         wt_template = warehouse_type.folder_path_template.presence || warehouse_type.display_name
-        ancestor_path = build_ancestor_path(warehouse_folder)
+        ancestor_path = lookup_ancestor_path(warehouse_folder)
 
         full_template = if wt_template.blank?
           ancestor_path
@@ -870,24 +906,32 @@ module Api
           end
         end
 
-        # SSoT: Children come directly from WarehouseFolder (has parent/children self-ref)
-        children = warehouse_folder.children
-          .where(warehouse_enabled: true)
-          .enabled
-          .ordered
-          .map { |child| warehouse_folder_tree_node(child, warehouse_type) }
+        # SSoT: Children come from WarehouseFolder (has parent/children self-ref)
+        # Filter eager-loaded collection in Ruby to avoid N+1 scoped queries
+        children_nodes = if all_folders
+          all_folders
+            .select { |f| f.parent_id == warehouse_folder.id && f.warehouse_enabled && f.enabled }
+            .sort_by { |f| [f.order_position || 999, f.name || ""] }
+            .map { |child| warehouse_folder_tree_node(child, warehouse_type, all_folders) }
+        else
+          # Fallback: filter eager-loaded .children (used when all_folders not available)
+          warehouse_folder.children
+            .select { |child| child.warehouse_enabled && child.enabled }
+            .sort_by { |child| [child.order_position || 999, child.name || ""] }
+            .map { |child| warehouse_folder_tree_node(child, warehouse_type) }
+        end
 
         {
           id: "wf-#{warehouse_folder.id}",
           name: warehouse_folder.name,
           parentId: warehouse_folder.parent_id,
           folderPathTemplate: full_template,
-          fullFolderPath: warehouse_folder.full_folder_path,
+          fullFolderPath: lookup_full_folder_path(warehouse_folder, warehouse_type),
           folderSegment: warehouse_folder.folder_segment,
           folderPathSuffix: warehouse_folder.folder_path_suffix,
-          pathPreview: warehouse_folder.path_preview,
+          pathPreview: lookup_path_preview(warehouse_folder, warehouse_type),
           isSystem: warehouse_folder.is_system,
-          children: children,
+          children: children_nodes,
           # SSoT (Feb 2026): UI config now directly on WarehouseFolder
           displayName: warehouse_folder.display_name,
           iconName: warehouse_folder.icon_name || "folder",

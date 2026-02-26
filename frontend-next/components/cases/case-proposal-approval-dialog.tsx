@@ -971,7 +971,7 @@ export function CaseProposalApprovalDialog({
                           placeholder="Search jobs by name or address..."
                         />
                         {searchingJobs && (
-                          <Spinner size={16} className="absolute right-2 top-1/2 -translate-y-1/2" />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2"><Spinner size={16} /></span>
                         )}
                       </div>
                     </div>
@@ -1054,7 +1054,7 @@ export function CaseProposalApprovalDialog({
                           placeholder="Search companies, trusts by name or ABN..."
                         />
                         {searchingCompanies && (
-                          <Spinner size={16} className="absolute right-2 top-1/2 -translate-y-1/2" />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2"><Spinner size={16} /></span>
                         )}
                       </div>
                     </div>

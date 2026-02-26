@@ -290,7 +290,7 @@ export function PdfFieldsTab() {
   // Load jobs
   const loadJobs = React.useCallback(async () => {
     try {
-      const response = await api.get<{ jobs: Job[] }>("/api/v1/jobs?per_page=100");
+      const response = await api.get<{ jobs: Job[] }>("/api/v1/jobs?per_page=1000");
       if (response.jobs) {
         setJobs(response.jobs);
         if (response.jobs.length > 0) {

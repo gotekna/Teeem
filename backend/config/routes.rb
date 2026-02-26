@@ -221,7 +221,7 @@ Rails.application.routes.draw do
       end
 
       # Units of Measure (lookup table for pricebook, recipes, etc.)
-      resources :units_of_measure, only: [ :index ]
+      resources :units_of_measure, only: [ :index, :create, :update, :destroy ]
 
       # Claim Invoice Templates - visual styles for claim invoices
       resources :claim_invoice_templates, only: [ :index, :show, :update ] do
@@ -350,6 +350,7 @@ Rails.application.routes.draw do
       get "heroku/storage_billing", to: "heroku#storage_billing"
       patch "heroku/scale", to: "heroku#scale"
       post "heroku/share_dev_database", to: "heroku#share_dev_database"
+      post "heroku/restart", to: "heroku#restart"
 
       # System & Performance Monitoring
       get "system/health", to: "system#health"
@@ -518,19 +519,25 @@ Rails.application.routes.draw do
       # Benefits: Instant template changes, always accurate, single GROUP BY query
       # Params: scope (email, corporate, job, contact, people, task), path (drill down)
       get "documents/live_folder_tree", to: "documents#live_folder_tree"
+      post "documents/reorder", to: "documents#reorder"
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do
         member do
           get :download  # Human-readable download URL (redirects to S3)
           get :preview   # Universal document preview (Excel/Word/PDF)
+          get :versions  # List all versions of a versioned document
           patch :move    # Move file to different folder (File Warehouse action)
           patch :link_to_task  # Re-link orphaned document to a task
+          patch :set_expiry  # Set or clear expiry date
+          post :verify   # Mark document as verified/validated
+          post :share_link  # Generate shareable link (presigned URL)
         end
         collection do
           post :analyze
           post :preview_upload  # Preview uploaded file
           post :rename          # Rename file in S3 storage
+          post :bulk_zip        # POST /api/v1/documents/bulk_zip - ZIP multiple docs and return presigned URL
         end
       end
 
@@ -729,6 +736,14 @@ Rails.application.routes.draw do
         # Job claims (nested under jobs)
         resources :job_claims, only: [ :index, :create ]
 
+        # Tender documents (nested under jobs for listing + creation)
+        resources :tender_documents, only: [ :index, :create ] do
+          collection do
+            get :latest_builder_state
+            post :save_builder_state
+          end
+        end
+
         # Job claim stages (progress claims tracking)
         resources :claim_stages, controller: "job_claim_stages", only: [ :index, :show, :create, :update, :destroy ] do
           collection do
@@ -746,6 +761,18 @@ Rails.application.routes.draw do
             post :generate_pdf
             post :release_retainage
           end
+        end
+      end
+
+      # Tender documents (non-nested routes for show, update, destroy + actions)
+      resources :tender_documents, only: [ :show, :update, :destroy ] do
+        member do
+          post :generate_pdf
+          post :send_to_client
+          post :request_revision
+          post :accept
+          post :decline
+          get "diff/:other_id", action: :diff, as: :diff
         end
       end
 
@@ -841,6 +868,7 @@ Rails.application.routes.draw do
         member do
           post :send_for_signing, path: "send"
           post :cancel
+          put :update_fields, path: "fields"
           get :audit_trail
           get :certificate
           get :download_document, path: "document"
@@ -850,6 +878,7 @@ Rails.application.routes.draw do
             post :add_signer, path: "", action: :add_signer
           end
           member do
+            post :resend_notification, path: "resend", action: :resend_notification
             delete :remove_signer, path: "", action: :remove_signer
           end
         end
@@ -867,15 +896,130 @@ Rails.application.routes.draw do
         post ":token/fields/:field_id/complete", to: "signing_ceremony#complete_field"
       end
 
+      # Public signed document download (stateless signed token, no auth)
+      # Token passed as query param (?token=xxx) because MessageVerifier tokens contain base64 chars (+/=)
+      get "esign_download", to: "signing_ceremony#download_signed_document"
+
       # PO Template Packs - template collections for stamping POs onto jobs
       resources :po_template_packs do
         collection do
+          get :preview_from_job
           post :create_from_job
         end
         member do
           post :apply
           get :preview
           post :duplicate
+        end
+      end
+
+      # Quote Templates - reusable templates for RFQ workflows
+      resources :quote_templates do
+        collection do
+          get :po_packs
+        end
+        member do
+          post :duplicate
+          post :populate_from_pack
+        end
+      end
+
+      # Job Quote operations - apply templates, send RFQs, record responses, accept
+      resources :jobs, only: [] do
+        member do
+          get :quote_summary, controller: 'job_quote'
+          post :apply_quote_template, controller: 'job_quote'
+          get :rfq_documents, controller: 'job_quote'
+        end
+      end
+      resources :quote_trackers, only: [] do
+        member do
+          patch :update_tracker, controller: 'job_quote'
+          post :send_rfq, controller: 'job_quote'
+          post :record_response, controller: 'job_quote'
+          post :accept, controller: 'job_quote'
+        end
+        collection do
+          post :bulk_send_rfq, controller: 'job_quote'
+        end
+      end
+
+      # Quote Returns - unified view of all supplier quote responses
+      resources :jobs, only: [] do
+        member do
+          get :quote_returns, controller: 'quote_returns', action: 'index'
+        end
+      end
+      resources :quote_returns, only: [], controller: 'quote_returns' do
+        member do
+          get :confirm_details
+          post :accept
+          post :reject
+          post :extract
+        end
+      end
+
+      # RFQ email helpers (not job-scoped)
+      get :rfq_email_templates, controller: 'job_quote', action: 'email_templates'
+      get :rfq_email_accounts, controller: 'job_quote', action: 'email_accounts'
+      post :rfq_email_preview, controller: 'job_quote', action: 'email_preview'
+
+      # Custom Quote Templates - reusable templates for CC-level quoting
+      resources :custom_quote_templates, only: [:index, :create], controller: 'custom_quotes' do
+        collection do
+          get '/', action: 'index_templates'
+          post '/', action: 'create_template'
+        end
+      end
+      resources :custom_quote_templates, only: [], controller: 'custom_quotes' do
+        member do
+          get '/', action: 'show_template'
+          patch '/', action: 'update_template'
+          delete '/', action: 'destroy_template'
+          post :duplicate, action: 'duplicate_template'
+        end
+      end
+
+      # Custom Quotes - job-level custom quoting (CC → PO tree)
+      resources :jobs, only: [] do
+        resources :custom_quotes, only: [:index, :create], controller: 'custom_quotes'
+      end
+      resources :custom_quotes, only: [:show, :update, :destroy], controller: 'custom_quotes' do
+        collection do
+          get :document_types
+        end
+        member do
+          post :save_as_template
+          post :overwrite_template
+        end
+      end
+
+      # Custom Quote Lines
+      resources :custom_quote_lines, only: [], controller: 'custom_quotes' do
+        member do
+          patch '/', action: 'update_line'
+          post :add_supplier
+          post :add_child, action: 'add_child_line'
+        end
+      end
+
+      # Custom Quote Suppliers
+      resources :custom_quote_suppliers, only: [], controller: 'custom_quotes' do
+        member do
+          post :send_rfq, action: 'send_rfq_single'
+          post :mark_sent
+          post :record_response
+          post :accept, action: 'accept_quote'
+          post :reject, action: 'reject_quote'
+          get :allocations, action: 'supplier_allocations'
+          post :allocations, action: 'create_allocation'
+          post :presign_upload
+          post :confirm_upload
+          post :extract_quote_data
+          get :document_preview_url
+        end
+        collection do
+          post :bulk_send_rfq
         end
       end
 
@@ -899,6 +1043,9 @@ Rails.application.routes.draw do
           post :match_xero_bills
           get :template_variants
           get :template_preview
+          get :template_export
+          get :for_job
+          get :supplier_coverage_gaps
         end
         member do
           post :approve
@@ -941,12 +1088,29 @@ Rails.application.routes.draw do
         end
       end
 
+      # Price Book Brands (lookup table for pricebook items)
+      resources :pricebook_brands do
+        collection do
+          post :reorder
+          get :dropdown
+        end
+      end
+
+      # Price Book Ranges (lookup table for pricebook items)
+      resources :pricebook_ranges do
+        collection do
+          post :reorder
+          get :dropdown
+        end
+      end
+
       # Price Book management
       resources :pricebook, controller: "pricebook_items", path: "pricebook", constraints: { id: /[^\/]+/ } do
         member do
           get :history
           post :fetch_image
           post :update_image
+          post :upload_image
           post :add_price
           post :set_default_supplier
           delete "price_histories/:history_id", to: "pricebook_items#delete_price_history"
@@ -962,6 +1126,11 @@ Rails.application.routes.draw do
           get :export_price_history
           post :import_price_history
           get :all_price_histories
+          post :refresh_from_defaults
+          post :compare_all_prices
+          post :apply_selected_prices
+          post :bulk_set_default_supplier
+          post :bulk_delete_price_histories
         end
       end
 
@@ -1045,6 +1214,7 @@ Rails.application.routes.draw do
           get :prices
           post :copy_history
           delete :categories, action: :remove_categories, as: :remove_categories
+          delete :remove_items
           post :bulk_update
           post :set_default
           delete :column, action: :delete_column
@@ -1619,6 +1789,38 @@ Rails.application.routes.draw do
           post :test
         end
       end
+
+      # Tutorial (TEEEM Academy - onboarding walkthroughs)
+      get "tutorial/progress", to: "tutorial#progress"
+      put "tutorial/progress", to: "tutorial#update_progress"
+      post "tutorial/reset", to: "tutorial#reset"
+
+      # AI Assistant (smart construction manager assistant)
+      post "assistant/chat", to: "assistant#chat"
+      get "assistant/conversations", to: "assistant#conversations"
+      get "assistant/conversations/:id/history", to: "assistant#history"
+      post "assistant/conversations/new", to: "assistant#new_conversation"
+      get "assistant/actions", to: "assistant#actions"
+      post "assistant/actions/:id/approve", to: "assistant#approve_action"
+      post "assistant/actions/:id/reject", to: "assistant#reject_action"
+      get "assistant/alerts", to: "assistant#alerts"
+      post "assistant/alerts/:id/dismiss", to: "assistant#dismiss_alert"
+      get "assistant/preferences", to: "assistant#preferences"
+      put "assistant/preferences", to: "assistant#update_preferences"
+      get "assistant/cross_channel/:contact_id", to: "assistant#cross_channel_context"
+      get "assistant/briefing", to: "assistant#briefing"
+      get "assistant/status", to: "assistant#status"
+      put "assistant/setup", to: "assistant#setup"
+
+      # AI Assistant webhooks (Phase 2-4: WhatsApp, SMS, Slack, Signal)
+      # These skip auth - validated by provider signatures
+      post "assistant/whatsapp/webhook", to: "assistant/whatsapp#webhook"
+      post "assistant/whatsapp/status", to: "assistant/whatsapp#status_webhook"
+      post "assistant/sms/webhook", to: "assistant/sms#webhook"
+      post "assistant/sms/status", to: "assistant/sms#status_webhook"
+      post "assistant/slack/events", to: "assistant/slack#events"
+      post "assistant/slack/command", to: "assistant/slack#command"
+      post "assistant/slack/interactions", to: "assistant/slack#interactions"
 
       # Writing Assistant (AI-powered spell check, grammar, tone)
       post "writing_assistant/check", to: "writing_assistant#check"
@@ -2216,6 +2418,25 @@ Rails.application.routes.draw do
         end
       end
 
+      resources :tender_headers, only: []
+      resources :tender_document_templates, only: [ :index, :create, :update, :destroy ] do
+        collection do
+          get :default
+        end
+      end
+      resources :tenders, only: [] do
+        collection do
+          get :po_tasks
+          get :tree
+          get :headers
+          get :job_documents
+        end
+        member do
+          post :assign_po_tasks
+          post :update_document_types
+        end
+      end
+
       resources :profit_centres, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :create_variation
@@ -2623,6 +2844,7 @@ Rails.application.routes.draw do
           get :contact_sync_sessions
           post :trigger_sync_all
           get :common_contacts
+          get :name_mismatches
           get :unlinked_contacts
           get :xero_duplicates
           get :stale_xero_links
@@ -2905,6 +3127,7 @@ Rails.application.routes.draw do
           post :fix_health  # POST /api/v1/foundations/:id/fix_health - Auto-fix health issues
           get :schema  # GET /api/v1/foundations/:id/schema - Column schema for this table
           get :groups  # GET /api/v1/foundations/:id/groups - Server-side group counts by column
+          patch :update_edit_modal_config  # PATCH /api/v1/foundations/:id/update_edit_modal_config - Save edit modal field config
         end
 
         # Column management
@@ -2932,6 +3155,7 @@ Rails.application.routes.draw do
           collection do
             post :bulk_delete
             post :bulk_update
+            post :batch_update
             post :bulk_create
             get :export
           end
@@ -3021,6 +3245,7 @@ Rails.application.routes.draw do
           get :data_stats   # Data warehouse statistics for this company
           get :warehouse_health   # Data warehouse health checks for this company
           get :health   # Single company health score (fast - loads only this company)
+          post :reveal_sensitive  # Returns TFN/ASIC credentials after password verification
         end
 
         # Bank Accounts (nested under companies)
@@ -3274,6 +3499,7 @@ Rails.application.routes.draw do
       resources :document_types do
         collection do
           get :tabs
+          get :tree     # WarehouseFolder hierarchy with document types (for tree picker)
           get :dwelling_types
           get :suggest  # Smart filename-to-type matching with confidence scores
         end
@@ -3315,6 +3541,7 @@ Rails.application.routes.draw do
           get :used_icons  # SSoT: Get icons used by root tabs (for icon picker)
           get :global_icon_usage  # SSoT: Get ALL icon usages across system for consistency
           get :tree  # SSoT: Full folder tree for File Warehouse page
+          get :all_scopes  # FRC (Feb 2026): Batch endpoint replacing 15 parallel scope requests
         end
         member do
           post :toggle
@@ -4550,9 +4777,11 @@ Rails.application.routes.draw do
             get :dashboard
             patch :environment, action: :update_environment
             delete :switch, action: :clear_switch
+            delete :default, action: :clear_default
           end
           member do
             post :switch
+            post :set_default
             post :extend_trial
             post :convert_to_paid
           end

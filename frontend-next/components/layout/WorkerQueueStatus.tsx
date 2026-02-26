@@ -16,6 +16,7 @@ import {
   Mail,
   FileText,
   CircleAlert,
+  RotateCcw,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
@@ -92,6 +93,7 @@ interface QueueStatusData {
     type: "worker" | "web";
     running: boolean | null;
     dynoSize: string | null;
+    bootedAt?: string | null;
     threads?: { total: number; used: number };
     queues?: string[];
     memory: { usedMb: number | null; maxMb: number; live: boolean } | null;
@@ -354,6 +356,7 @@ export function WorkerQueueStatus() {
   const [status, setStatus] = useState<QueueStatusLevel>("unknown");
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [restartingApp, setRestartingApp] = useState<string | null>(null);
 
   const fetchQueueStatus = useCallback(async () => {
     setIsLoading(true);
@@ -382,11 +385,23 @@ export function WorkerQueueStatus() {
     }
   }, [status]);
 
-  // Fetch on mount + poll every 60s for worker health visibility
+  const handleRestartApp = useCallback(async (appName: string, label: string) => {
+    if (!window.confirm(`Restart ${label}?\n\nIn-progress jobs will be re-queued automatically.`)) return;
+    setRestartingApp(appName);
+    try {
+      await api.post("/api/v1/heroku/restart", { app: appName });
+      await fetchQueueStatus();
+    } catch (error) {
+      console.error("Failed to restart app:", error);
+    } finally {
+      setRestartingApp(null);
+    }
+  }, [fetchQueueStatus]);
+
+  // Fetch on mount only (no polling - queue status is complex data, fetch on-demand when popover opens)
+  // FRC (Feb 2026): Removed 60s interval that contributed to R14 memory on Basic web dyno
   useEffect(() => {
     fetchQueueStatus();
-    const interval = setInterval(fetchQueueStatus, 60_000);
-    return () => clearInterval(interval);
   }, [fetchQueueStatus]);
 
   // Re-fetch when popover opens (for fresh detail data)
@@ -727,13 +742,28 @@ export function WorkerQueueStatus() {
                                   />
                                   {app.label}
                                 </span>
-                                <span className="text-[10px] text-muted-foreground">
+                                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                   {app.dynoSize || ""}
                                   {app.running === false && (
                                     <span className="text-red-500 dark:text-red-400 ml-1">off</span>
                                   )}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleRestartApp(app.name, app.label); }}
+                                    disabled={restartingApp === app.name}
+                                    className="p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
+                                    title={`Restart ${app.label}`}
+                                  >
+                                    <RotateCcw className={cn("h-3 w-3", restartingApp === app.name && "animate-spin")} />
+                                  </button>
                                 </span>
                               </div>
+
+                              {/* Boot time (last restart) */}
+                              {app.bootedAt && (
+                                <div className="text-[10px] text-muted-foreground mt-0.5">
+                                  Booted {timeAgo(app.bootedAt)}
+                                </div>
+                              )}
 
                               {/* Threads + Memory bars (compact) */}
                               {(hasThreads || hasMem) && (

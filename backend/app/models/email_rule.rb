@@ -1,5 +1,5 @@
 class EmailRule < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :imap_credential, optional: true
   belongs_to :microsoft_credential, optional: true
 

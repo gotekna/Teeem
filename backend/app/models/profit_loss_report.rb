@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # == Schema Information
 #
 # Table name: profit_loss_reports

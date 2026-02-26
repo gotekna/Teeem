@@ -42,7 +42,8 @@ module Gl
       else
         0
       end
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn("[GL::KpiDefinition] Failed to calculate KPI '#{code}': #{e.message}")
       nil
     end
 

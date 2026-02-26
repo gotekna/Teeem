@@ -373,6 +373,14 @@ module Api
           @contacts = @contacts.order(:display_name)
         end
 
+        # Fast path: slim=true returns only id + display_name (for dropdowns/pickers)
+        # Skips eager loading, as_json, precompute_contact_flags, employee names, etc.
+        if params[:slim] == "true"
+          slim_contacts = @contacts.pluck(:id, :display_name).map { |id, name| { id: id, display_name: name } }
+          render json: { success: true, contacts: slim_contacts }
+          return
+        end
+
         # Optionally include companies and jobs data
         include_companies = params[:include_companies] == "true"
         include_jobs = params[:include_jobs] == "true"
@@ -384,11 +392,12 @@ module Api
         # portal_user and company_groups_via_membership are always included in as_json response
         # FRC (Jan 2026): Fixed from :corporate_group (doesn't exist) to :company_groups_via_membership (has_many through)
         # contact_emails needed for email method (used by email composer autocomplete)
-        @contacts = @contacts.includes(:portal_user, :company_groups_via_membership, :contact_emails)
+        # FRC (Feb 2026): Always include :primary_company - needed by display_name method for team contacts
+        @contacts = @contacts.includes(:portal_user, :company_groups_via_membership, :contact_emails, :primary_company)
 
         # Conditional eager loading for company relationships
         if include_companies
-          @contacts = @contacts.includes(:primary_company, outgoing_relationships: :related_contact)
+          @contacts = @contacts.includes(outgoing_relationships: :related_contact)
         end
 
         # Performance: Pre-compute expensive boolean flags via SQL (avoids N+1)
@@ -429,9 +438,13 @@ module Api
 
         # Performance: Pre-fetch employer names for person contacts (company-aware search display)
         # This allows frontend to show "Troy Smith - Harvey Norman" format
-        employer_names = Contact.where(id: @contacts.where.not(primary_company_id: nil).pluck(:primary_company_id))
-                                .pluck(:id, :display_name)
-                                .to_h
+        # FRC (Feb 2026): Use in-memory filtering on already-loaded contacts instead of re-querying
+        primary_company_ids = contacts_by_id.values.filter_map(&:primary_company_id).uniq
+        employer_names = if primary_company_ids.any?
+          Contact.where(id: primary_company_ids).pluck(:id, :display_name).to_h
+        else
+          {}
+        end
 
         # Merge pre-computed flags and counts into JSON
         contacts_json.each do |contact_json|
@@ -504,13 +517,13 @@ module Api
                 }
               end
 
-              # Get all company relationships with roles
+              # FRC (Feb 2026): Filter preloaded outgoing_relationships in Ruby
+              # Using .active.where(...) on preloaded associations bypasses preloaded data → N+1
+              company_relationship_types = %w[director_of shareholder_of trustee_of employee_of partner_in authorized_signatory_of beneficial_owner_of]
               company_relationships = contact.outgoing_relationships
-                .active
-                .where(relationship_type: [ "director_of", "shareholder_of", "trustee_of", "employee_of", "partner_in", "authorized_signatory_of", "beneficial_owner_of" ])
-                .includes(:related_contact)
+                .select { |rel| rel.is_active && company_relationship_types.include?(rel.relationship_type) }
 
-              contact_json["additional_companies_count"] = company_relationships.count
+              contact_json["additional_companies_count"] = company_relationships.size
 
               # Include company_roles for display (e.g., "Director @ Harvey Norman")
               contact_json["company_roles"] = company_relationships.filter_map do |rel|

@@ -187,13 +187,24 @@ class PlanUpload < ApplicationRecord
   end
 
   # Clean up old staging files (called by scheduled job)
-  def self.cleanup_stale_staging_files!(max_age: 24.hours)
-    stale_uploads = where(status: "failed")
-                      .where("created_at < ?", max_age.ago)
+  #
+  # FRC (Feb 2026): tenant: is required. This method is called from a background job
+  # that has no ActsAsTenant context, so the caller must iterate tenants and pass each
+  # one explicitly. DocumentStorageService requires a tenant - it cannot fall back to
+  # ActsAsTenant.current_tenant in a background job context.
+  #
+  # @param tenant [Tenant] The tenant whose stale staging files should be cleaned up.
+  # @param max_age [ActiveSupport::Duration]
+  def self.cleanup_stale_staging_files!(tenant:, max_age: 24.hours)
+    stale_uploads = joins(job: :tenant)
+                      .where(jobs: { tenant_id: tenant.id })
+                      .where(status: "failed")
+                      .where("plan_uploads.created_at < ?", max_age.ago)
                       .where.not(staging_file_id: nil)
 
-    # SSoT: Use DocumentStorageService for provider-agnostic cleanup
-    storage_service = DocumentStorageService.new
+    # SSoT: Use DocumentStorageService for provider-agnostic cleanup.
+    # Pass tenant explicitly - background jobs have no ActsAsTenant context.
+    storage_service = DocumentStorageService.new(tenant: tenant)
     cleaned = 0
     errors = []
 

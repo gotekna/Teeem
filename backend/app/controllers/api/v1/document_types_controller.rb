@@ -1,6 +1,8 @@
 module Api
   module V1
     class DocumentTypesController < ApplicationController
+      include WarehouseFolderPathLookup
+
       before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields ]
 
       # GET /api/v1/document_types
@@ -21,6 +23,12 @@ module Api
           @document_types = @document_types.by_folder(params[:folder])
         end
 
+        # Filter by abbreviation(s)
+        if params[:abbreviations].present?
+          codes = params[:abbreviations].split(",").map(&:strip)
+          @document_types = @document_types.where(abbreviation: codes)
+        end
+
         # Filter by active status
         @document_types = @document_types.active unless params[:include_inactive] == "true"
 
@@ -28,8 +36,12 @@ module Api
         if params[:grouped] == "true"
           # SSoT: folder is computed from primary WarehouseFolder - group in Ruby after query
           # Include warehouse_folders association for folder computation
-          types = @document_types.active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
-          grouped = types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
+          types = @document_types.active.includes(warehouse_folder_document_types: { warehouse_folder: [:parent, :warehouse_type] }).order(:name)
+          # Derive folder from eager-loaded WFDT to avoid N+1 (document_type.folder triggers find_by per type)
+          grouped = types.group_by { |dt|
+            primary_wfdt = dt.warehouse_folder_document_types.find(&:is_primary) || dt.warehouse_folder_document_types.first
+            primary_wfdt&.warehouse_folder&.display_name || dt.read_attribute(:folder) || "Uncategorized"
+          }.sort_by { |folder, _| folder || "" }.to_h
           render json: {
             success: true,
             data: grouped.transform_values { |doc_types|
@@ -45,6 +57,33 @@ module Api
             available_tabs: all_available_tabs
           }
         end
+      end
+
+      # GET /api/v1/document_types/tree
+      # Returns WarehouseFolder hierarchy with document types for tree picker.
+      # Params:
+      #   scope: "job" | "corporate" | "contact" | "library" (optional, returns all if blank)
+      def tree
+        scope_codes = if params[:scope].present?
+          Array(params[:scope].split(","))
+        else
+          %w[job corporate contact library]
+        end
+
+        all_folders = WarehouseFolder
+          .joins(:warehouse_type)
+          .where(warehouse_types: { code: scope_codes })
+          .where(enabled: true)
+          .includes(:warehouse_type, warehouse_folder_document_types: :document_type)
+          .order(:order_position, :name)
+
+        all_folders_arr = all_folders.to_a
+        roots = all_folders_arr.select { |f| f.parent_id.nil? }
+
+        render json: {
+          success: true,
+          data: roots.sort_by { |f| [f.order_position || 999, f.name || ""] }.map { |f| serialize_folder_tree(f, all_folders_arr) }
+        }
       end
 
       # GET /api/v1/document_types/tabs
@@ -297,6 +336,31 @@ module Api
         @document_type = DocumentType.includes(warehouse_folder_document_types: { warehouse_folder: [:parent, :warehouse_type] }).find(params[:id])
       end
 
+      # Recursively serialize a WarehouseFolder with its children and document types
+      def serialize_folder_tree(folder, all_folders)
+        children = all_folders.select { |f| f.parent_id == folder.id }
+          .sort_by { |f| [f.order_position || 999, f.name || ""] }
+
+        doc_types = folder.warehouse_folder_document_types
+          .select { |wfdt| wfdt.document_type&.active }
+          .sort_by { |wfdt| wfdt.document_type&.name || "" }
+          .map { |wfdt|
+            dt = wfdt.document_type
+            {
+              id: dt.id,
+              name: dt.name
+            }
+          }
+
+        {
+          id: folder.id,
+          name: folder.display_name || folder.name,
+          warehouseTypeCode: folder.warehouse_type&.code,
+          documentTypes: doc_types,
+          children: children.map { |c| serialize_folder_tree(c, all_folders) }
+        }
+      end
+
       def document_type_params
         params.require(:document_type).permit(
           :name,
@@ -327,8 +391,8 @@ module Api
         # Use warehouse_folder_document_types to get is_primary flag and proper ordering
         # Sort by is_primary DESC so primary folder is first, then by order_position
         # SSoT (Feb 2026): Use warehouse_folder_document_types/warehouse_folder
+        # Use eager-loaded association - do NOT call .includes() again (causes N+1)
         folder_joins = document_type.warehouse_folder_document_types
-                                    .includes(:warehouse_folder)
                                     .sort_by { |wfdt| [ wfdt.is_primary ? 0 : 1, wfdt.warehouse_folder&.order_position || 999 ] }
 
         warehouse_folders_data = folder_joins.filter_map do |wfdt|
@@ -339,7 +403,7 @@ module Api
             id: tab.id,
             tab_key: tab.tab_key,
             display_name: tab.display_name,
-            hierarchy_path: [tab.warehouse_type&.display_name, tab.full_ancestor_path].compact.join('/'),
+            hierarchy_path: [tab.warehouse_type&.display_name, lookup_folder_name_path(tab)].compact.join('/'),
             warehouse_type_code: tab.warehouse_type&.code,
             warehouse_type_name: tab.warehouse_type&.display_name,
             parent_id: tab.parent_id,
@@ -351,6 +415,37 @@ module Api
         primary_tab_data = warehouse_folders_data.find { |f| f[:is_primary] } || warehouse_folders_data.first
         primary_wfdt = folder_joins.find { |wfdt| wfdt.is_primary } || folder_joins.first
 
+        # ⚠️ DO NOT SIMPLIFY - N+1 prevention (Feb 2026)
+        # ════════════════════════════════════════════════════════════════════
+        # Why: document_type.folder, .scope, .target_folder each call
+        # primary_warehouse_folder which does find_by (SQL) per doc type.
+        # With ~700 doc types × 5 method calls = ~3500 queries + OOM crash.
+        # ❌ WRONG: document_type.folder (triggers primary_warehouse_folder query)
+        # ✅ CORRECT: Use already-computed primary_tab_data from eager-loaded associations
+        # ════════════════════════════════════════════════════════════════════
+        derived_folder = primary_tab_data&.dig(:display_name) || document_type.read_attribute(:folder)
+        derived_scope = if primary_tab_data
+          case primary_tab_data[:warehouse_type_code]
+          when 'corporate' then 'company'
+          when 'job' then 'job'
+          when 'contact' then 'contacts'
+          when 'library' then 'library'
+          else 'company'
+          end
+        else
+          document_type.read_attribute(:scope)
+        end
+        derived_target_folder = (primary_wfdt&.warehouse_folder ? lookup_display_folder_path(primary_wfdt.warehouse_folder) : nil) || document_type.read_attribute(:target_folder)
+
+        # Inline effective template resolution to avoid WFDT→document_type reverse N+1
+        # Fallback chain: WFDT override → DocumentType → WarehouseFolder
+        effective_ui = primary_wfdt&.ui_name_template.presence ||
+          document_type.ui_name.presence ||
+          primary_wfdt&.warehouse_folder&.ui_name_template
+        effective_dl = primary_wfdt&.download_name_template.presence ||
+          document_type.download_name.presence ||
+          primary_wfdt&.warehouse_folder&.download_name_template
+
         {
           id: document_type.id,
           name: document_type.name,
@@ -358,7 +453,7 @@ module Api
           abbreviation: document_type.abbreviation,
           downloadName: document_type.download_name,
           title_preview: document_type.title_preview,
-          folder: document_type.folder,
+          folder: derived_folder,
           description: document_type.description,
           requires_filing: document_type.requires_filing,
           retention_years: document_type.retention_years,
@@ -389,14 +484,14 @@ module Api
           entity_tabs: warehouse_folders_data,
           # SSoT: Effective templates (from WFDT chain: WFDT override → DocumentType → WarehouseFolder)
           # These may differ from uiName/downloadName when WFDT has folder-specific overrides
-          effectiveUiName: primary_wfdt&.effective_ui_name_template || document_type.ui_name,
-          effectiveDownloadName: primary_wfdt&.effective_download_name_template || document_type.download_name,
+          effectiveUiName: effective_ui || document_type.ui_name,
+          effectiveDownloadName: effective_dl || document_type.download_name,
           hasTemplateOverrides: primary_wfdt&.has_template_overrides? || false,
-          scope: document_type.scope,
+          scope: derived_scope,
           file_extensions: document_type.file_extensions || [],
           aliases: document_type.aliases || [],
           filename_patterns: document_type.filename_patterns || [],
-          target_folder: document_type.target_folder,
+          target_folder: derived_target_folder,
           form_number_mapping: document_type.form_number_mapping || {},
           supports_versioning: document_type.supports_versioning,
           generates_certificate: document_type.generates_certificate || false,
@@ -409,24 +504,37 @@ module Api
       end
 
       def document_type_summary
+        # Use already-loaded @document_types to avoid extra COUNT queries
+        types = @document_types.to_a
+        # Derive folder from eager-loaded WFDT associations to avoid N+1
+        # (document_type.folder calls primary_warehouse_folder which does find_by per type)
+        by_folder = types.group_by { |dt|
+          primary_wfdt = dt.warehouse_folder_document_types.find(&:is_primary) || dt.warehouse_folder_document_types.first
+          primary_wfdt&.warehouse_folder&.display_name || dt.read_attribute(:folder) || "Uncategorized"
+        }.transform_values(&:size)
         {
-          total: DocumentType.count,
-          # SSoT: category column removed (Jan 2026) - use folder for grouping
-          by_folder: DocumentType.group(:folder).count,
-          requiring_filing: DocumentType.requiring_filing.count
+          total: types.size,
+          by_folder: by_folder,
+          requiring_filing: types.count(&:requires_filing)
         }
       end
 
       def all_available_tabs
         # SSoT (Feb 2026): Get all document tabs from WarehouseFolder (THE ONE table)
-        WarehouseFolder.for_warehouse_type('corporate')
+        # Eager load document_types for count + children for nesting
+        tabs = WarehouseFolder.for_warehouse_type('corporate')
                  .where(tab_group: 'documents')
                  .where(warehouse_enabled: true)
                  .enabled
                  .root_folders
                  .ordered
-                 .includes(children: :children)
-                 .map do |tab|
+                 .includes(children: :children, document_types: [])
+
+        # Pre-fetch document type counts in one query to avoid N+1
+        all_folder_ids = tabs.flat_map { |t| [t.id] + t.children.map(&:id) + t.children.flat_map { |c| c.children.map(&:id) } }
+        doc_type_counts = WarehouseFolderDocumentType.where(warehouse_folder_id: all_folder_ids).group(:warehouse_folder_id).count
+
+        tabs.map do |tab|
           {
             id: tab.id,
             name: tab.display_name,
@@ -435,8 +543,8 @@ module Api
             description: tab.description,
             parent_id: tab.parent_id,
             entity_types: tab.entity_filters,
-            document_type_count: tab.document_types.count,
-            children: tab.children.enabled.ordered.map do |child|
+            document_type_count: doc_type_counts[tab.id] || 0,
+            children: tab.children.select(&:enabled).sort_by { |c| [c.order_position || 999, c.name || ""] }.map do |child|
               {
                 id: child.id,
                 name: child.display_name,
@@ -446,8 +554,8 @@ module Api
                 parent_id: child.parent_id,
                 parent_name: tab.display_name,
                 entity_types: child.entity_filters,
-                document_type_count: child.document_types.count,
-                children: child.children.enabled.ordered.map do |grandchild|
+                document_type_count: doc_type_counts[child.id] || 0,
+                children: child.children.select(&:enabled).sort_by { |c| [c.order_position || 999, c.name || ""] }.map do |grandchild|
                   {
                     id: grandchild.id,
                     name: grandchild.display_name,
@@ -457,7 +565,7 @@ module Api
                     parent_id: grandchild.parent_id,
                     parent_name: child.display_name,
                     entity_types: grandchild.entity_filters,
-                    document_type_count: grandchild.document_types.count
+                    document_type_count: doc_type_counts[grandchild.id] || 0
                   }
                 end
               }

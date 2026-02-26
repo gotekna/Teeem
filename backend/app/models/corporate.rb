@@ -41,9 +41,10 @@ class Corporate < ApplicationRecord
   has_many :investments, class_name: "CorporateShareholding", as: :shareholder, dependent: :destroy
 
   has_many :corporate_directors, foreign_key: "company_id", dependent: :destroy
+  has_many :current_corporate_directors, -> { where(is_current: true) },
+           class_name: "CorporateDirector", foreign_key: "company_id"
   has_many :directors, through: :corporate_directors, source: :contact
-  has_many :current_directors, -> { where(corporate_directors: { is_current: true }) },
-           through: :corporate_directors, source: :contact
+  has_many :current_directors, through: :current_corporate_directors, source: :contact
 
   has_many :bank_accounts, foreign_key: "company_id", dependent: :destroy
   has_many :active_bank_accounts, -> { where(status: "active") }, class_name: "BankAccount", foreign_key: "company_id"
@@ -647,7 +648,7 @@ class Corporate < ApplicationRecord
     Thread.current[:syncing_company_to_contact] = true
 
     # Strip spaces from ABN before syncing to Contact (Contact stores without formatting)
-    contact.update!(tax_number: abn&.gsub(/\s/, ""))
+    contact.update!(abn: abn&.gsub(/\s/, ""))  # FRC: column renamed tax_number→abn in migration 20251215220404
   rescue StandardError => e
     Rails.logger.error("Corporate##{id}: Sync ABN to Contact failed - #{e.message}")
   ensure

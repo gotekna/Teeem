@@ -9,6 +9,7 @@
 # Runs weekly on Sundays at 5am (after backups, before work week)
 #
 class SyncTaskAttachmentsJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   def perform

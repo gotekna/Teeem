@@ -11,9 +11,10 @@
  * These determine which entity type a document type applies to
  */
 export const DOCUMENT_TYPE_SCOPES = [
-  { value: "company", label: "Company", description: "Corporate documents" },
+  { value: "company", label: "Corporate", description: "Corporate documents" },
   { value: "job", label: "Job", description: "Construction/job documents" },
   { value: "contacts", label: "Contacts", description: "Contact documents (licenses, insurance, etc.)" },
+  { value: "library", label: "Library", description: "Library documents (standards, guidelines, templates)" },
   { value: "both", label: "Both", description: "Used for both company and job" },
 ] as const;
 

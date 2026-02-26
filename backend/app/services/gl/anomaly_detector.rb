@@ -259,7 +259,8 @@ module Gl
         .where("entry_date >= ?", start_date)
         .includes(:lines, :contact)
         .flat_map(&:lines)
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::AnomalyDetector] Failed to fetch recent transactions: #{e.message}"
       []
     end
 
@@ -269,7 +270,8 @@ module Gl
         .where(entry_date: start_date..end_date)
         .includes(:lines, :contact)
         .flat_map(&:lines)
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::AnomalyDetector] Failed to fetch transactions in range: #{e.message}"
       []
     end
 
@@ -280,7 +282,8 @@ module Gl
         .limit(100)
         .pluck(:debit, :credit)
         .map { |d, c| (d || 0) + (c || 0) }
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::AnomalyDetector] Failed to fetch account amount history: #{e.message}"
       []
     end
 
@@ -290,13 +293,15 @@ module Gl
         .joins(:lines)
         .where(journal_entry_lines: { gl_account_id: account.id })
         .limit(10)
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::AnomalyDetector] Failed to fetch contact account history: #{e.message}"
       []
     end
 
     def contact_transaction_count(contact)
       JournalEntry.where(corporate: @company, contact: contact).count
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::AnomalyDetector] Failed to count contact transactions: #{e.message}"
       0
     end
 
@@ -304,7 +309,8 @@ module Gl
       JournalEntry
         .where(corporate: @company, contact: contact, entry_date: date)
         .count
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::AnomalyDetector] Failed to count same-day transactions: #{e.message}"
       0
     end
 
@@ -320,7 +326,8 @@ module Gl
         .where("ABS(journal_entry_lines.debit + journal_entry_lines.credit - ?) <= ?", amount.abs, tolerance)
         .distinct
         .count
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::AnomalyDetector] Failed to count similar transactions: #{e.message}"
       0
     end
 
@@ -365,7 +372,8 @@ module Gl
 
     def format_currency(amount)
       "$#{amount.round(2).to_s(:delimited)}"
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::AnomalyDetector] Failed to format currency: #{e.message}"
       "$#{amount.round(2)}"
     end
 

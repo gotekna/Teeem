@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "mini_magick"
+
 # Extracts text and word-level bounding boxes from PDFs using Claude Vision
 # Replaced Tesseract OCR (Feb 2026) to eliminate system package dependencies
 #

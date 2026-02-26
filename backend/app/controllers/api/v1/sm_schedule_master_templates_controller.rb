@@ -1099,6 +1099,7 @@ module Api
           stage_name: stages_map[row.stage.to_i] || row.stage,
           assigned_role: role_value,
           cost_centre: cost_centre_value,
+          tender_id: row.tender_id,
           header_gantt: header_value,
           allow_header: row.allow_header,
           require_photo: row.require_photo,

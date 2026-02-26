@@ -5,8 +5,9 @@ module Bpmn
     # DirectorChangeTask - Generate ASIC director change package and store in warehouse
     #
     # Reads form_data from the preceding user task (director selections, dates, positions)
-    # and delegates to DirectorChangeService to generate the 4-document PDF package.
-    # Stores the combined PDF via WarehouseDocumentCreator in the "ASIC Forms" folder.
+    # and delegates to DirectorChangeService to generate the document PDF package.
+    # Stores each document individually in the ASIC warehouse folder, linked to its
+    # correct document type (DM, RD, RS, CAD, CAS, F484, etc.).
     #
     # Process variables set:
     #   director_change_blob_id - StorageBlob ID of the combined PDF
@@ -34,46 +35,47 @@ module Bpmn
           user: resolve_user
         )
 
-        package = service.generate_package
+        # Set initial progress immediately so the frontend sees it on first poll
+        total_docs = service.document_count
+        set_variable("generation_progress", {
+          current: 0,
+          total: total_docs,
+          document_name: "Starting..."
+        })
 
-        # Upload combined PDF to storage
-        blob = StorageBlob.find_or_create_for_content!(
+        # Progress callback persists to DB so the frontend can poll it
+        progress_callback = ->(current, total, doc_name) {
+          set_variable("generation_progress", {
+            current: current,
+            total: total,
+            document_name: doc_name
+          })
+        }
+
+        package = service.generate_package(on_progress: progress_callback)
+
+        # Upload combined PDF for e-signature and process variable reference
+        combined_blob = StorageBlob.find_or_create_for_content!(
           package[:pdf_content],
           filename: package[:filename],
           content_type: "application/pdf"
         )
 
-        # Store in warehouse via configured ASIC Forms folder
-        asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC Forms")
-
-        WarehouseDocumentCreator.create!(
-          filename: package[:filename],
-          source_type: "corporate",
-          linkable: @subject,
-          storage_blob: blob,
-          warehouse_folder_id: asic_folder&.id,
-          metadata: {
-            workflow_instance_id: @instance.id,
-            form_type: "form_484",
-            ceasing_directors: ceasing.map { |cd| cd[:corporate_director].contact.display_name },
-            new_appointments: appointments.map { |a| a[:contact].display_name },
-            generated_at: Time.current.iso8601
-          },
-          user: resolve_user
-        )
+        # Store the combined PDF as a warehouse document
+        create_warehouse_document(combined_blob, package)
 
         # Set process variables for subsequent tasks
-        set_variable("director_change_blob_id", blob.id)
+        set_variable("director_change_blob_id", combined_blob.id)
         set_variable("director_change_form", form_data)
         set_variable("director_change_filename", package[:filename])
 
-        log_info("Director change package generated: #{package[:filename]} (blob: #{blob.id})")
+        log_info("Director change package generated: #{package[:filename]} (blob: #{combined_blob.id})")
 
         {
           success: true,
-          blob_id: blob.id,
+          blob_id: combined_blob.id,
           filename: package[:filename],
-          documents: package[:documents]
+          documents: package[:documents].map { |d| d.slice(:type, :name, :abbreviation, :page) }
         }
       end
 
@@ -125,6 +127,51 @@ module Bpmn
             address: appt["address"]
           }
         end.compact
+      end
+
+      def create_warehouse_document(combined_blob, package)
+        asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
+        current_user = resolve_user
+        base_metadata = {
+          workflow_instance_id: @instance.id,
+          form_type: "form_484",
+          generated_at: Time.current.iso8601
+        }
+
+        # Store each document individually so they appear as separate entries
+        # in the warehouse, each linked to its correct document type via WFDT.
+        package[:documents].each do |doc|
+          next unless doc[:pdf_content].present?
+
+          doc_blob = StorageBlob.find_or_create_for_content!(
+            doc[:pdf_content],
+            filename: "#{doc[:name]}.pdf",
+            content_type: "application/pdf"
+          )
+
+          create_one_warehouse_doc(
+            doc_blob, asic_folder, current_user,
+            doc[:abbreviation], doc[:name],
+            base_metadata.merge(document_type: doc[:type].to_s)
+          )
+        end
+      end
+
+      def create_one_warehouse_doc(blob, asic_folder, current_user, abbreviation, fallback_name, metadata)
+        wfdt = asic_folder && WarehouseFolderDocumentType
+          .joins(:document_type)
+          .find_by(warehouse_folder: asic_folder, document_types: { abbreviation: abbreviation })
+
+        WarehouseDocumentCreator.create!(
+          filename: fallback_name,
+          source_type: "corporate",
+          linkable: @subject,
+          storage_blob: blob,
+          warehouse_folder_id: asic_folder&.id,
+          warehouse_folder_document_type_id: wfdt&.id,
+          metadata: metadata,
+          user: current_user
+        )
       end
 
       def resolve_user

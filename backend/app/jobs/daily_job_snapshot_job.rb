@@ -2,11 +2,15 @@
 # Designed to run once per day (overnight via recurring job)
 # Uses mv_job_summary and mv_job_document_status materialized views for efficiency
 class DailyJobSnapshotJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Capture snapshots for all active jobs (or specific job)
   # @param job_id [Integer, nil] - Optional: capture snapshot for specific job only
   # @param snapshot_date [Date] - Date for the snapshot (default: today)
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: Job has acts_as_tenant. Without tenant context (require_tenant=false),
+  # Job.all returns ALL tenants' jobs, creating mixed snapshots.
   def perform(job_id: nil, snapshot_date: Date.current)
     results = { captured: 0, skipped: 0, errors: [] }
 
@@ -14,22 +18,17 @@ class DailyJobSnapshotJob < ApplicationJob
     RefreshMaterializedViewsJob.new.perform(:job_summary)
     RefreshMaterializedViewsJob.new.perform(:job_document_status)
 
-    # Get jobs to snapshot
-    jobs_scope = job_id.present? ? Job.where(id: job_id) : Job.all
-
-    jobs_scope.find_each do |job|
-      begin
-        # Skip if already captured for this date
-        if FactJobDailySnapshot.exists?(job_id: job.id, snapshot_date: snapshot_date)
-          results[:skipped] += 1
-          next
+    if job_id.present?
+      # Single job - caller provides tenant context
+      snapshot_job(Job.find(job_id), snapshot_date, results)
+    else
+      # All jobs - iterate tenants
+      Tenant.find_each do |tenant|
+        ActsAsTenant.with_tenant(tenant) do
+          Job.find_each do |job|
+            snapshot_job(job, snapshot_date, results)
+          end
         end
-
-        capture_snapshot(job, snapshot_date)
-        results[:captured] += 1
-      rescue StandardError => e
-        results[:errors] << { job_id: job.id, error: e.message }
-        Rails.logger.error("[DailySnapshot] Error capturing job #{job.id}: #{e.message}")
       end
     end
 
@@ -38,6 +37,19 @@ class DailyJobSnapshotJob < ApplicationJob
   end
 
   private
+
+  def snapshot_job(job, snapshot_date, results)
+    if FactJobDailySnapshot.exists?(job_id: job.id, snapshot_date: snapshot_date)
+      results[:skipped] += 1
+      return
+    end
+
+    capture_snapshot(job, snapshot_date)
+    results[:captured] += 1
+  rescue StandardError => e
+    results[:errors] << { job_id: job.id, error: e.message }
+    Rails.logger.error("[DailySnapshot] Error capturing job #{job.id}: #{e.message}")
+  end
 
   def capture_snapshot(job, snapshot_date)
     # Get pre-computed metrics from materialized views

@@ -1,5 +1,5 @@
 class UserNavigationConfig < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :navigation_item
 
   validates :user_id, uniqueness: { scope: :navigation_item_id }

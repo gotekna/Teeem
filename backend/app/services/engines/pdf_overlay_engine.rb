@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 module Engines
   # PdfOverlayEngine handles PDF form filling and text overlay for documents
   # that must maintain exact original format (e.g., QBCC contracts, HIA documents).
@@ -553,7 +555,8 @@ module Engines
         begin
           font_obj = canvas.font("Helvetica")
           text_width = font_obj.wrapped_font.width(text_str) * font_size / 1000.0
-        rescue StandardError
+        rescue StandardError => e
+          Rails.logger.warn "[PdfOverlayEngine] Failed to calculate font metrics, using approximation: #{e.message}"
           # Fallback: approximate width (Helvetica avg char width is ~0.5 * font_size)
           text_width = text_str.length * font_size * 0.5
         end

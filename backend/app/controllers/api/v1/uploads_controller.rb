@@ -131,7 +131,7 @@ module Api
 
       private
 
-      VALID_SCOPES = %w[documents user_documents job_documents imports chat transactions].freeze
+      VALID_SCOPES = %w[documents user_documents job_documents library_documents imports chat transactions].freeze
 
       def valid_scope?(scope)
         VALID_SCOPES.include?(scope)
@@ -161,6 +161,9 @@ module Api
           }) || "Chat/#{Time.current.strftime('%Y/%m')}"
         when "transactions"
           "Transactions/#{Time.current.strftime('%Y/%m')}"
+        when "library_documents"
+          folder_path = metadata[:folder_path] || metadata["folder_path"]
+          folder_path.present? ? "Library/#{folder_path}" : "Library/Uploads"
         else
           "Uploads"
         end
@@ -183,6 +186,8 @@ module Api
         when "transactions"
           # Transaction receipts are handled by Transaction update
           { success: true, key: key, filename: filename, size: file_size }
+        when "library_documents"
+          create_library_document(key, filename, content_type, file_size, metadata, provider)
         else
           { success: false, error: "Unknown scope: #{scope}" }
         end
@@ -255,6 +260,56 @@ module Api
           },
           user: current_user
         )
+
+        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
+      end
+
+      def create_library_document(key, filename, content_type, file_size, metadata, provider)
+        blob = find_or_create_blob(key, filename, content_type, file_size, provider)
+
+        wf_id = metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"]
+        f_path = metadata[:folder_path] || metadata["folder_path"]
+
+        # Parse expiry_date from metadata (ISO date string "YYYY-MM-DD")
+        raw_expiry = metadata[:expiry_date] || metadata["expiry_date"]
+        parsed_expiry = raw_expiry.present? ? Date.parse(raw_expiry.to_s) : nil rescue nil
+
+        # Version detection: check for existing doc with same filename in same folder
+        existing = WarehouseDocument.where(
+          original_filename: filename,
+          warehouse_folder_id: wf_id,
+          source_type: "library",
+          is_latest_version: true
+        ).first if wf_id.present?
+
+        if existing
+          # Create new version of existing document
+          doc = existing.create_new_version(
+            blob: blob,
+            file_size: file_size,
+            content_type: content_type,
+            original_filename: filename,
+            warehouse_folder_id: wf_id,
+            folder_path: f_path,
+            expiry_date: parsed_expiry
+          )
+        else
+          doc = WarehouseDocumentCreator.create!(
+            filename: filename,
+            source_type: "library",
+            storage_blob: blob,
+            file_size: file_size,
+            content_type: content_type,
+            warehouse_folder_id: wf_id,
+            folder_path: f_path,
+            expiry_date: parsed_expiry,
+            metadata: {
+              "document_type" => metadata[:document_type] || metadata["document_type"] || "library",
+              "source" => "manual"
+            },
+            user: current_user
+          )
+        end
 
         { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
       end

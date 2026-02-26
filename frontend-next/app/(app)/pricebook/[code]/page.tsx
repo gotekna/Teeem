@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,8 @@ import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCurrencyWithFallback, formatDateWithFallback } from "@/utils/formatters";
+import { clearCachedRecords } from "@/lib/records-cache";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 
 // Types
 interface PriceHistorySupplier {
@@ -110,14 +112,21 @@ interface UnitOfMeasure {
   name: string;
 }
 
+interface DropdownOption {
+  value: number;
+  label: string;
+}
+
 interface PriceBookItem {
   id: number;
   item_code: string;
   item_name: string;
-  category: string;
+  category_id: number | null;
   unit_of_measure: string;
   current_price: number;
   brand: string | null;
+  brand_id: number | null;
+  range_id: number | null;
   notes: string | null;
   is_active: boolean;
   needs_pricing_review: boolean;
@@ -154,17 +163,12 @@ const API_URL = getApiBaseUrl();
 
 // QLD Local Government Areas for LGA dropdown
 // SSoT: Must match backend PriceHistory model LGA validation
-const QLD_COUNCILS = [
-  'Brisbane City Council',
-  'City of Gold Coast',
-  'Sunshine Coast Regional Council',
-  'Lockyer Valley Regional Council',
-  'Toowoomba Regional Council',
-  'Redland City Council',
-  'Scenic Rim Regional Council'
-];
+import { QLD_COUNCILS } from "@/lib/constants/lga-constants";
 
 const QLD_COUNCIL_ITEMS = QLD_COUNCILS.map(c => ({ id: c, label: c }));
+
+// Module-level cache: suppliers fetched once, reused across all pricebook detail pages
+const _suppliersCache: { data: Supplier[] | null } = { data: null };
 
 export default function PriceBookItemDetailPage() {
   const params = useParams();
@@ -180,6 +184,12 @@ export default function PriceBookItemDetailPage() {
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; type: string } | null>(null);
   const [imageError, setImageError] = useState(false);
   const [qrCodeError, setQrCodeError] = useState(false);
+
+  // Header edit state (name + code)
+  const [isEditingHeader, setIsEditingHeader] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [savingHeader, setSavingHeader] = useState(false);
 
   // Modal states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -205,14 +215,24 @@ export default function PriceBookItemDetailPage() {
     supplier_id: null,
   });
 
-  // Suppliers list for dropdown
+  // Suppliers list for dropdown (cached across pricebook detail pages)
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  // Module-level cache: fetched once, reused across all pricebook detail page instances
+  const suppliersCacheRef = React.useRef<{ data: Supplier[] | null }>(_suppliersCache);
 
   // Units of measure for dropdown
   const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasure[]>([]);
   const [savingUnit, setSavingUnit] = useState(false);
   const [savingGstCode, setSavingGstCode] = useState(false);
+
+  // Category, Brand, Range dropdown options
+  const [categoryOptions, setCategoryOptions] = useState<DropdownOption[]>([]);
+  const [brandOptions, setBrandOptions] = useState<DropdownOption[]>([]);
+  const [rangeOptions, setRangeOptions] = useState<DropdownOption[]>([]);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [savingBrand, setSavingBrand] = useState(false);
+  const [savingRange, setSavingRange] = useState(false);
 
   // GST Code options - SSoT: Must match backend Gl::TaxRate::AUSTRALIAN_TAX_RATES
   const GST_CODE_OPTIONS = ['GST', 'GST-FREE', 'BAS-EXCLUDED'] as const;
@@ -227,6 +247,9 @@ export default function PriceBookItemDetailPage() {
   useEffect(() => {
     loadItem();
     loadUnitsOfMeasure();
+    loadCategoryOptions();
+    loadBrandOptions();
+    loadRangeOptions();
   }, [code]);
 
   // Lazy load suppliers when any supplier popover opens
@@ -252,12 +275,18 @@ export default function PriceBookItemDetailPage() {
   };
 
   const loadSuppliers = async () => {
+    // Use module-level cache: suppliers fetched once, instant on subsequent opens
+    if (suppliersCacheRef.current.data) {
+      setSuppliers(suppliersCacheRef.current.data);
+      return;
+    }
     try {
       setLoadingSuppliers(true);
-      // include_employees=false skips the expensive employee name prefetch (not needed in this picker).
-      const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers&include_employees=false');
+      // slim=true: returns only id + display_name (skips eager loading, as_json, flags etc.)
+      const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers&slim=true');
 
       if (response?.success && Array.isArray(response.contacts)) {
+        suppliersCacheRef.current.data = response.contacts;
         setSuppliers(response.contacts);
       } else {
         console.error('[loadSuppliers] Invalid response structure:', response);
@@ -282,6 +311,99 @@ export default function PriceBookItemDetailPage() {
     }
   };
 
+  const loadCategoryOptions = async () => {
+    try {
+      const response = await api.get<{ success: boolean; options: DropdownOption[] }>('/api/v1/pricebook_categories/dropdown');
+      if (response?.success && Array.isArray(response.options)) {
+        setCategoryOptions(response.options);
+      }
+    } catch (err) {
+      console.error("Failed to load category options:", err);
+    }
+  };
+
+  const loadBrandOptions = async () => {
+    try {
+      const response = await api.get<{ success: boolean; options: DropdownOption[] }>('/api/v1/pricebook_brands/dropdown');
+      if (response?.success && Array.isArray(response.options)) {
+        setBrandOptions(response.options);
+      }
+    } catch (err) {
+      console.error("Failed to load brand options:", err);
+    }
+  };
+
+  const loadRangeOptions = async () => {
+    try {
+      const response = await api.get<{ success: boolean; options: DropdownOption[] }>('/api/v1/pricebook_ranges/dropdown');
+      if (response?.success && Array.isArray(response.options)) {
+        setRangeOptions(response.options);
+      }
+    } catch (err) {
+      console.error("Failed to load range options:", err);
+    }
+  };
+
+  const handleCategoryChange = async (newCategoryId: string) => {
+    if (!item) return;
+    const numericId = newCategoryId === "__none__" ? null : parseInt(newCategoryId, 10);
+    if (numericId === item.category_id) return;
+
+    const previousCategoryId = item.category_id;
+    setItem(prev => prev ? { ...prev, category_id: numericId } : null);
+
+    try {
+      setSavingCategory(true);
+      await api.patch(`/api/v1/pricebook/${code}`, { category_id: numericId });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
+    } catch (err) {
+      console.error("Failed to update category:", err);
+      setItem(prev => prev ? { ...prev, category_id: previousCategoryId } : null);
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleBrandChange = async (newBrandId: string) => {
+    if (!item) return;
+    const numericId = newBrandId === "__none__" ? null : parseInt(newBrandId, 10);
+    if (numericId === item.brand_id) return;
+
+    const previousBrandId = item.brand_id;
+    setItem(prev => prev ? { ...prev, brand_id: numericId } : null);
+
+    try {
+      setSavingBrand(true);
+      await api.patch(`/api/v1/pricebook/${code}`, { brand_id: numericId });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
+    } catch (err) {
+      console.error("Failed to update brand:", err);
+      setItem(prev => prev ? { ...prev, brand_id: previousBrandId } : null);
+    } finally {
+      setSavingBrand(false);
+    }
+  };
+
+  const handleRangeChange = async (newRangeId: string) => {
+    if (!item) return;
+    const numericId = newRangeId === "__none__" ? null : parseInt(newRangeId, 10);
+    if (numericId === item.range_id) return;
+
+    const previousRangeId = item.range_id;
+    setItem(prev => prev ? { ...prev, range_id: numericId } : null);
+
+    try {
+      setSavingRange(true);
+      await api.patch(`/api/v1/pricebook/${code}`, { range_id: numericId });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
+    } catch (err) {
+      console.error("Failed to update range:", err);
+      setItem(prev => prev ? { ...prev, range_id: previousRangeId } : null);
+    } finally {
+      setSavingRange(false);
+    }
+  };
+
   const handleUnitChange = async (newUnit: string) => {
     if (!item || newUnit === item.unit_of_measure) return;
 
@@ -291,6 +413,7 @@ export default function PriceBookItemDetailPage() {
     try {
       setSavingUnit(true);
       await api.patch(`/api/v1/pricebook/${code}`, { unit_of_measure: newUnit });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     } catch (err) {
       console.error("Failed to update unit of measure:", err);
       setItem(prev => prev ? { ...prev, unit_of_measure: previousUnit } : null);
@@ -308,11 +431,66 @@ export default function PriceBookItemDetailPage() {
     try {
       setSavingGstCode(true);
       await api.patch(`/api/v1/pricebook/${code}`, { gst_code: newGstCode || null });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     } catch (err) {
       console.error("Failed to update GST code:", err);
       setItem(prev => prev ? { ...prev, gst_code: previousGstCode } : null);
     } finally {
       setSavingGstCode(false);
+    }
+  };
+
+  const startEditingHeader = () => {
+    if (!item) return;
+    setEditName(item.item_name);
+    setEditCode(item.item_code);
+    setIsEditingHeader(true);
+  };
+
+  const cancelEditingHeader = () => {
+    setIsEditingHeader(false);
+    setEditName("");
+    setEditCode("");
+  };
+
+  const saveHeader = async () => {
+    if (!item) return;
+    const trimmedName = editName.trim();
+    const trimmedCode = editCode.trim();
+
+    if (!trimmedName || !trimmedCode) {
+      toast({ title: "Name and code are required", variant: "destructive" });
+      return;
+    }
+
+    // No changes
+    if (trimmedName === item.item_name && trimmedCode === item.item_code) {
+      setIsEditingHeader(false);
+      return;
+    }
+
+    try {
+      setSavingHeader(true);
+      await api.patch(`/api/v1/pricebook/${code}`, {
+        item_name: trimmedName,
+        item_code: trimmedCode,
+      });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
+
+      setItem(prev => prev ? { ...prev, item_name: trimmedName, item_code: trimmedCode } : null);
+      setIsEditingHeader(false);
+
+      // If code changed, update URL to match new code
+      if (trimmedCode !== item.item_code) {
+        router.replace(`/pricebook/${encodeURIComponent(trimmedCode)}`);
+      }
+
+      toast({ title: "Updated successfully" });
+    } catch (err) {
+      console.error("Failed to update name/code:", err);
+      toast({ title: "Failed to update", variant: "destructive" });
+    } finally {
+      setSavingHeader(false);
     }
   };
 
@@ -363,8 +541,8 @@ export default function PriceBookItemDetailPage() {
           return effectiveDate <= today;
         })
         .sort((a, b) => {
-          const dateA = a.date_effective ? new Date(a.date_effective) : new Date(a.created_at);
-          const dateB = b.date_effective ? new Date(b.date_effective) : new Date(b.created_at);
+          const dateA = new Date(a.date_effective || a.created_at);
+          const dateB = new Date(b.date_effective || b.created_at);
           return dateB.getTime() - dateA.getTime();
         })[0];
 
@@ -392,6 +570,7 @@ export default function PriceBookItemDetailPage() {
       await api.patch(`/api/v1/pricebook/${code}`, {
         [fieldName]: newValue,
       });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     } catch (err) {
       console.error(`Failed to update ${fieldName}:`, err);
       setItem((prev) => (prev ? { ...prev, [fieldName]: currentValue } : null));
@@ -410,6 +589,7 @@ export default function PriceBookItemDetailPage() {
 
     try {
       await api.delete(`/api/v1/pricebook/${code}/price_histories/${historyToDelete.id}`);
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
 
       // Update state directly without reload - remove the deleted history
       setItem(prevItem => {
@@ -446,6 +626,7 @@ export default function PriceBookItemDetailPage() {
 
     try {
       await api.patch(`/api/v1/pricebook/${code}/price_histories/${historyToEdit.id}`, editFormData);
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
       setIsEditModalOpen(false);
       setHistoryToEdit(null);
       await loadItem();
@@ -481,7 +662,7 @@ export default function PriceBookItemDetailPage() {
         lga: newPriceEntry.lga.length > 0 ? newPriceEntry.lga : undefined,
         date_effective: newPriceEntry.date_effective || undefined,
       });
-
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
 
       // Update item state directly from response to avoid reload
       if (response?.success && response.item) {
@@ -530,6 +711,7 @@ export default function PriceBookItemDetailPage() {
       const response = await api.post(`/api/v1/pricebook/${code}/set_default_supplier`, {
         supplier_id: supplierId,
       });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
 
       // Update state directly without reload
       setItem(prevItem => {
@@ -643,6 +825,7 @@ export default function PriceBookItemDetailPage() {
       // Success - clear pending edits and reload to get updated current_price
       setPendingEdits(new Map());
       setEditingRows(new Set());
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
 
       // Reload the item to get the recalculated current_price from backend
       await loadItem();
@@ -735,9 +918,58 @@ export default function PriceBookItemDetailPage() {
           </div>
 
           <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">{item.item_name}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Code: {item.item_code}</p>
+            <div className="flex-1 min-w-0 mr-4">
+              {isEditingHeader ? (
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Item Name</Label>
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveHeader();
+                        if (e.key === "Escape") cancelEditingHeader();
+                      }}
+                      className="text-2xl font-bold h-auto py-1"
+                      autoFocus
+                      disabled={savingHeader}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Item Code</Label>
+                    <Input
+                      value={editCode}
+                      onChange={(e) => setEditCode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveHeader();
+                        if (e.key === "Escape") cancelEditingHeader();
+                      }}
+                      className="text-sm h-auto py-1 w-64"
+                      disabled={savingHeader}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={saveHeader} disabled={savingHeader}>
+                      {savingHeader ? <Spinner className="h-4 w-4" /> : <Check className="h-4 w-4 mr-1" />}
+                      Save
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={cancelEditingHeader} disabled={savingHeader}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="group cursor-pointer rounded-md px-2 py-1 -mx-2 -my-1 hover:bg-muted/50 transition-colors"
+                  onClick={startEditingHeader}
+                >
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-3xl font-bold">{item.item_name}</h1>
+                    <Pencil className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">Code: {item.item_code}</p>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               {item.price_freshness && (
@@ -817,7 +1049,6 @@ export default function PriceBookItemDetailPage() {
                     <dd className="mt-1 text-sm">
                       {formatDateWithFallback(
                         activePriceHistory?.date_effective ||
-                          activePriceHistory?.created_at ||
                           item.price_last_updated_at,
                         "Never"
                       )}
@@ -859,11 +1090,69 @@ export default function PriceBookItemDetailPage() {
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Category</dt>
-                    <dd className="mt-1 text-sm">{item.category || "Uncategorized"}</dd>
+                    <dd className="mt-1">
+                      <Select
+                        value={item.category_id?.toString() || "__none__"}
+                        onValueChange={handleCategoryChange}
+                        disabled={savingCategory}
+                      >
+                        <SelectTrigger className="h-9 w-[200px]">
+                          <SelectValue placeholder="Select category..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No category</SelectItem>
+                          {categoryOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value.toString()}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Brand</dt>
-                    <dd className="mt-1 text-sm">{item.brand || "-"}</dd>
+                    <dd className="mt-1">
+                      <Select
+                        value={item.brand_id?.toString() || "__none__"}
+                        onValueChange={handleBrandChange}
+                        disabled={savingBrand}
+                      >
+                        <SelectTrigger className="h-9 w-[200px]">
+                          <SelectValue placeholder="Select brand..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No brand</SelectItem>
+                          {brandOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value.toString()}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Range</dt>
+                    <dd className="mt-1">
+                      <Select
+                        value={item.range_id?.toString() || "__none__"}
+                        onValueChange={handleRangeChange}
+                        disabled={savingRange}
+                      >
+                        <SelectTrigger className="h-9 w-[200px]">
+                          <SelectValue placeholder="Select range..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No range</SelectItem>
+                          {rangeOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value.toString()}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">GST Code</dt>
@@ -973,7 +1262,7 @@ export default function PriceBookItemDetailPage() {
                                 className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted px-2 py-1 rounded"
                                 onClick={() => handleStartEdit(history.id, history)}
                               >
-                                {formatDateWithFallback(history.date_effective || history.created_at, "Never")}
+                                {formatDateWithFallback(history.date_effective, "Never")}
                                 {isActive && (
                                   <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
                                     Active

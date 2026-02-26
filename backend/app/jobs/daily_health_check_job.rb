@@ -14,6 +14,7 @@
 #
 # Run via solid_queue recurring schedule
 class DailyHealthCheckJob < ApplicationJob
+  include DeduplicatableJob
   include CacheConstants
 
   queue_as :low
@@ -94,20 +95,27 @@ class DailyHealthCheckJob < ApplicationJob
 
   private
 
-  # Run self-healing on contacts with formatting issues
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: Contact and Corporate have acts_as_tenant. Without tenant context,
+  # Contact.unscoped returns ALL tenants' contacts, and Corporate.find_each returns
+  # ALL tenants' companies. Self-healing would mix cross-tenant data.
   def run_contact_self_healing
     fixed_count = 0
 
-    # Find contacts with name casing issues
-    Contact.unscoped.where.not(first_name: nil).find_each(batch_size: 500) do |contact|
-      next unless needs_name_fix?(contact)
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        # Find contacts with name casing issues (within tenant scope)
+        Contact.where.not(first_name: nil).find_each(batch_size: 500) do |contact|
+          next unless needs_name_fix?(contact)
 
-      begin
-        # The SelfHealing concern will auto-fix on save and award kudos
-        contact.save(validate: false)
-        fixed_count += 1
-      rescue StandardError => e
-        Rails.logger.error "[DailyHealthCheck] Failed to fix contact #{contact.id}: #{e.message}"
+          begin
+            # The SelfHealing concern will auto-fix on save and award kudos
+            contact.save(validate: false)
+            fixed_count += 1
+          rescue StandardError => e
+            Rails.logger.error "[DailyHealthCheck] Failed to fix contact #{contact.id}: #{e.message}"
+          end
+        end
       end
     end
 
@@ -119,16 +127,19 @@ class DailyHealthCheckJob < ApplicationJob
   def run_company_self_healing
     fixed_count = 0
 
-    # Find companies with ABN/ACN formatting issues
-    Corporate.find_each(batch_size: 500) do |company|
-      next unless needs_company_fix?(company)
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        Corporate.find_each(batch_size: 500) do |company|
+          next unless needs_company_fix?(company)
 
-      begin
-        # The SelfHealing concern will auto-fix on save and award kudos
-        company.save(validate: false)
-        fixed_count += 1
-      rescue StandardError => e
-        Rails.logger.error "[DailyHealthCheck] Failed to fix company #{company.id}: #{e.message}"
+          begin
+            # The SelfHealing concern will auto-fix on save and award kudos
+            company.save(validate: false)
+            fixed_count += 1
+          rescue StandardError => e
+            Rails.logger.error "[DailyHealthCheck] Failed to fix company #{company.id}: #{e.message}"
+          end
+        end
       end
     end
 

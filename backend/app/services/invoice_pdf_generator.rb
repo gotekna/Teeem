@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "grover"
+
 # InvoicePdfGenerator renders invoice PDFs from code-driven InvoiceTemplate sections.
 #
 # Usage:

@@ -58,13 +58,12 @@ module Bpmn
           )
         end
 
-        # Create positioned signature fields by detecting blue badges in the PDF
-        ESignatureBadgeDetector.create_fields_from_pdf!(request, pdf_content)
+        # Create signature fields from metadata (deterministic page order)
+        create_fields_from_metadata(request, form_data)
 
-        # Send for signing
+        # Auto-send for signing (system-generated PDFs have known field positions)
         request.send_for_signing!
-
-        log_info("E-signature request created: #{request.request_number} with #{signers_data.size} signers")
+        log_info("E-signature request sent: #{request.request_number} with #{signers_data.size} signers")
 
         # Store result for WaitForSignaturesTask
         result = {
@@ -86,6 +85,73 @@ module Bpmn
       end
 
       private
+
+      # Create ESignatureField records at known positions for each signing page.
+      # Uses the same deterministic document order as DirectorChangeService.
+      # Each template type has different signature positions (see BADGE_POSITIONS).
+      def create_fields_from_metadata(request, form_data)
+        signers = request.signers.order(:signing_order).to_a
+        return if signers.empty?
+
+        # Build contact_id → signer lookup
+        signer_by_contact_id = {}
+        signers.each { |s| signer_by_contact_id[s.contact_id] = s }
+
+        page_map = {}
+        current_page = 1
+
+        # Page 1: Minutes → chairperson (first ceasing director = first signer)
+        page_map[current_page] = { signer: signers.first, template: :minutes }
+        current_page += 1
+
+        # Resignations: one page per position per ceasing director
+        (form_data["ceasing_directors"] || []).each do |cd|
+          director = CorporateDirector.find_by(id: cd["corporate_director_id"])
+          next unless director
+
+          signer = signer_by_contact_id[director.contact_id]
+          next unless signer
+
+          positions = cd["positions"] || []
+          positions.each do |_pos|
+            page_map[current_page] = { signer: signer, template: :resignation }
+            current_page += 1
+          end
+        end
+
+        # Consents: one page per position per new appointment
+        (form_data["new_appointments"] || []).each do |appt|
+          contact = Contact.find_by(id: appt["contact_id"])
+          next unless contact
+
+          signer = signer_by_contact_id[contact.id]
+          next unless signer
+
+          positions = appt["positions"] || []
+          positions.each do |_pos|
+            page_map[current_page] = { signer: signer, template: :consent }
+            current_page += 1
+          end
+        end
+
+        # Create fields using per-template badge positions
+        page_map.each do |page_number, entry|
+          signer = entry[:signer]
+          pos = DirectorChangeService::BADGE_POSITIONS[entry[:template]] || DirectorChangeService::BADGE_POSITIONS[:resignation]
+
+          request.fields.create!(
+            e_signature_signer: signer,
+            field_type: "signature",
+            page_number: page_number,
+            x_percent: pos[:x_percent],
+            y_percent: pos[:y_percent],
+            width_percent: pos[:width_percent],
+            height_percent: pos[:height_percent],
+            label: "Signature - #{signer.name}",
+            required: true
+          )
+        end
+      end
 
       def build_signers_from_form(form_data)
         signers = []

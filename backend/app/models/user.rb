@@ -27,6 +27,7 @@ class User < ApplicationRecord
   # User.email is the login email, synced to Contact.contact_emails with label='login'
   belongs_to :contact  # REQUIRED - User must have a Contact (Jan 2026 consolidation)
   belongs_to :tenant, optional: true  # Multi-tenancy: User's assigned tenant (SSoT)
+  belongs_to :default_tenant, class_name: "Tenant", optional: true  # Preferred tenant on login
   # company_group_id column removed from users table - use tenant for multi-tenancy
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
@@ -50,6 +51,8 @@ class User < ApplicationRecord
   has_many :teeem_documents, dependent: :destroy
   has_many :teeem_presentations, dependent: :destroy
   has_many :teeem_pdfs, dependent: :destroy
+  has_many :assistant_conversations, dependent: :destroy
+  has_many :assistant_alerts, dependent: :destroy
 
   # SSoT: Links to deduplicated file storage (Jan 2026)
   belongs_to :signature_blob, class_name: "StorageBlob", optional: true
@@ -99,6 +102,7 @@ class User < ApplicationRecord
   validates :name, presence: true
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
+  validate :default_tenant_must_be_accessible, if: :default_tenant_id_changed?
 
   # SSoT: Username defaults to email on creation (users can change it later)
   before_validation :set_username_from_email, on: :create
@@ -662,6 +666,15 @@ class User < ApplicationRecord
     Rails.logger.info "[User#clear_contact_user_flag] Cleared is_user_cached for Contact##{contact_id}"
   rescue StandardError => e
     Rails.logger.error "[User#clear_contact_user_flag] Failed: #{e.message}"
+  end
+
+  def default_tenant_must_be_accessible
+    return if default_tenant_id.blank?
+
+    tenant = Tenant.find_by(id: default_tenant_id)
+    unless tenant && can_access_tenant?(tenant)
+      errors.add(:default_tenant_id, "must be a tenant you can access")
+    end
   end
 
   def password_required?

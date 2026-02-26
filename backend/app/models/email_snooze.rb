@@ -7,7 +7,7 @@
 class EmailSnooze < ApplicationRecord
   # SSoT: Legacy column is email_warehouse_id, but actual model is SyncedEmail
   belongs_to :email_warehouse, class_name: "SyncedEmail"
-  belongs_to :user
+  belongs_to :user, optional: true
 
   # Alias for legacy association name (EmailWarehouse was renamed to SyncedEmail)
   # Use alias_method for associations (alias_attribute only works for columns in Rails 8)

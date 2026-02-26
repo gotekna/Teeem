@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, Download, Clock, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckCircle2, Download, Clock, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CompletionStepProps {
@@ -14,6 +15,28 @@ export function CompletionStep({
   documentTitle,
   allComplete,
 }: CompletionStepProps) {
+  const [countdown, setCountdown] = useState(5);
+
+  // Auto-close attempt after countdown
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // Attempt to close - works if opened via window.open() or as a popup
+          try { window.close(); } catch {}
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleClose = () => {
+    try { window.close(); } catch {}
+  };
+
   return (
     <div className="flex flex-col items-center py-8">
       <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-6">
@@ -121,10 +144,18 @@ export function CompletionStep({
         </p>
       </div>
 
-      {/* Close window prompt */}
-      <p className="text-sm text-muted-foreground mt-6">
-        You may now close this window.
-      </p>
+      {/* Close window button */}
+      <div className="mt-6 flex flex-col items-center gap-2">
+        <Button onClick={handleClose} variant="outline" size="lg">
+          <X className="h-4 w-4 mr-2" />
+          Close Window
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          {countdown > 0
+            ? `This window will attempt to close in ${countdown}s...`
+            : "You may now close this window."}
+        </p>
+      </div>
     </div>
   );
 }

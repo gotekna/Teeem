@@ -57,7 +57,11 @@ class SmScheduleMasterSyncService
 
   attr_reader :job, :template_row, :options
 
-  # System/identity fields only - business rules handle job reality
+  # Fields that should NEVER sync from template to job task.
+  # Two categories:
+  # 1. System/identity fields (IDs, timestamps, tenant)
+  # 2. Job-reality fields (represent actual work progress/commitments on a real job)
+  #    These must always start as false/nil on new tasks - they are set by users on the job.
   PROTECTED_FIELDS = %i[
     id
     created_at
@@ -67,6 +71,12 @@ class SmScheduleMasterSyncService
     sm_schedule_master_id
     job_id
     saas_customer_id
+    hold
+    confirm
+    supplier_confirm
+    started_at
+    completed_at
+    status
   ].freeze
 
   # Dynamically calculate syncable fields (all common fields minus protected)
@@ -1139,6 +1149,7 @@ class SmScheduleMasterSyncService
       job_id: job.id,
       sm_schedule_master_id: template_row.id,
       task_number: template_task_number,
+      task_code: template_row.task_code,
       sequence_order: next_sequence,
 
       # Core task info (from template)
@@ -1171,6 +1182,9 @@ class SmScheduleMasterSyncService
       # Completion document requirement (from template)
       requires_document_to_complete: template_row.requires_document_to_complete,
       completion_document_type_id: template_row.completion_document_type_id,
+
+      # Tender section (from template SSoT)
+      tender_id: template_row.tender_id,
 
       # Automation (from template)
       spawn_scan_task_id: template_row.spawn_scan_task_id,

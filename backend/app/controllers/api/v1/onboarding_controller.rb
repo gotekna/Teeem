@@ -352,10 +352,8 @@ module Api
       def find_onboarding_task(step_key)
         return nil unless current_tenant.onboarding_job_id
 
-        SmTask.find_by(
-          job_id: current_tenant.onboarding_job_id,
-          "metadata->>'onboarding_step_key'" => step_key.to_s
-        )
+        SmTask.where(job_id: current_tenant.onboarding_job_id)
+              .find_by("metadata->>'onboarding_step_key' = ?", step_key.to_s)
       end
 
       def render_task_not_found(step_key)

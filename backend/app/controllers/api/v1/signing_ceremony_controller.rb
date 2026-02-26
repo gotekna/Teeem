@@ -10,8 +10,8 @@
 # ════════════════════════════════════════════════════════════════
 class Api::V1::SigningCeremonyController < ApplicationController
   skip_before_action :authorize_request
-  before_action :authenticate_signer, except: [ :verify_token ]
-  before_action :set_tenant_from_signer, except: [ :verify_token ]
+  before_action :authenticate_signer, except: [ :verify_token, :download_signed_document ]
+  before_action :set_tenant_from_signer, except: [ :verify_token, :download_signed_document ]
 
   # GET /api/v1/sign/:token
   # Verify the token and get signing session info
@@ -55,6 +55,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
         date_format: field.date_format,
         placeholder: field.placeholder,
         completed: field.complete?,
+        completed_at: field.completed_at&.in_time_zone("Australia/Brisbane")&.strftime("%d/%m/%Y %I:%M %p AEST"),
         value: field.value
       }
     end
@@ -253,6 +254,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
       field: {
         id: field.id,
         completed: true,
+        completed_at: field.completed_at&.in_time_zone("Australia/Brisbane")&.strftime("%d/%m/%Y %I:%M %p AEST"),
         value: field.field_type.in?(%w[signature initials]) ? "[CAPTURED]" : field.value
       },
       all_fields_complete: all_complete
@@ -278,6 +280,54 @@ class Api::V1::SigningCeremonyController < ApplicationController
         success: false,
         errors: [ "Failed to record decline" ]
       }, status: :unprocessable_entity
+    end
+  end
+
+  # GET /api/v1/esign_download/:token
+  # Public download of the signed/stamped document using a stateless signed token.
+  # No signer authentication needed - the token IS the auth (signed by Rails secret).
+  # Used in completion emails so external signers can download without a TEEEM account.
+  def download_signed_document
+    begin
+      data = Rails.application.message_verifier(:esign_download).verify(params[:token])
+      request_obj = ESignatureRequest.find(data[:request_id])
+    rescue ActiveSupport::MessageVerifier::InvalidSignature
+      render json: { success: false, errors: ["Invalid or expired download link"] }, status: :unauthorized
+      return
+    rescue ActiveRecord::RecordNotFound
+      render json: { success: false, errors: ["Document not found"] }, status: :not_found
+      return
+    end
+
+    unless request_obj.status == "completed"
+      render json: { success: false, errors: ["Document is not yet fully signed"] }, status: :unprocessable_entity
+      return
+    end
+
+    # Set tenant context for storage access
+    set_tenant_from_request(request_obj)
+
+    storage_ref = request_obj.original_storage_reference
+    unless storage_ref.present?
+      render json: { success: false, errors: ["Document not available"] }, status: :not_found
+      return
+    end
+
+    begin
+      content = fetch_document_content(request_obj, storage_ref)
+
+      # Re-stamp the PDF (same as what was stored at completion)
+      stamper = ESignaturePdfStamper.new(request_obj)
+      stamped = stamper.stamp!
+      content = stamped if stamped.present?
+
+      send_data content,
+                filename: request_obj.generate_signed_filename,
+                type: "application/pdf",
+                disposition: "attachment"
+    rescue => e
+      Rails.logger.error "[ESignature] Signed document download failed: #{e.class} - #{e.message}"
+      render json: { success: false, errors: ["Failed to retrieve document"] }, status: :unprocessable_entity
     end
   end
 

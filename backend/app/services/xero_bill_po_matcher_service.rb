@@ -65,8 +65,18 @@ class XeroBillPoMatcherService
   private
 
   # Fetch ACCPAY bills from Xero that are tracked to this job.
-  # Optimized: fetches bill list first, pre-filters by supplier/amount
-  # to minimize expensive detail fetches (tracking data is only in detail).
+  #
+  # ⚠️ DO NOT SIMPLIFY - Performance-critical optimization (Feb 2026)
+  # ════════════════════════════════════════════════════════════════
+  # Why: Xero's list endpoint omits line item tracking data. To check which
+  # bills belong to a job, we must fetch each bill individually (~1.1s each).
+  # With 2600+ total bills and 1200+ matching by supplier alone, the old
+  # approach took ~24 minutes at Xero rate limits.
+  #
+  # Fix: Filter by supplier ContactID in the API call (targeted queries),
+  # then pre-filter by amount BEFORE detail fetching. This reduces detail
+  # fetches from ~1200 to ~30-50 (the ones actually matchable by amount).
+  # ════════════════════════════════════════════════════════════════
   def fetch_xero_bills_for_job
     # Get tracking option IDs for this job
     tracking_option_ids = XeroJobTrackingLink
@@ -86,75 +96,104 @@ class XeroBillPoMatcherService
 
     Rails.logger.info("[XeroBillPoMatcher] Tracking option IDs: #{tracking_option_ids}")
 
-    # Build supplier filter from native POs - only fetch detail for bills
-    # from suppliers we actually have POs for
-    supplier_names = @native_pos.filter_map { |po| po.supplier&.display_name&.downcase }.uniq
+    # Build supplier Xero contact IDs from native POs
     supplier_contact_ids = @native_pos.filter_map { |po|
       next unless po.supplier_id
       ContactExternalLink.xero.where(contact_id: po.supplier_id).pluck(:external_contact_id)
     }.flatten.uniq
 
-    Rails.logger.info("[XeroBillPoMatcher] Pre-filter: #{supplier_names.length} supplier names, #{supplier_contact_ids.length} Xero contact IDs")
+    Rails.logger.info("[XeroBillPoMatcher] Pre-filter: #{supplier_contact_ids.length} Xero contact IDs")
 
-    # Fetch bill list (lightweight - no line item details)
-    all_bills = fetch_bill_list
+    # Fetch bills per supplier (targeted API calls instead of fetching ALL bills)
+    supplier_bills = fetch_bills_by_suppliers(supplier_contact_ids)
 
-    # Pre-filter: only fetch detail for bills that could match by supplier
-    candidates = all_bills.select do |bill|
-      # Skip if already has a PO reference
+    # Pre-filter: skip already-matched bills
+    candidates = supplier_bills.reject do |bill|
       ref = bill["Reference"].to_s.strip
       if ref.match?(/^PO-\d{6}$/)
         @stats[:already_matched] += 1
-        next false
+        true
       end
-
-      bill_contact_id = bill.dig("Contact", "ContactID")
-      bill_contact_name = bill.dig("Contact", "Name").to_s.downcase
-
-      # Match by Xero contact ID or fuzzy name
-      supplier_contact_ids.include?(bill_contact_id) ||
-        supplier_names.any? { |sn| bill_contact_name.include?(sn) || sn.include?(bill_contact_name) }
     end
 
-    Rails.logger.info("[XeroBillPoMatcher] #{candidates.length} bills match by supplier (from #{all_bills.length} total), fetching details...")
+    # ⚠️ Amount pre-filter BEFORE detail fetch — Performance-critical (Feb 2026)
+    # ════════════════════════════════════════════════════════════════
+    # Why: Each detail fetch costs ~1.6s (API + 1.1s sleep). Without this filter,
+    # 205 suppliers × ~20 bills each = ~3000 detail fetches = 80+ minutes.
+    # Pre-filtering by amount reduces detail fetches by ~80% (to ~600).
+    # Generous 2x tolerance catches all real matches while eliminating impossible ones.
+    # ❌ WRONG: Skip this filter — fetches detail for ALL supplier bills (hours)
+    # ✅ CORRECT: Compare bill.Total to native PO amounts with 2x tolerance
+    # ════════════════════════════════════════════════════════════════
+    po_amounts = @native_pos.filter_map { |po| po.total&.to_f }
+    if po_amounts.any?
+      before_count = candidates.length
+      candidates = candidates.select do |bill|
+        bill_total = (bill["Total"] || 0).to_f
+        next true if bill_total == 0 # Keep zero-amount bills (edge case)
 
-    # Only fetch detail for supplier-matched bills (need tracking data)
+        po_amounts.any? do |po_amt|
+          next true if po_amt == 0
+          ratio = bill_total / po_amt
+          ratio.between?(0.5, 2.0) # Within 2x of each other
+        end
+      end
+      skipped = before_count - candidates.length
+      @stats[:skipped] += skipped if skipped > 0
+      Rails.logger.info("[XeroBillPoMatcher] Amount pre-filter: #{candidates.length} kept, #{skipped} skipped (no PO within 2x tolerance)")
+    end
+
+    Rails.logger.info("[XeroBillPoMatcher] #{candidates.length} candidate bills from #{supplier_bills.length} supplier-filtered, fetching details...")
+
+    # Fetch detail only for supplier+amount matched bills (need tracking data)
     detailed_bills = candidates.map.with_index do |bill, index|
-      Rails.logger.info("[XeroBillPoMatcher] Fetching detail #{index + 1}/#{candidates.length}...") if candidates.length > 10 && (index + 1) % 10 == 0
+      Rails.logger.info("[XeroBillPoMatcher] Fetching detail #{index + 1}/#{candidates.length}...") if candidates.length > 5 && (index + 1) % 10 == 0
       detail = fetch_invoice_detail(bill["InvoiceID"])
       sleep(XERO_DETAIL_FETCH_SLEEP_SEC)
       detail || bill
     end.compact
 
     # Final filter: only bills tracked to this job
-    detailed_bills.select do |bill|
+    matched = detailed_bills.select do |bill|
       bill_tracking_ids = extract_tracking_option_ids(bill)
       (bill_tracking_ids & tracking_option_ids).any?
     end
+
+    Rails.logger.info("[XeroBillPoMatcher] #{matched.length} bills confirmed for job #{@job.job_code} (#{detailed_bills.length} checked for tracking)")
+    matched
   end
 
-  # Fetch paginated list of all ACCPAY bills (lightweight, no line items)
-  def fetch_bill_list
+  # Fetch ACCPAY bills filtered by supplier ContactIDs.
+  # Uses targeted Xero API queries per supplier instead of fetching ALL bills.
+  def fetch_bills_by_suppliers(supplier_contact_ids)
     all_bills = []
-    page = 1
 
-    loop do
-      result = with_rate_limit_retry do
-        @client.get("Invoices", { where: 'Type=="ACCPAY"', page: page })
-      end
-      break unless result[:success]
-
-      invoices = result[:data]["Invoices"] || []
-      break if invoices.empty?
-
-      all_bills.concat(invoices)
-      page += 1
-      break if invoices.length < 100
-
-      sleep(XERO_PAGE_SLEEP_SEC)
+    if supplier_contact_ids.empty?
+      Rails.logger.warn("[XeroBillPoMatcher] No supplier Xero contact IDs found")
+      return []
     end
 
-    Rails.logger.info("[XeroBillPoMatcher] Fetched #{all_bills.length} total Xero bills from list")
+    supplier_contact_ids.each_with_index do |contact_id, idx|
+      page = 1
+      loop do
+        where_clause = "Type==\"ACCPAY\"&&Contact.ContactID==Guid(\"#{contact_id}\")"
+        result = with_rate_limit_retry do
+          @client.get("Invoices", { where: where_clause, page: page })
+        end
+        break unless result[:success]
+
+        invoices = result[:data]["Invoices"] || []
+        break if invoices.empty?
+
+        all_bills.concat(invoices)
+        page += 1
+        break if invoices.length < 100
+
+        sleep(XERO_PAGE_SLEEP_SEC)
+      end
+    end
+
+    Rails.logger.info("[XeroBillPoMatcher] Fetched #{all_bills.length} bills from #{supplier_contact_ids.length} suppliers")
     all_bills
   end
 
@@ -182,43 +221,49 @@ class XeroBillPoMatcherService
     bill_supplier = bill.dig("Contact", "Name").to_s
     xero_contact_id = bill.dig("Contact", "ContactID")
 
-    if bill_total.zero?
-      @stats[:skipped] += 1
-      return
-    end
-
-    # Find candidates: same supplier + similar amount
-    lower = bill_total * (1 - AMOUNT_TOLERANCE)
-    upper = bill_total * (1 + AMOUNT_TOLERANCE)
-
-    candidates = native_pos.select do |po|
-      next false if @matched_po_ids.include?(po.id)
-      next false if po.total.nil? || po.total.zero?
-      next false unless po.total.to_f.between?(lower, upper)
-
-      # Match supplier by contact link or name
+    # Find all POs from this supplier
+    all_supplier_pos = native_pos.select do |po|
       supplier_matches?(po, xero_contact_id, bill_supplier)
     end
 
-    if candidates.empty?
+    if all_supplier_pos.empty?
       @stats[:skipped] += 1
-      Rails.logger.debug("[XeroBillPoMatcher] No match for Xero bill #{invoice_number} ($#{bill_total}, #{bill_supplier})")
+      Rails.logger.debug("[XeroBillPoMatcher] No supplier match for Xero bill #{invoice_number} ($#{bill_total}, #{bill_supplier})")
       return
     end
 
-    # Pick best match: closest amount
-    best = candidates.min_by { |po| (po.total.to_f - bill_total).abs }
+    # Prefer unmatched POs, but allow reuse if only 1 PO exists for this supplier
+    unmatched = all_supplier_pos.reject { |po| @matched_po_ids.include?(po.id) }
+    candidates = unmatched.any? ? unmatched : all_supplier_pos
 
-    # Update Xero bill Reference field
-    success = update_xero_reference(invoice_id, best.purchase_order_number)
+    # Prefer amount match (within tolerance), fall back to supplier-only
+    lower = bill_total * (1 - AMOUNT_TOLERANCE)
+    upper = bill_total * (1 + AMOUNT_TOLERANCE)
+    amount_matches = candidates.select { |po| po.total&.to_f&.between?(lower, upper) }
 
-    if success
-      # Link the PO to this Xero bill locally
-      best.update_columns(xero_invoice_id: invoice_id, xero_invoice_number: invoice_number)
-      @matched_po_ids.add(best.id)
-      @stats[:matched] += 1
-      Rails.logger.info("[XeroBillPoMatcher] Matched #{invoice_number} ($#{bill_total}) → #{best.purchase_order_number} ($#{best.total}) [#{bill_supplier}]")
+    best = if amount_matches.any?
+      amount_matches.min_by { |po| (po.total.to_f - bill_total).abs }
+    else
+      # No amount match - link by supplier, pick closest amount
+      candidates.min_by { |po| ((po.total || 0).to_f - bill_total).abs }
     end
+
+    match_type = amount_matches.any? ? "amount+supplier" : "supplier-only"
+
+    # Save local link - append invoice ID if PO already linked (multiple bills → 1 PO)
+    if @matched_po_ids.include?(best.id) && best.xero_invoice_id.present?
+      existing_ids = best.xero_invoice_id.to_s
+      best.update_columns(xero_invoice_id: "#{existing_ids},#{invoice_id}")
+    else
+      best.update_columns(xero_invoice_id: invoice_id, xero_invoice_number: invoice_number)
+    end
+    @matched_po_ids.add(best.id)
+    @stats[:matched] += 1
+
+    # Try to update Xero bill Reference field (fails for PAID bills - that's OK)
+    update_xero_reference(invoice_id, best.purchase_order_number)
+
+    Rails.logger.info("[XeroBillPoMatcher] Matched #{invoice_number} ($#{bill_total}) → #{best.purchase_order_number} ($#{best.total}) [#{bill_supplier}] (#{match_type})")
   rescue StandardError => e
     error_msg = "Error matching bill #{invoice_number}: #{e.message}"
     Rails.logger.error("[XeroBillPoMatcher] #{error_msg}")

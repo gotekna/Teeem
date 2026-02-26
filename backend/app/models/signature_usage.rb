@@ -18,7 +18,7 @@
 #
 class SignatureUsage < ApplicationRecord
   # Associations
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :document_type, optional: true
   belongs_to :job, optional: true
   belongs_to :job_document, optional: true

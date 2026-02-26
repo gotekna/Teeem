@@ -540,9 +540,12 @@ function RequestCard({
   return (
     <div className={`border rounded-lg transition-colors ${statusConfig.bgColor}`}>
       {/* Card Header */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggleExpand}
-        className="w-full px-4 py-3 flex items-center gap-3 text-left"
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleExpand(); } }}
+        className="w-full px-4 py-3 flex items-center gap-3 text-left cursor-pointer"
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
@@ -581,7 +584,7 @@ function RequestCard({
 
         {/* Expand chevron */}
         {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-      </button>
+      </div>
 
       {/* Expanded content */}
       {isExpanded && (

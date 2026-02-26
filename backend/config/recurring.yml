@@ -11,6 +11,24 @@
 # ============================================
 # SYSTEM MAINTENANCE
 # ============================================
+
+# Pre-compute queue_status payload on shared worker
+# instead of the web dyno. Reduces web endpoint from 59 queries/4.7s to cache read.
+# FRC (Feb 2026): 30s → 60s. 30s was excessive - dashboard poll is 60s anyway.
+# Each run takes 2-4s of heavy DB queries. On 1-thread worker, 30s = 10% of time in this job.
+queue_status_cache:
+  class: QueueStatusCacheJob
+  queue: default
+  schedule: every 60 seconds
+
+# Push badge counts to all connected WebSocket users
+# Replaces 7 HTTP polling endpoints (notifications, chat, proposals, bills, plans, emails)
+# FRC (Feb 2026): 30s → 60s. Badge counts don't need sub-minute freshness.
+badge_counts_broadcast:
+  class: BadgeCountsBroadcastJob
+  queue: default
+  schedule: every 60 seconds
+
 clear_solid_queue_finished_jobs:
   command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
   schedule: every hour at minute 12
@@ -303,7 +321,7 @@ xero_invoice_data_sync:
 warehouse_xero_attachments:
   class: XeroAttachmentSyncJob
   queue: xero_bulk
-  args: [null, { limit: 50 }]
+  args: [null, { limit: 25 }]
   schedule: every 10 minutes
 
 # NOTE: XeroStorageUploadBackfillJob was removed in Jan 2026 refactor
@@ -366,10 +384,13 @@ cleanup_unavailable_emails:
   schedule: at 3:30am every day
 
 # Sync IMAP email accounts (unified inbox)
-# FRC (Feb 2026): Increased from 2 to 5 min - IMAP doesn't need 2-min polling
+# FRC (Feb 2026): Must be :email_sync queue, NOT :default.
+# IMAP sync is long-running (60s+) and memory-heavy. On :default it ran on
+# teeem-shared-worker (1GB), causing R14/R15 crashes. The email worker
+# (teeem-email-worker) listens to :email_sync and has dedicated memory.
 imap_email_sync:
   class: ImapSyncJob
-  queue: default
+  queue: email_sync
   schedule: every 5 minutes
 
 # SELF-HEALING: Email health monitor
@@ -383,25 +404,31 @@ email_health_monitor:
 # Upload synced emails to Wasabi storage (self-healing)
 # FRC (Jan 2026): Auto-recovers from queue DB connection failures
 # Auto-discovers all tenants with pending emails (no manual tenant_id needed)
-# FRC (Feb 2026): batch_size 500→100. 500 MIME contents in memory (50MB+)
-# plus OrgEmailSync running concurrently = 1.9GB on 1GB dyno (R14 crash).
-# 100 per iteration × auto-continue loop = same throughput, 5x less peak memory.
+# FRC (Feb 2026): batch_size 500→100→50. Memory safety on 1024MB dyno.
 # FRC (Feb 2026): Moved to :low - blob uploads are background work, frees :default for sync
+# FRC (Feb 2026): Changed from every 5 min → every 10 min to stagger with
+# warehouse_xero_attachments (also every 10 min). Both are memory-heavy
+# (download + hash + S3 upload). Running simultaneously caused R14 OOM.
+# Internal auto-continue loop maintains throughput at 10-min intervals.
+  # FRC (Feb 2026): Increased from 50 → 200. With randomized order and resilient
+  # sub-batches, larger batches mean more emails attempted per run.
+  # 200/run × 6 runs/hr = ~1,200/hr throughput (vs ~0 at batch_size: 50 with stuck emails)
 email_storage_upload:
   class: UploadEmailsToStorageJob
   queue: low
-  args: [{ batch_size: 100 }]
-  schedule: every 5 minutes
+  args: [{ batch_size: 200 }]
+  schedule: every 10 minutes
 
 # Upload IMAP emails to Wasabi storage (parallel to MS365 upload above)
 # IMAP emails use uid + folder_name to fetch raw .eml from IMAP server
 # FRC (Feb 2026): Was a one-off backfill job, now recurring to handle new IMAP emails
 # FRC (Feb 2026): Moved to :low - blob backfill is background work, frees :default for sync
+# FRC (Feb 2026): Changed from every 5 min → every 10 min for memory staggering
 imap_email_storage_upload:
   class: BackfillImapEmailBlobsJob
   queue: low
   args: [{ batch_size: 100 }]
-  schedule: every 5 minutes
+  schedule: every 10 minutes
 
 # Retry pending attachment blob downloads (self-healing)
 # FRC (Feb 2026): Two-step sync creates metadata in step 1 but step 2 (blob download)
@@ -409,7 +436,7 @@ imap_email_storage_upload:
 retry_pending_attachment_blobs:
   class: RetryPendingAttachmentBlobsJob
   queue: default
-  args: [{ batch_size: 50 }]
+  args: [{ batch_size: 20 }]
   schedule: every 15 minutes
 
 # Note: BackfillEmailAttachmentBlobsJob removed (Jan 2026) - EmailAttachment table dropped
@@ -419,14 +446,14 @@ retry_pending_attachment_blobs:
 # FRC (Feb 2026): Reduced from 5 to 15 min - 15-min snooze granularity is fine
 email_snooze_wakeup:
   class: EmailSnoozeWakeupJob
-  queue: default
+  queue: email_sync
   schedule: every 15 minutes
 
 # Process email reminders that are due
 # FRC (Feb 2026): Reduced from 5 to 15 min - email reminder granularity is fine
 email_reminders:
   class: EmailReminderJob
-  queue: default
+  queue: email_sync
   schedule: every 15 minutes
 
 # ============================================
@@ -653,3 +680,37 @@ orphan_blob_audit:
 #   class: GoldStandardComplianceCheckJob
 #   queue: low
 #   schedule: at 6am on Monday
+
+# ============================================
+# AI ASSISTANT - Proactive Monitoring
+# ============================================
+# Scans for items needing attention: urgent emails, overdue tasks, etc.
+# Creates AssistantAlert records for users who have used the assistant recently.
+# Only runs for active assistant users (used in last 7 days).
+assistant_monitor:
+  class: AssistantMonitorJob
+  queue: low
+  schedule: every 15 minutes
+
+# Batch AI processing for email intelligence (summaries, action items, follow-ups)
+# Uses Haiku for cost efficiency (~$1.20/month)
+# Processes up to 50 emails per tenant per run
+email_intelligence:
+  class: EmailIntelligenceJob
+  queue: email_sync
+  schedule: every 10 minutes
+
+# Morning briefing delivery - personalized daily digest for active users
+# Pure SQL aggregation ($0/month). Routes to web + preferred channels.
+daily_digest:
+  class: DailyDigestJob
+  queue: default
+  schedule: every day at 6:30am Australia/Brisbane
+
+# FRC (Feb 2026): Disabled - Signal not configured on production (no SIGNAL_CLI_PATH).
+# Was running every 30s for nothing, wasting a job slot on 1-thread worker.
+# Re-enable when Signal is actually deployed.
+# signal_poll:
+#   class: SignalPollJob
+#   queue: low
+#   schedule: every 30 seconds

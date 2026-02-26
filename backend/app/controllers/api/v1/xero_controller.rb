@@ -1875,12 +1875,16 @@ module Api
                        else
                          XeroCredential.for_teeem_tenant(current_tenant).where(status: %w[connected degraded disconnected])
                        end
+          # Batch-load remaining counts for ALL credentials in 2 queries (not N*2)
+          xero_org_ids = cred_scope.pluck(:tenant_id)
+          remaining_counts = batch_count_remaining(xero_org_ids)
+
           per_tenant_status = cred_scope.map do |cred|
             usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
             lockout = XeroRateLimitTracker.current_lockout(tenant_id: cred.tenant_id)
 
-            # Count remaining for this specific tenant (using xero_org_id)
-            tenant_remaining = count_remaining_for_tenant(cred.tenant_id)
+            # Use pre-computed counts instead of per-credential queries
+            tenant_remaining = remaining_counts[cred.tenant_id] || { total: 0, synced: 0, pending: 0, percentage: 100.0 }
 
             # Determine status and reason
             status_info = determine_tenant_status(cred, usage, lockout, tenant_remaining)
@@ -2294,6 +2298,118 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/name_mismatches
+      # Returns contacts where TEEEM display_name differs from Xero external_name
+      # Groups by TEEEM contact, shows all Xero links per contact
+      def name_mismatches
+        begin
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.all
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant)
+                        end
+          tenant_ids = credentials.pluck(:tenant_id)
+          cred_lookup = credentials.index_by(&:tenant_id)
+
+          # Find all linked contacts where external_name differs from contact display_name
+          links = ContactExternalLink
+            .xero
+            .where(xero_org_id: tenant_ids)
+            .where.not(contact_id: nil)
+            .includes(:contact)
+
+          # Dynamic: For links with missing external_name, fetch live from Xero API
+          # This is self-healing - opens the Review tab and stale data gets fixed
+          xero_client = nil
+          links_needing_fetch = links.select { |l| l.external_name.blank? && l.external_contact_id.present? }
+          if links_needing_fetch.any?
+            xero_client ||= XeroApiClient.new
+            links_needing_fetch.each do |link|
+              begin
+                result = xero_client.get("Contacts/#{link.external_contact_id}", tenant_id: link.xero_org_id)
+                if result.is_a?(Hash) && result["Contacts"]&.first
+                  xero_contact = result["Contacts"].first
+                  xero_name = xero_contact["Name"]
+                  xero_status = xero_contact["ContactStatus"]&.downcase
+                  link.update_columns(
+                    external_name: xero_name,
+                    xero_contact_status: xero_status || link.xero_contact_status
+                  )
+                  # Reload to reflect updated values
+                  link.reload
+                end
+              rescue => e
+                Rails.logger.warn("[Xero] name_mismatches: failed to fetch contact #{link.external_contact_id}: #{e.message}")
+              end
+            end
+          end
+
+          # Group by contact, filter to those with at least one name mismatch
+          grouped = {}
+          links.each do |link|
+            contact = link.contact
+            next unless contact
+
+            teeem_name = contact.display_name.to_s.strip
+            xero_name = (link.external_name || "").strip
+
+            # A "name mismatch" requires BOTH names to be present and different.
+            # Blank external_name = "missing name" (different category, still shown).
+            has_xero_name = xero_name.present?
+            is_mismatch = has_xero_name ? (teeem_name.downcase != xero_name.downcase) : false
+            is_missing_name = !has_xero_name && teeem_name.present?
+
+            # Skip links where both names match (no issue)
+            next if has_xero_name && !is_mismatch
+
+            grouped[contact.id] ||= {
+              id: contact.id,
+              display_name: teeem_name,
+              entity_type: contact.entity_type,
+              email: contact.email,
+              is_active: contact.is_active,
+              has_mismatch: false,
+              has_missing_name: false,
+              links: []
+            }
+
+            grouped[contact.id][:has_mismatch] = true if is_mismatch
+            grouped[contact.id][:has_missing_name] = true if is_missing_name
+            grouped[contact.id][:links] << {
+              link_id: link.id,
+              xero_org_id: link.xero_org_id,
+              tenant_name: cred_lookup[link.xero_org_id]&.tenant_name || "Unknown",
+              external_name: xero_name.presence,
+              external_contact_id: link.external_contact_id,
+              xero_contact_status: link.xero_contact_status,
+              match_confidence: link.match_confidence,
+              match_type: link.match_type,
+              sync_enabled: link.sync_enabled,
+              is_mismatch: is_mismatch,
+              is_missing_name: is_missing_name
+            }
+          end
+
+          # Return contacts with mismatches first, then missing names
+          results = grouped.values
+            .select { |c| c[:has_mismatch] || c[:has_missing_name] }
+            .sort_by { |c| [c[:has_mismatch] ? 0 : 1, c[:display_name].to_s.downcase] }
+
+          render json: {
+            success: true,
+            data: {
+              total_count: results.count,
+              mismatch_count: results.count { |c| c[:has_mismatch] },
+              missing_name_count: results.count { |c| c[:has_missing_name] && !c[:has_mismatch] },
+              contacts: results
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero name_mismatches error: #{e.message}")
+          render_error("Failed to get name mismatches: #{e.message}", status: :internal_server_error)
+        end
+      end
+
       # GET /api/v1/xero/validate_contacts
       # Validate all contacts that should be synced to Xero
       def validate_contacts
@@ -2421,14 +2537,25 @@ module Api
                         australia australian qld nsw vic sa wa nt act tas
                         services solutions consulting enterprises industries]
 
+          # FRC (Feb 2026): Pre-collect Xero contact IDs that are known stale (merged/deleted in Xero).
+          # These show xero_contact_status='not_found' in ContactExternalLink.
+          # Without this filter, merged Xero contacts create false positive "duplicates"
+          # (e.g., "Harvey Norman Commercial" appears twice but one ID no longer exists in Xero).
+          stale_xero_contact_ids = ContactExternalLink
+            .where(source: 'xero', xero_contact_status: 'not_found')
+            .pluck(:external_contact_id)
+            .compact
+
           # Get all unique Xero contacts per Xero org
           # FRC (Feb 2026): Must group by xero_org_id (Xero UUID), NOT tenant_id (TEEEM integer).
           # tenant_id is the TEEEM tenant FK - grouping by it lumps ALL Xero orgs together,
           # causing false positives (same supplier across different Xero orgs is NOT a duplicate).
-          org_contacts = ExternalInvoice
+          query = ExternalInvoice
             .where.not(contact_name: [ nil, "", "No Contact" ])
             .where.not(external_contact_id: nil)
             .where.not(xero_org_id: [nil, ""])
+          query = query.where.not(external_contact_id: stale_xero_contact_ids) if stale_xero_contact_ids.any?
+          org_contacts = query
             .select("DISTINCT xero_org_id, contact_name, external_contact_id")
             .to_a
 
@@ -2447,11 +2574,29 @@ module Api
 
             names = contacts.map { |c| { name: c.contact_name, xero_id: c.external_contact_id } }.uniq { |c| c[:xero_id] }
 
-            # Pre-compute TEEEM links for all Xero contacts in this tenant
+            # FRC (Feb 2026): Pre-compute TEEEM links for this SPECIFIC Xero org.
+            # A link to a DIFFERENT org doesn't prove the contact exists in THIS org.
+            # Example: "Harvey Norman Commercial" (xero_id=X) has a link for org A (115 invoices)
+            # but also has 1 invoice in org B where the contact was merged/deleted.
+            # Without org-scoped lookup, the detection wrongly treats X as "active" in org B.
             teeem_links = {}
+            active_in_org = Set.new
             names.each do |contact|
-              link = ContactExternalLink.find_by(external_contact_id: contact[:xero_id])
-              teeem_links[contact[:xero_id]] = link&.contact_id
+              # Check for link in THIS specific org
+              link = ContactExternalLink.find_by(
+                external_contact_id: contact[:xero_id],
+                xero_org_id: xero_org_id,
+                source: 'xero'
+              )
+              if link
+                teeem_links[contact[:xero_id]] = link.contact_id
+                active_in_org.add(contact[:xero_id]) if link.xero_contact_status == 'active'
+              else
+                # Fallback: check ANY org (for unlinked contacts)
+                any_link = ContactExternalLink.find_by(external_contact_id: contact[:xero_id], source: 'xero')
+                teeem_links[contact[:xero_id]] = any_link&.contact_id
+                # Don't mark as active_in_org - no link for THIS org
+              end
             end
 
             # Compare each pair of names to find real duplicates
@@ -2464,13 +2609,23 @@ module Api
                 next if checked_pairs.include?(pair_key)
                 checked_pairs.add(pair_key)
 
-                # Skip if both contacts are linked to DIFFERENT TEEEM contacts
-                # (user has already determined these are separate people)
+                # FRC (Feb 2026): Only show duplicates where BOTH contacts are confirmed
+                # active in THIS Xero org via ContactExternalLink. Contacts that appear
+                # only in invoice data without an active org-specific link may have been
+                # merged/deleted in Xero - recommending "merge in Xero" would be misleading.
+                # Unlinked contacts should be linked first (via Xero Sync Contacts page).
+                a_active = active_in_org.include?(a[:xero_id])
+                b_active = active_in_org.include?(b[:xero_id])
+                next unless a_active && b_active
+
+                # Skip if both contacts are already linked to TEEEM contacts.
+                # Case 1: Linked to DIFFERENT TEEEM contacts = user determined they're separate people.
+                # Case 2: Linked to the SAME TEEEM contact = already merged in TEEEM. The Xero
+                #   side may still have two contacts, but that's a Xero-internal cleanup, not
+                #   actionable from TEEEM (and the "ghost" contact may already be deleted in Xero).
                 teeem_id_a = teeem_links[a[:xero_id]]
                 teeem_id_b = teeem_links[b[:xero_id]]
-                if teeem_id_a.present? && teeem_id_b.present? && teeem_id_a != teeem_id_b
-                  next
-                end
+                next if teeem_id_a.present? && teeem_id_b.present?
 
                 if likely_duplicate?(a[:name], b[:name], suffixes)
                   # Find or create group for this pair
@@ -3576,6 +3731,50 @@ module Api
       # ============================================
       # PER-TENANT STATUS HELPERS (Feb 2026: Ultra Transparency)
       # ============================================
+
+      # Batch-count remaining PDFs for ALL Xero tenants in 2 queries (not N*2)
+      # Returns: { xero_org_id => { total:, synced:, pending:, percentage: }, ... }
+      def batch_count_remaining(xero_org_ids)
+        return {} if xero_org_ids.empty?
+
+        # Query 1: Total invoices per org (excluding voided/deleted/draft)
+        totals = ExternalInvoice.unscoped
+          .where(xero_org_id: xero_org_ids)
+          .where.not(status: %w[voided deleted draft])
+          .group(:xero_org_id)
+          .count
+
+        # Query 2: Synced invoices per org (with valid PDF or bill record marker)
+        synced_counts = WarehouseDocument
+          .where(source_type: "xero")
+          .where(documentable_type: "ExternalInvoice")
+          .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+          .where(external_invoices: { xero_org_id: xero_org_ids })
+          .where.not(external_invoices: { status: "draft" })
+          .where.not(external_invoices: { status: %w[voided deleted] })
+          .where(<<~SQL.squish)
+            (warehouse_documents.metadata->>'is_bill_record' = 'true')
+            OR
+            (warehouse_documents.metadata->>'is_primary' = 'true'
+             AND warehouse_documents.storage_blob_id IS NOT NULL
+             AND EXISTS (
+               SELECT 1 FROM storage_blobs
+               WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+               AND storage_blobs.content_hash IS NOT NULL
+             ))
+          SQL
+          .group("external_invoices.xero_org_id")
+          .distinct.count(:documentable_id)
+
+        # Build result hash for all org_ids
+        xero_org_ids.each_with_object({}) do |org_id, hash|
+          total = totals[org_id] || 0
+          synced = synced_counts[org_id] || 0
+          pending = [total - synced, 0].max
+          percentage = total > 0 ? ((synced.to_f / total) * 100).round(1) : 100.0
+          hash[org_id] = { total: total, synced: synced, pending: pending, percentage: percentage }
+        end
+      end
 
       # Count remaining PDFs for a specific Xero tenant (by xero_org_id)
       # FRC (Feb 2026): Query by xero_org_id directly, NOT via contact_ids.

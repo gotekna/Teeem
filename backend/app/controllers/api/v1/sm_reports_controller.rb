@@ -246,7 +246,8 @@ module Api
       def calculate_working_days(start_date, end_date)
         calculator = WorkingDaysCalculator.new
         calculator.working_days_between(start_date, end_date)
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[SmReports] Failed to calculate working days: #{e.message}"
         (start_date..end_date).count { |d| (1..5).cover?(d.wday) }
       end
 

@@ -218,7 +218,7 @@ export default function DocsortPage() {
         "/api/v1/document_types"
       );
       if (response?.data) {
-        const types = response.data.map((dt) => ({
+        const allTypes = response.data.map((dt) => ({
           // Match Rails .parameterize(separator: '_')
           value: dt.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
           label: dt.name,
@@ -228,6 +228,13 @@ export default function DocsortPage() {
           uiName: dt.uiName,
           downloadName: dt.downloadName,
         }));
+        // Deduplicate by value (multiple doc types can parameterize to same key)
+        const seen = new Set<string>();
+        const types = allTypes.filter((t) => {
+          if (seen.has(t.value)) return false;
+          seen.add(t.value);
+          return true;
+        });
         // Add "General" at the end if not already present
         if (!types.find((t) => t.value === "general")) {
           types.push({ value: "general", label: "General", id: 0, folderPath: undefined, targetFolder: undefined, uiName: undefined, downloadName: undefined });

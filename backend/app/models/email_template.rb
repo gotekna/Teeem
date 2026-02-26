@@ -9,7 +9,7 @@ class EmailTemplate < ApplicationRecord
   include ConfigSyncable
   self.sync_key_source = [:name, :category]
 
-  belongs_to :user
+  belongs_to :user, optional: true
 
   # SSoT: Categories configurable per tenant via TenantSetting (Feb 2026)
   DEFAULT_CATEGORY_VALUES = %w[quick_reply formal follow_up meeting quote invoice other].freeze
@@ -40,7 +40,8 @@ class EmailTemplate < ApplicationRecord
 
   def self.categories
     TenantSetting.email_template_categories
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[EmailTemplate] Failed to load email_template_categories from TenantSetting: #{e.message}"
     DEFAULT_CATEGORIES
   end
 

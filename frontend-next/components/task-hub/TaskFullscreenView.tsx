@@ -124,6 +124,7 @@ import { EmailAttachmentLink } from '@/components/emails/EmailAttachmentLink';
 import { getOverdueColorClasses } from './TaskColorSettings';
 import { TASK_STATUS } from '@/lib/constants/task-status';
 import { Job } from '@/lib/types';
+import { formatFileLink, formatZipAndClosing, formatTeeemFooter } from '@/lib/formatters/email-file-links';
 
 // Type for rich text editor modal
 type EditModalType = 'question' | 'header' | 'answer' | 'action' | null;
@@ -3874,67 +3875,51 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return 'Attachment';
     };
 
-    // Helper to format a file link as HTML hyperlink with Download/Open options
-    // For external email recipients - makes actions more discoverable
-    // downloadUrl = presigned URL with Content-Disposition: attachment (forces download)
-    // openUrl = presigned URL with Content-Disposition: inline (browser displays file)
-    // Open link uses the enhanced viewer page (/view/[id]) with Q&A context and file navigation
-    const formatFileLink = (
+    // Build viewer URL for Task email links (Task-specific: Q&A context, file navigation)
+    // Uses shared formatFileLink() from lib/formatters/email-file-links.ts for HTML output
+    const buildTaskViewerUrl = (
       fileName: string,
       downloadUrl?: string,
       openUrl?: string,
       context?: { question?: string; answer?: string; allFiles?: ViewerFile[]; currentIndex?: number; allQA?: QAPair[]; actualFileName?: string | null; contentType?: string | null }
-    ): string => {
-      if (downloadUrl && openUrl) {
-        let viewerUrl: string;
-        const typeHint = getFileTypeHint(fileName, context?.actualFileName, context?.contentType);
+    ): string | undefined => {
+      if (!openUrl) return undefined;
+      if (!downloadUrl) return openUrl;
 
-        // If we have context with multiple files or Q&A, use the enhanced viewer
-        if (context && (context.allFiles?.length || context.question || context.answer || context.allQA?.length)) {
-          const viewerContext: ViewerContext = {
-            files: context.allFiles || [{ name: fileName, downloadUrl, openUrl }],
-            currentIndex: context.currentIndex ?? 0,
-            question: context.question,
-            answer: context.answer,
-            allQA: context.allQA
-          };
-          const encoded = encodeViewerContext(viewerContext);
-          const enhancedUrl = `${window.location.origin}/view/${encoded}`;
+      const typeHint = getFileTypeHint(fileName, context?.actualFileName, context?.contentType);
 
-          // URL length limit: browsers support ~2000 chars, but keep under 1800 to be safe
-          // Presigned S3 URLs can be 300+ chars each, so fall back for long URLs
-          if (enhancedUrl.length <= 1800) {
-            viewerUrl = enhancedUrl;
-          } else if (viewerContextIdRef.current) {
-            // Use server-stored context (preserves Q&A sidebar)
-            const idx = context.currentIndex ?? 0;
-            viewerUrl = `${window.location.origin}/view/ctx/${viewerContextIdRef.current}?idx=${idx}`;
-          } else {
-            // Last resort: simple URL for this file only (pass type hint for blob URLs without extension)
-            const viewerParams = new URLSearchParams({
-              url: openUrl,
-              name: fileName,
-              download: downloadUrl
-            });
-            if (typeHint) viewerParams.set('type', typeHint);
-            viewerUrl = `${window.location.origin}/view?${viewerParams.toString()}`;
-          }
+      // If we have context with multiple files or Q&A, use the enhanced viewer
+      if (context && (context.allFiles?.length || context.question || context.answer || context.allQA?.length)) {
+        const viewerContext: ViewerContext = {
+          files: context.allFiles || [{ name: fileName, downloadUrl, openUrl }],
+          currentIndex: context.currentIndex ?? 0,
+          question: context.question,
+          answer: context.answer,
+          allQA: context.allQA
+        };
+        const encoded = encodeViewerContext(viewerContext);
+        const enhancedUrl = `${window.location.origin}/view/${encoded}`;
+
+        // URL length limit: browsers support ~2000 chars, but keep under 1800 to be safe
+        // Presigned S3 URLs can be 300+ chars each, so fall back for long URLs
+        if (enhancedUrl.length <= 1800) {
+          return enhancedUrl;
+        } else if (viewerContextIdRef.current) {
+          // Use server-stored context (preserves Q&A sidebar)
+          const idx = context.currentIndex ?? 0;
+          return `${window.location.origin}/view/ctx/${viewerContextIdRef.current}?idx=${idx}`;
         } else {
-          // Fallback to simple query params for single files without Q&A context
-          const viewerParams = new URLSearchParams({
-            url: openUrl,
-            name: fileName,
-            download: downloadUrl
-          });
+          // Last resort: simple URL for this file only (pass type hint for blob URLs without extension)
+          const viewerParams = new URLSearchParams({ url: openUrl, name: fileName, download: downloadUrl });
           if (typeHint) viewerParams.set('type', typeHint);
-          viewerUrl = `https://teeem.vercel.app/view?${viewerParams.toString()}`;
+          return `${window.location.origin}/view?${viewerParams.toString()}`;
         }
-
-        return `<a href="${downloadUrl}">${fileName}</a> · <a href="${downloadUrl}" style="color: #666; font-size: 0.9em;">Download</a> · <a href="${viewerUrl}" target="_blank" style="color: #666; font-size: 0.9em;">Open</a>`;
-      } else if (downloadUrl) {
-        return `<a href="${downloadUrl}">${fileName}</a>`;
       }
-      return fileName;
+
+      // Fallback to simple query params for single files without Q&A context
+      const viewerParams = new URLSearchParams({ url: openUrl, name: fileName, download: downloadUrl });
+      if (typeHint) viewerParams.set('type', typeHint);
+      return `https://teeem.vercel.app/view?${viewerParams.toString()}`;
     };
 
     // Add greeting with recipient's name
@@ -4033,28 +4018,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 if (att.document) {
                   const links = showLinks ? shareLinksMap[att.id] : undefined;
                   const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
-                  body += `\n📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
+                  const docName = getAttachmentDisplayName(att);
+                  const dlUrl = links?.download || fallbackUrl;
+                  body += `\n📎 ${formatFileLink(docName, dlUrl, buildTaskViewerUrl(docName, dlUrl, links?.open, {
                     question: q.text,
                     answer: q.response,
                     allFiles,
                     currentIndex: attIdx,
                     allQA,
                     actualFileName: att.document.file_name
-                  })}`;
+                  }))}`;
                 } else if (att.email) {
                   // Email attachment - add link with .eml extension
                   const links = showLinks ? shareLinksMap[att.id] : undefined;
                   const emailName = getAttachmentDisplayName(att);
                   const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
                   if (showLinks && (links?.download || links?.open)) {
-                    body += `\n📧 ${formatFileLink(emlName, links?.download, links?.open, {
+                    body += `\n📧 ${formatFileLink(emlName, links?.download, buildTaskViewerUrl(emlName, links?.download, links?.open, {
                       question: q.text,
                       answer: q.response,
                       allFiles,
                       currentIndex: attIdx,
                       allQA,
                       contentType: 'message/rfc822'
-                    })}`;
+                    }))}`;
                   } else {
                     body += `\n📧 ${emlName}`;
                   }
@@ -4080,26 +4067,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               if (att.document) {
                 const links = showLinks ? shareLinksMap[att.id] : undefined;
                 const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
-                body += `📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
+                const docName = getAttachmentDisplayName(att);
+                const dlUrl = links?.download || fallbackUrl;
+                body += `📎 ${formatFileLink(docName, dlUrl, buildTaskViewerUrl(docName, dlUrl, links?.open, {
                   question: q.text,
                   allFiles,
                   currentIndex: attIdx,
                   allQA,
                   actualFileName: att.document.file_name
-                })}`;
+                }))}`;
               } else if (att.email) {
                 // Email attachment - add link with .eml extension
                 const links = showLinks ? shareLinksMap[att.id] : undefined;
                 const emailName = getAttachmentDisplayName(att);
                 const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
                 if (showLinks && (links?.download || links?.open)) {
-                  body += `📧 ${formatFileLink(emlName, links?.download, links?.open, {
+                  body += `📧 ${formatFileLink(emlName, links?.download, buildTaskViewerUrl(emlName, links?.download, links?.open, {
                     question: q.text,
                     allFiles,
                     currentIndex: attIdx,
                     allQA,
                     contentType: 'message/rfc822'
-                  })}`;
+                  }))}`;
                 } else {
                   body += `📧 ${emlName}`;
                 }
@@ -4153,28 +4142,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 if (att.document) {
                   const links = showLinks ? shareLinksMap[att.id] : undefined;
                   const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
-                  body += `\n📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
+                  const docName = getAttachmentDisplayName(att);
+                  const dlUrl = links?.download || fallbackUrl;
+                  body += `\n📎 ${formatFileLink(docName, dlUrl, buildTaskViewerUrl(docName, dlUrl, links?.open, {
                     question: q.text,
                     answer: q.response,
                     allFiles,
                     currentIndex: attIdx,
                     allQA,
                     actualFileName: att.document.file_name
-                  })}`;
+                  }))}`;
                 } else if (att.email) {
                   // Email attachment - add link with .eml extension
                   const links = showLinks ? shareLinksMap[att.id] : undefined;
                   const emailName = getAttachmentDisplayName(att);
                   const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
                   if (showLinks && (links?.download || links?.open)) {
-                    body += `\n📧 ${formatFileLink(emlName, links?.download, links?.open, {
+                    body += `\n📧 ${formatFileLink(emlName, links?.download, buildTaskViewerUrl(emlName, links?.download, links?.open, {
                       question: q.text,
                       answer: q.response,
                       allFiles,
                       currentIndex: attIdx,
                       allQA,
                       contentType: 'message/rfc822'
-                    })}`;
+                    }))}`;
                   } else {
                     body += `\n📧 ${emlName}`;
                   }
@@ -4200,26 +4191,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               if (att.document) {
                 const links = showLinks ? shareLinksMap[att.id] : undefined;
                 const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
-                body += `📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
+                const docName = getAttachmentDisplayName(att);
+                const dlUrl = links?.download || fallbackUrl;
+                body += `📎 ${formatFileLink(docName, dlUrl, buildTaskViewerUrl(docName, dlUrl, links?.open, {
                   question: q.text,
                   allFiles,
                   currentIndex: attIdx,
                   allQA,
                   actualFileName: att.document.file_name
-                })}`;
+                }))}`;
               } else if (att.email) {
                 // Email attachment - add link with .eml extension
                 const links = showLinks ? shareLinksMap[att.id] : undefined;
                 const emailName = getAttachmentDisplayName(att);
                 const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
                 if (showLinks && (links?.download || links?.open)) {
-                  body += `📧 ${formatFileLink(emlName, links?.download, links?.open, {
+                  body += `📧 ${formatFileLink(emlName, links?.download, buildTaskViewerUrl(emlName, links?.download, links?.open, {
                     question: q.text,
                     allFiles,
                     currentIndex: attIdx,
                     allQA,
                     contentType: 'message/rfc822'
-                  })}`;
+                  }))}`;
                 } else {
                   body += `📧 ${emlName}`;
                 }
@@ -4298,12 +4291,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       linkedFiles.forEach((att, attIdx) => {
         const links = shareLinksMap[att.id];
         const fallbackUrl = att.document?.storage_url || att.document?.file_url;
-        body += `<li>${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
+        const docName = getAttachmentDisplayName(att);
+        const dlUrl = links?.download || fallbackUrl;
+        body += `<li>${formatFileLink(docName, dlUrl, buildTaskViewerUrl(docName, dlUrl, links?.open, {
           allFiles: linkedFilesForViewer,
           currentIndex: attIdx,
           allQA,
           actualFileName: att.document?.file_name
-        })}</li>\n`;
+        }))}</li>\n`;
       });
       body += '</ul>\n';
     }
@@ -4321,23 +4316,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }, 0);
     const totalLinkedDocuments = questionLinkedDocCount + linkedFiles.length;
 
-    // Add "Download All" link if available (for multiple linked files)
-    // Use ref for synchronous access (avoids React state timing issues)
-    const downloadUrl = downloadAllShareUrlRef.current;
-    if (downloadUrl && totalLinkedDocuments > 1) {
-      const expiryDays = downloadAllExpiryDaysRef.current;
-      body += `<p>For your convenience, you can download all ${totalLinkedDocuments} files in a single ZIP archive:</p>\n`;
-      body += `<p>📦 <a href="${downloadUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
-      body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
-    } else if (totalLinkedDocuments === 1) {
-      // Single linked document still needs expiration warning (links expire same as ZIP)
-      const expiryDays = downloadAllExpiryDaysRef.current;
-      body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
-    }
-
-    // Add closing line (with blank line before for visual separation)
-    body += '<p></p>\n';
-    body += '<p>Please let me know if you have any further questions.</p>\n';
+    // SSoT: ZIP + expiry + closing from shared utility (lib/formatters/email-file-links.ts)
+    body += formatZipAndClosing({
+      linkedFileCount: totalLinkedDocuments,
+      zipUrl: downloadAllShareUrlRef.current || undefined,
+      expiryDays: downloadAllExpiryDaysRef.current,
+    });
 
     // Add simple signature (TipTap-compatible) - positioned BEFORE quoted chain like Outlook
     // Use ref for company settings to avoid React state timing issues
@@ -4361,25 +4345,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
     }
 
-    // Add Teeem marketing footer with spacing, logo, and TEEEM meaning
-    // NOTE: Using PNG for dark "t" logo matching app header branding (better email client compatibility than SVG)
-    body += '\n<br><br>\n';
-    body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
-    body += '<td style="vertical-align: middle; padding-right: 8px;">';
-    // Teeem logos - actual file sizes match display sizes (TipTap ignores CSS sizing)
-    // Main: 28px (matches app header), Inline: 10px (matches 10px text exactly)
-    const teeemLogoUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-28.png';
-    const teeemLogoSmallUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-10.png';
-    body += `<img src="${teeemLogoUrl}" alt="t" style="vertical-align:middle;">`;
-    // "teeem" text: Georgia serif (closest to Hedvig), normal weight, proportional to 28px logo
-    body += `<span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:normal;color:#18181b;margin-left:6px;vertical-align:middle;">teeem</span>`;
-    body += '</td>';
-    body += '<td style="vertical-align: middle; padding-left: 12px;">';
-    body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
-    body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
-    body += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoSmallUrl}" alt="t" style="vertical-align:middle;margin-right:2px;"><span style="font-family:Georgia,'Times New Roman',serif;font-size:10px;font-weight:normal;color:#18181b;vertical-align:middle;">teeem</span> <a href="https://www.teeem.com.au" style="font-size:10px;color:#666;margin-left:4px;">teeem.com.au</a></p>`;
-    body += '</td>';
-    body += '</tr></table>\n';
+    // SSoT: TEEEM marketing footer from shared utility
+    body += formatTeeemFooter();
 
     // Include original email as quoted reply if enabled
     if (includeOriginalEmail && originalEmailData) {

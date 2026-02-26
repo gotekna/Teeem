@@ -484,6 +484,11 @@ export async function uploadPhoto(
       if (token) {
         xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       }
+      // FRC (Feb 2026): Must send tenant override for cross-tenant users (e.g., TEEEM staff on Pilgrim)
+      const tenantOverride = getStorageItem<string | null>(STORAGE_KEYS.TENANT_OVERRIDE, null);
+      if (tenantOverride) {
+        xhr.setRequestHeader("X-Tenant-Override", tenantOverride);
+      }
       xhr.send(formData);
     });
 

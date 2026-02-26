@@ -14,19 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
+import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "@/components/ui/command";
-import { CommandList } from "cmdk";
 
 // ============================================================================
 // Bill of Quantities - Reusable Component
@@ -47,6 +39,10 @@ export interface BOQLineItem {
   gstCode: string;
   subtotal: number;
   pricebookItemCode?: string | null;
+  hasPricebookImage?: boolean;
+  pricebookItemId?: number | null;
+  profitCentreId?: number | null;
+  profitCentreName?: string | null;
 }
 
 export interface BOQGroup {
@@ -55,10 +51,14 @@ export interface BOQGroup {
   supplierId?: number | null;
   supplierName?: string | null;
   taskName?: string | null;
+  taskPosition?: number | null;
   tradeName?: string | null;
   stageName?: string | null;
   stagePosition?: number | null;
   costCentreName?: string | null;
+  tenderName?: string | null;
+  tenderHeaderName?: string | null;
+  profitCentreName?: string | null;
   items: BOQLineItem[];
 }
 
@@ -74,25 +74,53 @@ export interface BOQNewLine {
   gstCode: string;
   pricebookItemId?: number | null;
   pricebookItemCode?: string | null;
+  profitCentreId?: number | null;
 }
+
+/** Map of "groupId:lineItemId" → new profitCentreId (null to clear) */
+export type BOQProfitCentreChanges = Map<string, number | null>;
+
+/** Map of "groupId:lineItemId" → new pricebook item selection */
+export type BOQPricebookChanges = Map<string, { pricebookItemId: number; pricebookItemCode: string }>;
 
 export interface BOQSavePayload {
   quantityChanges: BOQChanges;
+  profitCentreChanges: BOQProfitCentreChanges;
+  pricebookChanges: BOQPricebookChanges;
   newLines: BOQNewLine[];
 }
 
-type SortColumn = "group" | "supplier" | "description" | "code" | "qty" | "unitPrice" | "gst" | "subtotal";
+type SortColumn = "group" | "supplier" | "profitCentre" | "description" | "code" | "qty" | "unitPrice" | "gst" | "subtotal";
 type SortDirection = "asc" | "desc";
+
+export interface ProfitCentreOption {
+  id: number;
+  label: string;
+}
 
 export interface BillOfQuantitiesProps {
   groups: BOQGroup[];
   /** Called with all pending changes when user clicks Save */
   onSave?: (payload: BOQSavePayload) => Promise<void>;
+  /** Called when user clicks a group name (e.g., to open a PO) */
+  onGroupClick?: (groupId: number | string) => void;
+  /** Called when user clicks Add PO on a cascade section header (passes label + grouping dimension) */
+  onAddPO?: (sectionLabel: string, groupBy: "costCentre" | "stage" | "supplier" | "trade" | "profitCentre") => void;
+  /** Available profit centres for the dropdown */
+  profitCentres?: ProfitCentreOption[];
   /** Disables editing */
   readOnly?: boolean;
   /** Loading state */
   loading?: boolean;
   className?: string;
+  /** Locks the initial sort-by dimension on mount (e.g., "tender" for Tender Builder) */
+  defaultSortBy?: GroupSortBy;
+  /** Shows checkbox column for excluding line items from tender */
+  excludeMode?: boolean;
+  /** Set of "groupId:itemId" keys that are currently excluded */
+  excludedIds?: Set<string>;
+  /** Called when user toggles a line item's exclude checkbox */
+  onToggleExclude?: (lineKey: string, excluded: boolean) => void;
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -109,15 +137,10 @@ function changeKey(groupId: number | string, lineId: number | string): string {
 }
 
 // Subtle alternating group colors (light / dark)
+// Zebra stripe: alternating white / light grey like Excel
 const GROUP_COLORS = [
-  { bg: "bg-slate-50/60 dark:bg-slate-800/20" },
-  { bg: "bg-sky-50/60 dark:bg-sky-900/20" },
-  { bg: "bg-amber-50/50 dark:bg-amber-900/15" },
-  { bg: "bg-emerald-50/50 dark:bg-emerald-900/15" },
-  { bg: "bg-rose-50/50 dark:bg-rose-900/15" },
-  { bg: "bg-violet-50/50 dark:bg-violet-900/15" },
-  { bg: "bg-cyan-50/50 dark:bg-cyan-900/15" },
-  { bg: "bg-orange-50/50 dark:bg-orange-900/15" },
+  { bg: "" },
+  { bg: "[background-color:hsl(40,11%,95.5%)] dark:[background-color:hsl(0,0%,13%)]" },
 ];
 
 let tempIdCounter = 0;
@@ -125,33 +148,46 @@ function nextTempId(): string {
   return `new_${++tempIdCounter}`;
 }
 
-type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre";
+export type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre" | "tender" | "profitCentre";
 
 const GROUP_SORT_LABELS: Record<GroupSortBy, string> = {
   supplier: "Supplier",
   stage: "Stage",
   trade: "Trade",
   costCentre: "Cost Centre",
+  tender: "Tender",
+  profitCentre: "Profit Centre",
 };
 
 export function BillOfQuantities({
   groups,
   onSave,
+  onGroupClick,
+  onAddPO,
+  profitCentres = [],
   readOnly = false,
   loading = false,
   className,
+  defaultSortBy,
+  excludeMode = false,
+  excludedIds,
+  onToggleExclude,
 }: BillOfQuantitiesProps) {
   const [changes, setChanges] = useState<BOQChanges>(new Map());
+  const [pcChanges, setPcChanges] = useState<BOQProfitCentreChanges>(new Map());
+  const [pbChanges, setPbChanges] = useState<BOQPricebookChanges>(new Map());
   const [newLines, setNewLines] = useState<BOQNewLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   // PO/Task is always the primary grouping; optionally sort groups by a secondary dimension
-  const [groupSortBy, setGroupSortBy] = useState<GroupSortBy | null>(null);
+  const [groupSortBy, setGroupSortBy] = useState<GroupSortBy | null>(defaultSortBy ?? null);
   // Expanded cascade sections (by label) - empty = all collapsed by default
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  // Expanded PO groups within cascade sections (by group ID) - double cascade
+  const [expandedPOs, setExpandedPOs] = useState<Set<string | number>>(new Set());
 
   const canEdit = !readOnly && !!onSave;
-  const hasChanges = changes.size > 0 || newLines.length > 0;
+  const hasChanges = changes.size > 0 || pcChanges.size > 0 || pbChanges.size > 0 || newLines.length > 0;
 
   // Stable color assignment: each group keeps its original color regardless of sort/filter
   const groupColorIndex = useMemo(() => {
@@ -159,7 +195,7 @@ export function BillOfQuantities({
     groups.forEach((g, i) => map.set(g.id, i));
     return map;
   }, [groups]);
-  const changeCount = changes.size + newLines.length;
+  const changeCount = changes.size + pcChanges.size + pbChanges.size + newLines.length;
 
   // Extract unique values for multi-select filters
   const uniqueSuppliers = useMemo(() =>
@@ -175,22 +211,44 @@ export function BillOfQuantities({
     [groups]
   );
   const uniqueCostCentres = useMemo(() =>
-    [...new Set(groups.map((g) => g.costCentreName).filter(Boolean) as string[])].sort(),
+    [...new Set(groups.map((g) => g.costCentreName).filter(Boolean) as string[])].sort((a, b) => {
+      const aNum = parseInt(a, 10);
+      const bNum = parseInt(b, 10);
+      if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
+      return a.localeCompare(b);
+    }),
+    [groups]
+  );
+  const uniqueTenders = useMemo(() =>
+    [...new Set(groups.map((g) => g.tenderName).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
+  const uniqueProfitCentres = useMemo(() =>
+    [...new Set(groups.flatMap((g) => g.items.map((i) => i.profitCentreName)).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
+  const uniqueGstCodes = useMemo(() =>
+    [...new Set(groups.flatMap((g) => g.items.map((i) => i.gstCode)).filter(Boolean) as string[])].sort(),
     [groups]
   );
   const hasStages = uniqueStages.length > 0;
   const hasTrades = uniqueTrades.length > 0;
   const hasSuppliers = uniqueSuppliers.length > 0;
   const hasCostCentres = uniqueCostCentres.length > 0;
+  const hasTenders = uniqueTenders.length > 0;
+  const hasProfitCentres = uniqueProfitCentres.length > 0;
 
   // Sort + column filter state
   const [sortState, setSortState] = useState<{ column: SortColumn; direction: SortDirection } | null>(null);
-  const [columnFilters, setColumnFilters] = useState({ group: "", description: "", code: "", gst: "" });
+  const [columnFilters, setColumnFilters] = useState({ group: "", description: "", code: "" });
   // Multi-select set filters for supplier, stage, trade
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
   const [selectedStages, setSelectedStages] = useState<Set<string>>(new Set());
   const [selectedTrades, setSelectedTrades] = useState<Set<string>>(new Set());
   const [selectedCostCentres, setSelectedCostCentres] = useState<Set<string>>(new Set());
+  const [selectedTenders, setSelectedTenders] = useState<Set<string>>(new Set());
+  const [selectedProfitCentres, setSelectedProfitCentres] = useState<Set<string>>(new Set());
+  const [selectedGstCodes, setSelectedGstCodes] = useState<Set<string>>(new Set());
 
   const toggleSort = useCallback((column: SortColumn) => {
     setSortState((prev) => {
@@ -219,16 +277,22 @@ export function BillOfQuantities({
       selectedSuppliers.size > 0 ||
       selectedStages.size > 0 ||
       selectedTrades.size > 0 ||
-      selectedCostCentres.size > 0,
-    [columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres]
+      selectedCostCentres.size > 0 ||
+      selectedTenders.size > 0 ||
+      selectedProfitCentres.size > 0 ||
+      selectedGstCodes.size > 0,
+    [columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedTenders, selectedProfitCentres, selectedGstCodes]
   );
 
   const clearAllFilters = useCallback(() => {
-    setColumnFilters({ group: "", description: "", code: "", gst: "" });
+    setColumnFilters({ group: "", description: "", code: "" });
     setSelectedSuppliers(new Set());
     setSelectedStages(new Set());
     setSelectedTrades(new Set());
     setSelectedCostCentres(new Set());
+    setSelectedTenders(new Set());
+    setSelectedProfitCentres(new Set());
+    setSelectedGstCodes(new Set());
     setSortState(null);
   }, []);
 
@@ -236,6 +300,7 @@ export function BillOfQuantities({
   const handleSortToggle = useCallback((dim: GroupSortBy) => {
     setGroupSortBy((prev) => (prev === dim ? null : dim));
     setExpandedSections(new Set()); // Reset to all-collapsed when switching dimension
+    setExpandedPOs(new Set());
   }, []);
 
   const toggleSection = useCallback((label: string) => {
@@ -247,24 +312,58 @@ export function BillOfQuantities({
     });
   }, []);
 
+  const togglePO = useCallback((groupId: string | number) => {
+    setExpandedPOs((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
+
   // Sort PO groups by selected dimension (groups always stay as POs)
+  // Default (null): sort by task name → PO name for estimator workflow
   const displayGroups = useMemo(() => {
-    if (!groupSortBy) return groups;
+    // Numeric-aware comparison: extracts leading number from strings like "100 - Surveyor"
+    // so that "102" sorts before "1000" (numeric order, not alphabetical)
+    const numericCompare = (a: string, b: string): number => {
+      const aNum = parseInt(a, 10);
+      const bNum = parseInt(b, 10);
+      if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
+      return a.localeCompare(b);
+    };
+
+    if (!groupSortBy) {
+      return [...groups].sort((a, b) => {
+        // Sort by schedule master order: stage position → task position → PO name
+        const aStage = a.stagePosition ?? Infinity;
+        const bStage = b.stagePosition ?? Infinity;
+        if (aStage !== bStage) return aStage - bStage;
+        const aTask = a.taskPosition ?? Infinity;
+        const bTask = b.taskPosition ?? Infinity;
+        if (aTask !== bTask) return aTask - bTask;
+        return numericCompare(a.name, b.name);
+      });
+    }
     return [...groups].sort((a, b) => {
       // Stage: sort by schedule master sequence order
       if (groupSortBy === "stage") {
         const aPos = a.stagePosition ?? Infinity;
         const bPos = b.stagePosition ?? Infinity;
         if (aPos !== bPos) return aPos - bPos;
-        return (a.stageName || "").localeCompare(b.stageName || "");
+        return numericCompare(a.stageName || "", b.stageName || "");
       }
       const aVal = groupSortBy === "supplier" ? (a.supplierName || "")
         : groupSortBy === "costCentre" ? (a.costCentreName || "")
+        : groupSortBy === "tender" ? (a.tenderName || "")
+        : groupSortBy === "profitCentre" ? (a.profitCentreName || "")
         : (a.tradeName || "");
       const bVal = groupSortBy === "supplier" ? (b.supplierName || "")
         : groupSortBy === "costCentre" ? (b.costCentreName || "")
+        : groupSortBy === "tender" ? (b.tenderName || "")
+        : groupSortBy === "profitCentre" ? (b.profitCentreName || "")
         : (b.tradeName || "");
-      return aVal.localeCompare(bVal);
+      return numericCompare(aVal, bVal);
     });
   }, [groups, groupSortBy]);
 
@@ -297,7 +396,51 @@ export function BillOfQuantities({
     []
   );
 
+  // Handle profit centre change for an existing line item
+  const handlePcChange = useCallback(
+    (groupId: number | string, lineId: number | string, originalPcId: number | null | undefined, newPcId: number | null) => {
+      const key = changeKey(groupId, lineId);
+      setPcChanges((prev) => {
+        const next = new Map(prev);
+        if (newPcId === (originalPcId ?? null)) {
+          next.delete(key);
+        } else {
+          next.set(key, newPcId);
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  // Handle pricebook item change for an existing line item
+  const handlePricebookChange = useCallback(
+    (groupId: number | string, lineId: number | string, item: {
+      pricebookItemId: number;
+      pricebookItemCode: string;
+    }) => {
+      const key = changeKey(groupId, lineId);
+      setPbChanges((prev) => {
+        const next = new Map(prev);
+        next.set(key, item);
+        return next;
+      });
+    },
+    []
+  );
+
   // Add a new empty line to a group
+  // Default profit centre for new lines (user can change via toolbar dropdown)
+  const [defaultPcId, setDefaultPcId] = useState<number | null>(null);
+
+  // Initialize default to BASE on first load
+  React.useEffect(() => {
+    if (profitCentres.length > 0 && defaultPcId === null) {
+      const base = profitCentres.find((pc) => pc.label.toUpperCase().startsWith("BASE"));
+      setDefaultPcId(base?.id ?? profitCentres[0]?.id ?? null);
+    }
+  }, [profitCentres, defaultPcId]);
+
   const handleAddLine = useCallback((groupId: number | string) => {
     setNewLines((prev) => [
       ...prev,
@@ -308,9 +451,10 @@ export function BillOfQuantities({
         quantity: 1,
         unitPrice: 0,
         gstCode: "GST",
+        profitCentreId: defaultPcId,
       },
     ]);
-  }, []);
+  }, [defaultPcId]);
 
   // Update a pending new line field
   const handleNewLineChange = useCallback(
@@ -364,17 +508,21 @@ export function BillOfQuantities({
     }
     try {
       setSaving(true);
-      await onSave({ quantityChanges: changes, newLines: validNewLines });
+      await onSave({ quantityChanges: changes, profitCentreChanges: pcChanges, pricebookChanges: pbChanges, newLines: validNewLines });
       setChanges(new Map());
+      setPcChanges(new Map());
+      setPbChanges(new Map());
       setNewLines([]);
     } finally {
       setSaving(false);
     }
-  }, [onSave, changes, newLines, hasChanges]);
+  }, [onSave, changes, pcChanges, newLines, hasChanges]);
 
   // Discard all changes
   const handleDiscard = useCallback(() => {
     setChanges(new Map());
+    setPcChanges(new Map());
+    setPbChanges(new Map());
     setNewLines([]);
   }, []);
 
@@ -408,7 +556,31 @@ export function BillOfQuantities({
     // 2. Column-level filters
     if (columnFilters.group.trim()) {
       const term = columnFilters.group.toLowerCase();
-      result = result.filter((g) => g.name.toLowerCase().includes(term));
+      if (groupSortBy) {
+        // When grouped by a dimension, filter by the section label (cost centre, supplier, etc.)
+        // so typing "5" matches sections like "555 - Overheads", "150 - Plumbing"
+        result = result.filter((g) => {
+          const sectionLabel =
+            groupSortBy === "costCentre" ? g.costCentreName :
+            groupSortBy === "supplier" ? g.supplierName :
+            groupSortBy === "stage" ? g.stageName :
+            groupSortBy === "trade" ? g.tradeName :
+            groupSortBy === "tender" ? g.tenderName :
+            groupSortBy === "profitCentre" ? g.profitCentreName :
+            g.name;
+          return (sectionLabel || "").toLowerCase().includes(term) || g.name.toLowerCase().includes(term);
+        });
+      } else {
+        // PO/Task mode: search all text shown in the PO/Task column
+        // (task name, PO name, stage, trade)
+        result = result.filter((g) =>
+          g.name.toLowerCase().includes(term) ||
+          (g.taskName || "").toLowerCase().includes(term) ||
+          (g.stageName || "").toLowerCase().includes(term) ||
+          (g.tradeName || "").toLowerCase().includes(term) ||
+          (g.costCentreName || "").toLowerCase().includes(term)
+        );
+      }
     }
     // Multi-select set filters (supplier, stage, trade)
     if (selectedSuppliers.size > 0) {
@@ -423,8 +595,14 @@ export function BillOfQuantities({
     if (selectedCostCentres.size > 0) {
       result = result.filter((g) => g.costCentreName && selectedCostCentres.has(g.costCentreName));
     }
+    if (selectedTenders.size > 0) {
+      result = result.filter((g) => g.tenderName && selectedTenders.has(g.tenderName));
+    }
+    if (selectedProfitCentres.size > 0) {
+      result = result.filter((g) => g.items.some((i) => i.profitCentreName && selectedProfitCentres.has(i.profitCentreName)));
+    }
     const hasItemFilters =
-      columnFilters.description.trim() || columnFilters.code.trim() || columnFilters.gst.trim();
+      columnFilters.description.trim() || columnFilters.code.trim() || selectedGstCodes.size > 0;
     if (hasItemFilters) {
       result = result
         .map((group) => ({
@@ -440,10 +618,7 @@ export function BillOfQuantities({
               !(item.pricebookItemCode || "").toLowerCase().includes(columnFilters.code.toLowerCase())
             )
               return false;
-            if (
-              columnFilters.gst.trim() &&
-              !(item.gstCode || "").toLowerCase().includes(columnFilters.gst.toLowerCase())
-            )
+            if (selectedGstCodes.size > 0 && !selectedGstCodes.has(item.gstCode || ""))
               return false;
             return true;
           }),
@@ -484,6 +659,8 @@ export function BillOfQuantities({
                 const bT = getQty(group.id, b) * b.unitPrice;
                 return (aT - bT) * dir;
               }
+              case "profitCentre":
+                return (a.profitCentreName || "").localeCompare(b.profitCentreName || "") * dir;
               default:
                 return 0;
             }
@@ -493,22 +670,58 @@ export function BillOfQuantities({
     }
 
     return result;
-  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, sortState, getQty]);
+  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedTenders, selectedProfitCentres, selectedGstCodes, sortState, getQty]);
 
-  // Cascade sections: group POs under Stage/Supplier/Trade headers
+  // Cascade sections: group POs under Stage/Supplier/Trade/Tender headers
+  // For Tender: double cascade — Level 1 = Tender Header, Level 2 = Tender Section
   const cascadeSections = useMemo(() => {
     if (!groupSortBy) return null;
+
+    type SubSection = { label: string; groups: BOQGroup[]; total: number };
+    type Section = { label: string; groups: BOQGroup[]; total: number; sortOrder: number; subSections?: SubSection[] };
+
+    // Tender uses double cascade: Header → Section → POs
+    if (groupSortBy === "tender") {
+      const headerBuckets = new Map<string, { sections: Map<string, { groups: BOQGroup[]; total: number }>; total: number }>();
+      for (const group of filteredGroups) {
+        const headerKey = group.tenderHeaderName || "No Tender Header";
+        const sectionKey = group.tenderName || "No Tender Section";
+        if (!headerBuckets.has(headerKey)) headerBuckets.set(headerKey, { sections: new Map(), total: 0 });
+        const header = headerBuckets.get(headerKey)!;
+        if (!header.sections.has(sectionKey)) header.sections.set(sectionKey, { groups: [], total: 0 });
+        const section = header.sections.get(sectionKey)!;
+        section.groups.push(group);
+        for (const item of group.items) {
+          const t = getQty(group.id, item) * item.unitPrice;
+          section.total += t;
+          header.total += t;
+        }
+      }
+      return [...headerBuckets.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([label, { sections, total }]): Section => ({
+          label,
+          groups: [...sections.values()].flatMap((s) => s.groups),
+          total,
+          sortOrder: 0,
+          subSections: [...sections.entries()]
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([sLabel, { groups: g, total: t }]) => ({ label: sLabel, groups: g, total: t })),
+        }));
+    }
+
+    // Single-level cascade for all other dimensions
     const buckets = new Map<string, { groups: BOQGroup[]; total: number; sortOrder: number }>();
     for (const group of filteredGroups) {
       const key =
         groupSortBy === "supplier" ? (group.supplierName || "No Supplier")
           : groupSortBy === "stage" ? (group.stageName || "No Stage")
             : groupSortBy === "costCentre" ? (group.costCentreName || "Unallocated")
-              : (group.tradeName || "No Trade");
+              : groupSortBy === "profitCentre" ? (group.profitCentreName || "Unallocated")
+                : (group.tradeName || "No Trade");
       if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0, sortOrder: Infinity });
       const bucket = buckets.get(key)!;
       bucket.groups.push(group);
-      // For stages, use stagePosition (min sequence_order from schedule master)
       if (groupSortBy === "stage" && group.stagePosition != null) {
         bucket.sortOrder = Math.min(bucket.sortOrder, group.stagePosition);
       }
@@ -518,13 +731,13 @@ export function BillOfQuantities({
     }
     return [...buckets.entries()]
       .sort((a, b) => {
-        // Stage: sort by schedule master sequence order; others: alphabetical
-        if (groupSortBy === "stage") {
-          return a[1].sortOrder - b[1].sortOrder;
-        }
+        if (groupSortBy === "stage") return a[1].sortOrder - b[1].sortOrder;
+        const aNum = parseInt(a[0], 10);
+        const bNum = parseInt(b[0], 10);
+        if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
         return a[0].localeCompare(b[0]);
       })
-      .map(([label, { groups: g, total }]) => ({ label, groups: g, total }));
+      .map(([label, { groups: g, total }]): Section => ({ label, groups: g, total, sortOrder: 0 }));
   }, [filteredGroups, groupSortBy, getQty]);
 
   // Totals (includes new lines)
@@ -566,8 +779,8 @@ export function BillOfQuantities({
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3 px-2 pb-3 shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-2 pb-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-3">
           <SearchInput
             placeholder="Search items..."
             value={searchTerm}
@@ -577,21 +790,24 @@ export function BillOfQuantities({
           <Badge variant="secondary" className="text-xs whitespace-nowrap">
             {totals.totalLines} lines
           </Badge>
-          <Badge variant="outline" className="text-xs font-mono whitespace-nowrap">
-            {formatCurrency(totals.grandTotal)}
-          </Badge>
-          <div className="flex items-center gap-1.5 ml-2">
+          <div className="flex items-center gap-1.5 ml-2 shrink-0">
             <span className="text-xs text-muted-foreground whitespace-nowrap">Sort by:</span>
-            <div className="flex items-center rounded-md border border-input bg-background">
-              {/* PO/Task always active */}
-              <span className="px-2.5 py-1 text-xs bg-primary text-primary-foreground rounded-l-md">
+            <div className="flex items-center rounded-md border border-input bg-background whitespace-nowrap shrink-0">
+              <button
+                onClick={() => {
+                  setGroupSortBy(null);
+                  setExpandedSections(new Set());
+                }}
+                className={cn(
+                  "px-2.5 py-1 text-xs transition-colors rounded-l-md",
+                  groupSortBy === null
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted text-muted-foreground"
+                )}
+              >
                 PO / Task
-              </span>
-              {(["supplier", "stage", "trade", "costCentre"] as GroupSortBy[]).map((dim) => {
-                if (dim === "stage" && !hasStages) return null;
-                if (dim === "trade" && !hasTrades) return null;
-                if (dim === "supplier" && !hasSuppliers) return null;
-                // costCentre always visible (unallocated items grouped under "Unallocated")
+              </button>
+              {(["supplier", "stage", "trade", "costCentre", "tender", "profitCentre"] as GroupSortBy[]).map((dim) => {
                 return (
                   <button
                     key={dim}
@@ -618,6 +834,7 @@ export function BillOfQuantities({
                 onClick={() => {
                   if (expandedSections.size === cascadeSections.length) {
                     setExpandedSections(new Set());
+                    setExpandedPOs(new Set());
                   } else {
                     setExpandedSections(new Set(cascadeSections.map((s) => s.label)));
                   }
@@ -630,46 +847,73 @@ export function BillOfQuantities({
                 )}
               </Button>
             )}
+            {/* Filter for the active sort dimension only */}
+            {groupSortBy === "supplier" && hasSuppliers && (
+              <MultiSelectFilter
+                values={uniqueSuppliers}
+                selected={selectedSuppliers}
+                onToggle={(v) => toggleSetFilter(selectedSuppliers, v, setSelectedSuppliers)}
+                placeholder="Supplier..."
+                label="Supplier"
+              />
+            )}
+            {groupSortBy === "stage" && hasStages && (
+              <MultiSelectFilter
+                values={uniqueStages}
+                selected={selectedStages}
+                onToggle={(v) => toggleSetFilter(selectedStages, v, setSelectedStages)}
+                placeholder="Stage..."
+                label="Stage"
+              />
+            )}
+            {groupSortBy === "trade" && hasTrades && (
+              <MultiSelectFilter
+                values={uniqueTrades}
+                selected={selectedTrades}
+                onToggle={(v) => toggleSetFilter(selectedTrades, v, setSelectedTrades)}
+                placeholder="Trade..."
+                label="Trade"
+              />
+            )}
+            {groupSortBy === "costCentre" && hasCostCentres && (
+              <MultiSelectFilter
+                values={uniqueCostCentres}
+                selected={selectedCostCentres}
+                onToggle={(v) => toggleSetFilter(selectedCostCentres, v, setSelectedCostCentres)}
+                placeholder="Cost Centre..."
+                label="Cost Centre"
+              />
+            )}
+            {groupSortBy === "tender" && hasTenders && (
+              <MultiSelectFilter
+                values={uniqueTenders}
+                selected={selectedTenders}
+                onToggle={(v) => toggleSetFilter(selectedTenders, v, setSelectedTenders)}
+                placeholder="Tender..."
+                label="Tender"
+              />
+            )}
+            {groupSortBy === "profitCentre" && hasProfitCentres && (
+              <MultiSelectFilter
+                values={uniqueProfitCentres}
+                selected={selectedProfitCentres}
+                onToggle={(v) => toggleSetFilter(selectedProfitCentres, v, setSelectedProfitCentres)}
+                placeholder="Profit Centre..."
+                label="Profit Centre"
+              />
+            )}
+            {(hasActiveFilters || sortState) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+                className="gap-1 h-7 text-xs text-muted-foreground"
+              >
+                <X className="h-3 w-3" />
+                Clear
+              </Button>
+            )}
           </div>
-          {/* Multi-select dimension filters */}
-          {hasStages && (
-            <MultiSelectFilter
-              values={uniqueStages}
-              selected={selectedStages}
-              onToggle={(v) => toggleSetFilter(selectedStages, v, setSelectedStages)}
-              placeholder="Stage..."
-              label="Stage"
-            />
-          )}
-          {hasTrades && (
-            <MultiSelectFilter
-              values={uniqueTrades}
-              selected={selectedTrades}
-              onToggle={(v) => toggleSetFilter(selectedTrades, v, setSelectedTrades)}
-              placeholder="Trade..."
-              label="Trade"
-            />
-          )}
-          {hasCostCentres && (
-            <MultiSelectFilter
-              values={uniqueCostCentres}
-              selected={selectedCostCentres}
-              onToggle={(v) => toggleSetFilter(selectedCostCentres, v, setSelectedCostCentres)}
-              placeholder="Cost Centre..."
-              label="Cost Centre"
-            />
-          )}
-          {(hasActiveFilters || sortState) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
-              className="gap-1 h-7 text-xs text-muted-foreground"
-            >
-              <X className="h-3 w-3" />
-              Clear
-            </Button>
-          )}
         </div>
 
         {canEdit && hasChanges && (
@@ -707,17 +951,22 @@ export function BillOfQuantities({
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
+              {excludeMode && (
+                <TableHead className="w-8 px-2">
+                  <span className="sr-only">Include</span>
+                </TableHead>
+              )}
               <SortableHead column="group" sort={sortState} onSort={toggleSort} className="w-[220px]">
                 PO / Task
               </SortableHead>
               <SortableHead column="supplier" sort={sortState} onSort={toggleSort} className="w-[160px]">
                 Supplier
               </SortableHead>
-              <SortableHead column="description" sort={sortState} onSort={toggleSort}>
-                Description
-              </SortableHead>
               <SortableHead column="code" sort={sortState} onSort={toggleSort} className="w-[90px]">
                 Code
+              </SortableHead>
+              <SortableHead column="description" sort={sortState} onSort={toggleSort}>
+                Description
               </SortableHead>
               <SortableHead column="qty" sort={sortState} onSort={toggleSort} className="w-[100px]" align="right">
                 Qty
@@ -731,15 +980,19 @@ export function BillOfQuantities({
               <SortableHead column="subtotal" sort={sortState} onSort={toggleSort} className="w-[110px]" align="right">
                 Subtotal
               </SortableHead>
+              <SortableHead column="profitCentre" sort={sortState} onSort={toggleSort} className="w-[120px]">
+                Profit Centre
+              </SortableHead>
             </TableRow>
             {/* Filter row */}
             <TableRow className="bg-muted/30 border-b">
+              {excludeMode && <TableHead className="py-1 w-8" />}
               <TableHead className="py-1 px-2">
                 <Input
                   value={columnFilters.group}
                   onChange={(e) => updateFilter("group", e.target.value)}
                   placeholder="Filter..."
-                  className="h-6 text-xs px-1.5 font-normal"
+                  className="h-6 text-xs px-1.5 font-normal bg-background"
                 />
               </TableHead>
               <TableHead className="py-1 px-2">
@@ -752,31 +1005,39 @@ export function BillOfQuantities({
               </TableHead>
               <TableHead className="py-1 px-2">
                 <Input
-                  value={columnFilters.description}
-                  onChange={(e) => updateFilter("description", e.target.value)}
+                  value={columnFilters.code}
+                  onChange={(e) => updateFilter("code", e.target.value)}
                   placeholder="Filter..."
-                  className="h-6 text-xs px-1.5 font-normal"
+                  className="h-6 text-xs px-1.5 font-normal bg-background"
                 />
               </TableHead>
               <TableHead className="py-1 px-2">
                 <Input
-                  value={columnFilters.code}
-                  onChange={(e) => updateFilter("code", e.target.value)}
+                  value={columnFilters.description}
+                  onChange={(e) => updateFilter("description", e.target.value)}
                   placeholder="Filter..."
-                  className="h-6 text-xs px-1.5 font-normal"
+                  className="h-6 text-xs px-1.5 font-normal bg-background"
                 />
               </TableHead>
               <TableHead className="py-1" />
               <TableHead className="py-1" />
               <TableHead className="py-1 px-1">
-                <Input
-                  value={columnFilters.gst}
-                  onChange={(e) => updateFilter("gst", e.target.value)}
-                  placeholder="..."
-                  className="h-6 text-xs px-1 font-normal"
+                <MultiSelectFilter
+                  values={uniqueGstCodes}
+                  selected={selectedGstCodes}
+                  onToggle={(v) => toggleSetFilter(selectedGstCodes, v, setSelectedGstCodes)}
+                  placeholder="GST..."
                 />
               </TableHead>
               <TableHead className="py-1" />
+              <TableHead className="py-1 px-2">
+                <MultiSelectFilter
+                  values={uniqueProfitCentres}
+                  selected={selectedProfitCentres}
+                  onToggle={(v) => toggleSetFilter(selectedProfitCentres, v, setSelectedProfitCentres)}
+                  placeholder="Profit Centre..."
+                />
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -790,7 +1051,7 @@ export function BillOfQuantities({
                       className="bg-muted border-y-2 border-primary/20 cursor-pointer select-none hover:bg-muted/80 transition-colors"
                       onClick={() => toggleSection(section.label)}
                     >
-                      <TableCell colSpan={6} className="py-2 px-4 font-semibold text-sm">
+                      <TableCell colSpan={excludeMode ? 8 : 7} className="py-2 px-4 font-semibold text-sm">
                         <span className="inline-flex items-center gap-1.5">
                           {isExpanded ? (
                             <ChevronDown className="h-4 w-4 shrink-0" />
@@ -802,25 +1063,103 @@ export function BillOfQuantities({
                         <Badge variant="secondary" className="ml-2 text-xs font-normal">
                           {section.groups.length} PO{section.groups.length !== 1 ? "s" : ""}
                         </Badge>
+                        {onAddPO && groupSortBy && (groupSortBy === "costCentre" || groupSortBy === "stage") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-5 ml-2 px-1.5 text-[10px] font-medium gap-0.5 opacity-60 hover:opacity-100 transition-opacity"
+                            title={`Add PO to ${section.label}`}
+                            onClick={(e) => { e.stopPropagation(); onAddPO(section.label, groupSortBy); }}
+                          >
+                            <Plus className="h-3 w-3" />
+                            PO
+                          </Button>
+                        )}
                       </TableCell>
                       <TableCell colSpan={2} className="py-2 px-4 text-right text-sm font-mono font-semibold">
                         {formatCurrency(section.total)}
                       </TableCell>
                     </TableRow>
-                    {isExpanded && section.groups.map((group) => (
+                    {isExpanded && section.subSections ? (
+                      // Double cascade (Tender): Header → Section → POs
+                      section.subSections.map((sub) => {
+                        const isSubExpanded = expandedPOs.has(`sub:${sub.label}`);
+                        return (
+                          <React.Fragment key={sub.label}>
+                            {/* Tender Section sub-header */}
+                            <TableRow
+                              className="bg-muted/50 border-y cursor-pointer select-none hover:bg-muted/60 transition-colors"
+                              onClick={() => togglePO(`sub:${sub.label}`)}
+                            >
+                              <TableCell colSpan={excludeMode ? 8 : 7} className="py-1.5 pl-8 pr-4 text-sm">
+                                <span className="inline-flex items-center gap-1.5">
+                                  {isSubExpanded ? (
+                                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                  )}
+                                  <span className="font-medium">{sub.label}</span>
+                                </span>
+                                <Badge variant="outline" className="ml-2 text-[10px] font-normal">
+                                  {sub.groups.length} PO{sub.groups.length !== 1 ? "s" : ""}
+                                </Badge>
+                              </TableCell>
+                              <TableCell colSpan={2} className="py-1.5 px-4 text-right text-sm font-mono">
+                                {formatCurrency(sub.total)}
+                              </TableCell>
+                            </TableRow>
+                            {isSubExpanded && sub.groups.map((group, sectionIdx) => (
+                              <BOQGroupRows
+                                key={group.id}
+                                group={group}
+                                groupIndex={sectionIdx}
+                                canEdit={canEdit}
+                                changes={changes}
+                                pcChanges={pcChanges}
+                                profitCentres={profitCentres}
+                                newLines={getNewLinesForGroup(group.id)}
+                                getQty={getQty}
+                                onQtyChange={handleQtyChange}
+                                onPcChange={handlePcChange}
+                                pbChanges={pbChanges}
+                                onPricebookChange={handlePricebookChange}
+                                onAddLine={handleAddLine}
+                                onNewLineChange={handleNewLineChange}
+                                onNewLinePricebookSelect={handleNewLinePricebookSelect}
+                                onRemoveNewLine={handleRemoveNewLine}
+                                onGroupClick={onGroupClick}
+                                excludeMode={excludeMode}
+                                excludedIds={excludedIds}
+                                onToggleExclude={onToggleExclude}
+                              />
+                            ))}
+                          </React.Fragment>
+                        );
+                      })
+                    ) : isExpanded && section.groups.map((group, sectionIdx) => (
+                      // Single cascade: Section → POs directly
                       <BOQGroupRows
                         key={group.id}
                         group={group}
-                        groupIndex={groupColorIndex.get(group.id) ?? 0}
+                        groupIndex={sectionIdx}
                         canEdit={canEdit}
                         changes={changes}
+                        pcChanges={pcChanges}
+                        profitCentres={profitCentres}
                         newLines={getNewLinesForGroup(group.id)}
                         getQty={getQty}
                         onQtyChange={handleQtyChange}
+                        onPcChange={handlePcChange}
+                        pbChanges={pbChanges}
+                        onPricebookChange={handlePricebookChange}
                         onAddLine={handleAddLine}
                         onNewLineChange={handleNewLineChange}
                         onNewLinePricebookSelect={handleNewLinePricebookSelect}
                         onRemoveNewLine={handleRemoveNewLine}
+                        onGroupClick={onGroupClick}
+                        excludeMode={excludeMode}
+                        excludedIds={excludedIds}
+                        onToggleExclude={onToggleExclude}
                       />
                     ))}
                   </React.Fragment>
@@ -828,20 +1167,29 @@ export function BillOfQuantities({
               })
             ) : (
               // Flat view: PO groups only
-              filteredGroups.map((group) => (
+              filteredGroups.map((group, displayIdx) => (
                 <BOQGroupRows
                   key={group.id}
                   group={group}
-                  groupIndex={groupColorIndex.get(group.id) ?? 0}
+                  groupIndex={displayIdx}
                   canEdit={canEdit}
                   changes={changes}
+                  pcChanges={pcChanges}
+                  profitCentres={profitCentres}
                   newLines={getNewLinesForGroup(group.id)}
                   getQty={getQty}
                   onQtyChange={handleQtyChange}
+                  onPcChange={handlePcChange}
+                  pbChanges={pbChanges}
+                  onPricebookChange={handlePricebookChange}
                   onAddLine={handleAddLine}
                   onNewLineChange={handleNewLineChange}
                   onNewLinePricebookSelect={handleNewLinePricebookSelect}
                   onRemoveNewLine={handleRemoveNewLine}
+                  onGroupClick={onGroupClick}
+                  excludeMode={excludeMode}
+                  excludedIds={excludedIds}
+                  onToggleExclude={onToggleExclude}
                 />
               ))
             )}
@@ -858,18 +1206,30 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   groupIndex,
   canEdit,
   changes,
+  pcChanges,
+  pbChanges,
+  profitCentres,
   newLines,
   getQty,
   onQtyChange,
+  onPcChange,
+  onPricebookChange,
   onAddLine,
   onNewLineChange,
   onNewLinePricebookSelect,
   onRemoveNewLine,
+  onGroupClick,
+  excludeMode,
+  excludedIds,
+  onToggleExclude,
 }: {
   group: BOQGroup;
   groupIndex: number;
   canEdit: boolean;
   changes: BOQChanges;
+  pcChanges: BOQProfitCentreChanges;
+  pbChanges: BOQPricebookChanges;
+  profitCentres: ProfitCentreOption[];
   newLines: BOQNewLine[];
   getQty: (groupId: number | string, item: BOQLineItem) => number;
   onQtyChange: (
@@ -877,6 +1237,17 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
     lineId: number | string,
     originalQty: number,
     value: string
+  ) => void;
+  onPcChange: (
+    groupId: number | string,
+    lineId: number | string,
+    originalPcId: number | null | undefined,
+    newPcId: number | null
+  ) => void;
+  onPricebookChange: (
+    groupId: number | string,
+    lineId: number | string,
+    item: { pricebookItemId: number; pricebookItemCode: string }
   ) => void;
   onAddLine: (groupId: number | string) => void;
   onNewLineChange: (tempId: string, field: keyof BOQNewLine, value: string | number) => void;
@@ -888,6 +1259,10 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
     pricebookItemCode: string;
   }) => void;
   onRemoveNewLine: (tempId: string) => void;
+  onGroupClick?: (groupId: number | string) => void;
+  excludeMode?: boolean;
+  excludedIds?: Set<string>;
+  onToggleExclude?: (lineKey: string, excluded: boolean) => void;
 }) {
   // Total rows that share the PO name/supplier cells (existing + new lines)
   const totalDataRows = group.items.length + newLines.length;
@@ -907,33 +1282,95 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
 
   return (
     <>
+      {/* Empty group: show PO header row when there are no line items */}
+      {group.items.length === 0 && (
+        <TableRow className={color.bg}>
+          <TableCell className={cn("align-top font-medium text-sm border-r", color.bg)}>
+            <div className="sticky top-10">
+              {group.taskName && group.taskName !== group.name && (
+                <div className="font-semibold text-xs text-foreground uppercase tracking-wide">
+                  {group.taskName}
+                </div>
+              )}
+              {onGroupClick ? (
+                <button
+                  onClick={() => onGroupClick(group.id)}
+                  className="text-left text-primary hover:underline font-medium"
+                >
+                  {group.name}
+                </button>
+              ) : (
+                group.name
+              )}
+              {(group.stageName || group.tradeName) && (
+                <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
+                  {group.stageName && <span>{group.stageName}</span>}
+                  {group.tradeName && <span>{group.tradeName}</span>}
+                </div>
+              )}
+            </div>
+          </TableCell>
+          <TableCell className={cn("align-top text-sm text-muted-foreground border-r", color.bg)}>
+            <div className="sticky top-10">
+              {group.supplierName || (
+                <span className="italic text-xs">No supplier</span>
+              )}
+            </div>
+          </TableCell>
+          <TableCell colSpan={7} className="text-xs text-muted-foreground italic py-2">
+            No line items
+          </TableCell>
+        </TableRow>
+      )}
       {/* Existing line items */}
       {group.items.map((item, idx) => {
         const key = changeKey(group.id, item.id);
         const isDirty = changes.has(key);
         const qty = getQty(group.id, item);
         const subtotal = qty * item.unitPrice;
+        const isExcluded = excludeMode && excludedIds?.has(key);
 
         return (
           <TableRow
             key={item.id}
             className={cn(
               color.bg,
-              isDirty && "!bg-amber-50 dark:!bg-amber-950/30"
+              isDirty && "!bg-amber-50 dark:!bg-amber-950/30",
+              isExcluded && "opacity-40 line-through decoration-muted-foreground"
             )}
             style={idx === 0 ? { scrollSnapAlign: "start" } : undefined}
           >
+            {excludeMode && (
+              <TableCell className="w-8 px-2 py-1 text-center">
+                <input
+                  type="checkbox"
+                  checked={!isExcluded}
+                  onChange={() => onToggleExclude?.(key, !isExcluded)}
+                  className="h-3.5 w-3.5 rounded border-gray-300 cursor-pointer accent-primary"
+                  title={isExcluded ? "Include in tender" : "Exclude from tender"}
+                />
+              </TableCell>
+            )}
             {idx === 0 && (
               <TableCell
                 rowSpan={totalDataRows}
                 className={cn("align-top font-medium text-sm border-r", color.bg)}
               >
                 <div className="sticky top-10">
-                  {group.name}
                   {group.taskName && group.taskName !== group.name && (
-                    <div className="text-xs text-muted-foreground mt-0.5">
+                    <div className="font-semibold text-xs text-foreground uppercase tracking-wide">
                       {group.taskName}
                     </div>
+                  )}
+                  {onGroupClick ? (
+                    <button
+                      onClick={() => onGroupClick(group.id)}
+                      className="text-left text-primary hover:underline font-medium"
+                    >
+                      {group.name}
+                    </button>
+                  ) : (
+                    group.name
                   )}
                   {(group.stageName || group.tradeName) && (
                     <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
@@ -956,9 +1393,43 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 </div>
               </TableCell>
             )}
-            <TableCell className="text-sm py-1.5">{item.description}</TableCell>
             <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
-              {item.pricebookItemCode || "—"}
+              {canEdit ? (
+                <PricebookItemEditor
+                  mode="code"
+                  currentValue={pbChanges.has(changeKey(group.id, item.id))
+                    ? pbChanges.get(changeKey(group.id, item.id))!.pricebookItemCode
+                    : (item.pricebookItemCode || "")}
+                  supplierId={group.supplierId}
+                  isDirty={pbChanges.has(changeKey(group.id, item.id))}
+                  onSelect={(selected) =>
+                    onPricebookChange(group.id, item.id, {
+                      pricebookItemId: selected.pricebookItemId,
+                      pricebookItemCode: selected.pricebookItemCode,
+                    })
+                  }
+                />
+              ) : (
+                item.pricebookItemCode || "—"
+              )}
+            </TableCell>
+            <TableCell className="text-sm py-1.5">
+              {canEdit ? (
+                <PricebookItemEditor
+                  mode="description"
+                  currentValue={item.description}
+                  supplierId={group.supplierId}
+                  isDirty={pbChanges.has(changeKey(group.id, item.id))}
+                  onSelect={(selected) =>
+                    onPricebookChange(group.id, item.id, {
+                      pricebookItemId: selected.pricebookItemId,
+                      pricebookItemCode: selected.pricebookItemCode,
+                    })
+                  }
+                />
+              ) : (
+                item.description
+              )}
             </TableCell>
             <TableCell className="text-right py-1">
               {canEdit ? (
@@ -988,6 +1459,32 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
             >
               {formatCurrency(subtotal)}
             </TableCell>
+            <TableCell className="text-sm py-1 border-l">
+              {canEdit && profitCentres.length > 0 ? (
+                <select
+                  value={pcChanges.has(changeKey(group.id, item.id))
+                    ? (pcChanges.get(changeKey(group.id, item.id)) ?? "")
+                    : (item.profitCentreId ?? "")}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    onPcChange(group.id, item.id, item.profitCentreId, val);
+                  }}
+                  className={cn(
+                    "h-7 w-full text-xs rounded border bg-background px-1.5",
+                    pcChanges.has(changeKey(group.id, item.id)) && "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
+                  )}
+                >
+                  <option value="">—</option>
+                  {profitCentres.map((pc) => (
+                    <option key={pc.id} value={pc.id}>{pc.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {item.profitCentreName || "—"}
+                </span>
+              )}
+            </TableCell>
           </TableRow>
         );
       })}
@@ -995,7 +1492,24 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
       {/* Pending new line items */}
       {newLines.map((nl) => (
         <TableRow key={nl.tempId} className="!bg-green-50 dark:!bg-green-950/30">
-          {/* PO/Supplier cells already covered by rowSpan */}
+          {/* PO/Supplier cells covered by rowSpan */}
+          <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
+            <PricebookItemEditor
+              mode="code"
+              currentValue={nl.pricebookItemCode || ""}
+              supplierId={group.supplierId}
+              isDirty={!!nl.pricebookItemCode}
+              onSelect={(selected) =>
+                onNewLinePricebookSelect(nl.tempId, {
+                  description: selected.description,
+                  unitPrice: selected.unitPrice,
+                  gstCode: selected.gstCode,
+                  pricebookItemId: selected.pricebookItemId,
+                  pricebookItemCode: selected.pricebookItemCode,
+                })
+              }
+            />
+          </TableCell>
           <TableCell className="py-1">
             <PricebookLineSearch
               value={nl.description}
@@ -1006,16 +1520,6 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
               onSelect={(item) =>
                 onNewLinePricebookSelect(nl.tempId, item)
               }
-            />
-          </TableCell>
-          <TableCell className="py-1">
-            <Input
-              value={nl.gstCode === "GST" ? "" : nl.gstCode}
-              onChange={(e) =>
-                onNewLineChange(nl.tempId, "gstCode", e.target.value || "GST")
-              }
-              placeholder="—"
-              className="h-7 text-xs font-mono w-full"
             />
           </TableCell>
           <TableCell className="text-right py-1">
@@ -1069,12 +1573,31 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
               </Button>
             </div>
           </TableCell>
+          <TableCell className="py-1 border-l">
+            {profitCentres.length > 0 ? (
+              <select
+                value={nl.profitCentreId ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : 0;
+                  onNewLineChange(nl.tempId, "profitCentreId", val);
+                }}
+                className="h-7 w-full text-xs rounded border bg-background px-1.5 border-green-500"
+              >
+                <option value="">—</option>
+                {profitCentres.map((pc) => (
+                  <option key={pc.id} value={pc.id}>{pc.label}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </TableCell>
         </TableRow>
       ))}
 
       {/* Group total row with Add Line button */}
       <TableRow className={cn(color.bg, "border-b-2 border-border")}>
-        <TableCell colSpan={2} className={cn("border-r py-1", color.bg)}>
+        <TableCell colSpan={excludeMode ? 3 : 2} className={cn("border-r py-1", color.bg)}>
           {canEdit && (
             <Button
               variant="ghost"
@@ -1096,6 +1619,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
         <TableCell className="text-right text-sm font-mono font-semibold py-1">
           {formatCurrency(groupTotal)}
         </TableCell>
+        <TableCell className={cn("py-1", color.bg)} />
       </TableRow>
     </>
   );
@@ -1175,7 +1699,7 @@ function SortableHead({
 }
 
 // Pricebook item search result from API
-interface PricebookSearchResult {
+export interface PricebookSearchResult {
   id: number;
   item_code: string;
   item_name: string;
@@ -1191,11 +1715,12 @@ interface PricebookSearchResult {
 
 // Inline pricebook search for new line items
 // Shows autocomplete dropdown of pricebook items filtered by supplier
-function PricebookLineSearch({
+export function PricebookLineSearch({
   value,
   supplierId,
   onSelect,
   onChange,
+  autoFocus: autoFocusProp = true,
 }: {
   value: string;
   supplierId?: number | null;
@@ -1207,6 +1732,7 @@ function PricebookLineSearch({
     pricebookItemCode: string;
   }) => void;
   onChange: (value: string) => void;
+  autoFocus?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [results, setResults] = useState<PricebookSearchResult[]>([]);
@@ -1251,15 +1777,24 @@ function PricebookLineSearch({
       onChange(val);
 
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      searchTimeoutRef.current = setTimeout(() => {
-        searchPricebook(val, showAll);
-      }, 300);
+      // Only search pricebook after 2+ characters — allows manual typing without triggering search
+      if (val.trim().length >= 2) {
+        searchTimeoutRef.current = setTimeout(() => {
+          searchPricebook(val, showAll);
+        }, 300);
+      } else {
+        setIsOpen(false);
+        setResults([]);
+      }
     },
     [onChange, searchPricebook, showAll]
   );
 
   const handleFocus = useCallback(() => {
-    searchPricebook(value, showAll);
+    // Only show dropdown if there's already a search query with 2+ chars
+    if (value.trim().length >= 2) {
+      searchPricebook(value, showAll);
+    }
   }, [searchPricebook, value, showAll]);
 
   const handleSelectItem = useCallback(
@@ -1310,7 +1845,7 @@ function PricebookLineSearch({
           onFocus={handleFocus}
           placeholder="Search pricebook or type description..."
           className="h-7 text-sm"
-          autoFocus
+          autoFocus={autoFocusProp}
         />
         {supplierId && (
           <button
@@ -1328,7 +1863,7 @@ function PricebookLineSearch({
                 : "Showing this supplier only - click to show all"
             }
           >
-            {showAll ? "All" : "Supplier"}
+            {showAll ? "All" : "Sup"}
           </button>
         )}
       </div>
@@ -1361,9 +1896,9 @@ function PricebookLineSearch({
                   <span className="truncate">{item.item_name}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {item.current_price != null && (
+                  {item.current_price != null && !isNaN(Number(item.current_price)) && (
                     <span className="font-mono text-green-600 dark:text-green-400">
-                      ${item.current_price.toFixed(2)}
+                      ${Number(item.current_price).toFixed(2)}
                     </span>
                   )}
                   {item.default_supplier && (
@@ -1382,70 +1917,179 @@ function PricebookLineSearch({
   );
 }
 
-// Multi-select filter popover (used for Supplier, Stage, Trade)
-function MultiSelectFilter({
-  values,
-  selected,
-  onToggle,
-  placeholder,
-  label,
+// THE ONE pricebook editor for existing line items (both code and description).
+// mode="code": shows code input (w-24, mono), reverts to code on blur
+// mode="description": shows description input (full width), reverts to description on blur
+export function PricebookItemEditor({
+  currentValue,
+  mode,
+  supplierId,
+  isDirty,
+  onSelect,
 }: {
-  values: string[];
-  selected: Set<string>;
-  onToggle: (value: string) => void;
-  placeholder: string;
-  label?: string;
+  currentValue: string;
+  mode: "code" | "description";
+  supplierId?: number | null;
+  isDirty: boolean;
+  onSelect: (item: {
+    pricebookItemId: number;
+    pricebookItemCode: string;
+    description: string;
+    unitPrice: number;
+    gstCode: string;
+  }) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const count = selected.size;
+  const [searchText, setSearchText] = useState(currentValue);
+  const [editing, setEditing] = useState(false);
+  const [showAll, setShowAll] = useState(!supplierId);
+  const [results, setResults] = useState<PricebookSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    if (!editing) setSearchText(currentValue);
+  }, [currentValue, editing]);
+
+  const searchPricebook = useCallback(
+    async (query: string, allSuppliers: boolean) => {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({ per_page: "50", include_risk: "false" });
+        if (query.trim()) params.set("search", query);
+        if (supplierId && !allSuppliers) params.set("supplier_id", String(supplierId));
+        const response = await api.get<{ items?: PricebookSearchResult[] }>(
+          `/api/v1/pricebook?${params.toString()}`
+        );
+        setResults(response?.items || []);
+        setIsOpen(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [supplierId]
+  );
+
+  const handleFocus = useCallback(() => {
+    setEditing(true);
+    // Always search with empty string on focus to show all items for this supplier
+    // User can then type to narrow down
+    setSearchText("");
+    searchPricebook("", showAll);
+  }, [searchPricebook, showAll]);
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setSearchText(val);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = setTimeout(() => searchPricebook(val, showAll), 300);
+    },
+    [searchPricebook, showAll]
+  );
+
+  const toggleShowAll = useCallback(() => {
+    const newVal = !showAll;
+    setShowAll(newVal);
+    searchPricebook(searchText, newVal);
+  }, [showAll, searchText, searchPricebook]);
+
+  const handleSelect = useCallback(
+    (item: PricebookSearchResult) => {
+      onSelect({
+        pricebookItemId: item.id,
+        pricebookItemCode: item.item_code,
+        description: item.item_name,
+        unitPrice: item.current_price || 0,
+        gstCode: item.gst_code || "GST",
+      });
+      setSearchText(mode === "code" ? item.item_code : item.item_name);
+      setIsOpen(false);
+      setEditing(false);
+    },
+    [onSelect, mode]
+  );
+
+  React.useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setEditing(false);
+        setSearchText(currentValue);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [currentValue]);
+
+  React.useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
+    <div ref={containerRef} className="relative">
+      <div className="flex gap-1">
+        <Input
+          value={searchText}
+          onChange={handleChange}
+          onFocus={handleFocus}
+          placeholder={mode === "code" ? "Code..." : "Search description..."}
           className={cn(
-            "flex items-center gap-1 h-6 px-1.5 text-xs rounded border border-input bg-background hover:bg-muted transition-colors w-full min-w-0",
-            count > 0 && "border-primary/50 bg-primary/5"
+            "h-7",
+            mode === "code" ? "min-w-0 flex-1 text-xs font-mono" : "text-sm",
+            isDirty && "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
           )}
-        >
-          {count > 0 ? (
-            <span className="truncate font-medium">
-              {label ? `${label}: ` : ""}{count} selected
-            </span>
+        />
+        {supplierId && (
+          <button
+            type="button"
+            onClick={toggleShowAll}
+            className={cn(
+              "shrink-0 text-[10px] px-1.5 h-7 rounded border transition-colors whitespace-nowrap",
+              showAll
+                ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400"
+                : "bg-muted border-input text-muted-foreground hover:text-foreground"
+            )}
+            title={showAll ? "Showing all suppliers" : "Showing this supplier only"}
+          >
+            {showAll ? "All" : "Sup"}
+          </button>
+        )}
+      </div>
+      {isOpen && (
+        <div className="absolute z-50 mt-1 left-0 w-[320px] bg-popover border rounded-md shadow-lg max-h-[200px] overflow-auto">
+          {loading ? (
+            <div className="flex items-center justify-center p-2">
+              <Spinner size={14} />
+              <span className="ml-2 text-xs text-muted-foreground">Searching...</span>
+            </div>
+          ) : results.length === 0 ? (
+            <div className="p-2 text-xs text-muted-foreground text-center">No items found</div>
           ) : (
-            <span className="truncate text-muted-foreground">{placeholder}</span>
+            results.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleSelect(item)}
+                className="w-full text-left px-2 py-1 text-xs hover:bg-accent transition-colors border-b last:border-b-0 flex items-center gap-2"
+              >
+                <span className="font-mono text-muted-foreground shrink-0">{item.item_code}</span>
+                <span className="truncate">{item.item_name}</span>
+                {item.current_price != null && !isNaN(Number(item.current_price)) && (
+                  <span className="ml-auto font-mono text-green-600 dark:text-green-400 shrink-0">
+                    ${Number(item.current_price).toFixed(2)}
+                  </span>
+                )}
+              </button>
+            ))
           )}
-          <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[220px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={`Search ${label || ""}...`} className="h-8 text-xs" />
-          <CommandList>
-            <CommandEmpty className="py-2 text-center text-xs text-muted-foreground">
-              No matches.
-            </CommandEmpty>
-            <CommandGroup className="max-h-[200px] overflow-auto">
-              {values.map((value) => (
-                <CommandItem
-                  key={value}
-                  value={value}
-                  onSelect={() => onToggle(value)}
-                  className="text-xs gap-2"
-                >
-                  <Check
-                    className={cn(
-                      "h-3 w-3 shrink-0",
-                      selected.has(value) ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  <span className="truncate">{value}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+        </div>
+      )}
+    </div>
   );
 }

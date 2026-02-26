@@ -130,7 +130,7 @@ class WarehouseDocument < ApplicationRecord
 
   validates :ui_name, presence: true
   validates :source_type, presence: true, inclusion: {
-    in: %w[corporate job email email_attachment task people contact user template warehouse asset financial compliance xero notebook],
+    in: %w[corporate job email email_attachment task people contact user template warehouse asset financial compliance xero notebook library],
     message: "%{value} is not a valid source type"
   }
   validates :version_number, numericality: { greater_than: 0 }, allow_nil: true
@@ -153,6 +153,11 @@ class WarehouseDocument < ApplicationRecord
   scope :latest_versions, -> { where(is_latest_version: true) }
   scope :all_versions, -> { where.not(version_group_id: nil) }
   scope :in_version_group, ->(group_id) { where(version_group_id: group_id).order(:version_number) }
+
+  # Expiry date scopes
+  scope :expired, -> { where("expiry_date IS NOT NULL AND expiry_date < ?", Date.current) }
+  scope :expiring_soon, ->(days = 30) { where("expiry_date IS NOT NULL AND expiry_date >= ? AND expiry_date <= ?", Date.current, Date.current + days.days) }
+  scope :with_expiry, -> { where.not(expiry_date: nil) }
 
   # Phase 6: Parent/child scopes
   scope :root_documents, -> { where(parent_document_id: nil) }
@@ -306,6 +311,31 @@ class WarehouseDocument < ApplicationRecord
     meta("mailbox")
   end
 
+  # ========================================
+  # Expiry Date Helpers
+  # ========================================
+
+  def expired?
+    expiry_date.present? && expiry_date < Date.current
+  end
+
+  def expiring_soon?(days = 30)
+    expiry_date.present? && !expired? && expiry_date <= Date.current + days.days
+  end
+
+  # Returns :expired, :expiring_soon, :valid, or nil (no expiry set)
+  def expiry_status
+    return nil unless expiry_date.present?
+    return :expired if expired?
+    return :expiring_soon if expiring_soon?
+    :valid
+  end
+
+  def days_until_expiry
+    return nil unless expiry_date.present?
+    (expiry_date - Date.current).to_i
+  end
+
   # Job-specific metadata accessors
   def job_code
     meta("job_code")
@@ -354,23 +384,28 @@ class WarehouseDocument < ApplicationRecord
     # Mark all existing versions as not latest
     versions.update_all(is_latest_version: false)
 
-    # Create new version
-    # NOTE (Feb 2026): folder column removed - folder is computed from source_type at runtime
-    new_version = WarehouseDocument.create!(
-      attributes.merge(
-        ui_name: ui_name,
-        source_type: source_type,
-        storage_blob: blob,
-        parent_document: self,
-        version_group_id: group_id,
-        version_number: (versions.maximum(:version_number) || 0) + 1,
-        is_latest_version: true,
-        tenant_id: tenant_id,
-        linkable: linkable,
-        metadata: metadata
-      )
-    )
+    # Inherit folder/type fields from current version (overridable via attributes)
+    inherited = {
+      ui_name: ui_name,
+      source_type: source_type,
+      original_filename: original_filename,
+      file_size: file_size,
+      content_type: content_type,
+      warehouse_folder_id: warehouse_folder_id,
+      warehouse_folder_document_type_id: warehouse_folder_document_type_id,
+      folder_path: folder_path,
+      warehouse_type: warehouse_type,
+      storage_blob: blob,
+      parent_document: self,
+      version_group_id: group_id,
+      version_number: (versions.maximum(:version_number) || 0) + 1,
+      is_latest_version: true,
+      tenant_id: tenant_id,
+      linkable: linkable,
+      metadata: metadata
+    }
 
+    new_version = WarehouseDocument.create!(inherited.merge(attributes))
     new_version
   end
 
@@ -492,10 +527,15 @@ class WarehouseDocument < ApplicationRecord
   # ========================================
 
   # Check if ui_name needs template expansion
-  # Only on new records with folder context — don't overwrite manual renames on existing docs.
+  # On new records with folder context, or existing records when expiry_date changes
+  # (expiry tokens {EX}/{Expiry} in ui_name template need re-expansion).
   # Checks both WFDT and warehouse_folder_id (set by materialize_folder_path which runs first).
   def needs_ui_name_recomputation?
-    new_record? && (warehouse_folder_document_type_id.present? || warehouse_folder_id.present?)
+    if new_record?
+      warehouse_folder_document_type_id.present? || warehouse_folder_id.present?
+    else
+      expiry_date_changed? && (warehouse_folder_document_type_id.present? || warehouse_folder_id.present?)
+    end
   end
 
   # Compute and store the materialized UI name using SendNameResolver
@@ -541,7 +581,8 @@ class WarehouseDocument < ApplicationRecord
       original_filename_changed? ||
       warehouse_folder_document_type_id_changed? ||
       source_type_changed? ||
-      metadata_changed?
+      metadata_changed? ||
+      expiry_date_changed?
   end
 
   # Compute and store the materialized download name using SendNameResolver

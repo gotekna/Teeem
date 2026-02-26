@@ -84,6 +84,7 @@ import {
   Printer,
   Receipt,
   FolderSearch,
+  AlertTriangle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -102,6 +103,7 @@ import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns
 import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { EmailComposePane } from "@/components/emails/EmailComposePane";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { DraftsList } from "@/components/emails/DraftsList";
 import {
@@ -279,6 +281,30 @@ function getInitials(name: string | null | undefined, email: string | null | und
   return "??";
 }
 
+// Detect if a folder is a Sent folder (matches backend SENT_FOLDER_VARIANTS)
+const SENT_FOLDER_VARIANTS = ["sent", "sent items", "sent mail", "inbox.sent"];
+function isSentFolder(folderName: string | undefined): boolean {
+  if (!folderName) return false;
+  return SENT_FOLDER_VARIANTS.includes(folderName.toLowerCase());
+}
+
+// Get the display name for an email based on folder context
+// Sent folder: show recipient (TO) like Gmail/Outlook/Group Office
+// Other folders: show sender (FROM) as normal
+function getEmailDisplayPerson(email: Email, sourceFolder?: string): { name: string | null; email: string } {
+  if (isSentFolder(sourceFolder) || email.direction === "sent") {
+    // Sent folder: show recipients (email address, matching Group Office behavior)
+    const recipients = email.to_emails?.length ? email.to_emails : email.to_addresses || [];
+    const firstRecipient = recipients[0] || "";
+    const extraCount = recipients.length - 1;
+    // Show email address + count of additional recipients
+    const displayEmail = extraCount > 0 ? `${firstRecipient} +${extraCount}` : firstRecipient;
+    return { name: null, email: displayEmail };
+  }
+  // Inbox/other: show sender
+  return { name: email.from_name || null, email: email.from_email || email.from_address || "" };
+}
+
 // Generate consistent color from string (for avatar background)
 // Gmail-style color palette
 const AVATAR_COLORS = [
@@ -352,8 +378,12 @@ interface Email {
   thread_count?: number;
   is_latest_in_thread?: boolean;
   thread?: Email[];
-  // AI Summary fields
+  // AI Summary fields (populated by EmailIntelligenceService)
   ai_summary?: string | null;
+  action_items?: Array<{ action: string; deadline?: string; priority: string }> | null;
+  follow_up_required?: boolean;
+  follow_up_date?: string | null;
+  follow_up_reason?: string | null;
   // Contact matching fields
   primary_contact_id?: number | null;
   primary_contact?: {
@@ -468,6 +498,12 @@ const EmailListItem = memo(function EmailListItem({
 }) {
   const hasThread = threadCount > 1;
 
+  // Determine display person based on folder context (sent = show recipient, inbox = show sender)
+  const isSent = isSentFolder(sourceFolder) || email.direction === "sent";
+  const displayPerson = getEmailDisplayPerson(email, sourceFolder);
+  const displayName = displayPerson.name || displayPerson.email;
+  const displayEmail = displayPerson.email;
+
   const content = (
     <EmailContextMenu
       emailId={email.id}
@@ -532,15 +568,15 @@ const EmailListItem = memo(function EmailListItem({
             )}
           </div>
 
-          {/* Sender Avatar */}
+          {/* Avatar - shows recipient in Sent folder, sender otherwise */}
           <div className="shrink-0 pt-0.5">
             <div
               className={cn(
                 "h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-medium",
-                getAvatarColor(email.from_email || email.from_address || "unknown")
+                getAvatarColor(displayEmail || "unknown")
               )}
             >
-              {getInitials(email.from_name, email.from_email || email.from_address)}
+              {getInitials(displayPerson.name, displayEmail)}
             </div>
           </div>
 
@@ -557,7 +593,8 @@ const EmailListItem = memo(function EmailListItem({
                   "text-sm truncate flex-1 min-w-0",
                   !email.is_read ? "font-semibold text-foreground" : "font-normal text-muted-foreground"
                 )}>
-                  {email.from_name || email.from_email || email.from_address}
+                  {isSent && <span className="text-muted-foreground font-normal">To: </span>}
+                  {displayName}
                 </span>
                 {email.has_attachments && (
                   <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -568,6 +605,19 @@ const EmailListItem = memo(function EmailListItem({
                   confidence={email.classification_confidence}
                   compact
                 />
+                {/* Follow-up badge */}
+                {email.follow_up_required && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 gap-0.5 border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400 shrink-0">
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    Follow-up
+                  </Badge>
+                )}
+                {/* Action items count badge */}
+                {email.action_items && email.action_items.length > 0 && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 gap-0.5 border-indigo-300 text-indigo-600 dark:border-indigo-700 dark:text-indigo-400 shrink-0">
+                    {email.action_items.length} action{email.action_items.length > 1 ? "s" : ""}
+                  </Badge>
+                )}
                 {/* Thread count badge */}
                 <ThreadCountBadge count={threadCount} isExpanded={isExpanded} />
                 {/* Timestamp - inline with sender */}
@@ -584,7 +634,12 @@ const EmailListItem = memo(function EmailListItem({
               )}>
                 {email.subject || "(No subject)"}
               </p>
-              {(() => {
+              {/* Show AI summary if available, otherwise show body snippet */}
+              {email.ai_summary ? (
+                <p className="text-xs truncate mt-0.5 text-indigo-600/70 dark:text-indigo-400/70 italic">
+                  {email.ai_summary}
+                </p>
+              ) : (() => {
                 const snippetText = decodeHtmlEntities(email.snippet || email.body_preview);
                 return snippetText ? (
                   <p className={cn(
@@ -1328,6 +1383,26 @@ export default function EmailPage() {
     }
 
     setLoadingFolders((prev: Set<string>) => new Set(prev).add(accountId));
+
+    // Polaris mailboxes have no IMAP/Graph connection - use default folders client-side
+    if (acct?.type === "polaris") {
+      const defaultFolders: EmailFolder[] = [
+        { id: "INBOX", name: "Inbox", display_name: "Inbox", displayName: "Inbox", unread_count: 0, total_items: 0, type: "inbox", depth: 0 },
+        { id: "Sent", name: "Sent", display_name: "Sent", displayName: "Sent", unread_count: 0, total_items: 0, type: "sent", depth: 0 },
+        { id: "Drafts", name: "Drafts", display_name: "Drafts", displayName: "Drafts", unread_count: 0, total_items: 0, type: "drafts", depth: 0 },
+        { id: "Trash", name: "Trash", display_name: "Trash", displayName: "Trash", unread_count: 0, total_items: 0, type: "trash", depth: 0 },
+        { id: "Junk", name: "Junk", display_name: "Junk", displayName: "Junk", unread_count: 0, total_items: 0, type: "junk", depth: 0 },
+        { id: "Archive", name: "Archive", display_name: "Archive", displayName: "Archive", unread_count: 0, total_items: 0, type: "archive", depth: 0 },
+      ];
+      setAccountFolders(prev => ({ ...prev, [accountId]: defaultFolders }));
+      setLoadingFolders((prev: Set<string>) => { const next = new Set(prev); next.delete(accountId); return next; });
+      const inboxFolder = defaultFolders[0];
+      if (forceSelectInbox && inboxFolder) {
+        setSelectedFolder(inboxFolder.name);
+        setSelectedFolderId(inboxFolder.id);
+      }
+      return;
+    }
 
     // Build URL with mailbox_email for ms365 accounts
     let foldersUrl = `/api/v1/imap_credentials/folders?account_id=${accountId}`;
@@ -2723,7 +2798,33 @@ ${originalBody}
           minSize="300px"
           className="flex flex-col min-w-0 overflow-hidden bg-background"
         >
-        {selectedEmail ? (
+        {composeOpen ? (
+          <EmailComposePane
+            isActive={composeOpen}
+            onClose={() => {
+              setComposeOpen(false);
+              setReplyTo(null);
+              setResumeDraft(null);
+            }}
+            defaultTo={replyTo?.to || ""}
+            defaultCc={replyTo?.cc || ""}
+            defaultSubject={replyTo?.subject || ""}
+            defaultBody={replyTo?.body || ""}
+            defaultFromAccountId={replyTo?.fromAccountId}
+            defaultFromEmail={replyTo?.fromEmail}
+            replyToMessageId={replyTo?.replyToMessageId}
+            forwardEmailId={replyTo?.forwardEmailId}
+            forwardAttachments={replyTo?.forwardAttachments}
+            originalEmailId={replyTo?.originalEmailId}
+            originalAttachments={replyTo?.originalAttachments}
+            draft={resumeDraft || undefined}
+            onSent={() => {
+              fetchEmails();
+              setReplyTo(null);
+              setResumeDraft(null);
+            }}
+          />
+        ) : selectedEmail ? (
           <>
             {/* Outlook-style Toolbar Header */}
             <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
@@ -2933,34 +3034,36 @@ ${originalBody}
       </ResizablePanel>
     </ResizablePanelGroup>
 
-      {/* Compose Modal */}
-      <ComposeEmailModal
-        open={composeOpen}
-        onOpenChange={(open) => {
-          setComposeOpen(open);
-          if (!open) {
+      {/* Compose Modal fallback - only used when reading pane is "off" (no inline area available) */}
+      {readingPanePosition === "off" && (
+        <ComposeEmailModal
+          open={composeOpen}
+          onOpenChange={(open) => {
+            setComposeOpen(open);
+            if (!open) {
+              setReplyTo(null);
+              setResumeDraft(null);
+            }
+          }}
+          defaultTo={replyTo?.to || ""}
+          defaultCc={replyTo?.cc || ""}
+          defaultSubject={replyTo?.subject || ""}
+          defaultBody={replyTo?.body || ""}
+          defaultFromAccountId={replyTo?.fromAccountId}
+          defaultFromEmail={replyTo?.fromEmail}
+          replyToMessageId={replyTo?.replyToMessageId}
+          forwardEmailId={replyTo?.forwardEmailId}
+          forwardAttachments={replyTo?.forwardAttachments}
+          originalEmailId={replyTo?.originalEmailId}
+          originalAttachments={replyTo?.originalAttachments}
+          draft={resumeDraft || undefined}
+          onSent={() => {
+            fetchEmails();
             setReplyTo(null);
             setResumeDraft(null);
-          }
-        }}
-        defaultTo={replyTo?.to || ""}
-        defaultCc={replyTo?.cc || ""}
-        defaultSubject={replyTo?.subject || ""}
-        defaultBody={replyTo?.body || ""}
-        defaultFromAccountId={replyTo?.fromAccountId}
-        defaultFromEmail={replyTo?.fromEmail}
-        replyToMessageId={replyTo?.replyToMessageId}
-        forwardEmailId={replyTo?.forwardEmailId}
-        forwardAttachments={replyTo?.forwardAttachments}
-        originalEmailId={replyTo?.originalEmailId}
-        originalAttachments={replyTo?.originalAttachments}
-        draft={resumeDraft || undefined}
-        onSent={() => {
-          fetchEmails();
-          setReplyTo(null);
-          setResumeDraft(null);
-        }}
-      />
+          }}
+        />
+      )}
 
       {/* Create Folder Dialog - for IMAP accounts */}
       <CreateFolderDialog

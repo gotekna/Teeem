@@ -761,7 +761,8 @@ class WarehouseProvider < ApplicationRecord
     else
       false
     end
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[WarehouseProvider] Failed to check connected status: #{e.message}"
     false
   end
 

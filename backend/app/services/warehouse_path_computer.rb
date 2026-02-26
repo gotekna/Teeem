@@ -497,7 +497,8 @@ class WarehousePathComputer
       return nil unless obj.respond_to?(method)
       obj.public_send(method)
     end
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[WarehousePathComputer] Failed to resolve value for path '#{path}': #{e.message}"
     nil
   end
 

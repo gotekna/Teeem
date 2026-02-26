@@ -103,10 +103,11 @@ export function MergeModal({
       if (onMerge) {
         await onMerge(primaryId, secondaryIds);
       } else {
-        // Call the generic merge API
+        // Call the generic merge API (longer timeout - merges can be slow for large contacts)
         await api.post(
           `/api/v1/foundations/${foundationId}/records/${primaryId}/merge`,
-          { secondary_ids: secondaryIds }
+          { secondary_ids: secondaryIds },
+          { timeout: 90000 }
         );
       }
 
@@ -213,6 +214,7 @@ export function MergeModal({
                   >
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{displayValue}</span>
+                      <span className="text-xs text-muted-foreground font-mono">#{String(recordId)}</span>
                       {/* Entity Type Badge */}
                       {typeof record.entity_type === "string" && record.entity_type && (
                         <Badge

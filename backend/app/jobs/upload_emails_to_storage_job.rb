@@ -42,7 +42,7 @@ class UploadEmailsToStorageJob < ApplicationJob
 
     # If tenant specified, process just that tenant
     if tenant_id
-      tenant = Tenant.find(tenant_id)
+      tenant = ActsAsTenant.without_tenant { Tenant.find(tenant_id) }
       process_tenant(tenant, batch_size: batch_size)
     else
       # FRC (Jan 2026): Process ALL tenants with pending emails
@@ -82,7 +82,8 @@ class UploadEmailsToStorageJob < ApplicationJob
     tenant_ids_with_pending.each do |tid|
       break unless time_remaining?
 
-      tenant = Tenant.find(tid)
+      # Unscoped find to avoid acts_as_tenant adding WHERE tenants."true"
+      tenant = ActsAsTenant.without_tenant { Tenant.find(tid) }
       result = process_tenant(tenant, batch_size: batch_size)
       results[:uploaded] += result[:uploaded].to_i
       results[:skipped] += result[:skipped].to_i
@@ -97,16 +98,26 @@ class UploadEmailsToStorageJob < ApplicationJob
     progress = nil
     Rails.logger.info "[UploadEmailsToStorageJob] Processing tenant #{tenant.id} (#{tenant.name})"
 
-    ActsAsTenant.with_tenant(tenant) do
-      progress = BackgroundJobProgress.start(
+    # ⚠️ DO NOT SIMPLIFY - BackgroundJobProgress MUST be created outside tenant scope (Feb 2026)
+    # ════════════════════════════════════════════════════════════════════
+    # Why: BackgroundJobProgress has no tenant_id column. When created/updated inside
+    # ActsAsTenant.with_tenant, acts_as_tenant adds WHERE ""=$1 (empty column name)
+    # causing PG::SyntaxError and MissingAttributeError.
+    # ════════════════════════════════════════════════════════════════════
+    progress = ActsAsTenant.without_tenant do
+      BackgroundJobProgress.start(
         job_type: "email_storage_upload",
         metadata: { batch_size: batch_size, tenant_id: tenant.id }
       )
+    end
+
+    ActsAsTenant.with_tenant(tenant) do
 
       total_uploaded = 0
       total_skipped = 0
       total_errors = []
       batch_number = 0
+      consecutive_error_batches = 0
 
       # Loop within same job execution instead of chaining perform_later
       # (DeduplicatableJob blocks chained jobs since current job is still running)
@@ -134,12 +145,20 @@ class UploadEmailsToStorageJob < ApplicationJob
         # 2. Nothing was processed (all remaining are unfetchable/missing outlook_id)
         break if uploaded == 0 && skipped == 0
 
-        # 3. Circuit breaker: if no uploads and ALL are errors, stop looping.
-        # FRC (Feb 2026): Without this, broken emails loop forever (500 errors/batch,
-        # skipped=500 so condition #2 doesn't trigger), consuming memory until R14 crash.
+        # 3. Circuit breaker: if no uploads and ALL are errors, allow up to 3 consecutive
+        # all-error batches before stopping. With randomized order, each batch attempts
+        # different emails, so transient failures in one batch may not affect the next.
+        # FRC (Feb 2026): Without this, broken emails loop forever consuming memory until R14.
+        # FRC (Feb 2026): Softened from 1 → 3 to avoid one bad batch blocking 87K emails.
         if uploaded == 0 && errors.count > 0 && errors.count >= skipped
-          Rails.logger.warn "[UploadEmailsToStorageJob] Circuit breaker: batch #{batch_number} had #{errors.count} errors and 0 uploads, stopping"
-          break
+          consecutive_error_batches += 1
+          if consecutive_error_batches >= 3
+            Rails.logger.warn "[UploadEmailsToStorageJob] Circuit breaker: #{consecutive_error_batches} consecutive error batches, stopping"
+            break
+          end
+          Rails.logger.warn "[UploadEmailsToStorageJob] All-error batch #{consecutive_error_batches}/3, trying next batch..."
+        else
+          consecutive_error_batches = 0  # Reset on any success
         end
 
         # 4. Time limit reached

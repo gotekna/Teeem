@@ -40,6 +40,7 @@ class DocumentType < ApplicationRecord
     when 'corporate' then 'company'
     when 'job' then 'job'
     when 'contact' then 'contacts'
+    when 'library' then 'library'
     else 'company'
     end
   end
@@ -119,6 +120,21 @@ class DocumentType < ApplicationRecord
     if has_attribute?(:scope)
       new_scope = derived_scope
       update_column(:scope, new_scope) if read_attribute(:scope) != new_scope
+    end
+
+    # SSoT: Sync folder column to match primary_warehouse_folder.display_name
+    # Without this, SQL GROUP BY (Foundation API) sees stale raw column values
+    # while Ruby getter returns computed values — creating a dual reality.
+    # FRC (Feb 2026): This was the missing sync that caused "(Empty)" group count mismatch
+    if has_attribute?(:folder)
+      new_folder = primary_warehouse_folder&.display_name
+      update_column(:folder, new_folder) if read_attribute(:folder) != new_folder
+    end
+
+    # SSoT: Sync target_folder column to match primary_warehouse_folder.full_folder_path
+    if has_attribute?(:target_folder)
+      new_target = primary_warehouse_folder&.full_folder_path
+      update_column(:target_folder, new_target) if read_attribute(:target_folder) != new_target
     end
   end
 

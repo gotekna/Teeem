@@ -46,6 +46,7 @@ import {
   MoreVertical,
   Plus,
   Trash2,
+  RotateCcw,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -123,6 +124,14 @@ const JobQuoteTrackerTab = dynamic(() => import("@/components/jobs/JobQuoteTrack
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const JobCustomQuotesTab = dynamic(() => import("@/components/jobs/JobCustomQuotesTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobQuoteReturnsTab = dynamic(() => import("@/components/jobs/JobQuoteReturnsTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const JobBudgetTab = dynamic(() => import("@/components/jobs/JobBudgetTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -160,6 +169,14 @@ const JobSitePresenceTab = dynamic(() => import("@/components/jobs/JobSitePresen
   loading: () => <TabLoadingSkeleton />,
 });
 const RevitTab = dynamic(() => import("@/components/jobs/RevitTab").then(m => m.RevitTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobTenderTab = dynamic(() => import("@/components/jobs/JobTenderTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobTenderBuilderTab = dynamic(() => import("@/components/jobs/JobTenderBuilderTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
@@ -285,6 +302,8 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "purchase-order-lines": JobPurchaseOrderLinesTab,
   "estimates": JobEstimatorTab,
   "quote-tracker": JobQuoteTrackerTab,
+  "custom-quotes": JobCustomQuotesTab,
+  "quote-returns": JobQuoteReturnsTab,
   "boq": JobBOQTab,
   "price-analysis": JobPriceAnalysisTab,
   "activity": JobActivityTab,
@@ -293,6 +312,9 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "rain-log": RainLogTab,
   "documents": JobDocumentsTab,
   "coms": JobCommunicationsTab,
+  "tender": JobTenderTab,
+  "tenders": JobTenderTab,
+  "tender-builder": JobTenderBuilderTab,
   "revit": RevitTab,
   "revit-dwg": RevitTab,
   "warehouse": JobWarehouseTab,
@@ -326,6 +348,8 @@ const COMPONENT_BY_NAME: Record<string, React.ComponentType<any>> = {
   "JobPurchaseOrderLinesTab": JobPurchaseOrderLinesTab,
   "JobEstimatorTab": JobEstimatorTab,
   "JobQuoteTrackerTab": JobQuoteTrackerTab,
+  "JobCustomQuotesTab": JobCustomQuotesTab,
+  "JobQuoteReturnsTab": JobQuoteReturnsTab,
   "JobBOQTab": JobBOQTab,
   "JobPriceAnalysisTab": JobPriceAnalysisTab,
   "JobActivityTab": JobActivityTab,
@@ -334,6 +358,7 @@ const COMPONENT_BY_NAME: Record<string, React.ComponentType<any>> = {
   "RainLogTab": RainLogTab,
   "JobDocumentsTab": JobDocumentsTab,
   "JobCommunicationsTab": JobCommunicationsTab,
+  "JobTenderTab": JobTenderTab,
   "RevitTab": RevitTab,
   "JobWarehouseTab": JobWarehouseTab,
   "XeroBillsCard": XeroBillsCard,
@@ -342,7 +367,8 @@ const COMPONENT_BY_NAME: Record<string, React.ComponentType<any>> = {
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)
-const SPECIAL_TABS = ["overview", "whs", "plans"];
+// "plan" included as guard against duplicate DB entries (plan vs plans SSoT fix Feb 2026)
+const SPECIAL_TABS = ["overview", "whs", "plans", "plan"];
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -808,6 +834,7 @@ export default function JobDetailPage() {
     toggleTab,
     tabOrder,
     setTabOrder,
+    resetToDefaults,
   } = useUserTabPreferences("job");
 
   // Sort and filter tabs based on user preferences
@@ -1280,7 +1307,7 @@ export default function JobDetailPage() {
       // Finance sub-tab badge counts (lightweight, non-blocking)
       api.get<{ success: boolean; counts: Record<string, number> }>(`/api/v1/jobs/${jobId}/finance_counts`)
         .then(res => { if (res?.success) setFinanceCounts(res.counts); })
-        .catch(() => {});
+        .catch((err) => console.error("[JobPage] Failed to fetch finance counts:", err));
     }
   }, [jobId, loadJob, loadXeroTrackingOptions, loadJobDesigns, loadChoiceColumns]);
 
@@ -1532,6 +1559,16 @@ export default function JobDetailPage() {
                       ))}
                     </SortableList>
                   </RadioGroup>
+                  <DropdownMenuSeparator />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-xs text-muted-foreground"
+                    onClick={resetToDefaults}
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1.5" />
+                    Reset to Default
+                  </Button>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -1941,7 +1978,11 @@ export default function JobDetailPage() {
             || (tab.component_name ? COMPONENT_BY_NAME[tab.component_name] : undefined)
             || (tab.component_name ? getTabComponent(tab.component_name) : undefined);
           if (Component) {
-            const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
+            const className = tab.tab_key === "schedule"
+              ? "mt-4 h-[calc(100vh-300px)]"
+              : tab.tab_key === "boq"
+                ? "mt-0"  // BOQ has inner tabs - no extra gap so they feel connected to parent sub-tabs
+                : "mt-4";
             return (
               <TabsContent key={tabValue} value={tabValue} className={className}>
                 <React.Suspense fallback={<TabLoadingSkeleton />}>

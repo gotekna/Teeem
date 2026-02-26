@@ -51,6 +51,9 @@ module Api
 
       # GET /api/v1/permissions/roles
       def roles
+        # FRC (Feb 2026): Batch load task counts to avoid N+1 (was 1 COUNT per role)
+        task_counts_by_role = SmTask.group(:role).count
+
         roles_data = Role.includes(:users).order(:position, :name).map do |role|
           {
             id: role.id,
@@ -58,9 +61,9 @@ module Api
             display_name: role.display_name,
             description: role.description,
             # SSoT: Use user_roles join table (role.users) not legacy role column
-            users_count: role.users.count,
+            users_count: role.users.size,  # .size uses eager-loaded collection (not .count which hits DB)
             # Schedule Master task count for this role
-            tasks_count: SmTask.for_role(role.name).count,
+            tasks_count: task_counts_by_role[role.name] || 0,
             permissions: get_role_permissions(role.name),
             # Role settings (Jan 2026)
             settings: role.settings || {},

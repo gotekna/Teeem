@@ -69,11 +69,15 @@ class BackfillImapEmailBlobsJob < ApplicationJob
               break unless time_remaining?
 
               begin
-                raw_content = fetch_email_content(service, email)
+                tempfile = fetch_email_to_tempfile(service, email)
 
-                if raw_content.present?
-                  store_email_to_blob(email, raw_content, tenant)
-                  total_uploaded += 1
+                if tempfile
+                  begin
+                    store_email_from_tempfile(email, tempfile, tenant)
+                    total_uploaded += 1
+                  ensure
+                    tempfile.close! rescue nil
+                  end
                 else
                   Rails.logger.warn "[ImapUpload] Could not fetch content for email #{email.id}"
                 end
@@ -111,25 +115,40 @@ class BackfillImapEmailBlobsJob < ApplicationJob
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
   end
 
-  def fetch_email_content(service, email)
+  # Memory-safe: writes IMAP content directly to Tempfile instead of holding in heap.
+  # Returns Tempfile on success, nil on failure. Caller must close! the Tempfile.
+  def fetch_email_to_tempfile(service, email)
     return nil unless email.uid.present? && email.folder_name.present?
 
     service.send(:with_imap_connection) do |imap|
       imap.select(email.folder_name)
       fetch_data = imap.uid_fetch([email.uid], ["BODY.PEEK[]"])
       return nil unless fetch_data&.first
-      fetch_data.first.attr["BODY[]"]
+
+      raw_content = fetch_data.first.attr["BODY[]"]
+      return nil unless raw_content.present?
+
+      tempfile = Tempfile.new(["imap_email_#{email.id}", ".eml"], binmode: true)
+      tempfile.write(raw_content)
+      tempfile.flush
+      tempfile.rewind
+
+      # Release the String from heap immediately
+      raw_content = nil
+
+      tempfile
     end
   rescue => e
     Rails.logger.warn "[ImapUpload] Error fetching email #{email.id}: #{e.message}"
     nil
   end
 
-  def store_email_to_blob(email, raw_content, tenant)
+  # Memory-safe: uses StorageBlob.find_or_create_from_file! (disk-backed hash + upload)
+  def store_email_from_tempfile(email, tempfile, tenant)
     return if email.warehouse_document.present?
 
-    blob = StorageBlob.find_or_create_for_content!(
-      raw_content,
+    blob = StorageBlob.find_or_create_from_file!(
+      tempfile.path,
       filename: "#{email.id}.eml",
       content_type: "message/rfc822"
     )

@@ -1236,7 +1236,7 @@ export function WarehouseFoldersConfig({
                             {dt.name}
                           </button>
                         </TableCell>
-                        <TableCell className="py-1.5 px-3">
+                        <TableCell className="py-1.5 px-3 flex items-center gap-1">
                           {/* SSoT: is_primary flag indicates primary vs secondary link */}
                           {dt.is_primary ? (
                             <Badge variant="default" className="bg-green-600 hover:bg-green-600 text-white text-xs">
@@ -1245,6 +1245,11 @@ export function WarehouseFoldersConfig({
                           ) : (
                             <Badge variant="secondary" className="text-xs">
                               Secondary
+                            </Badge>
+                          )}
+                          {dt.is_system && (
+                            <Badge variant="outline" className="text-[10px] border-purple-300 dark:border-purple-600 text-purple-600 dark:text-purple-400">
+                              SYS
                             </Badge>
                           )}
                         </TableCell>

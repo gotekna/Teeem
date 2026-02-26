@@ -1,6 +1,6 @@
 class UserAbsence < ApplicationRecord
   # Associations
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :approved_by, class_name: 'User', optional: true
 
   # Constants

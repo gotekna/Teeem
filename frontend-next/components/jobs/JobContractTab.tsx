@@ -14,8 +14,13 @@ import {
   Eye,
   Download,
   Send,
+  MapPin,
+  Hammer,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -140,6 +145,18 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     spec_date: job.spec_date || "",
     practical_completion_date: job.practical_completion_date || "",
     warranty_end_date: job.warranty_end_date || "",
+    // Tender details
+    estate: job.estate || "",
+    facade: job.facade || "",
+    developer_approval: job.developer_approval ?? false,
+    developer_contact: job.developer_contact || "",
+    land_registration: job.land_registration || "",
+    building_contract_type: job.building_contract_type || "",
+    development_application: job.development_application || "",
+    sales_centre: job.sales_centre || "",
+    wind_classification: job.wind_classification || "",
+    soil_classification: job.soil_classification || "",
+    specification: job.specification || "",
   });
 
   // Sync form when job prop changes
@@ -169,6 +186,17 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
         spec_date: job.spec_date || "",
         practical_completion_date: job.practical_completion_date || "",
         warranty_end_date: job.warranty_end_date || "",
+        estate: job.estate || "",
+        facade: job.facade || "",
+        developer_approval: job.developer_approval ?? false,
+        developer_contact: job.developer_contact || "",
+        land_registration: job.land_registration || "",
+        building_contract_type: job.building_contract_type || "",
+        development_application: job.development_application || "",
+        sales_centre: job.sales_centre || "",
+        wind_classification: job.wind_classification || "",
+        soil_classification: job.soil_classification || "",
+        specification: job.specification || "",
       });
     }
   }, [job, isEditing]);
@@ -218,6 +246,18 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           spec_date: form.spec_date || null,
           practical_completion_date: form.practical_completion_date || null,
           warranty_end_date: form.warranty_end_date || null,
+          // Tender details
+          estate: form.estate || null,
+          facade: form.facade || null,
+          developer_approval: form.developer_approval,
+          developer_contact: form.developer_contact || null,
+          land_registration: form.land_registration || null,
+          building_contract_type: form.building_contract_type || null,
+          development_application: form.development_application || null,
+          sales_centre: form.sales_centre || null,
+          wind_classification: form.wind_classification || null,
+          soil_classification: form.soil_classification || null,
+          specification: form.specification || null,
         },
       });
       toast({ title: "Contract details saved" });
@@ -256,6 +296,17 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
       spec_date: job.spec_date || "",
       practical_completion_date: job.practical_completion_date || "",
       warranty_end_date: job.warranty_end_date || "",
+      estate: job.estate || "",
+      facade: job.facade || "",
+      developer_approval: job.developer_approval ?? false,
+      developer_contact: job.developer_contact || "",
+      land_registration: job.land_registration || "",
+      building_contract_type: job.building_contract_type || "",
+      development_application: job.development_application || "",
+      sales_centre: job.sales_centre || "",
+      wind_classification: job.wind_classification || "",
+      soil_classification: job.soil_classification || "",
+      specification: job.specification || "",
     });
     setIsEditing(false);
   };
@@ -448,6 +499,282 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           )}
         </div>
       </div>
+
+      {/* ═══════ TENDER DETAILS ═══════ */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-base">Tender Details</CardTitle>
+            <span className="text-xs text-muted-foreground">Property, site & build info for tender documents</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left column - Property & Site */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-3">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <h4 className="text-sm font-medium">Property & Site</h4>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Council</Label>
+                  {isEditing ? (
+                    <Input
+                      value={job.council || ""}
+                      disabled
+                      className="bg-muted text-sm h-8"
+                      placeholder="Set on Overview tab"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.council || "-"}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Estate</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.estate}
+                      onChange={(e) => setForm({ ...form, estate: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="e.g., Huntlee"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.estate || "-"}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Development Application</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.development_application}
+                      onChange={(e) => setForm({ ...form, development_application: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="e.g., CDC"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.development_application || "-"}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Land Registration</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.land_registration}
+                      onChange={(e) => setForm({ ...form, land_registration: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="e.g., Nov 2019"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.land_registration || "-"}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Developer Approval</Label>
+                  {isEditing ? (
+                    <div className="flex items-center gap-2 h-8">
+                      <Switch
+                        checked={form.developer_approval}
+                        onCheckedChange={(checked) => setForm({ ...form, developer_approval: checked })}
+                      />
+                      <span className="text-sm">{form.developer_approval ? "Yes" : "No"}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      {job.developer_approval ? (
+                        <Badge variant="outline" className="text-green-600 border-green-200 dark:text-green-400 dark:border-green-800 gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Yes
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground gap-1">
+                          <XCircle className="h-3 w-3" />
+                          No
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Developer Contact</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.developer_contact}
+                      onChange={(e) => setForm({ ...form, developer_contact: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="Name - Phone"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.developer_contact || "-"}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Wind Classification</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.wind_classification}
+                      onChange={(e) => setForm({ ...form, wind_classification: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="e.g., N2"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.wind_classification || "-"}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Soil Classification</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.soil_classification}
+                      onChange={(e) => setForm({ ...form, soil_classification: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="e.g., M-D"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.soil_classification || "-"}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right column - Build & Contract */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Hammer className="h-4 w-4 text-muted-foreground" />
+                <h4 className="text-sm font-medium">Build & Contract</h4>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Design Name</Label>
+                  <p className="text-sm">{job.design_name || "-"}</p>
+                  {isEditing && (
+                    <p className="text-[10px] text-muted-foreground">Set on Overview tab</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Facade</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.facade}
+                      onChange={(e) => setForm({ ...form, facade: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="e.g., Vogue"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.facade || "-"}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Specification</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.specification}
+                      onChange={(e) => setForm({ ...form, specification: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="e.g., Sydney & Hunter Base"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.specification || "-"}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Building Contract</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.building_contract_type}
+                      onChange={(e) => setForm({ ...form, building_contract_type: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="e.g., Standard"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.building_contract_type || "-"}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Sales Centre</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.sales_centre}
+                      onChange={(e) => setForm({ ...form, sales_centre: e.target.value })}
+                      className="text-sm h-8"
+                      placeholder="e.g., Thornton"
+                    />
+                  ) : (
+                    <p className="text-sm">{job.sales_centre || "-"}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Sales Person</Label>
+                  {(() => {
+                    const salesContact = job.contacts?.find(c => c.role === "internal_sales");
+                    const salesName = salesContact?.display_name
+                      || (salesContact?.user as Record<string, unknown>)?.name as string
+                      || salesContact?.name;
+                    return <p className="text-sm">{salesName || "-"}</p>;
+                  })()}
+                  {isEditing && (
+                    <p className="text-[10px] text-muted-foreground">Set on People tab</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Client Summary */}
+          {(() => {
+            const clientContacts = job.contacts?.filter(c => c.role === "client") || [];
+            const primaryClient = clientContacts.find(c => c.primary) || clientContacts[0];
+            if (!primaryClient) return null;
+            const contact = primaryClient.contact as Record<string, unknown> | undefined;
+            const salesPerson = job.contacts?.find(c => c.role === "internal_sales");
+            return (
+              <div className="mt-5 pt-4 border-t">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-muted-foreground">Primary Client</h4>
+                  <span className="text-[10px] text-muted-foreground">Managed on People tab</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Name</p>
+                    <p className="text-sm font-medium">
+                      {(contact?.display_name as string) || primaryClient.display_name || primaryClient.name || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Address</p>
+                    <p className="text-sm">{(contact?.full_address as string) || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    <p className="text-sm">{(contact?.primary_email as string) || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <p className="text-sm">{(contact?.primary_mobile as string) || "-"}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Contract Information */}

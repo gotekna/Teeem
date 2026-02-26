@@ -21,8 +21,10 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :estimate, optional: true
   belongs_to :quote_response, optional: true
+  belongs_to :quote_warehouse_document, class_name: "WarehouseDocument", optional: true
   belongs_to :external_invoice, optional: true
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
+  has_many :items, class_name: "PurchaseOrderLineItem" # Alias for Foundation API eager loading
 
   # Budget Lockdown associations
   belongs_to :budget_locked_by, class_name: "User", optional: true
@@ -32,6 +34,9 @@ class PurchaseOrder < ApplicationRecord
   # THE ONE: PurchaseOrder.sm_task_id points to the linked task
   # No reverse column on SmTask - use sm_task.linked_purchase_order for reverse lookup
   belongs_to :sm_task, class_name: "SmTask", optional: true
+
+  # Direct tender assignment (for manual POs not linked to SM tasks)
+  belongs_to :tender, optional: true
 
   # Backwards compatibility: Frontend expects sm_tasks array
   def sm_tasks
@@ -57,20 +62,37 @@ class PurchaseOrder < ApplicationRecord
   # Virtual attributes for Foundation - expose stage/trade via SmTask
   # Path: PO → SmTask.{stage, trade} (or SmScheduleMaster as fallback) → sm_stages/sm_trades.name
   # Used by Expenses tab for hierarchical grouping
+  #
+  # FRC (Feb 2026): Replaced find_by per row with eager-loaded associations (sm_stage_ref etc.)
+  # to eliminate N+1 queries. RecordsController eager loads sm_task with all lookup refs.
   def stage_from_task
-    # Try SmTask.stage first, then SmScheduleMaster.stage
-    stage_id = sm_task&.stage || sm_task&.sm_schedule_master&.stage
-    return nil unless stage_id
-    # Look up stage name from sm_stages table using ActiveRecord (SQL injection safe)
-    SmStage.find_by(id: stage_id)&.name
+    # Use eager-loaded associations (zero queries when properly included)
+    stage_ref = sm_task&.sm_stage_ref || sm_task&.sm_schedule_master&.sm_stage_ref
+    stage_ref&.name
   end
 
   def trade_from_task
-    # Try SmTask.trade first, then SmScheduleMaster.trade
-    trade_id = sm_task&.trade || sm_task&.sm_schedule_master&.trade
-    return nil unless trade_id
-    # Look up trade name from sm_trades table using ActiveRecord (SQL injection safe)
-    SmTrade.find_by(id: trade_id)&.name
+    trade_ref = sm_task&.sm_trade_ref || sm_task&.sm_schedule_master&.sm_trade_ref
+    trade_ref&.name
+  end
+
+  def cost_centre_from_task
+    cc = sm_task&.cost_centre_ref || sm_task&.sm_schedule_master&.cost_centre_ref
+    cc ? "#{cc.code} - #{cc.name}" : nil
+  end
+
+  def tender_from_task
+    # SSoT priority: PO direct > SmTask (synced) > SmScheduleMaster (template)
+    # PO.tender_id used for manual POs not linked to SM tasks
+    t = self.tender || sm_task&.tender || sm_task&.sm_schedule_master&.tender
+    t&.name
+  end
+
+  def profit_centre_from_line_items
+    # Derive PO-level profit centre from line items (eager-loaded via { line_items: :profit_centre })
+    # If all line items share the same profit centre, use that; otherwise first non-nil
+    pc = line_items.filter_map(&:profit_centre).uniq(&:id).first
+    pc ? "#{pc.code} - #{pc.name}" : nil
   end
 
   has_many :purchase_order_documents, dependent: :destroy
@@ -511,6 +533,9 @@ class PurchaseOrder < ApplicationRecord
       'sm_schedule_master_id_via_task' => sm_schedule_master_id_via_task,
       'stage_from_task' => stage_from_task,
       'trade_from_task' => trade_from_task,
+      'cost_centre_from_task' => cost_centre_from_task,
+      'tender_from_task' => tender_from_task,
+      'profit_centre_from_line_items' => profit_centre_from_line_items,
       # Budget lockdown info
       'budget_locked' => budget_locked?,
       'budget_locked_by_name' => budget_locked_by&.name,
@@ -594,9 +619,10 @@ class PurchaseOrder < ApplicationRecord
   # SSoT: PurchaseOrder.sm_task_id is THE ONE link - no reverse column to sync
 
   # Activity logging
+  # Note: current_activity_user is nil in background jobs (no Current class defined)
   def log_po_created
     return unless job
-    JobActivity.log_po_created(job, purchase_order: self, user: Current.user)
+    JobActivity.log_po_created(job, purchase_order: self, user: current_activity_user)
   rescue StandardError => e
     Rails.logger.error "Failed to log PO creation activity: #{e.message}"
   end
@@ -606,16 +632,20 @@ class PurchaseOrder < ApplicationRecord
 
     case action
     when :approved
-      JobActivity.log_po_approved(job, purchase_order: self, user: Current.user)
+      JobActivity.log_po_approved(job, purchase_order: self, user: current_activity_user)
     when :sent
-      JobActivity.log_po_sent(job, purchase_order: self, document_url: document_url, user: Current.user)
+      JobActivity.log_po_sent(job, purchase_order: self, document_url: document_url, user: current_activity_user)
     when :received
-      JobActivity.log_po_received(job, purchase_order: self, user: Current.user)
+      JobActivity.log_po_received(job, purchase_order: self, user: current_activity_user)
     when :cancelled
-      JobActivity.log_po_cancelled(job, purchase_order: self, user: Current.user)
+      JobActivity.log_po_cancelled(job, purchase_order: self, user: current_activity_user)
     end
   rescue StandardError => e
     Rails.logger.error "Failed to log PO activity (#{action}): #{e.message}"
+  end
+
+  def current_activity_user
+    defined?(Current) ? Current.user : nil
   end
 
   # SSoT: Refresh contact's is_supplier_cached flag

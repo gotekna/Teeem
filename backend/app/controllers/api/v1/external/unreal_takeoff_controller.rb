@@ -164,7 +164,7 @@ module Api
           end
 
           # Get available pricebook colours for the picker
-          pricebook_colours = PricebookItem.where.not(colour: [nil, ""])
+          pricebook_colours = PricebookItem.includes(:pricebook_category).where.not(colour: [nil, ""])
             .limit(500)
             .map do |item|
               {
@@ -176,7 +176,7 @@ module Api
                 colour_brand: item.colour_brand,
                 hex_value: colour_code_to_hex(item.colour_code),
                 current_price: item.current_price&.to_f,
-                category: item.category
+                category: item.pricebook_category&.name
               }
             end
 

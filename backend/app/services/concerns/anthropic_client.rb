@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "anthropic"
+
 # Shared concern for Anthropic Claude API calls
 # Provides standardized methods for calling Claude to prevent API syntax errors
 #

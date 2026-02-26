@@ -9,7 +9,7 @@ class UserWarehouseFolderPreference < ApplicationRecord
   SCOPES = %w[corporate people job document contact].freeze
 
   # Associations
-  belongs_to :user
+  belongs_to :user, optional: true
 
   # Validations
   validates :scope, presence: true, inclusion: { in: SCOPES }

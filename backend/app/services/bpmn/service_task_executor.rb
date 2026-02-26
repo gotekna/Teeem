@@ -66,7 +66,7 @@ module Bpmn
         Rails.logger.info("BPMN: Service task '#{@node.display_name}' completed successfully")
       rescue Bpmn::Tasks::WaitForSignaturesTask::WaitingError => e
         # Special handling for wait tasks - pause the token and schedule retry
-        task_instance.update!(status: "waiting", result: { message: e.message })
+        task_instance.update!(status: "in_progress", execution_result: { message: e.message })
         @token.update!(status: "waiting")
 
         retry_interval = @config["retry_interval_minutes"] || 60
@@ -74,6 +74,12 @@ module Bpmn
 
         # Schedule a retry job (SolidQueue)
         BpmnRetryWaitingTaskJob.set(wait: retry_interval.minutes).perform_later(@token.id)
+      rescue Bpmn::Tasks::PermanentError => e
+        # Non-transient error: fail immediately without retrying.
+        # Examples: referenced record deleted, invalid configuration.
+        task_instance.fail!(e.message)
+        Rails.logger.error("BPMN: Service task '#{@node.display_name}' permanently failed: #{e.message}")
+        @instance.fail!("Service task '#{@node.display_name}' permanently failed: #{e.message}")
       rescue StandardError => e
         task_instance.fail!(e.message)
         Rails.logger.error("BPMN: Service task '#{@node.display_name}' failed: #{e.message}")
@@ -96,6 +102,14 @@ module Bpmn
     end
 
     def create_task_instance
+      # Reuse existing task instance if one exists for this (token, node) to prevent duplicates.
+      # This can happen when service tasks are manually re-enqueued or retried.
+      existing = BpmnTaskInstance.find_by(bpmn_token: @token, bpmn_node: @node, task_type: "service_task")
+      if existing
+        existing.update!(status: "in_progress", started_at: Time.current, error_message: nil) unless existing.completed?
+        return existing
+      end
+
       BpmnTaskInstance.create!(
         bpmn_token: @token,
         bpmn_node: @node,

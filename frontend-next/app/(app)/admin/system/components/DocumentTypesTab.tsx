@@ -23,6 +23,7 @@ import { SignatureFieldConfigModal, type SignatureFieldConfig } from "@/componen
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
+import { getScopeLabel } from "@/lib/constants/document-types";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
@@ -44,7 +45,7 @@ interface DocumentType extends TableRow {
   ui_name?: string;
   download_name?: string;
   title_preview?: string;
-  primary_tab?: string;
+  primary_tab?: string; // DEPRECATED - use folder instead
   folder?: string;
   tabs?: string[];
   // Folder lookup fields
@@ -76,8 +77,8 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   // e.g. /admin/system/warehouse-config/document_types/job -> "job"
   const pathParts = pathname.split("/");
   const lastPart = pathParts[pathParts.length - 1];
-  const validScopes = ["company", "job", "contacts"];
-  const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" : "all";
+  const validScopes = ["company", "job", "contacts", "library"];
+  const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" | "library" : "all";
 
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -95,6 +96,9 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
     if (scopeFilter === "all") return documentTypes;
     if (scopeFilter === "contacts") {
       return documentTypes.filter(dt => dt.scope === "contacts");
+    }
+    if (scopeFilter === "library") {
+      return documentTypes.filter(dt => dt.scope === "library");
     }
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
@@ -138,8 +142,11 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       });
       const types = response.data || [];
       // Transform for table display
+      // API returns camelCase (uiName, downloadName) but Foundation columns use snake_case (ui_name, download_name)
       const transformed = types.map(dt => ({
         ...dt,
+        ui_name: (dt as Record<string, unknown>).uiName as string | undefined || dt.ui_name,
+        download_name: (dt as Record<string, unknown>).downloadName as string | undefined || dt.download_name,
         file_extensions_display: dt.file_extensions?.join(", ") || ""
       }));
       setDocumentTypes(transformed);
@@ -296,7 +303,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
               await handleRowUpdate(entry.id!, "scope", newScope);
               toast({
                 title: "Scope updated",
-                description: `Moved to ${newScope} tab`,
+                description: `Moved to ${getScopeLabel(newScope)} tab`,
               });
             } catch (error) {
               toast({
@@ -311,9 +318,10 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="company">Company</SelectItem>
+            <SelectItem value="company">Corporate</SelectItem>
             <SelectItem value="job">Job</SelectItem>
             <SelectItem value="contacts">Contacts</SelectItem>
+            <SelectItem value="library">Library</SelectItem>
             <SelectItem value="both">Both</SelectItem>
           </SelectContent>
         </Select>
@@ -415,6 +423,13 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
         <span className="font-mono font-bold text-primary">{value}</span>
       );
     }
+    if (columnKey === "ui_name") {
+      const value = entry.ui_name;
+      if (!value) return <span className="text-muted-foreground italic">Not set</span>;
+      return (
+        <span className="font-mono text-xs text-muted-foreground">{value}</span>
+      );
+    }
     if (columnKey === "download_name") {
       const value = entry.download_name;
       if (!value) return <span className="text-muted-foreground italic">Not set</span>;
@@ -446,24 +461,27 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       <div className="shrink-0 mb-4">
         <h2 className="text-lg font-semibold">Document Types & Naming Conventions</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Single source of truth for document types across Companies and Jobs. Click any cell to edit.
+          Single source of truth for document types across Corporate, Jobs, Contacts, and Library. Click any cell to edit.
         </p>
       </div>
 
       {/* Scope Filter Tabs */}
       <Tabs value={scopeFilter} onValueChange={handleScopeChange} className="flex flex-col flex-1 min-h-0">
-        <TabsList className="grid w-full grid-cols-4 max-w-3xl shrink-0">
+        <TabsList className="grid w-full grid-cols-5 max-w-3xl shrink-0">
           <TabsTrigger value="all">
             All ({documentTypes.length})
           </TabsTrigger>
           <TabsTrigger value="company">
-            Company ({documentTypes.filter(dt => dt.scope === "company" || dt.scope === "both").length})
+            Corporate ({documentTypes.filter(dt => dt.scope === "company" || dt.scope === "both").length})
           </TabsTrigger>
           <TabsTrigger value="job">
             Job ({documentTypes.filter(dt => dt.scope === "job" || dt.scope === "both").length})
           </TabsTrigger>
           <TabsTrigger value="contacts">
             Contacts ({documentTypes.filter(dt => dt.scope === "contacts").length})
+          </TabsTrigger>
+          <TabsTrigger value="library">
+            Library ({documentTypes.filter(dt => dt.scope === "library").length})
           </TabsTrigger>
         </TabsList>
 
@@ -478,7 +496,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           // Reasons:
           // 1. Custom API: /api/v1/document_types with include_inactive=true param
           // 2. Client-side OR filtering: scope="company" OR scope="both" (complex filter logic)
-          // 3. Computed grouping: Groups by primary_tab (not a database column)
+          // 3. Computed grouping: Groups by folder (derived from primary warehouse folder)
           legacyDataSource="custom-api: /api/v1/document_types?include_inactive=true + client-side scope OR filtering"
           // Disable URL-based view syncing - this table is embedded, parent owns URL
           viewSlug={null}
@@ -492,7 +510,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           enableSchemaEditor={true}
           customCellRenderer={customCellRenderer}
           onColumnUpdate={fetchColumns}
-          initialGroupByColumn="primary_tab"
+          initialGroupByColumn="folder"
         />
 
         </TabsContent>

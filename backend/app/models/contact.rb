@@ -176,19 +176,22 @@ class Contact < ApplicationRecord
   # Class methods to read from TenantSetting with fallback
   def self.roles
     TenantSetting.contact_roles
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[Contact] Failed to load contact_roles from TenantSetting: #{e.message}"
     DEFAULT_ROLES
   end
 
   def self.entity_types
     TenantSetting.contact_entity_types
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[Contact] Failed to load contact_entity_types from TenantSetting: #{e.message}"
     DEFAULT_ENTITY_TYPES
   end
 
   def self.employment_statuses
     TenantSetting.contact_employment_statuses
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[Contact] Failed to load contact_employment_statuses from TenantSetting: #{e.message}"
     DEFAULT_EMPLOYMENT_STATUSES
   end
 
@@ -287,8 +290,10 @@ class Contact < ApplicationRecord
   # These methods read from the SSoT table.
 
   # Primary email from contact_emails table (cached per request)
+  # FRC (Feb 2026): Use Ruby's Enumerable#find instead of ActiveRecord's find_by
+  # to leverage preloaded contact_emails data (avoids N+1 when eager-loaded)
   def primary_email
-    @primary_email ||= contact_emails.find_by(is_primary: true)&.email ||
+    @primary_email ||= contact_emails.find { |e| e.is_primary }&.email ||
                        contact_emails.first&.email
   end
 
@@ -793,8 +798,10 @@ class Contact < ApplicationRecord
 
   # Override display_name to use computed_display_name for team contacts
   # This ensures team contacts show "Person Name - Company Name" in all contexts
+  # Use read_attribute to safely handle partial SELECT queries (e.g. list_view_excluded_columns)
+  # that may not load is_team_contact, which would raise ActiveModel::MissingAttributeError
   def display_name
-    if is_team_contact && primary_company.present?
+    if read_attribute(:is_team_contact) && primary_company.present?
       computed_display_name
     else
       read_attribute(:display_name)
@@ -1888,8 +1895,21 @@ class Contact < ApplicationRecord
   # Normalize entity_type to match backend constants
   # Frontend choices: "Person", "Company", "Trust", "Sole Trader", "Price Only"
   # Backend expects:  "person", "company", "trust", "sole_trader", "price_only"
+  #
+  # ⚠️ FRC (Feb 2026): Must default blank entity_type to "company"
+  # ════════════════════════════════════════════════════════════════
+  # Why: Multiple code paths (ExternalInvoiceSyncService, bulk imports, email extraction)
+  # create contacts without setting entity_type. With blank entity_type, contacts bypass
+  # the unique index idx_contacts_unique_company_name (which only covers entity_type='company'),
+  # allowing unlimited duplicates. 850+ "Draft" contacts were created this way.
+  # ❌ WRONG: return if entity_type.blank? — allows null entity_type, bypasses unique index
+  # ✅ CORRECT: Default to "company" — ensures unique index coverage
+  # ════════════════════════════════════════════════════════════════
   def normalize_entity_type
-    return if entity_type.blank?
+    if entity_type.blank?
+      self.entity_type = "company"
+      return
+    end
 
     # Convert to lowercase and replace spaces with underscores
     self.entity_type = entity_type.downcase.gsub(" ", "_")

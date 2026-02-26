@@ -4,7 +4,8 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { useTheme } from 'next-themes';
 import { api, setApiUrl, clearApiUrl, setEnvironment, clearEnvironment, getCurrentEnvironment } from '@/lib/api';
 import { loadTypeDefinitions } from '@/lib/column-type-registry';
-import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
+import { clearAllCachedRecords } from '@/lib/records-cache';
+import { getStorageItem, setStorageItem, removeStorageItem, hasStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 import type { User } from '@/lib/types';
 
 interface AuthContextType {
@@ -132,7 +133,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // Skip auth checks for public routes (document viewer, login page)
     // These routes should work without authentication and shouldn't trigger redirects
     if (typeof window !== 'undefined') {
-      const publicPaths = ['/view', '/login', '/signup', '/forgot-password', '/get-started'];
+      const publicPaths = ['/view', '/login', '/signup', '/forgot-password', '/get-started', '/sign'];
       const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path));
       if (isPublicPath) {
         setLoading(false);
@@ -203,6 +204,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // This allows users to temporarily toggle theme without it reverting on every modal open
         // applyUserTheme(response.user); // REMOVED - only apply on login, not on auth check
 
+        // Auto-set default tenant on page refresh (Feb 2026)
+        // Safety net: /me response from current environment includes default_tenant_id
+        if (response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+          setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.user.default_tenant_id));
+        }
+
         // Check force_password_change on session restore (Feb 2026)
         if (response.user.force_password_change) {
           setForcePasswordChange(true);
@@ -214,8 +221,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         logout();
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
-      logout();
+      // ⚠️ DO NOT SIMPLIFY - Network errors must NOT trigger logout (Feb 2026)
+      // ════════════════════════════════════════════════════════════════════
+      // Why: When backend is down (503, R14 memory, timeout), checkAuth fails
+      // with a network error. Calling logout() destroys a valid token.
+      // ❌ WRONG: logout() on any error (kills session when server is down)
+      // ✅ CORRECT: Only logout on 401 (token actually invalid/expired)
+      // ════════════════════════════════════════════════════════════════════
+      const apiError = error as { status?: number };
+      if (apiError.status === 401) {
+        logout();
+      } else {
+        // Server unreachable - preserve token so refresh works when server recovers
+        console.warn('Auth check failed (server unreachable), preserving token:', error);
+      }
     } finally {
       setLoading(false);
       authCheckingRef.current = false;
@@ -300,6 +319,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           setEnvironment(response.environment);
         }
 
+        // Auto-set default tenant on fresh login (Feb 2026)
+        // Only applies when user has a default preference AND no existing override
+        if (response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+          setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.user.default_tenant_id));
+        } else if (!response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+          // ⚠️ DO NOT SIMPLIFY - Fallback /me call for cross-env login (Feb 2026)
+          // ════════════════════════════════════════════════════════════════════
+          // Why: loginToProduction hits the PRODUCTION backend as the "router".
+          // If production hasn't been deployed with default_tenant_id in the
+          // login response, the field is missing. Fetch from the environment's
+          // own /me endpoint (staging/beta) which has the latest code.
+          // ════════════════════════════════════════════════════════════════════
+          try {
+            const meResponse = await api.get<AuthResponse>('/api/v1/auth/me');
+            if (meResponse?.user?.default_tenant_id) {
+              setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(meResponse.user.default_tenant_id));
+              setUser(meResponse.user);
+            }
+          } catch {
+            // Non-critical - default_tenant_id is a convenience feature
+          }
+        }
+
         // Check if user must change their temporary password (Feb 2026)
         const mustChangePassword = !!response.user.force_password_change;
         if (mustChangePassword) {
@@ -364,6 +406,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Clear the stored API URL and environment on logout
       clearApiUrl();
       clearEnvironment();
+
+      // Clear all data caches to prevent user data leaking between logins
+      // Records cache: L1 (memory) + L2 (IndexedDB, survives page reload)
+      clearAllCachedRecords();
+
+      // Clear app localStorage (preserve only auth/API keys which we just cleared above)
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (
+          key &&
+          !key.includes("token") &&
+          !key.includes("auth") &&
+          !key.includes("api_url") &&
+          !key.includes("api_environment")
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+      // Clear sessionStorage (table filters, view state, etc.)
+      sessionStorage.clear();
     }
     setToken(null);
     setUser(null);
@@ -416,6 +481,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (response.success && response.user) {
         setUser(response.user);
         applyUserTheme(response.user);
+
+        // Auto-set default tenant on cross-domain redirect (Feb 2026)
+        if (response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+          setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.user.default_tenant_id));
+        }
+
         loadTypeDefinitions();
         setLoading(false);
         return true;

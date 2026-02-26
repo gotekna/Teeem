@@ -145,7 +145,8 @@ module Api
             # Fall back to actual database column count for foundations without column metadata
             col_count = begin
               ActiveRecord::Base.connection.columns(db_name).count
-            rescue StandardError
+            rescue StandardError => e
+              Rails.logger.warn "[Schema] Failed to get column count for #{db_name}: #{e.message}"
               0
             end
           end
@@ -193,7 +194,8 @@ module Api
             has_column_metadata: has_column_metadata,
             record_count: begin
               foundation.dynamic_model.count
-            rescue StandardError
+            rescue StandardError => e
+              Rails.logger.warn "[Schema] Failed to get record count for foundation #{foundation.slug}: #{e.message}"
               0
             end,
             type: type,
@@ -460,7 +462,8 @@ module Api
 
       def get_record_count(foundation)
         foundation.dynamic_model.count
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Schema] Failed to get record count for foundation #{foundation.slug}: #{e.message}"
         0
       end
 
@@ -475,7 +478,8 @@ module Api
         else
           ActiveRecord::Base.connection.select_value("SELECT COUNT(*) FROM #{quoted_table}")
         end
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Schema] Failed to get system table record count for #{table_name}: #{e.message}"
         0
       end
 

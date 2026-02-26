@@ -128,6 +128,12 @@ export const COMPANY_PLACEHOLDERS: PlaceholderToken[] = [
     color: "purple",
     description: "Person code/name",
   },
+  {
+    code: "{DirectorName}",
+    example: "John Smith",
+    color: "purple",
+    description: "Director/officer name (from workflow metadata)",
+  },
 ];
 
 // =============================================================================

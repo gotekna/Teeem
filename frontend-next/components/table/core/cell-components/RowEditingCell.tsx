@@ -35,8 +35,11 @@ export interface RowEditingCellProps {
   /** Current editing data for this row */
   rowEditingData: Record<string, unknown>;
 
-  /** Update editing data callback */
+  /** Update editing data callback (legacy - prefer onCellChange) */
   setEditingData: React.Dispatch<React.SetStateAction<Record<number | string, Record<string, unknown>>>>;
+
+  /** Tracked cell change callback - updates value AND tracks field as modified */
+  onCellChange?: (rowId: number | string, columnKey: string, value: unknown) => void;
 
   /** Validation error for this cell */
   validationError?: string;
@@ -59,6 +62,7 @@ export function RowEditingCell({
   column,
   rowEditingData,
   setEditingData,
+  onCellChange,
   validationError,
   handleCellBlur,
   lookupOptions = {},
@@ -79,6 +83,18 @@ export function RowEditingCell({
     e.stopPropagation();
   };
 
+  // Update cell value - uses tracked onCellChange (marks field as modified) with fallback to setEditingData
+  const handleChange = (value: unknown) => {
+    if (onCellChange) {
+      onCellChange(entry.id, column.key, value);
+    } else {
+      setEditingData((prev) => ({
+        ...prev,
+        [entry.id]: { ...prev[entry.id], [column.key]: value },
+      }));
+    }
+  };
+
   // Boolean - Switch toggle
   if (isBooleanColumn(columnType)) {
     const boolValue = rowEditingData[column.key] === true || rowEditingData[column.key] === 'true' || rowEditingData[column.key] === 1;
@@ -86,12 +102,7 @@ export function RowEditingCell({
       <div className="flex items-center justify-center" onClick={handleClick}>
         <Switch
           checked={boolValue}
-          onCheckedChange={(checked) =>
-            setEditingData((prev) => ({
-              ...prev,
-              [entry.id]: { ...prev[entry.id], [column.key]: checked },
-            }))
-          }
+          onCheckedChange={(checked) => handleChange(checked)}
         />
       </div>
     );
@@ -112,12 +123,7 @@ export function RowEditingCell({
         <ComboboxDropdown
           items={choiceItems}
           selectedItem={selectedChoice}
-          onSelect={(item) =>
-            setEditingData((prev) => ({
-              ...prev,
-              [entry.id]: { ...prev[entry.id], [column.key]: item.id },
-            }))
-          }
+          onSelect={(item) => handleChange(item.id)}
           placeholder="Select..."
           searchPlaceholder="Search choices..."
         />
@@ -133,12 +139,7 @@ export function RowEditingCell({
         className="h-7 text-sm"
         placeholder="User..."
         value={String(rowEditingData[column.key] ?? "")}
-        onChange={(e) =>
-          setEditingData((prev) => ({
-            ...prev,
-            [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-          }))
-        }
+        onChange={(e) => handleChange(e.target.value)}
         onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
       />
     );
@@ -175,12 +176,7 @@ export function RowEditingCell({
           <Calendar
             mode="single"
             selected={parsedDate}
-            onSelect={(date) =>
-              setEditingData((prev) => ({
-                ...prev,
-                [entry.id]: { ...prev[entry.id], [column.key]: date ? format(date, DATE_ISO) : null },
-              }))
-            }
+            onSelect={(date) => handleChange(date ? format(date, DATE_ISO) : null)}
           />
         </PopoverContent>
       </Popover>
@@ -204,12 +200,7 @@ export function RowEditingCell({
         type="datetime-local"
         className="h-7 text-sm"
         value={parsedDate ? format(parsedDate, DATETIME_ISO) : ""}
-        onChange={(e) =>
-          setEditingData((prev) => ({
-            ...prev,
-            [entry.id]: { ...prev[entry.id], [column.key]: e.target.value ? new Date(e.target.value).toISOString() : null },
-          }))
-        }
+        onChange={(e) => handleChange(e.target.value ? new Date(e.target.value).toISOString() : null)}
         onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
       />
     );
@@ -223,12 +214,7 @@ export function RowEditingCell({
           className="h-7 text-sm flex-1"
           placeholder="File URL..."
           value={String(rowEditingData[column.key] ?? "")}
-          onChange={(e) =>
-            setEditingData((prev) => ({
-              ...prev,
-              [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-            }))
-          }
+          onChange={(e) => handleChange(e.target.value)}
           onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
         />
         <Button
@@ -262,12 +248,7 @@ export function RowEditingCell({
         <ComboboxDropdown
           items={lookupItems}
           selectedItem={selectedItem}
-          onSelect={(item) =>
-            setEditingData((prev) => ({
-              ...prev,
-              [entry.id]: { ...prev[entry.id], [column.key]: item.id },
-            }))
-          }
+          onSelect={(item) => handleChange(item.id)}
           placeholder={isLoading ? "Loading..." : "Select..."}
           searchPlaceholder="Search..."
           disabled={isLoading}
@@ -304,10 +285,7 @@ export function RowEditingCell({
           value={selectedOptions}
           onChange={(selected) => {
             const newIds = selected.map((opt) => opt.value);
-            setEditingData((prev) => ({
-              ...prev,
-              [entry.id]: { ...prev[entry.id], [column.key]: newIds.join(',') },
-            }));
+            handleChange(newIds.join(','));
           }}
           options={selectorOptions}
           placeholder={isLoading ? "Loading..." : "Select..."}
@@ -329,23 +307,13 @@ export function RowEditingCell({
           type="color"
           className="h-7 w-12 p-0.5 cursor-pointer"
           value={String(rowEditingData[column.key] || "#000000")}
-          onChange={(e) =>
-            setEditingData((prev) => ({
-              ...prev,
-              [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-            }))
-          }
+          onChange={(e) => handleChange(e.target.value)}
         />
         <Input
           className="h-7 text-sm flex-1"
           placeholder="#000000"
           value={String(rowEditingData[column.key] ?? "")}
-          onChange={(e) =>
-            setEditingData((prev) => ({
-              ...prev,
-              [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-            }))
-          }
+          onChange={(e) => handleChange(e.target.value)}
           onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
         />
       </div>
@@ -366,10 +334,7 @@ export function RowEditingCell({
           onChange={(e) => {
             const newLat = e.target.value;
             const newCoords = lng ? `${newLat}, ${lng}` : newLat;
-            setEditingData((prev) => ({
-              ...prev,
-              [entry.id]: { ...prev[entry.id], [column.key]: newCoords },
-            }));
+            handleChange(newCoords);
           }}
           onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
         />
@@ -380,10 +345,7 @@ export function RowEditingCell({
           onChange={(e) => {
             const newLng = e.target.value;
             const newCoords = lat ? `${lat}, ${newLng}` : newLng;
-            setEditingData((prev) => ({
-              ...prev,
-              [entry.id]: { ...prev[entry.id], [column.key]: newCoords },
-            }));
+            handleChange(newCoords);
           }}
           onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
         />
@@ -397,12 +359,7 @@ export function RowEditingCell({
       <Textarea
         className="min-h-[60px] text-sm resize-none"
         value={String(rowEditingData[column.key] ?? "")}
-        onChange={(e) =>
-          setEditingData((prev) => ({
-            ...prev,
-            [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-          }))
-        }
+        onChange={(e) => handleChange(e.target.value)}
         onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
       />
     );
@@ -410,7 +367,7 @@ export function RowEditingCell({
 
   // Default - Text input for all other types (single_line_text, email, phone, url, number, etc.)
   return (
-    <div className="relative" onClick={handleClick}>
+    <div onClick={handleClick}>
       <Input
         className={cn(
           "h-7 text-sm",
@@ -431,19 +388,9 @@ export function RowEditingCell({
           `Enter ${column.label.toLowerCase()}...`
         }
         value={String(rowEditingData[column.key] ?? "")}
-        onChange={(e) =>
-          setEditingData((prev) => ({
-            ...prev,
-            [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
-          }))
-        }
+        onChange={(e) => handleChange(e.target.value)}
         onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
       />
-      {hasError && (
-        <span className="absolute -bottom-4 left-0 text-[10px] text-red-500 dark:text-red-400 whitespace-nowrap">
-          {hasError}
-        </span>
-      )}
     </div>
   );
 }

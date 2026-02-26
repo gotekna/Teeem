@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "grover"
+
 # Form43CertificateGenerator generates QBCC Form 43 - Aspect Certificate (QBCC Licensee)
 #
 # Used for certifying aspects of building work including:

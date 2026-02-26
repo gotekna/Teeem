@@ -34,7 +34,9 @@ export function useAuthenticatedImage(url: string | null) {
 
       try {
         // Use api.getBlob (SSoT for authenticated blob requests)
-        const blob = await api.getBlob(url);
+        // skipAuthRedirect: A 401 from download/storage endpoints means "storage not connected",
+        // not "session expired". Without this, storage errors trigger logout.
+        const blob = await api.getBlob(url, { skipAuthRedirect: true });
 
         // Check if the component is still mounted
         if (cancelled) {

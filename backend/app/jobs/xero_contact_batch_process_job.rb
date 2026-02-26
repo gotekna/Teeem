@@ -19,15 +19,26 @@ class XeroContactBatchProcessJob < ApplicationJob
   # ActiveJob/SolidQueue can't serialize nested Hashes from JSON.parse
   # (NoMethodError: undefined method 'to_global_id' for an instance of Hash).
   # We serialize to JSON string in fetch job and parse here.
+  #
+  # NOTE: perform is kept for backwards compatibility (retrying jobs in queue).
+  # New flow calls process_inline directly from FetchJob (no serialization).
   def perform(session_id:, xero_contacts_json:, page:, xero_org_id:, tenant_name: nil)
     xero_contacts = JSON.parse(xero_contacts_json)
     session = XeroSyncSession.find_by(id: session_id)
+    return unless session
 
-    unless session
-      Rails.logger.error("[XeroContactBatchProcess] Session #{session_id} not found")
-      return
-    end
+    process_inline(
+      session: session,
+      xero_contacts: xero_contacts,
+      page: page,
+      xero_org_id: xero_org_id,
+      tenant_name: tenant_name
+    )
+  end
 
+  # Called directly from FetchJob (no serialization overhead).
+  # FRC (Feb 2026): Eliminates 10KB+ JSON job args that caused R14 on shared worker.
+  def process_inline(session:, xero_contacts:, page:, xero_org_id:, tenant_name: nil)
     # Skip if session is failed
     if session.failed?
       Rails.logger.warn("[XeroContactBatchProcess] Skipping page #{page}: session already failed")
@@ -37,7 +48,7 @@ class XeroContactBatchProcessJob < ApplicationJob
     teeem_tenant_id = session.teeem_tenant_id
 
     unless teeem_tenant_id
-      Rails.logger.error("[XeroContactBatchProcess] No TEEEM tenant ID for session #{session_id}")
+      Rails.logger.error("[XeroContactBatchProcess] No TEEEM tenant ID for session #{session.id}")
       session.fail!("No TEEEM tenant associated with Xero credential")
       return
     end
@@ -109,6 +120,15 @@ class XeroContactBatchProcessJob < ApplicationJob
 
   private
 
+  # ⚠️ DO NOT SIMPLIFY - Name fields excluded from updates (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════════
+  # Why: TEEEM names are SSoT. Xero's name is tracked via external_name on the
+  # ContactExternalLink. The Review tab shows discrepancies for manual resolution.
+  # BulkContactUpsertService uses update_all (bypasses callbacks), so display_name
+  # in attrs would directly overwrite the database without any protection.
+  # ════════════════════════════════════════════════════════════════════════
+  NAME_FIELDS = %i[display_name first_name last_name company_name_or_trust entity_type].freeze
+
   def build_operation(xero_contact, match_result, xero_org_id, tenant_name)
     attrs = build_contact_attrs(xero_contact)
 
@@ -120,10 +140,13 @@ class XeroContactBatchProcessJob < ApplicationJob
         return nil
       end
 
+      # Strip name fields from updates - TEEEM names are SSoT, not Xero
+      update_attrs = attrs.except(*NAME_FIELDS)
+
       {
         action: :update,
         contact_id: contact_id,
-        attrs: attrs,
+        attrs: update_attrs,
         xero_contact: xero_contact,
         xero_org_id: xero_org_id,
         tenant_name: tenant_name,

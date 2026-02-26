@@ -1,3 +1,5 @@
+require "hexapdf"
+
 # ESignaturePdfStamper - Applies signatures to PDF documents
 #
 # Uses HexaPDF to:
@@ -202,12 +204,16 @@ class ESignaturePdfStamper
       canvas.text(signer.name, at: [ x, y + height - 18 ])
     end
 
-    # Signed by line with timestamp (DocuSign style)
-    canvas.font("Helvetica", size: 7)
+    # Signed by line with timestamp, method, IP, and legal reference
+    ip_display = masked_ip(signer)
+    type_label = signature_type_label(signer)
+    canvas.font("Helvetica", size: 5.5)
     canvas.fill_color("666666")
+    canvas.text("Signed by: #{signer.name} (#{type_label})", at: [ x, y + 12 ])
+    ip_suffix = ip_display ? " | IP: #{ip_display}" : ""
     signed_time = signer.signed_at&.strftime("%d/%m/%Y %H:%M AEST")
-    canvas.text("Signed by: #{signer.name}", at: [ x, y + 8 ])
-    canvas.text("Date: #{signed_time}", at: [ x, y ])
+    canvas.text("#{signed_time}#{ip_suffix}", at: [ x, y + 6 ])
+    canvas.text("Electronic Transactions Act 1999 (Cth) s.10", at: [ x, y ])
   end
 
   # Stamp all positioned fields onto the document
@@ -246,6 +252,12 @@ class ESignaturePdfStamper
     when "date"
       stamp_date_field(page, field, x, y, width, height)
     when "text"
+      stamp_text_field(page, field, x, y, width, height)
+    when "comment"
+      stamp_comment_field(page, field, x, y, width, height)
+    when "yes_no"
+      stamp_yes_no_field(page, field, x, y, width, height)
+    when "signer_name", "signer_initials"
       stamp_text_field(page, field, x, y, width, height)
     end
   end
@@ -295,12 +307,16 @@ class ESignaturePdfStamper
       stamp_fallback_text(canvas, signer.name, x, y, width, height)
     end
 
-    # Add signature metadata below the signature
+    # Add signature metadata below the signature (3 lines)
     timestamp = field.completed_at || signer&.signed_at
-    canvas.font("Helvetica", size: 6)
+    ip_display = masked_ip(signer)
+    type_label = signature_type_label(signer)
+    canvas.font("Helvetica", size: 5.5)
     canvas.fill_color("666666")
-    canvas.text("Signed by: #{signer.name}", at: [ x + 4, y + 8 ])
-    canvas.text("Date: #{timestamp&.strftime('%d/%m/%Y %H:%M AEST')}", at: [ x + 4, y + 1 ])
+    canvas.text("Signed by: #{signer.name} (#{type_label})", at: [ x + 4, y + 12 ])
+    ip_suffix = ip_display ? " | IP: #{ip_display}" : ""
+    canvas.text("#{timestamp&.strftime('%d/%m/%Y %H:%M AEST')}#{ip_suffix}", at: [ x + 4, y + 6 ])
+    canvas.text("Electronic Transactions Act 1999 (Cth) s.10", at: [ x + 4, y ])
   end
 
   # Stamp a date field
@@ -349,6 +365,99 @@ class ESignaturePdfStamper
     canvas.fill_color("000000")
     text_y = y + (height / 2) - 3
     canvas.text(field.value || "", at: [ x + 4, text_y ])
+  end
+
+  # Stamp a yes/no field (colored box with bold text)
+  def stamp_yes_no_field(page, field, x, y, width, height)
+    canvas = page.canvas(type: :overlay)
+
+    is_yes = field.value&.downcase == "yes"
+    bg_color = is_yes ? "e6f4ea" : "fce8e6"
+    text_color = is_yes ? "1e7e34" : "cc0000"
+    border_color = is_yes ? "34a853" : "ea4335"
+
+    # Draw colored background
+    canvas.fill_color(bg_color)
+    canvas.rectangle(x, y, width, height)
+    canvas.fill
+
+    # Draw border
+    canvas.stroke_color(border_color)
+    canvas.line_width(1.5)
+    canvas.rectangle(x, y, width, height)
+    canvas.stroke
+    canvas.line_width(1)
+
+    # Draw bold text centered
+    font_size = [ height * 0.5, 12 ].min.clamp(8, 12)
+    label = is_yes ? "YES" : "NO"
+
+    canvas.font("Helvetica", variant: :bold, size: font_size)
+    canvas.fill_color(text_color)
+    text_y = y + (height / 2) - (font_size * 0.35)
+    canvas.text(label, at: [ x + 4, text_y ])
+  end
+
+  # Stamp a comment field (multi-line text with word wrapping)
+  def stamp_comment_field(page, field, x, y, width, height)
+    canvas = page.canvas(type: :overlay)
+
+    # Draw field border
+    canvas.stroke_color("cccccc")
+    canvas.line_dash_pattern([ 2, 2 ])
+    canvas.rectangle(x, y, width, height)
+    canvas.stroke
+    canvas.line_dash_pattern(0)
+
+    # Draw the comment text with word wrapping
+    text = field.value || ""
+    return if text.blank?
+
+    font_size = [ height * 0.12, 9 ].min.clamp(6, 9)
+    canvas.font("Helvetica", size: font_size)
+    canvas.fill_color("000000")
+
+    # Simple word-wrap: split into lines that fit within the field width
+    padding = 4
+    usable_width = width - (padding * 2)
+    line_height = font_size * 1.3
+    max_lines = ((height - (padding * 2)) / line_height).floor
+
+    lines = wrap_text(text, font_size, usable_width)
+    lines = lines.first(max_lines)
+
+    text_y = y + height - padding - font_size
+    lines.each do |line|
+      break if text_y < y + padding
+      canvas.text(line, at: [ x + padding, text_y ])
+      text_y -= line_height
+    end
+  end
+
+  # Word-wrap text to fit within a given pixel width
+  def wrap_text(text, font_size, max_width)
+    # Approximate character width (Helvetica is roughly 0.5x font size per char)
+    char_width = font_size * 0.5
+    chars_per_line = (max_width / char_width).floor
+    chars_per_line = [ chars_per_line, 10 ].max
+
+    lines = []
+    text.split("\n").each do |paragraph|
+      words = paragraph.split(/\s+/)
+      current_line = ""
+      words.each do |word|
+        test_line = current_line.empty? ? word : "#{current_line} #{word}"
+        if test_line.length > chars_per_line && !current_line.empty?
+          lines << current_line
+          current_line = word
+        else
+          current_line = test_line
+        end
+      end
+      lines << current_line unless current_line.empty?
+      lines << "" if paragraph.empty?
+    end
+    lines
   end
 
   # Fall back to text if signature image fails
@@ -407,6 +516,27 @@ class ESignaturePdfStamper
     canvas.text("Signed by: #{signer.name}", at: [ x + 5, y - 8 ])
     canvas.text("Date: #{signer.signed_at&.strftime('%Y-%m-%d %H:%M:%S UTC')}", at: [ x + 5, y - 15 ])
     canvas.text("IP: #{signer.ip_address}", at: [ x + 5, y - 22 ])
+  end
+
+  def signature_type_label(signer)
+    case signer&.signature_type
+    when "drawn" then "Drawn signature"
+    when "typed" then "Typed signature"
+    when "uploaded" then "Uploaded signature"
+    else "Electronic signature"
+    end
+  end
+
+  def masked_ip(signer)
+    ip = signer&.ip_address
+    return nil unless ip.present?
+
+    parts = ip.split(".")
+    if parts.length == 4
+      "#{parts[0]}.#{parts[1]}.xx.xx"
+    else
+      ip
+    end
   end
 
   def add_certificate_page(document)
@@ -474,8 +604,9 @@ class ESignaturePdfStamper
       y -= 12
       canvas.font("Helvetica", size: 8)
       canvas.fill_color("666666")
+      type_label = signature_type_label(signer)
       canvas.text(
-        "Signed: #{signer.signed_at&.strftime('%Y-%m-%d %H:%M:%S UTC')} | IP: #{signer.ip_address}",
+        "Signed: #{signer.signed_at&.strftime('%Y-%m-%d %H:%M:%S AEST')} | Method: #{type_label} | IP: #{signer.ip_address}",
         at: [ MARGIN + 20, y ]
       )
       canvas.fill_color("000000")

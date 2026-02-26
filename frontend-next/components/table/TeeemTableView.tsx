@@ -576,6 +576,7 @@ export default function TeeemTableView({
   hideFooter = false,
   hideAddRecord = false,
   alwaysVisibleColumns = [],
+  initiallyHiddenColumns = [],
   enableFullscreen = true, // SSoT: Default enabled for all tables
   stats,
   category,
@@ -601,6 +602,7 @@ export default function TeeemTableView({
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { user } = useAuth();
 
   // Debug mode - add ?debug=grid to URL to show layout visualization
@@ -636,8 +638,10 @@ export default function TeeemTableView({
   // 1. URL views are from parent page or other tabs (would pollute this table's filter context)
   // 2. initialFilters defines the authoritative filter context for this table instance
   // 3. extraQueryParams (e.g., job_id) means cache is scoped differently than foundationId alone
+  // 4. Settings pages use tab-based URL routing - view segments would corrupt tab navigation
   // Used by: loadViewState (skip URL write), loadSavedViews (skip URL read), cache restoration (skip stale data)
-  const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0) || !!extraQueryParams;
+  const isSettingsPage = pathname?.startsWith('/settings/') ?? false;
+  const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0) || !!extraQueryParams || isSettingsPage;
 
   // ============================================================================
   // DEPRECATION WARNING: entries prop with Foundation-backed tables
@@ -851,6 +855,7 @@ export default function TeeemTableView({
     columns: foundationColumns,
     isLoading: columnsLoading,
     foundationInfo: resolvedFoundation,
+    editModalConfig,
   } = useFoundationColumns({
     foundationId: effectiveFoundationId,
     initialColumns,
@@ -885,6 +890,7 @@ export default function TeeemTableView({
     }
   }, [useAutoFetch]);
 
+
   // Parent-triggered refresh via refreshTrigger prop
   // This allows parents to request a refresh without unmounting the component (avoiding SSR data loss)
   // Use this INSTEAD OF key={refreshKey} pattern
@@ -916,6 +922,13 @@ export default function TeeemTableView({
     if (!useAutoFetch || !effectiveFoundationId) return;
     // Skip cache restoration for embedded context - cache doesn't account for different filter sets
     if (isEmbeddedContext) {
+      hasCacheRestoredRef.current = true;
+      return;
+    }
+    // Skip cache restoration when URL has a search param - cached records are unfiltered
+    // and would flash before server search results arrive (causes wrong count/records briefly)
+    const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
+    if (urlSearchParam) {
       hasCacheRestoredRef.current = true;
       return;
     }
@@ -1232,7 +1245,9 @@ export default function TeeemTableView({
 
   // Auto-load more records in background after initial render
   // ULTRA Solution: Include base filters to ensure consistent data loading
-  // IMPORTANT: Skip load-more when there's an active search - search results are complete
+  // ⚠️ SEARCH-AWARE: When search is active, load-more includes search params so it fetches
+  // more MATCHING records (not unfiltered records that would contaminate search results).
+  // Client-side search is disabled when server search exists, so load-more MUST be server-aware.
   useEffect(() => {
     // Skip load-more when:
     // 1. Not in auto-fetch mode
@@ -1240,23 +1255,38 @@ export default function TeeemTableView({
     // 3. Already loading
     // 4. No records yet (initial state)
     // 5. Reached autoFetchLimit (if specified) - search still works via server API
-    // NOTE: Background loading continues even during search - client-side filtering shows matches as they load
-    const reachedLimit = autoFetchLimit !== undefined && autoFetchedRecords.length >= autoFetchLimit;
+    //    (autoFetchLimit only applies to non-search loading to cap background fetch)
+    const reachedLimit = !searchRef.current && autoFetchLimit !== undefined && autoFetchedRecords.length >= autoFetchLimit;
     if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0 || reachedLimit) return;
 
     const timer = setTimeout(async () => {
-      // Re-check conditions inside timeout (state may have changed)
+      // Re-check conditions inside timeout (state may have changed since timer was set)
       if (!hasMore || isLoadingMore) return;
 
       const lastRecord = autoFetchedRecords[autoFetchedRecords.length - 1];
       const cursor = lastRecord?.id;
+      const activeSearch = searchRef.current;
 
       setIsLoadingMore(true);
       try {
         const params: Record<string, any> = { cursor, limit: TABLE_ROW_LIMIT };
-        // ULTRA FIX: Only include BASE filters in load-more (not view/cascade filters)
-        // This enables instant view switching - all data loads regardless of current view
-        if (baseFilters.length > 0) {
+        // When search is active, include search params so load-more fetches more MATCHING records
+        if (activeSearch) {
+          params.search = activeSearch;
+        }
+        // When search is active, include ALL filters (base + cascade) to match search behavior.
+        // When not searching, only include BASE filters (enables instant view switching).
+        if (activeSearch) {
+          const currentFilters = cascadeFiltersRef.current;
+          const allFilters = [...baseFilters, ...currentFilters];
+          if (allFilters.length > 0) {
+            params.filters = JSON.stringify(allFilters.map(f => ({
+              column: f.column,
+              operator: f.operator,
+              value: f.value,
+            })));
+          }
+        } else if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,
             operator: f.operator,
@@ -1275,8 +1305,9 @@ export default function TeeemTableView({
           const existingIds = new Set(prev.map(r => r.id));
           const newRecords = (response.records || []).filter(r => !existingIds.has(r.id));
           const mergedRecords = [...prev, ...newRecords];
-          // CACHE: Update cache with merged records for back navigation
-          if (effectiveFoundationId) {
+          // CACHE: Only update cache when NOT searching (search results are temporary,
+          // the cache should hold the full unfiltered dataset for back navigation)
+          if (effectiveFoundationId && !activeSearch) {
             setCachedRecords(effectiveFoundationId, mergedRecords as Record<string, unknown>[], null, newHasMore);
           }
           return mergedRecords;
@@ -1303,7 +1334,7 @@ export default function TeeemTableView({
     try {
       const params: Record<string, any> = {
         search: searchTerm,
-        limit: TABLE_ROW_LIMIT,
+        limit: API_PAGE_SIZES.SERVER_SEARCH,
       };
       // Pass search mode to backend if specified (backend defaults to 'contains')
       if (mode) {
@@ -1365,6 +1396,24 @@ export default function TeeemTableView({
   const effectiveServerSearchLoading = useAutoFetch ? isSearching : serverSearchLoading;
   const effectiveLoadingMore = useAutoFetch ? isLoadingMore : loadingMore;
 
+  // Full refresh after mutations (edit/create/delete) - handles search + cache correctly
+  // triggerAutoRefresh alone doesn't work when search is active (the fetch effect
+  // returns early when hasPersistedSearch is true). This helper clears cache and
+  // re-executes the active search if needed, ensuring fresh data is always shown.
+  const refreshAfterMutation = useCallback(() => {
+    if (effectiveFoundationId) {
+      clearCachedRecords(effectiveFoundationId);
+      invalidateLookupCache();
+    }
+    // When search is active, re-execute the search to get fresh results
+    // triggerAutoRefresh won't work because the fetch effect bails out early
+    if (searchRef.current && handleAutoFetchSearch) {
+      handleAutoFetchSearch(searchRef.current);
+    } else {
+      triggerAutoRefresh();
+    }
+  }, [effectiveFoundationId, handleAutoFetchSearch, triggerAutoRefresh]);
+
   // Use custom columns if provided, otherwise use defaults
   const COLUMNS = useMemo(() => {
     if (!effectiveColumns) return DEFAULT_COLUMNS;
@@ -1424,13 +1473,20 @@ export default function TeeemTableView({
 
   const DEFAULT_COLUMN_ORDER = useMemo(() => COLUMNS.map((c) => c.key), [COLUMNS]);
 
+  const hiddenSet = useMemo(() => new Set(initiallyHiddenColumns), [initiallyHiddenColumns]);
   const getDefaultVisibleColumns = useCallback(
     () =>
       COLUMNS.reduce((acc, col) => {
-        acc[col.key] = true;
+        acc[col.key] = !hiddenSet.has(col.key);
         return acc;
       }, {} as VisibleColumnsState),
-    [COLUMNS]
+    [COLUMNS, hiddenSet]
+  );
+
+  // Columns with initiallyHiddenColumns filtered out (for dialogs that should not show these fields)
+  const dialogColumns = useMemo(
+    () => hiddenSet.size > 0 ? COLUMNS.filter(c => !hiddenSet.has(c.key)) : COLUMNS,
+    [COLUMNS, hiddenSet]
   );
 
   // Get default searchable columns from foundation schema (SSoT)
@@ -1446,10 +1502,12 @@ export default function TeeemTableView({
         if (col.searchable !== undefined && col.searchable !== null) {
           acc[col.key] = col.searchable;
         } else {
-          // Default: text-based columns AND 'name' columns are searchable
+          // Default: text-based columns, 'name' columns, AND lookup columns are searchable
+          // Lookup columns search the display value (backend JOINs to target table)
           const isTextType = TEXT_SEARCHABLE_TYPES.has(col.column_type || '');
           const isNameColumn = col.key === 'name';
-          acc[col.key] = isTextType || isNameColumn;
+          const isLookup = col.column_type === 'lookup';
+          acc[col.key] = isTextType || isNameColumn || isLookup;
         }
         return acc;
       }, {} as Record<string, boolean>),
@@ -1480,7 +1538,6 @@ export default function TeeemTableView({
   // This fixes bugs where:
   // 1. Search persists when switching between Financial sub-tabs (foundationId change)
   // 2. Search persists when navigating to a different contact (pathname change)
-  const pathname = usePathname();
   const prevFoundationIdRef = useRef(effectiveFoundationId);
   const prevPathnameRef = useRef(pathname);
   useEffect(() => {
@@ -1505,7 +1562,16 @@ export default function TeeemTableView({
     cacheSearch(newValue);
 
     // Auto-persist search to URL if enabled
-    if (persistSearchToUrl) {
+    // ⚠️ DO NOT SIMPLIFY - Use history.replaceState instead of router.replace (Feb 2026)
+    // ════════════════════════════════════════════════════════════════════
+    // Why: router.replace() triggers Next.js App Router navigation which causes
+    // the entire page to re-render. On view pages (e.g., /contacts/view/company-role),
+    // this re-render resets the view state, making the user lose their current view.
+    // history.replaceState() updates the URL bar silently without triggering navigation.
+    // ❌ WRONG: router.replace(newUrl, { scroll: false }) - triggers view reset
+    // ✅ CORRECT: window.history.replaceState() - silent URL update
+    // ════════════════════════════════════════════════════════════════════
+    if (persistSearchToUrl && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (newValue) {
         params.set('search', newValue);
@@ -1513,9 +1579,13 @@ export default function TeeemTableView({
         params.delete('search');
       }
       const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
-      router.replace(newUrl, { scroll: false });
+      window.history.replaceState(
+        { ...window.history.state, as: newUrl, url: newUrl },
+        '',
+        newUrl
+      );
     }
-  }, [search, setSearchAtom, onSearchChange, cacheSearch, persistSearchToUrl, router]);
+  }, [search, setSearchAtom, onSearchChange, cacheSearch, persistSearchToUrl]);
 
   // Keep searchRef in sync for use in auto-fetch refresh effect (defined before search atom)
   // CRITICAL: Use useEffect instead of render body to ensure other effects see the updated value
@@ -1527,9 +1597,27 @@ export default function TeeemTableView({
   // Priority: URL param > initialSearch prop > session storage
   // NOTE: We intentionally do NOT fall back to the atom value — the atom is global
   // and may contain a search term from a completely different page (e.g., Jobs → PO)
+  //
+  // ⚠️ DO NOT SIMPLIFY - Race Condition Fix (2026-02-19)
+  // ════════════════════════════════════════════════════════════════════════
+  // Embedded tables (with initialFilters) have a race condition:
+  //   1. This effect fires → triggers handleAutoFetchSearch(searchTerm)
+  //   2. But baseFilters is still [] (initialFilters effect hasn't run yet)
+  //   3. Search goes out WITHOUT required filters (e.g., job_id)
+  //   4. Returns wrong results (all POs instead of this job's POs)
+  //
+  // Fix: Wait for baseFilters when embedded context requires them.
+  // Don't mark as initialized until baseFilters are ready.
+  // The baseFiltersKey dep re-triggers this effect when filters arrive.
+  // ════════════════════════════════════════════════════════════════════════
   const hasInitializedSearchRef = useRef(false);
   useEffect(() => {
     if (hasInitializedSearchRef.current) return;
+
+    // Wait for baseFilters in embedded context (same guard as initial fetch effect)
+    // Without this, search fires before job_id/entity_type filters are set
+    if (initialFilters && initialFilters.length > 0 && baseFilters.length === 0) return;
+
     hasInitializedSearchRef.current = true;
 
     // Check URL for search param first (if persistSearchToUrl is enabled)
@@ -1545,11 +1633,15 @@ export default function TeeemTableView({
         setSearchAtom(searchToApply);
       }
       // Update URL if we restored from session storage (sync URL with restored search)
-      if (!urlSearchParam && sessionSearchParam && persistSearchToUrl) {
+      if (!urlSearchParam && sessionSearchParam && persistSearchToUrl && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         params.set('search', searchToApply);
         const newUrl = `${window.location.pathname}?${params.toString()}`;
-        router.replace(newUrl, { scroll: false });
+        window.history.replaceState(
+          { ...window.history.state, as: newUrl, url: newUrl },
+          '',
+          newUrl
+        );
       }
       // Always trigger server search to restore filtered results
       if (effectiveOnServerSearch) {
@@ -1561,7 +1653,7 @@ export default function TeeemTableView({
       // Clear it so the new table starts fresh.
       searchHook.actions.clearQuery();
     }
-  }, [cacheInitialized]); // Re-run when session storage becomes available
+  }, [cacheInitialized, baseFiltersKey]); // Re-run when session storage OR baseFilters become available
 
   // View-related state now managed by Jotai atoms (SSoT)
   // MIGRATION: Using useSorting hook for sort state and actions
@@ -1944,7 +2036,7 @@ export default function TeeemTableView({
     effectiveFoundationId,
     validGroupByColumnForApi, // Only pass valid database columns to API
     safeFilters, // Pass cascade filters so counts reflect filtered data
-    groupByColumns.length > 0 && !!validGroupByColumnForApi, // ULTRA: Hook provides SSR-aware values
+    useAutoFetch && groupByColumns.length > 0 && !!validGroupByColumnForApi, // Skip for legacyDataSource (entries prop) - server counts would mismatch custom API data
     groupByColumns, // ULTRA: Hook provides SSR-aware values on first render
     ssrGroupCountsData, // SSR: Pre-fetched group counts to eliminate CLS
     extraQueryParams // Scope group counts to match record filter (e.g., job_id)
@@ -2077,6 +2169,10 @@ export default function TeeemTableView({
   const [validationErrors, setValidationErrors] = useAtom(legacyValidationErrorsAtom);
   const [lookupOptions, setLookupOptions] = useAtom(lookupOptionsAtom);
   const [lookupLoading, setLookupLoading] = useAtom(lookupLoadingAtom);
+
+  // Track which specific cell is actively being edited (row + column)
+  // This prevents the entire row from expanding into editors when only one cell was clicked
+  const [activeEditingCell, setActiveEditingCell] = useState<{ rowId: string | number; columnKey: string } | null>(null);
 
   // Clear editing state on mount - prevents stale state from persisting across navigations
   // This fixes the issue where navigating to a detail page and back shows stale edit rows
@@ -2219,6 +2315,7 @@ export default function TeeemTableView({
       // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
       // SSoT: records-cache.ts
       clearCachedRecords(effectiveFoundationId);
+      invalidateLookupCache();
 
       // OPTIMISTIC UPDATE: Remove deleted row from local state
       if (useAutoFetch) {
@@ -2231,7 +2328,7 @@ export default function TeeemTableView({
       console.error("Failed to delete record:", err);
       toast({
         title: "Error",
-        description: "Failed to delete record. Please try again.",
+        description: err instanceof Error ? err.message : "Failed to delete record. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -2462,27 +2559,19 @@ export default function TeeemTableView({
         searchHook.actions.setMode(mode);
       }
 
-      // FRC FIX: When CLEARING search (empty value), ALWAYS refresh to get all records
-      // The previous "ULTRA FIX" assumed hasMore=false means all records loaded, but after
-      // a search that returned few results, hasMore=false just means search results are complete
-      // We need to distinguish between "all records loaded" vs "search results loaded"
       const isClearing = !value && previousSearch; // Clearing if value is empty but we had a search
-      const hadPreviousSearch = !!previousSearch; // Had a search active before this change
 
-      // If all records loaded AND not clearing a search AND no previous search, search client-side only
-      // But if clearing search OR changing search term, always use server-side search
-      // IMPORTANT: When autoFetchLimit is set, we intentionally don't have all records
-      // so always use server-side search (server searches the full database)
-      // FRC FIX 2: If we had a previous search, hasMore=false means "search results complete" not "all records loaded"
-      // So we MUST do server search when changing from one search term to another
-      const hasLimitedRecords = autoFetchLimit !== undefined;
-      // SSoT: Force server search for contacts in Company/Role view
-      // Backend has bidirectional search logic (search company → include employees, search employee → include company)
-      // Client-side search can't replicate this without duplicating logic - backend is THE source
-      const needsBidirectionalSearch = foundationSlug === 'contacts' && groupByColumns.includes('primary_company_id');
-      if (!isClearing && !hadPreviousSearch && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords && !needsBidirectionalSearch) {
-        return; // Skip API call - safe because we truly have all records
-      }
+      // ⚠️ DO NOT SIMPLIFY - Always use server search (2026-02-19)
+      // ════════════════════════════════════════════════════════════════════════
+      // Previously we skipped server search when all records were loaded (!hasMore)
+      // and used client-side search instead. This caused a RESULT MISMATCH:
+      // - Client-side search matches across ALL columns (including hidden fields)
+      // - Server-side search matches specific searchable columns
+      // Example: searching "draft" on contacts → client finds 203, server finds 16
+      // Users see non-matching records because matches are in hidden columns.
+      // ❌ WRONG: Skip server, use client-side → inconsistent results
+      // ✅ CORRECT: Always use server search → consistent, expected results
+      // ════════════════════════════════════════════════════════════════════════
 
       if (effectiveOnServerSearch) {
         // When clearing search, restore from cache first (avoids refetch if data was loaded)
@@ -2502,7 +2591,7 @@ export default function TeeemTableView({
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId, foundationSlug, groupByColumns, search]
+    [effectiveOnServerSearch, searchHook.actions, effectiveFoundationId, search]
   );
 
   const handleSearchAllChange = useCallback(
@@ -2797,6 +2886,7 @@ export default function TeeemTableView({
     // SSoT: records-cache.ts
     if (effectiveFoundationId) {
       clearCachedRecords(effectiveFoundationId);
+      invalidateLookupCache();
     }
 
     // Trigger refresh to show updated data
@@ -2822,6 +2912,11 @@ export default function TeeemTableView({
   const loadGroupRecords = useCallback(async (groupKey: string) => {
     // Skip if no foundation or groupBy column
     if (!effectiveFoundationId || !groupByColumn) return;
+
+    // Skip lazy loading for legacyDataSource tables (entries prop)
+    // All data is already client-side - fetching from Foundation API would return
+    // different data than the custom API, causing group content mismatches
+    if (!useAutoFetch) return;
 
     // Skip if already loaded or loading
     if (lazyLoadedGroups.has(groupKey) || groupLoadingState.has(groupKey)) return;
@@ -2949,7 +3044,7 @@ export default function TeeemTableView({
         return next;
       });
     }
-  }, [effectiveFoundationId, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns, search, propSearchMode]);
+  }, [effectiveFoundationId, groupByColumn, useAutoFetch, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns, search, propSearchMode]);
 
   const toggleGroupCollapse = useCallback((groupKey: string) => {
     setCollapsedGroups((prev: Set<string>) => {
@@ -3021,7 +3116,8 @@ export default function TeeemTableView({
       }
 
       // Fallback: fetch all records from target foundation (no filtering)
-      const response = await api.get(`/api/v1/foundations/${targetFoundation}/records`);
+      // per_page=1000 to match lookup_options endpoint limit (default is only 50)
+      const response = await api.get(`/api/v1/foundations/${targetFoundation}/records?per_page=1000`);
 
       // Handle various response structures
       let records: Record<string, unknown>[] = [];
@@ -3072,14 +3168,22 @@ export default function TeeemTableView({
     onRefresh,
     onRowUpdate,
     isAutoFetch: useAutoFetch,
+    isEditMode,
     setRecords: setAutoFetchedRecords,
     fetchLookupOptions,
+    lookupOptions,
   });
 
   // Aliases for backward compatibility - point to hook actions
+  // Wrap cancel/save to also clear the active editing cell
   const startEditing = rowEditing.actions.startEditing;
   const startMultiEditing = rowEditing.actions.startMultiEditing;
-  const cancelEditing = rowEditing.actions.cancelEditing;
+  const updateCell = rowEditing.actions.updateCell;
+  const cancelEditing = useCallback(() => {
+    rowEditing.actions.cancelEditing();
+    setActiveEditingCell(null);
+  }, [rowEditing.actions]);
+  const dirtyRowIds = rowEditing.state.dirtyRowIds;
 
   // Handler for row double-click - uses parent handler if provided, else opens edit dialog (if available), else inline editing
   const handleRowDoubleClick = useCallback((row: TableRowType) => {
@@ -3130,8 +3234,11 @@ export default function TeeemTableView({
   // Validate a cell - alias to hook action
   const handleCellBlur = rowEditing.actions.validateCell;
 
-  // Save editing - alias to hook action
-  const saveEditing = rowEditing.actions.saveEditing;
+  // Save editing - wraps hook action to also clear active cell
+  const saveEditing = useCallback(async () => {
+    await rowEditing.actions.saveEditing();
+    setActiveEditingCell(null);
+  }, [rowEditing.actions]);
 
   // Bulk update handler - delegates to useBulkOperations hook (Phase 10 extraction)
   const handleBulkUpdate = bulkOperations.actions.executeUpdate;
@@ -3523,12 +3630,12 @@ export default function TeeemTableView({
     }
 
     // Apply search filter (client-side)
-    // Filter client-side when:
-    // 1. No server search handler exists, OR
-    // 2. All records are loaded (so we skip server call and filter locally)
+    // Only filter client-side when NO server search handler exists.
+    // When server search exists, it's SSoT for search results (prevents result mismatch).
+    // ⚠️ DO NOT add back "allRecordsLoaded" fallback - client-side search matches across
+    // ALL columns (including hidden), giving different results than server (2026-02-19 fix).
     const hasServerSearch = !!effectiveOnServerSearch;
-    const allRecordsLoaded = !hasMore && effectiveEntries.length > 0;
-    const shouldApplyClientSearch = !hasServerSearch || allRecordsLoaded;
+    const shouldApplyClientSearch = !hasServerSearch;
 
     if (search && shouldApplyClientSearch) {
       // Use extracted utility function for client-side search
@@ -3571,7 +3678,6 @@ export default function TeeemTableView({
     interGroupLogic,
     sortColumns,
     pendingDeleteIds,
-    hasMore,  // ULTRA FIX: Needed to detect when all records loaded for client-side search
   ]);
 
   // Keep ref in sync with filteredAndSortedEntries for use in callbacks
@@ -3786,8 +3892,8 @@ export default function TeeemTableView({
     const orderedVisible = columnOrder
       .filter((key) => {
         if (!isVisibilityInitialized) {
-          // Not initialized yet - show all except system columns
-          return !isVisibleSystemColumn(key);
+          // Not initialized yet - show all except system columns and initiallyHiddenColumns
+          return !isVisibleSystemColumn(key) && !hiddenSet.has(key);
         }
         return visibleColumns[key] === true;
       })
@@ -3832,7 +3938,7 @@ export default function TeeemTableView({
     });
 
     return orderedVisible;
-  }, [columnOrder, visibleColumns, COLUMNS, alwaysVisibleColumns, stickyActions]);
+  }, [columnOrder, visibleColumns, COLUMNS, alwaysVisibleColumns, hiddenSet, stickyActions]);
 
   // Calculate total table width based on column widths
   const totalTableWidth = useMemo(() => {
@@ -4296,50 +4402,86 @@ export default function TeeemTableView({
       const isSystemColumn = NON_EDITABLE_COLUMNS.includes(column.key) || column.system === true;
       const isColumnEditable = column.editable !== false && !isSystemColumn && !isComputed;
 
-      // Row-level editing (pencil icon clicked) - show editor for entire row
-      if (isEditing && isColumnEditable) {
+      // Cell-level editing: in edit mode, only show editor for the active cell
+      // In non-edit mode (pencil/double-click), show all editors for the row
+      const isActiveCell = activeEditingCell?.rowId === entry.id && activeEditingCell?.columnKey === column.key;
+      const showEditor = isActiveCell; // Always cell-level: only the clicked cell shows an editor
+
+      // Check if this specific cell has been modified (for orange highlight)
+      const originalRow = isEditing ? effectiveEntries.find(r => r.id === entry.id) : null;
+      const isCellDirty = isEditing && originalRow &&
+        JSON.stringify(rowEditingData[column.key]) !== JSON.stringify(originalRow[column.key]);
+
+      // Show editor for this cell (either active cell in edit mode, or all cells via pencil)
+      if (isEditing && isColumnEditable && showEditor) {
+        const cellValidationError = validationErrors[entry.id]?.[column.key];
         return (
-          <RowEditingCell
-            entry={entry}
-            column={column}
-            rowEditingData={rowEditingData}
-            setEditingData={setEditingData}
-            validationError={validationErrors[entry.id]?.[column.key]}
-            handleCellBlur={handleCellBlur}
-            lookupOptions={lookupOptions}
-            lookupLoading={lookupLoading}
-          />
+          <div className={cn(
+            isCellDirty && "bg-orange-50 dark:bg-orange-950/20",
+            cellValidationError && "bg-red-50 dark:bg-red-950/20"
+          )}>
+            <RowEditingCell
+              entry={entry}
+              column={column}
+              rowEditingData={rowEditingData}
+              setEditingData={setEditingData}
+              onCellChange={updateCell}
+              validationError={cellValidationError}
+              handleCellBlur={handleCellBlur}
+              lookupOptions={lookupOptions}
+              lookupLoading={lookupLoading}
+            />
+            {cellValidationError && (
+              <div className="px-1 pb-0.5 text-[10px] text-red-600 dark:text-red-400 truncate" title={cellValidationError}>
+                {cellValidationError}
+              </div>
+            )}
+          </div>
         );
       }
 
-      // Show read-only indicator for non-editable columns when in row edit mode
-      if (isEditing && !isColumnEditable) {
-        // Don't show indicator for select/actions columns
-        if (column.key === 'select' || column.key === 'actions') {
-          // Fall through to normal rendering
-        } else {
-          // Show the value with a subtle indicator it's not editable
-          // Use registry for display, wrapped in italic styling
-          return (
-            <span className="text-muted-foreground italic" title={isComputed ? "Computed column" : "System column - not editable"}>
-              {renderCellWithRegistry(value, column, entry, "display")}
-            </span>
-          );
+      // In edit mode: editing row, editable column, but NOT the active cell
+      // Show the EDITED value (from editingData) so user can see pending changes
+      if (isEditing && isColumnEditable && isEditMode) {
+        // For lookup columns, resolve the ID to a display name
+        const editedValue = rowEditingData[column.key];
+        let displayValue = editedValue ?? value;
+        if (isLookupColumn(column.column_type) && editedValue != null) {
+          const opts = lookupOptions[column.key];
+          const match = opts?.find(o => String(o.id) === String(editedValue));
+          displayValue = match ? match.display : value;
         }
+        return (
+          <div
+            className={cn(
+              "cursor-text px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]",
+              isCellDirty && "bg-orange-100 dark:bg-orange-950/30"
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveEditingCell({ rowId: entry.id, columnKey: column.key });
+            }}
+          >
+            {renderCellWithRegistry(displayValue, column, entry, "display")}
+          </div>
+        );
       }
 
-      // Global edit mode OR alwaysEditable - show clickable cells that start row editing on click
-      // Cells stay as lightweight text until clicked
+      // Non-editable columns in editing row - render normally
+      if (isEditing && !isColumnEditable) {
+        // Fall through to normal rendering
+      }
+
+      // Global edit mode OR alwaysEditable - clickable cells that start editing on click
       if ((isEditMode || alwaysEditable) && isColumnEditable) {
         return (
           <div
-            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
+            className="cursor-text px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
             onClick={(e) => {
               e.stopPropagation();
-              // Start editing this row when cell is clicked
               startEditing(entry);
+              setActiveEditingCell({ rowId: entry.id, columnKey: column.key });
             }}
-            title="Click to edit"
           >
             {renderCellWithRegistry(value, column, entry, "display")}
           </div>
@@ -4355,7 +4497,11 @@ export default function TeeemTableView({
 
       // Apply search highlighting for text-based columns
       if (shouldHighlight(column)) {
-        const textValue = value == null ? "" : String(value);
+        // Handle lookup-like objects { id, display } - extract display text
+        const textValue = value == null ? "" :
+          (typeof value === "object" && !Array.isArray(value))
+            ? String((value as Record<string, unknown>).display || (value as Record<string, unknown>).display_value || (value as Record<string, unknown>).name || "")
+            : String(value);
         if (textValue) {
           return (
             <HighlightedText
@@ -5455,6 +5601,7 @@ export default function TeeemTableView({
           visibleColumnsInOrder={visibleColumnsInOrder}
           columnWidths={columnWidths}
           editingRowIds={editingRowIds}
+          dirtyRowIds={dirtyRowIds}
           getStickyColumnStyles={getStickyColumnStyles}
           isSystemGeneratedColumn={isSystemGeneratedColumn}
           SYSTEM_COLUMN_BG={SYSTEM_COLUMN_BG}
@@ -5502,7 +5649,6 @@ export default function TeeemTableView({
                 className={cn(
                   selectedRows.has(row.id) && "bg-muted/50",
                   isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
-                  editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
                   isFocused && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
@@ -6092,10 +6238,7 @@ export default function TeeemTableView({
             variant="ghost"
             size="icon"
             onClick={() => {
-              if (effectiveFoundationId) {
-                clearCachedRecords(effectiveFoundationId);
-              }
-              triggerAutoRefresh();
+              refreshAfterMutation();
               onRefresh?.();
             }}
             title="Refresh data"
@@ -6135,6 +6278,7 @@ export default function TeeemTableView({
       <ToolbarSecondRow
         disableSavedViews={disableSavedViews}
         editingRowCount={editingRowIds.size}
+        dirtyRowCount={dirtyRowIds.size}
         validationErrorCount={Object.values(validationErrors).reduce(
           (count, rowErrors) => count + Object.keys(rowErrors).length,
           0
@@ -6372,10 +6516,7 @@ export default function TeeemTableView({
           foundationSlug={foundationSlug}
           foundationName={tableName}
           onImportComplete={() => {
-            if (effectiveFoundationId) {
-              clearCachedRecords(effectiveFoundationId);
-            }
-            triggerAutoRefresh();
+            refreshAfterMutation();
             onRefresh?.();
           }}
         />
@@ -6442,8 +6583,7 @@ export default function TeeemTableView({
           onShowTotalsChange={setShowTotals}
           onStickyActionsChange={setStickyActions}
           onRefresh={() => {
-            // Refresh both internal (autoFetch) and external (parent callback)
-            triggerAutoRefresh();
+            refreshAfterMutation();
             onRefresh?.();
           }}
           rows={filteredAndSortedEntries as Record<string, unknown>[]}
@@ -6463,11 +6603,12 @@ export default function TeeemTableView({
             onOpenChange={setShowAddRecordModal}
             foundationId={effectiveFoundationId}
             tableName={tableName}
-            columns={COLUMNS}
+            columns={dialogColumns}
+            editModalConfig={editModalConfig}
             onSuccess={() => {
               setShowAddRecordModal(false);
-              // Refresh data - both internal (autoFetch) and external (parent callback)
-              triggerAutoRefresh();
+              // Refresh data - handles search active + cache clearing
+              refreshAfterMutation();
               onRefresh?.();
             }}
             renderExtraContent={createDialogRenderExtra}
@@ -6480,13 +6621,16 @@ export default function TeeemTableView({
             onOpenChange={setShowEditRecordModal}
             foundationId={effectiveFoundationId}
             tableName={tableName}
-            columns={COLUMNS}
+            columns={dialogColumns}
             record={selectedRecordForModal}
+            editModalConfig={editModalConfig}
             onSuccess={() => {
               setShowEditRecordModal(false);
               setSelectedRecordForModal(null);
-              // Refresh data - both internal (autoFetch) and external (parent callback)
-              triggerAutoRefresh();
+              // Clear any lingering inline editing validation errors for this record
+              setValidationErrors({});
+              // Refresh data - handles search active + cache clearing
+              refreshAfterMutation();
               onRefresh?.();
             }}
             renderExtraContent={editDialogRenderExtra}
@@ -6501,7 +6645,7 @@ export default function TeeemTableView({
               if (!open) setSelectedRecordForModal(null);
             }}
             tableName={tableName}
-            columns={COLUMNS}
+            columns={dialogColumns}
             record={selectedRecordForModal}
             onEdit={() => {
               // Switch from View to Edit mode

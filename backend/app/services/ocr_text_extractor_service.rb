@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "pdf-reader"
+
 # THE ONE SSoT for PDF text extraction
 #
 # Consolidates all PDF::Reader usage from:

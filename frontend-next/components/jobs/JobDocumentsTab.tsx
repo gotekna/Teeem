@@ -62,6 +62,9 @@ import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
 import { formatFileSize } from "@/utils/formatters";
+import { EmailDocumentsDialog, type EmailableDocument } from "@/components/emails/EmailDocumentsDialog";
+import { format, parseISO } from "date-fns";
+import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import { UI_ANIMATION_MEDIUM_MS, RETRY_DELAY_MS, COUNTDOWN_TICK_MS, POLLING_DELAY_MS, POLLING_FAST_MS } from "@/lib/constants/timeout-constants";
 
 interface OrgStatus {
@@ -166,6 +169,7 @@ interface LegacyItem {
   rename_status?: string;
   thumbnail_url?: string; // Graph API thumbnail URL (publicly accessible)
   download_url?: string; // SSoT download URL - works for both SharePoint and S3
+  content_type?: string; // MIME type from WarehouseDocument (e.g., "image/jpeg")
   // Version chain fields (Draft/Signed versioning)
   version_status?: "draft" | "signed" | "superseded";
   version_number?: number;
@@ -203,6 +207,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles" | "treeview">("tasks");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+  // Email documents dialog state
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailDocs, setEmailDocs] = useState<EmailableDocument[]>([]);
+  const [emailSubject, setEmailSubject] = useState("");
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   // SSoT: Provider type fetched from backend WarehouseProvider.instance.provider_type
   // Default to null (loading) - never assume sharepoint, fetch actual provider first
@@ -485,6 +493,33 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         await new Promise(resolve => setTimeout(resolve, UI_ANIMATION_MEDIUM_MS));
       }
       setMessage({ type: "success", text: `Downloading ${selectedPhotos.length} photo(s)` });
+    } else if (action === "email") {
+      // Map selected PhotoItems back to LegacyItem data to get document_id + storage_path
+      const docs: EmailableDocument[] = [];
+      for (const photo of selectedPhotos) {
+        const legacyItem = allFiles.find(f => f.id === photo.id);
+        if (legacyItem?.document_id) {
+          docs.push({
+            id: legacyItem.document_id,
+            name: legacyItem.name,
+            storagePath: legacyItem.storage_path,
+            fileSize: legacyItem.size,
+            mimeType: legacyItem.content_type || (legacyItem.type === "file" ? "image/jpeg" : undefined),
+          });
+        }
+      }
+      if (docs.length === 0) {
+        setMessage({ type: "error", text: "Selected photos are not available for emailing" });
+        return;
+      }
+      setEmailSubject(
+        docs.length === 1
+          ? docs[0].name
+          : `${docs.length} Photos - ${jobTitle || `Job #${jobId}`}`
+      );
+      setEmailDocs(docs);
+      setEmailDialogOpen(true);
+      return; // Don't clear selection - user may cancel email
     } else if (action === "delete") {
       // Show confirmation dialog
       setPhotosToDelete(selectedPhotos);
@@ -932,8 +967,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         categories = propCategories;
       } else {
         // Fallback to API for standalone usage (e.g., Documents tab)
-        const response = await api.get<DocumentCategory[]>(`/api/v1/jobs/${jobId}/documentation_tabs`);
-        categories = response || [];
+        const response = await api.get<{ success: boolean; data: DocumentCategory[] }>(`/api/v1/jobs/${jobId}/documentation_tabs`);
+        categories = response?.data || [];
       }
 
       setDocumentCategories(categories);
@@ -1750,7 +1785,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                             )}
                           </TableCell>
                           <TableCell>
-                            {doc.modified ? new Date(doc.modified).toLocaleDateString() : "-"}
+                            {doc.modified ? format(parseISO(doc.modified), DATE_DISPLAY) : "-"}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -1949,7 +1984,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         <div>
                           <p className="text-sm font-medium">{item.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {item.lastModifiedDateTime && `Modified ${new Date(item.lastModifiedDateTime).toLocaleDateString()}`}
+                            {item.lastModifiedDateTime && `Modified ${format(parseISO(item.lastModifiedDateTime), DATE_DISPLAY)}`}
                             {item.size && ` • ${formatFileSize(item.size)}`}
                           </p>
                         </div>
@@ -1995,7 +2030,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           <p className="text-sm font-medium">{folder.name}</p>
                           {folder.lastModifiedDateTime && (
                             <p className="text-xs text-muted-foreground">
-                              Modified {new Date(folder.lastModifiedDateTime).toLocaleDateString()}
+                              Modified {format(parseISO(folder.lastModifiedDateTime), DATE_DISPLAY)}
                             </p>
                           )}
                         </div>
@@ -2894,10 +2929,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     if (storageFolderStatus !== "pending" && storageFolderStatus !== "processing") {
       return;
     }
+    let mounted = true;
 
     const pollInterval = setInterval(async () => {
+      if (!mounted) return;
       try {
         const response = await api.get<{ storage_folder_status: string }>(`/api/v1/jobs/${jobId}`);
+        if (!mounted) return;
         if (response?.storage_folder_status === "completed") {
           // Folders are ready - reload to show documents
           window.location.reload();
@@ -2910,7 +2948,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       }
     }, POLLING_DELAY_MS); // Poll every 3 seconds
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      mounted = false;
+      clearInterval(pollInterval);
+    };
   }, [storageFolderStatus, jobId]);
 
   // Handle creating storage folders
@@ -3146,7 +3187,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                             <span className="text-blue-600 dark:text-blue-400">{item.folder_path}/</span>
                           )}
                           {item.size ? formatFileSize(item.size) : ""}
-                          {item.modified && ` • Modified ${new Date(item.modified).toLocaleDateString()}`}
+                          {item.modified && ` • Modified ${format(parseISO(item.modified), DATE_DISPLAY)}`}
                         </p>
                       </div>
                       {(item.web_url || item.document_id) && (
@@ -3588,6 +3629,20 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Email documents dialog (shared component - attach/link/skip options + compose) */}
+      {emailDocs.length > 0 && (
+        <EmailDocumentsDialog
+          documents={emailDocs}
+          open={emailDialogOpen}
+          onOpenChange={setEmailDialogOpen}
+          defaultSubject={emailSubject}
+          onComplete={() => {
+            setSelectedPhotoIds(new Set());
+            setSelectMode(false);
+          }}
+        />
+      )}
     </div>
   );
 }

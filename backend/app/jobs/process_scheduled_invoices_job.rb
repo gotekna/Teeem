@@ -3,6 +3,7 @@
 # Processes all scheduled invoices that are due to be sent
 # Runs every 15 minutes to check for invoices scheduled for delivery
 class ProcessScheduledInvoicesJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   def perform

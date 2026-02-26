@@ -112,7 +112,7 @@ export default function TransactionForm({
   const loadJobs = async () => {
     try {
       const response = await api.get<{ success: boolean; constructions: Job[] }>(
-        "/api/v1/jobs?per_page=100"
+        "/api/v1/jobs?per_page=1000"
       );
       if (response?.success) {
         setJobs(response.constructions || []);

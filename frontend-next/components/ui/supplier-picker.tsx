@@ -163,6 +163,30 @@ export function SupplierPicker({
     }
   }, [hasLoaded, loadSuppliers]);
 
+  // Auto-load suppliers when a pre-selected value exists with item filter
+  // This enables row highlighting in the parent for items not supplied
+  React.useEffect(() => {
+    if (value && forPricebookItemIds?.length && !hasLoaded) {
+      loadSuppliers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value?.id, pricebookItemIdsKey]);
+
+  // After loading, enrich the selected value with supplied_pricebook_item_ids
+  // so the parent can highlight unsupplied items (e.g., yellow rows in PO line items)
+  const enrichedForRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (!value || !hasLoaded || !forPricebookItemIds?.length) return;
+    if (value.supplied_pricebook_item_ids !== undefined) return;
+    if (enrichedForRef.current === value.id) return;
+
+    enrichedForRef.current = value.id;
+    const enriched = suppliers.find(s => s.id === value.id);
+    const suppliedIds = enriched?.supplied_pricebook_item_ids ?? [];
+    onSelect({ ...value, supplied_pricebook_item_ids: suppliedIds });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasLoaded, suppliers, value?.id]);
+
   // Convert suppliers to combobox items
   const items: SupplierComboboxItem[] = React.useMemo(() => {
     const totalRequested = forPricebookItemIds?.length || 0;

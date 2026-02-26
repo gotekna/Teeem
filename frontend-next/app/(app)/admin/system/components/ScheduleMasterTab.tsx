@@ -47,7 +47,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
-import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
+import { ComboboxDropdownMulti } from "@/components/ui/combobox-dropdown-multi";
+import type { ComboboxItem } from "@/components/ui/combobox-dropdown";
 import {
   Plus,
   Pencil,
@@ -67,6 +68,7 @@ import {
   X,
   MoreVertical,
   Tag,
+  Star,
   // SSoT: Expand/Minimize2 removed - fullscreen now handled by TeeemTableView
 } from "lucide-react";
 import {
@@ -92,7 +94,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Phone, MessageSquare, Mail } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { useAtom, useStore } from "jotai";
-import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
+import { smDataViewTemplateIdAtom, showEditRecordModalAtom, selectedRecordForModalAtom } from "@/lib/table-atoms";
 import { UI_COPY_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS, RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 
@@ -160,6 +162,7 @@ function extractLookupDisplay(value: unknown): string | undefined {
 interface SmScheduleMaster {
   id: number;
   task_number: number;
+  task_code?: string | null;
   name: string;
   description?: string;
   duration_days: number;
@@ -171,6 +174,7 @@ interface SmScheduleMaster {
   stage_name?: string;  // SSoT: Resolved from Foundation SM Stages by backend
   assigned_role?: string | null;
   cost_centre?: string;
+  tender_id?: string;
   header_gantt?: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
   allow_header?: boolean;  // If true, this row can be selected as a header for other tasks
   is_active?: boolean;
@@ -227,6 +231,11 @@ interface SmScheduleMaster {
   requires_document_to_complete?: boolean;
   completion_document_type_id?: number | null;
   completion_document_type_name?: string | null;
+  // Attached plan types and document reference types (JSONB arrays)
+  plan_type_ids?: number[];
+  plan_type_names?: string[];
+  document_ref_type_ids?: number[];
+  document_ref_type_names?: string[];
 }
 
 // Claim Invoice Template for selecting invoice styles
@@ -269,6 +278,9 @@ interface SmScheduleMasterTemplate {
   updated_at: string;
 }
 
+// PO Task picker - shared component (SSoT: components/settings/PoTaskPicker.tsx)
+import { PoTaskPicker, type POTaskItem } from "@/components/settings/PoTaskPicker";
+
 const VALID_SUBTABS = [
   "schedule-templates",
   "display-settings",
@@ -292,7 +304,7 @@ const ALL_COLUMNS = [
   "supplier_confirm", "supplier_confirmed_at",
   "completed", "completed_at",
   // Assignment & Supplier
-  "trade", "stage", "assigned_role", "cost_centre",
+  "trade", "stage", "assigned_role", "cost_centre", "tender_id",
   // PO Settings
   "po_required", "critical_po",
   // Auto-PO (create_po_on_job_start + po_line_items work together)
@@ -553,7 +565,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const LOOKUP_TABLES = [
     { id: "sm_trades", name: "SM Trades", description: "Trade types for schedule tasks (e.g., CARPENTER, ELECTRICIAN)" },
     { id: "sm_stages", name: "SM Stages", description: "Stage types for schedule tasks (e.g., 01 Slab, 05 Enclosed)" },
-    { id: "cost_centres", name: "Cost Centres", description: "Cost centres for categorizing schedule tasks" },
     { id: "sm_task_groups", name: "Task Groups", description: "Group PO and non-PO tasks together - when any PO from group is on job, all linked tasks appear" },
   ] as const;
   type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
@@ -593,13 +604,15 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
   // SSoT: Cost Centres come from Foundation Cost Centres (ID 533)
   const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: Tender Sections come from Foundation Tenders (sections only, parent_id not empty)
+  const [availableTenderSections, setAvailableTenderSections] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Header rows are rows with header=NULL (they ARE headers, no parent)
   // SSoT: header_gantt uses task_number (not id) - include both for proper lookups
   const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; task_number: number; name: string }[]>([]);
   // SSoT: Checklists from Supervisor Checklist Template foundation
   const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Job-scoped document types for spawn scan task dropdown
-  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string>; folder?: string; primary_folder_name?: string }[]>([]);
   // SSoT: Claim invoice templates for styling claim invoices
   const [claimInvoiceTemplates, setClaimInvoiceTemplates] = React.useState<ClaimInvoiceTemplate[]>([]);
   const [templatePreviewHtml, setTemplatePreviewHtml] = React.useState<string | null>(null);
@@ -612,35 +625,116 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Task Groups from Foundation SM Task Groups - for grouping PO and non-PO tasks
   const [availableTaskGroups, setAvailableTaskGroups] = React.useState<{ id: number; name: string }[]>([]);
 
-  // PO Task assignment state for Cost Centres table
-  interface POTask {
-    id: number;
-    name: string;
-    taskNumber: number;
-    costCentreId: number | null;
-    costCentreName: string | null;
-  }
-  const [poTasks, setPoTasks] = React.useState<POTask[]>([]);
-  const [poTasksLoaded, setPoTasksLoaded] = React.useState(false);
-  const [selectedPoTaskIds, setSelectedPoTaskIds] = React.useState<number[]>([]);
+  // Self-contained PO Task picker — manages ALL its own state to avoid
+  // recreating the parent callback (which freezes TTV's Sheet).
+  // Parent communicates via refs only.
+  const poTasksRef = React.useRef<POTaskItem[]>([]);
+  const poTasksLoadedRef = React.useRef(false);
+  const selectedPoTaskIdsRef = React.useRef<number[]>([]);
   const poTasksEditRecordIdRef = React.useRef<number | string | null>(null);
+  const pendingNavigateRecordIdRef = React.useRef<number | null>(null);
+  const pendingTemplateFilterRef = React.useRef<string | undefined>(undefined);
 
-  // Fetch PO tasks for Cost Centre assignment
+  // When a cost centre/tender link is clicked in PoTaskPicker, the dialog closes
+  // and we open the target record's edit dialog after fetching full record data
+  const openEditForRecord = React.useCallback(async (id: number, templateFilter?: string) => {
+    pendingTemplateFilterRef.current = templateFilter;
+    try {
+      const resp = await api.get<{ success: boolean; records: Record<string, unknown>[] }>(
+        `/api/v1/foundations/cost_centres/records?per_page=1000`
+      );
+      const record = resp?.records?.find((r) => Number(r.id) === id);
+      if (!record) return;
+
+      // Wait for dialog close animation, then open edit with full record data
+      setTimeout(() => {
+        jotaiStore.set(selectedRecordForModalAtom, record as { id: string | number; [key: string]: unknown });
+        jotaiStore.set(showEditRecordModalAtom, true);
+      }, 200);
+    } catch (err) {
+      console.error("Failed to fetch record for navigation:", err);
+    }
+  }, [jotaiStore]);
+
+  // Navigate to a cost centre's edit dialog (cross-table navigation)
+  const navigateToCostCentre = React.useCallback(async (costCentreId: number, templateFilter?: string) => {
+    try {
+      pendingTemplateFilterRef.current = templateFilter;
+      // Switch to cost centres table via URL
+      router.push(`${basePath}/tables/cost_centres`, { scroll: false });
+      // Fetch the cost centre record to populate the edit dialog
+      const resp = await api.get<{ success: boolean; records: Record<string, unknown>[] }>(
+        `/api/v1/foundations/cost_centres/records?per_page=1000`
+      );
+      const record = resp?.records?.find((r) => Number(r.id) === costCentreId);
+      if (!record) return;
+      // Wait for table switch + dialog close animation, then open edit
+      setTimeout(() => {
+        jotaiStore.set(selectedRecordForModalAtom, record as { id: string | number; [key: string]: unknown });
+        jotaiStore.set(showEditRecordModalAtom, true);
+      }, 400);
+    } catch (err) {
+      console.error("Failed to navigate to cost centre:", err);
+    }
+  }, [jotaiStore, router, basePath]);
+
+  // Keep templates ref synced so stable callbacks can read latest value
+  const templatesRef = React.useRef(templates);
+  templatesRef.current = templates;
+
+  // Keep callback refs synced so stable callbacks always have latest version
+  const navigateToCostCentreRef = React.useRef(navigateToCostCentre);
+  navigateToCostCentreRef.current = navigateToCostCentre;
+  const openEditForRecordRef = React.useRef(openEditForRecord);
+  openEditForRecordRef.current = openEditForRecord;
+
   const fetchPoTasks = React.useCallback(async () => {
     try {
-      const data = await api.get<{ success: boolean; data: POTask[] }>("/api/v1/cost_centres/po_tasks");
+      const data = await api.get<{ success: boolean; data: POTaskItem[] }>("/api/v1/cost_centres/po_tasks");
       if (data?.data) {
-        setPoTasks(data.data);
-        setPoTasksLoaded(true);
+        poTasksRef.current = data.data;
+        poTasksLoadedRef.current = true;
       }
     } catch (error) {
       console.error("Failed to fetch PO tasks:", error);
     }
   }, []);
 
-  // Render PO Task picker for Cost Centre create dialog
+  // Create a new PO task via SM templates API
+  const createPoTask = React.useCallback(async (name: string, templateId: number): Promise<POTaskItem | null> => {
+    try {
+      const resp = await api.post<{ success: boolean; row: Record<string, unknown> }>(
+        `/api/v1/sm_schedule_master_templates/${templateId}/rows`,
+        { row: { name, po_required: true } }
+      );
+      if (resp?.success && resp.row) {
+        const row = resp.row;
+        const newTask: POTaskItem = {
+          id: Number(row.id),
+          name: String(row.name || name),
+          taskCode: row.task_code ? String(row.task_code) : null,
+          taskNumber: Number(row.task_number || row.id),
+          costCentreId: null,
+          costCentreName: null,
+          tenderId: null,
+          tenderName: null,
+          templateIds: Array.isArray(row.sm_template_ids) ? row.sm_template_ids.map(Number) : [templateId],
+        };
+        // Also add to the ref so future renders include it
+        poTasksRef.current = [...poTasksRef.current, newTask];
+        return newTask;
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to create PO task:", error);
+      return null;
+    }
+  }, []);
+
+  // Stable callback — deps are EMPTY so it NEVER changes.
+  // All mutable data read from refs. Internal re-renders handled by the PoTaskPicker component.
   const renderPoTaskPickerForCreate = React.useCallback(() => {
-    if (!poTasksLoaded) {
+    if (!poTasksLoadedRef.current) {
       fetchPoTasks();
       return (
         <div className="py-4 border-t">
@@ -649,53 +743,30 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         </div>
       );
     }
-
-    // For create: no tasks pre-selected, reset on mount
-    const selectedOptions: Option[] = selectedPoTaskIds
-      .map((id) => {
-        const task = poTasks.find((t) => t.id === id);
-        if (!task) return null;
-        return { value: String(task.id), label: `${task.taskNumber} - ${task.name}` };
-      })
-      .filter((o): o is Option => !!o);
-
-    // Build options: disable tasks assigned to other cost centres
-    const availableOptions: Option[] = poTasks.map((task) => {
-      const isAssignedElsewhere = task.costCentreId != null && !selectedPoTaskIds.includes(task.id);
-      return {
-        value: String(task.id),
-        label: isAssignedElsewhere
-          ? `${task.taskNumber} - ${task.name} (${task.costCentreName || "CC #" + task.costCentreId})`
-          : `${task.taskNumber} - ${task.name}`,
-        disable: isAssignedElsewhere,
-      };
-    });
-
+    // Reset stale state from previous edit
+    if (poTasksEditRecordIdRef.current !== null && poTasksEditRecordIdRef.current !== "create") {
+      poTasksEditRecordIdRef.current = "create";
+      selectedPoTaskIdsRef.current = [];
+    }
     return (
-      <div className="py-4 border-t">
-        <Label className="text-sm font-medium">PO Tasks</Label>
-        <p className="text-xs text-muted-foreground mt-1 mb-2">
-          Assign SM PO Tasks to this Cost Centre. Greyed-out tasks are already assigned to another Cost Centre.
-        </p>
-        <MultipleSelector
-          value={selectedOptions}
-          options={availableOptions}
-          placeholder="Search PO tasks..."
-          emptyIndicator={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
-          onChange={(options) => {
-            setSelectedPoTaskIds(options.map((o) => Number(o.value)));
-          }}
-        />
-      </div>
+      <PoTaskPicker
+        key="create"
+        allTasks={poTasksRef.current}
+        initialSelectedIds={[]}
+        recordId={undefined}
+        templates={templatesRef.current}
+        selectedIdsRef={selectedPoTaskIdsRef}
+        assignmentField="costCentre"
+        entityLabel="Cost Centre"
+        onCreateTask={createPoTask}
+        onNavigateToCostCentre={(id, tplFilter) => navigateToCostCentreRef.current(id, tplFilter)}
+      />
     );
-  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Render PO Task picker for editing (pre-selects existing tasks)
-  const renderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow) => {
-    const recordId = record.id;
-
-    // Fetch PO tasks if not loaded yet
-    if (!poTasksLoaded) {
+  const renderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow, helpers?: { onClose: () => void }) => {
+    if (!poTasksLoadedRef.current) {
       fetchPoTasks();
       return (
         <div className="py-4 border-t">
@@ -704,56 +775,41 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         </div>
       );
     }
-
-    // Initialize selectedPoTaskIds when editing a different record
+    const recordId = record.id;
+    let initialIds: number[];
     if (poTasksEditRecordIdRef.current !== recordId) {
       poTasksEditRecordIdRef.current = recordId;
-      const assignedIds = poTasks
+      initialIds = poTasksRef.current
         .filter((t) => t.costCentreId === Number(recordId))
         .map((t) => t.id);
-      // Use setTimeout to avoid setState during render
-      setTimeout(() => setSelectedPoTaskIds(assignedIds), 0);
+      selectedPoTaskIdsRef.current = initialIds;
+    } else {
+      initialIds = selectedPoTaskIdsRef.current;
     }
-
-    const selectedOptions: Option[] = selectedPoTaskIds
-      .map((id) => {
-        const task = poTasks.find((t) => t.id === id);
-        if (!task) return null;
-        return { value: String(task.id), label: `${task.taskNumber} - ${task.name}` };
-      })
-      .filter((o): o is Option => !!o);
-
-    const availableOptions: Option[] = poTasks.map((task) => {
-      const isAssignedElsewhere = task.costCentreId != null
-        && task.costCentreId !== Number(recordId)
-        && !selectedPoTaskIds.includes(task.id);
-      return {
-        value: String(task.id),
-        label: isAssignedElsewhere
-          ? `${task.taskNumber} - ${task.name} (${task.costCentreName || "CC #" + task.costCentreId})`
-          : `${task.taskNumber} - ${task.name}`,
-        disable: isAssignedElsewhere,
-      };
-    });
-
     return (
-      <div className="py-4 border-t">
-        <Label className="text-sm font-medium">PO Tasks</Label>
-        <p className="text-xs text-muted-foreground mt-1 mb-2">
-          Assign SM PO Tasks to this Cost Centre. Greyed-out tasks are already assigned to another Cost Centre.
-        </p>
-        <MultipleSelector
-          value={selectedOptions}
-          options={availableOptions}
-          placeholder="Search PO tasks..."
-          emptyIndicator={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
-          onChange={(options) => {
-            setSelectedPoTaskIds(options.map((o) => Number(o.value)));
-          }}
-        />
-      </div>
+      <PoTaskPicker
+        key={String(recordId)}
+        allTasks={poTasksRef.current}
+        initialSelectedIds={initialIds}
+        recordId={recordId}
+        templates={templatesRef.current}
+        selectedIdsRef={selectedPoTaskIdsRef}
+        assignmentField="costCentre"
+        entityLabel="Cost Centre"
+        initialTemplateFilter={pendingTemplateFilterRef.current || undefined}
+        onNavigateToRecord={(id, tplFilter) => {
+          helpers?.onClose?.();
+          openEditForRecordRef.current(id, tplFilter);
+        }}
+        onCreateTask={createPoTask}
+        onNavigateToCostCentre={(id, tplFilter) => {
+          helpers?.onClose?.();
+          navigateToCostCentreRef.current(id, tplFilter);
+        }}
+      />
     );
-  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle after-save for Cost Centre: assign PO tasks
   const handleCostCentreAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
@@ -762,17 +818,16 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
     try {
       await api.post(`/api/v1/cost_centres/${costCentreId}/assign_po_tasks`, {
-        po_task_ids: selectedPoTaskIds,
+        po_task_ids: selectedPoTaskIdsRef.current,
       });
       // Refresh PO tasks to reflect new assignments
       await fetchPoTasks();
-      // Reset state for next modal open
-      setSelectedPoTaskIds([]);
+      selectedPoTaskIdsRef.current = [];
       poTasksEditRecordIdRef.current = null;
     } catch (error) {
-      console.error("Failed to assign PO tasks:", error);
+      console.error("[PO Tasks] Failed to assign PO tasks:", error);
     }
-  }, [selectedPoTaskIds, fetchPoTasks]);
+  }, [fetchPoTasks]);
 
   // FRC (Feb 2026): Edit dialog data loaded lazily on first edit sheet open.
   // These 5 endpoints took ~19 seconds combined and were only used in EditRowDialog.
@@ -835,6 +890,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     loadStages();
     loadRoles();
     loadCostCentres();
+    loadTenderSections();
     loadHeaderRows();
     loadChecklists();
   }, [showInactive]);
@@ -942,7 +998,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Load trades from Foundation SM Trades (slug: sm_trades)
   const loadTrades = async () => {
     try {
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=100");
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=1000");
       if (data?.records) {
         setAvailableTrades(data.records);
       }
@@ -983,12 +1039,28 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Load cost centres from Foundation Cost Centres (slug: cost_centres)
   const loadCostCentres = async () => {
     try {
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=1000");
       if (data?.records) {
         setAvailableCostCentres(data.records);
       }
     } catch (error) {
       console.error("Failed to load cost centres:", error);
+    }
+  };
+
+  // SSoT: Load tender sections from Foundation Tenders (sections only - parent_id not empty)
+  const loadTenderSections = async () => {
+    try {
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
+        "/api/v1/foundations/tenders/records?per_page=1000&filters=" + encodeURIComponent(JSON.stringify([
+          { column: "parent_id", operator: "is_not_empty", value: null }
+        ]))
+      );
+      if (data?.records) {
+        setAvailableTenderSections(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load tender sections:", error);
     }
   };
 
@@ -1040,7 +1112,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // Fetch both "job" and "both" scoped document types
   const loadDocumentTypes = async () => {
     try {
-      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name?: string; scope?: string }> }>(
+      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name?: string; scope?: string; folder?: string; primary_folder_name?: string; form_number_mapping?: Record<string, string> }> }>(
         "/api/v1/document_types"
       );
       if (data?.data) {
@@ -1302,6 +1374,18 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
   };
 
+  const handleSetDefault = async (id: number) => {
+    try {
+      await api.post(`/api/v1/sm_schedule_master_templates/${id}/set_default`);
+      const name = templates.find((t) => t.id === id)?.name || "Template";
+      toast({ title: "Primary set", description: `${name} is now the primary template` });
+      loadTemplates();
+    } catch (error) {
+      console.error("Failed to set default template:", error);
+      toast({ title: "Error", description: "Failed to set primary template", variant: "destructive" });
+    }
+  };
+
   // Get current template for display
   const currentTemplate = dataViewTemplateId ? templates.find(t => t.id === dataViewTemplateId) : null;
 
@@ -1405,6 +1489,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     return {
       id: row.id,
       task_number: row.task_number,
+      task_code: row.task_code || null,
       name: row.name,
       description: row.description || undefined,
       duration_days: row.duration_days,
@@ -1415,6 +1500,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       stage_name: row.stage_name || extractLookupDisplay(row.stage) || undefined,
       assigned_role: extractLookupId(row.assigned_role) || null,
       cost_centre: extractLookupId(row.cost_centre) || undefined,
+      tender_id: extractLookupId(row.tender_id) || undefined,
       header_gantt: extractLookupId(row.header_gantt) || undefined,
       allow_header: row.allow_header || false,
       is_active: row.is_active !== false,
@@ -1460,6 +1546,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       linked_task_ids: row.linked_task_ids || [],
       // Completion linked tasks (cascade complete together)
       completion_linked_task_ids: row.completion_linked_task_ids || [],
+      // Plan and document reference types (JSONB arrays of document_type IDs)
+      plan_type_ids: row.plan_type_ids || [],
+      plan_type_names: row.plan_type_names || [],
+      document_ref_type_ids: row.document_ref_type_ids || [],
+      document_ref_type_names: row.document_ref_type_names || [],
     };
   }, []);
 
@@ -1475,6 +1566,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
     // Transform EditRowFormData to API payload
     const rowPayload: Record<string, unknown> = {
+      task_code: data.task_code || null,
       name: data.name,
       description: data.description,
       duration_days: data.duration_days,
@@ -1483,6 +1575,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       stage: data.stage,
       assigned_role: data.assigned_role,
       cost_centre: data.cost_centre,
+      tender_id: data.tender_id,
       header_gantt: data.header_gantt,
       allow_header: data.allow_header,
       is_active: data.is_active,
@@ -1516,6 +1609,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       linked_task_ids: data.linked_task_ids,
       // Completion linked tasks (cascade complete together)
       completion_linked_task_ids: data.completion_linked_task_ids,
+      // Plan and document reference types
+      plan_type_ids: data.plan_type_ids,
+      document_ref_type_ids: data.document_ref_type_ids,
     };
 
     // Transform document_types to Rails nested attributes format (SSoT: sm_schedule_master_document_types)
@@ -2616,6 +2712,21 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                         <div>
                           <div className="flex items-center gap-2">
                             <CardTitle className="text-base">{template.name}</CardTitle>
+                            <button
+                              type="button"
+                              title={template.is_default ? "Primary template" : "Set as primary template"}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!template.is_default) handleSetDefault(template.id);
+                              }}
+                              className={`p-0.5 rounded transition-colors ${
+                                template.is_default
+                                  ? "text-amber-500 dark:text-amber-400"
+                                  : "text-muted-foreground/30 hover:text-amber-400 dark:hover:text-amber-500"
+                              }`}
+                            >
+                              <Star className="h-4 w-4" fill={template.is_default ? "currentColor" : "none"} />
+                            </button>
                             {!template.is_active && (
                               <Badge variant="outline" className="text-muted-foreground bg-muted">
                                 Inactive
@@ -3266,7 +3377,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             )}
 
             {/* Assignment & Supplier */}
-            {sectionHasMatches(["trade", "stage", "assigned_role", "cost_centre"]) && (
+            {sectionHasMatches(["trade", "stage", "assigned_role", "cost_centre", "tender_id"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Assignment & Supplier</CardTitle>
@@ -3310,6 +3421,14 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                     <CopyableCode>cost_centre</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">Accounting code for tracking costs. Links this task&apos;s expenses to the correct budget category in your financial reports.</span>
+                  </div>
+                  )}
+                  {columnMatchesSearch("tender_id") && (
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["tender_id"] || false} onCheckedChange={(v) => updateColumnStatus("tender_id", !!v)} />
+                    <CopyableCode>tender_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">lookup</Badge>
+                    <span className="text-muted-foreground">Tender section for grouping PO items in tender documents. Links this task to a section like Site Preparation, Piering, or Client Variations.</span>
                   </div>
                   )}
                 </div>
@@ -4011,12 +4130,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                     enableExport={true}
                     autoFetchRecords
                     onRefresh={() => setLookupTableRefreshKey(k => k + 1)}
-                    {...(table.id === "cost_centres" ? {
-                      createDialogRenderExtra: renderPoTaskPickerForCreate,
-                      createDialogOnAfterSave: handleCostCentreAfterSave,
-                      editDialogRenderExtra: renderPoTaskPickerForEdit,
-                      editDialogOnAfterSave: handleCostCentreAfterSave,
-                    } : {})}
                   />
                 </div>
               )
@@ -4090,6 +4203,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         roles={availableRoles}
         stages={availableStages}
         costCentres={availableCostCentres}
+        tenderSections={availableTenderSections}
         checklists={availableChecklists}
         documentTypes={availableDocumentTypes}
         tradingNames={tradingNames}

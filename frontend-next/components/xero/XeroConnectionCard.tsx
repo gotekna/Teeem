@@ -63,6 +63,16 @@ export function XeroConnectionCard({
   const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
   const [pendingConnection, setPendingConnection] = React.useState<XeroConnectionStatus | null>(null);
   const [tenantStats, setTenantStats] = React.useState<TenantStats | null>(null);
+  const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup polling on unmount
+  React.useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    };
+  }, []);
 
   React.useEffect(() => {
     loadStatus();
@@ -121,22 +131,26 @@ export function XeroConnectionCard({
         // Open Xero OAuth in new window
         window.open(response.authorization_url, "_blank", "width=600,height=700");
         // Start polling for connection status
-        const pollInterval = setInterval(async () => {
-          const statusCheck = await api.get<{ success: boolean } & XeroConnectionStatus>(
-            `/api/v1/companies/${companyId}/xero/status`
-          );
-          if (statusCheck.connected) {
-            clearInterval(pollInterval);
-            clearTimeout(timeoutId);
-            // Show confirmation dialog instead of auto-accepting
-            setPendingConnection(statusCheck);
-            setShowConfirmDialog(true);
-            setConnecting(false);
+        pollIntervalRef.current = setInterval(async () => {
+          try {
+            const statusCheck = await api.get<{ success: boolean } & XeroConnectionStatus>(
+              `/api/v1/companies/${companyId}/xero/status`
+            );
+            if (statusCheck.connected) {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+              // Show confirmation dialog instead of auto-accepting
+              setPendingConnection(statusCheck);
+              setShowConfirmDialog(true);
+              setConnecting(false);
+            }
+          } catch {
+            // Ignore polling errors during OAuth flow
           }
         }, POLLING_DELAY_MS);
         // Stop polling after 5 minutes
-        const timeoutId = setTimeout(() => {
-          clearInterval(pollInterval);
+        pollTimeoutRef.current = setTimeout(() => {
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
           setConnecting(false);
         }, XERO_CONNECTION_TIMEOUT_MS);
       }

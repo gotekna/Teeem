@@ -218,17 +218,21 @@ module Api
         bills = BillInbox.all
         bills = bills.for_company(params[:corporate_id]) if params[:corporate_id].present?
 
+        status_counts = bills.group(:status).count
+        variance_count = bills.with_variance.count
+        pending_amount = bills.where(status: %w[approval_pending approved]).sum(:total_amount)
+
         render json: {
-          total: bills.count,
-          pending: bills.where(status: "pending").count,
-          extracting: bills.where(status: %w[extracting extracted matching]).count,
-          awaiting_approval: bills.where(status: "approval_pending").count,
-          approved: bills.where(status: "approved").count,
-          paid: bills.where(status: "paid").count,
-          rejected: bills.where(status: "rejected").count,
-          errors: bills.where(status: "error").count,
-          with_variance: bills.with_variance.count,
-          total_amount_pending: bills.where(status: %w[approval_pending approved]).sum(:total_amount)
+          total: status_counts.values.sum,
+          pending: status_counts["pending"] || 0,
+          extracting: status_counts.values_at("extracting", "extracted", "matching").compact.sum,
+          awaiting_approval: status_counts["approval_pending"] || 0,
+          approved: status_counts["approved"] || 0,
+          paid: status_counts["paid"] || 0,
+          rejected: status_counts["rejected"] || 0,
+          errors: status_counts["error"] || 0,
+          with_variance: variance_count,
+          total_amount_pending: pending_amount || 0
         }
       end
 

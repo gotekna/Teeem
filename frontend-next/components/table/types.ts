@@ -164,7 +164,7 @@ export interface TeeemTableViewProps {
   // Record CRUD modal extension points
   createDialogRenderExtra?: () => React.ReactNode; // Extra content rendered in CreateRecordDialog
   createDialogOnAfterSave?: (record: Record<string, unknown>) => Promise<void>; // Called after successful create
-  editDialogRenderExtra?: (record: TableRow) => React.ReactNode; // Extra content rendered in EditRecordModal
+  editDialogRenderExtra?: (record: TableRow, helpers?: { onClose: () => void }) => React.ReactNode; // Extra content rendered in EditRecordModal
   editDialogOnAfterSave?: (record: Record<string, unknown>) => Promise<void>; // Called after successful edit
 
   // View configuration
@@ -234,6 +234,7 @@ export interface TeeemTableViewProps {
   hideFooter?: boolean; // Hide the footer row (record count shown in page header instead)
   hideAddRecord?: boolean; // Hide the Add Record button (use when page has custom create action, e.g., /contacts/new)
   alwaysVisibleColumns?: string[]; // Columns that are always visible regardless of view settings
+  initiallyHiddenColumns?: string[]; // Columns to hide by default (e.g., parent_id in headers-only views)
   enableFullscreen?: boolean; // Enable fullscreen toggle button in toolbar (default: false)
 
   // Legacy props

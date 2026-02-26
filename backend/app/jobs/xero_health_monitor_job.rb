@@ -130,15 +130,20 @@ class XeroHealthMonitorJob < ApplicationJob
         .where(finished_at: nil)
         .where(class_name: job_class_name)
         .where("created_at < ?", orphan_threshold)
+        .to_a
 
-      old_pending_jobs.find_each do |job|
-        # Check if job has any execution record
-        has_scheduled = SolidQueue::ScheduledExecution.exists?(job_id: job.id)
-        has_claimed = SolidQueue::ClaimedExecution.exists?(job_id: job.id)
-        has_ready = SolidQueue::ReadyExecution.exists?(job_id: job.id)
+      next if old_pending_jobs.empty?
 
-        if !has_scheduled && !has_claimed && !has_ready
-          # This job is orphaned - delete it
+      job_ids = old_pending_jobs.map(&:id)
+
+      # Bulk-fetch all job IDs that have execution records (avoids 3x N+1 per job)
+      scheduled_job_ids = SolidQueue::ScheduledExecution.where(job_id: job_ids).pluck(:job_id).to_set
+      claimed_job_ids   = SolidQueue::ClaimedExecution.where(job_id: job_ids).pluck(:job_id).to_set
+      ready_job_ids     = SolidQueue::ReadyExecution.where(job_id: job_ids).pluck(:job_id).to_set
+
+      old_pending_jobs.each do |job|
+        # A job is orphaned if it has no execution record in any queue table
+        if !scheduled_job_ids.include?(job.id) && !claimed_job_ids.include?(job.id) && !ready_job_ids.include?(job.id)
           Rails.logger.warn "[XeroHealthMonitor] Deleting orphaned job: #{job_class_name} (ID: #{job.id}, created: #{job.created_at})"
           job.destroy
           cleaned += 1
@@ -255,16 +260,34 @@ class XeroHealthMonitorJob < ApplicationJob
   end
 
   # Check for syncs that haven't run in their expected time window
+  # PERFORMANCE: Batch-load latest sync events to avoid N+1 (credentials × sync_types queries)
   def check_stale_syncs
     issues = 0
+    credentials = XeroCredential.healthy.to_a
+    return 0 if credentials.empty?
 
-    XeroCredential.healthy.find_each do |credential|
+    # Batch-load the latest event per (credential_id, sync_type) in a single query
+    # instead of querying per credential × sync_type (was N*4 queries, now 1)
+    latest_events = XeroSyncEvent
+      .where(xero_credential_id: credentials.map(&:id), sync_type: EXPECTED_INTERVALS.keys)
+      .select("DISTINCT ON (xero_credential_id, sync_type) *")
+      .order(Arel.sql("xero_credential_id, sync_type, created_at DESC"))
+
+    events_map = latest_events.index_by { |e| [e.xero_credential_id, e.sync_type] }
+
+    credentials.each do |credential|
       EXPECTED_INTERVALS.each do |sync_type, expected_interval|
-        health = XeroSyncEvent.health_for_type(
-          sync_type: sync_type,
-          credential: credential,
-          expected_interval: expected_interval
-        )
+        last_event = events_map[[credential.id, sync_type]]
+
+        health = if last_event.nil?
+                   { status: :never_run, last_run: nil, message: "Never synced" }
+                 elsif last_event.failed?
+                   { status: :failed, last_run: last_event.completed_at, message: last_event.error_message }
+                 elsif last_event.completed_at && last_event.completed_at < expected_interval.ago
+                   { status: :stale, last_run: last_event.completed_at, message: "Sync is overdue" }
+                 else
+                   { status: :healthy, last_run: last_event.completed_at, message: "OK" }
+                 end
 
         if health[:status] == :stale
           issues += 1

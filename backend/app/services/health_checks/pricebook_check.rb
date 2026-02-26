@@ -24,7 +24,7 @@ module HealthChecks
     # Items that don't have a default supplier assigned
     def check_items_without_supplier
       items = PricebookItem.active.where(default_supplier_id: nil)
-                          .select(:id, :item_code, :item_name, :category)
+                          .includes(:pricebook_category)
 
       build_result(
         name: "Items Without Default Supplier",
@@ -83,7 +83,7 @@ module HealthChecks
             display: "#{item.item_code} - #{item.item_name}",
             item_code: item.item_code,
             item_name: item.item_name,
-            category: item&.category
+            category: item&.pricebook_category&.name
           }
         else
           super

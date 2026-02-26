@@ -34,6 +34,8 @@ class SmScheduleMasterTemplateCopyService
     @task_number_map = {} # Maps template row task_number to created SmTask
     @row_map = {}         # Maps template row id to SmScheduleMaster
     @calendar = WorkingDaysCalculator.new(TenantSetting.instance)
+    @trade_remap = {}     # Source trade_id → target trade_id (cross-tenant)
+    @stage_remap = {}     # Source stage_id → target stage_id (cross-tenant)
   end
 
   def call
@@ -46,6 +48,9 @@ class SmScheduleMasterTemplateCopyService
     end
 
     return failure("Template has no active rows") if @row_map.empty?
+
+    # Build cross-tenant remap for trade/stage IDs if template tenant differs from job tenant
+    build_cross_tenant_remaps
 
     ActiveRecord::Base.transaction do
       clear_existing_tasks if options[:clear_existing]
@@ -97,6 +102,53 @@ class SmScheduleMasterTemplateCopyService
     end
   end
 
+  # ⚠️ DO NOT SIMPLIFY - Cross-tenant FK remapping (2026-02-20)
+  # ════════════════════════════════════════════
+  # Why: SmScheduleMaster trade/stage columns store integer IDs referencing
+  #   SmTrade/SmStage records. These IDs differ between tenants.
+  #   When copying a template from one tenant to a job in another tenant,
+  #   the IDs must be remapped by name to the target tenant's records.
+  # ❌ WRONG: trade: row.trade (copies source tenant's ID verbatim)
+  # ✅ CORRECT: trade: remap_trade(row.trade) (maps to target tenant's ID by name)
+  # ════════════════════════════════════════════
+  def build_cross_tenant_remaps
+    template_tenant_id = template.tenant_id
+    job_tenant_id = job.tenant_id
+    return if template_tenant_id == job_tenant_id
+
+    ActsAsTenant.without_tenant do
+      # Build trade remap: source_id → target_id (matched by name)
+      source_trades = SmTrade.where(tenant_id: template_tenant_id).pluck(:id, :name).to_h
+      target_trades = SmTrade.where(tenant_id: job_tenant_id).pluck(:name, :id).to_h
+      source_trades.each do |src_id, name|
+        target_id = target_trades[name]
+        @trade_remap[src_id] = target_id if target_id
+      end
+
+      # Build stage remap: source_id → target_id (matched by name)
+      source_stages = SmStage.where(tenant_id: template_tenant_id).pluck(:id, :name).to_h
+      target_stages = SmStage.where(tenant_id: job_tenant_id).pluck(:name, :id).to_h
+      source_stages.each do |src_id, name|
+        target_id = target_stages[name]
+        @stage_remap[src_id] = target_id if target_id
+      end
+
+      Rails.logger.info "SmScheduleMasterTemplateCopyService: Cross-tenant remap built " \
+        "(#{@trade_remap.size} trades, #{@stage_remap.size} stages) " \
+        "from tenant #{template_tenant_id} → #{job_tenant_id}"
+    end
+  end
+
+  def remap_trade(trade_id)
+    return nil unless trade_id
+    @trade_remap[trade_id] || trade_id
+  end
+
+  def remap_stage(stage_id)
+    return nil unless stage_id
+    @stage_remap[stage_id] || stage_id
+  end
+
   def clear_existing_tasks
     count = job.sm_tasks.count
     job.sm_tasks.destroy_all
@@ -104,21 +156,20 @@ class SmScheduleMasterTemplateCopyService
   end
 
   def create_tasks
-    sequence = 0
-
     @row_map.values.sort_by(&:sequence_order).each do |row|
-      sequence += 1
-
       task = SmTask.new(
-        construction_id: job.id,
+        job_id: job.id,
         sm_schedule_master_id: row.id,  # Link to SSoT SmScheduleMaster
         name: row.name,
         description: row.description,
         task_number: row.task_number,   # Use template's task_number (SSoT: equals template id)
-        sequence_order: sequence,
+        task_code: row.task_code,
+        sequence_order: row.sequence_order,  # Use template's sequence_order (not sequential counter)
+        sync_key: row.sync_key,
+        critical_po: row.critical_po,
         duration_days: row.duration_days,
-        trade: row.trade,
-        stage: row.stage,
+        trade: remap_trade(row.trade),
+        stage: remap_stage(row.stage),
         checklist_id: row.checklist_id,
         status: "not_started",
         # Task settings from template
@@ -144,6 +195,8 @@ class SmScheduleMasterTemplateCopyService
         header_gantt: row.header_gantt,
         color: row.color,
         cost_centre: row.cost_centre,
+        # Tender section (synced from template SSoT)
+        tender_id: row.tender_id,
         # Workflow settings
         start_workflow_enabled: row.start_workflow_enabled,
         start_workflow_id: row.start_workflow_id,
@@ -174,7 +227,7 @@ class SmScheduleMasterTemplateCopyService
         # Create JobClaimStage for CLAIM tasks (SSoT: Schedule Master defines claims)
         # Skip variations - they get claim stages when manually added to a job, not during initial sync
         if row.is_claim_task && row.claim_percentage.present? && !row.is_variation
-          claim_stage = create_claim_stage_for_task(task, row, sequence)
+          claim_stage = create_claim_stage_for_task(task, row, row.sequence_order)
           if claim_stage
             @created_claim_stages << claim_stage
           end

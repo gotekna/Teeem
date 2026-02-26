@@ -46,6 +46,9 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/whs/incidents": "Incidents",
   "/whs/inspections": "Inspections",
 
+  // Library
+  "/library": "Library",
+
   // File Warehouse
   "/warehouse": "File Warehouse",
   "/warehouse/tree": "Tree",
@@ -75,7 +78,7 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/settings/integrations": "Integrations",
   "/settings/documents": "Documents",
   "/settings/operations": "Operations",
-  "/settings/accounts": "Accounts",
+  "/settings/tables": "Tables",
   "/settings/system": "System",
   "/settings/developer": "Developer",
 
@@ -101,6 +104,7 @@ const ROUTE_ICONS: Record<string, string> = {
   "/financial": "DollarSign",
   "/corporate": "Building",
   "/whs": "Shield",
+  "/library": "BookOpen",
   "/warehouse": "Warehouse",
   "/admin": "Settings",
   "/settings": "Settings",
@@ -175,6 +179,12 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "colours": "Colours",
   "specifications": "Specifications",
 
+  // Library tabs
+  "standards": "Standards",
+  "guidelines": "Guidelines",
+  "manuals": "Manuals",
+  "templates": "Templates",
+
   // Settings > Company tabs
   "info": "Info",
   "brand-colors": "Brand Colors",
@@ -192,8 +202,17 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "data-health": "Data Health",
   "offline": "Offline",
 
-  // Settings > Accounts tabs
-  "gst-table": "GST Table",
+  // Settings > Tables tabs (top-level)
+  "pricebook": "Pricebook",
+  "accounts": "Accounts",
+
+  // Settings > Tables > Pricebook sub-tabs
+  "brands": "Brands",
+  "ranges": "Ranges",
+  "uom": "UOM",
+
+  // Settings > Tables > Accounts sub-tabs
+  "gst": "GST",
 
   // Settings > Company > Warehouse Config sub-tabs
   "warehouse_folders": "Warehouse Folders",
@@ -235,8 +254,12 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "view-table-demo": "ViewTable Demo",
   "setup-table-demo": "SetupTable Demo",
 
+  // Settings > Personal tabs
+  "assistant": "Assistant",
+
   // Settings > Connections sub-tabs
   "provider": "Storage Provider",
+  "ai-assistant": "AI Assistant",
   "migration": "Migration",
   "costs": "Cost Comparison",
   "email-accounts": "Email Accounts",
@@ -255,7 +278,13 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "supervisor": "Supervisor Checklist",
   "cost": "Cost",
   "po-templates": "PO Templates",
+  "quote-templates": "Quote Templates",
   "claim-templates": "Claim Templates",
+  "tender-headers": "Tender Headers",
+  "tender-sections": "Tender Sections",
+  "tender-documents": "Tender Documents",
+  "profit-centres": "Profit Centres",
+  "cost-centres": "Cost Centres",
 
   // Settings > System sub-tabs
   "navigation": "Navigation",
@@ -460,6 +489,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "data-health": ["overview", "contacts"],
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
   "corporate": ["groups", "companies", "company-tabs"],
+  "tables": ["pricebook", "accounts"],
 };
 
 /**
@@ -603,6 +633,14 @@ export function isRelatedPath(path1: string, path2: string): boolean {
       if (section1 !== section2) {
         return false;
       }
+    }
+
+    // Detect depth gap within same settings section
+    // e.g., /settings/tables → /settings/tables/pricebook/categories (jumped 2 segments)
+    // When router.replace() chains skip intermediate paths, the trail misses items like "Pricebook".
+    // Force rebuild from URL so all intermediate breadcrumb items are included.
+    if (segments2.length - segments1.length > 1) {
+      return false;
     }
   }
 

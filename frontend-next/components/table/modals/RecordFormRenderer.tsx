@@ -8,23 +8,32 @@
  * - string, long_text, boolean, number, whole_number
  * - currency, percentage, date, date_and_time
  * - email, url, color_picker, dropdown (lookup_foundation_id)
+ * - lookup, multiple_lookups (ComboboxDropdown)
  *
  * @see TeeemTableView modals folder for other SSoT modal components
  */
 
+import * as React from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ComboboxDropdown } from '@/components/ui/combobox-dropdown';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/utils/formatters';
+import { isLookupColumn } from '@/lib/constants/column-types';
+import { api } from '@/lib/api';
 
 export interface ColumnDefinition {
   column_name: string;
   name?: string;
   column_type: string;
+  column_id?: number; // Backend Column.id (for lookup_options endpoint)
+  foundation_id?: number; // The column's own foundation ID
   lookup_foundation_id?: number;
+  lookup_foundation_slug?: string;
+  lookup_display_column?: string;
   choices?: string[];
   required?: boolean;
   system?: boolean;
@@ -62,6 +71,11 @@ function getDisplayValue(value: unknown): string {
   return '';
 }
 
+interface LookupOption {
+  id: number;
+  display: string;
+}
+
 export function RecordFormField({
   column,
   value,
@@ -74,6 +88,55 @@ export function RecordFormField({
   const label = name || column_name;
   const isSystem = column.system || ['id', 'created_at', 'updated_at'].includes(column_name);
   const isDisabled = disabled || isSystem;
+  const errorInputClass = error ? "border-destructive focus-visible:ring-destructive" : "";
+  const errorLabelClass = error ? "text-destructive" : "";
+
+  // Lookup column state
+  const isLookup = (isLookupColumn(column_type) && column_type !== "multiple_lookups") || !!column.lookup_foundation_id;
+  const [lookupOptions, setLookupOptions] = React.useState<LookupOption[]>([]);
+  const [lookupLoading, setLookupLoading] = React.useState(false);
+
+  // Fetch lookup options when column is a lookup type
+  // Prefers dedicated lookup_options endpoint (respects lookup_filter),
+  // falls back to Foundation records API
+  React.useEffect(() => {
+    if (!isLookup) return;
+    const targetFoundation = column.lookup_foundation_slug || column.lookup_foundation_id;
+    if (!targetFoundation) return;
+
+    let cancelled = false;
+    setLookupLoading(true);
+    (async () => {
+      try {
+        // Use dedicated lookup_options endpoint when column_id available
+        // This applies server-side lookup_filter (e.g., only show headers)
+        if (column.column_id && column.foundation_id) {
+          const resp = await api.get<{ success: boolean; options: LookupOption[] }>(
+            `/api/v1/foundations/${column.foundation_id}/columns/${column.column_id}/lookup_options`
+          );
+          if (!cancelled) setLookupOptions(resp.options || []);
+        } else {
+          // Fallback: fetch all records from target foundation
+          const resp = await api.get<{ records: Record<string, unknown>[] }>(
+            `/api/v1/foundations/${targetFoundation}/records`,
+            { params: { per_page: 1000 } }
+          );
+          if (cancelled) return;
+          const displayCol = column.lookup_display_column || "name";
+          const options: LookupOption[] = (resp.records || []).map((r) => ({
+            id: Number(r.id),
+            display: String(r[displayCol] || r.name || r.title || r.id || ""),
+          }));
+          setLookupOptions(options);
+        }
+      } catch {
+        if (!cancelled) setLookupOptions([]);
+      } finally {
+        if (!cancelled) setLookupLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isLookup, column.column_id, column.foundation_id, column.lookup_foundation_slug, column.lookup_foundation_id, column.lookup_display_column]);
 
   // SSoT: Convert value to display string, handling objects properly
   const displayValue = getDisplayValue(value);
@@ -85,6 +148,36 @@ export function RecordFormField({
   };
 
   const renderField = () => {
+    // Handle lookup columns with ComboboxDropdown
+    if (isLookup) {
+      // Foundation API returns lookup values as expanded objects { id: X, display: "..." }
+      // Extract raw ID for matching against lookup options
+      const rawId = (typeof value === 'object' && value !== null && 'id' in (value as Record<string, unknown>))
+        ? (value as Record<string, unknown>).id
+        : value;
+      const selectedOption = lookupOptions.find(o => String(o.id) === String(rawId));
+      return (
+        <div className="space-y-2">
+          <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
+            {label}
+          </Label>
+          <ComboboxDropdown
+            items={lookupOptions.map(o => ({ id: String(o.id), label: o.display }))}
+            selectedItem={selectedOption ? { id: String(selectedOption.id), label: selectedOption.display } : undefined}
+            onSelect={(item) => handleChange(Number(item.id))}
+            placeholder="Search..."
+            searchPlaceholder="Type to search..."
+            isLoading={lookupLoading}
+            clearable
+            onClear={() => handleChange(null)}
+            emptyResults="No options available"
+            className={cn(errorInputClass)}
+            disabled={isDisabled}
+          />
+        </div>
+      );
+    }
+
     switch (column_type) {
       case 'boolean':
         return (
@@ -104,7 +197,7 @@ export function RecordFormField({
       case 'long_text':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Textarea
@@ -113,7 +206,7 @@ export function RecordFormField({
               onChange={(e) => handleChange(e.target.value)}
               rows={3}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -124,7 +217,7 @@ export function RecordFormField({
       case 'percentage':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
               {column_type === 'currency' && ' ($)'}
               {column_type === 'percentage' && ' (%)'}
@@ -136,7 +229,7 @@ export function RecordFormField({
               value={String(value ?? '')}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -144,7 +237,7 @@ export function RecordFormField({
       case 'date':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -153,7 +246,7 @@ export function RecordFormField({
               value={String(value || '')}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -161,7 +254,7 @@ export function RecordFormField({
       case 'date_and_time':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -170,7 +263,7 @@ export function RecordFormField({
               value={String(value || '')}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -178,7 +271,7 @@ export function RecordFormField({
       case 'email':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -187,7 +280,7 @@ export function RecordFormField({
               value={String(value || '')}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -195,7 +288,7 @@ export function RecordFormField({
       case 'url':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -205,7 +298,7 @@ export function RecordFormField({
               onChange={(e) => handleChange(e.target.value)}
               placeholder="https://"
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -213,7 +306,7 @@ export function RecordFormField({
       case 'color_picker':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <div className="flex items-center gap-2">
@@ -222,14 +315,14 @@ export function RecordFormField({
                 type="color"
                 value={String(value || '#000000')}
                 onChange={(e) => handleChange(e.target.value)}
-                className="w-16 h-10 p-1"
+                className={cn("w-16 h-10 p-1", errorInputClass)}
                 disabled={isDisabled}
               />
               <Input
                 value={String(value || '')}
                 onChange={(e) => handleChange(e.target.value)}
                 placeholder="#000000"
-                className={cn("flex-1", isDisabled && "bg-muted")}
+                className={cn("flex-1", isDisabled && "bg-muted", errorInputClass)}
                 disabled={isDisabled}
               />
             </div>
@@ -241,7 +334,7 @@ export function RecordFormField({
         if (column.choices && column.choices.length > 0) {
           return (
             <div className="space-y-2">
-              <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+              <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
                 {label}
               </Label>
               <Select
@@ -249,7 +342,7 @@ export function RecordFormField({
                 onValueChange={(v) => handleChange(v)}
                 disabled={isDisabled}
               >
-                <SelectTrigger className={cn(isDisabled && "bg-muted")}>
+                <SelectTrigger className={cn(isDisabled && "bg-muted", errorInputClass)}>
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -267,7 +360,7 @@ export function RecordFormField({
         // SSoT: Use displayValue to handle object values (lookups) properly
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -275,7 +368,7 @@ export function RecordFormField({
               value={displayValue}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -285,7 +378,7 @@ export function RecordFormField({
         // SSoT: Use displayValue to handle object values (lookups) properly
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -293,7 +386,7 @@ export function RecordFormField({
               value={displayValue}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );

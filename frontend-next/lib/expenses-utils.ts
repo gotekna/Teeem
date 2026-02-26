@@ -55,6 +55,7 @@ export interface ExpenseGroup {
   paid: number;
   remaining: number;
   variance: number;
+  invoiced: number;
   poCount: number;
   isLeafLevel: boolean;
   children: ExpenseGroup[];
@@ -228,6 +229,7 @@ export function groupExpensesByHierarchy(
         paid: level2Pos.reduce((sum, po) => sum + toNumber(po.xero_amount_paid), 0),
         remaining: level2Pos.reduce((sum, po) => sum + toNumber(po.xero_still_to_be_paid), 0),
         variance: level2Pos.reduce((sum, po) => sum + toNumber(po.diff_po_with_allowance_versus_budget), 0),
+        invoiced: level2Pos.reduce((sum, po) => sum + toNumber(po.total_billed), 0),
         poCount: level2Pos.length,
         isLeafLevel: true,
         children: [],
@@ -248,6 +250,7 @@ export function groupExpensesByHierarchy(
       paid: level2Children.reduce((sum, g) => sum + g.paid, 0),
       remaining: level2Children.reduce((sum, g) => sum + g.remaining, 0),
       variance: level2Children.reduce((sum, g) => sum + g.variance, 0),
+      invoiced: level2Children.reduce((sum, g) => sum + g.invoiced, 0),
       poCount: level1Pos.length,
       isLeafLevel: false,
       children: level2Children,
@@ -271,6 +274,7 @@ export function calculateJobTotals(groups: ExpenseGroup[]): {
   totalPaid: number;
   totalRemaining: number;
   totalVariance: number;
+  totalInvoiced: number;
   poCount: number;
 } {
   return {
@@ -279,6 +283,7 @@ export function calculateJobTotals(groups: ExpenseGroup[]): {
     totalPaid: groups.reduce((sum, g) => sum + g.paid, 0),
     totalRemaining: groups.reduce((sum, g) => sum + g.remaining, 0),
     totalVariance: groups.reduce((sum, g) => sum + g.variance, 0),
+    totalInvoiced: groups.reduce((sum, g) => sum + g.invoiced, 0),
     poCount: groups.reduce((sum, g) => sum + g.poCount, 0),
   };
 }

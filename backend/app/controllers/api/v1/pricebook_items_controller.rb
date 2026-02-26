@@ -3,7 +3,7 @@ module Api
     class PricebookItemsController < ApplicationController
       include DocumentProviderAware
 
-      before_action :set_pricebook_item, only: [ :show, :update, :destroy, :history, :fetch_image, :update_image, :add_price, :set_default_supplier, :delete_price_history, :update_price_history, :proxy_image ]
+      before_action :set_pricebook_item, only: [ :show, :update, :destroy, :history, :fetch_image, :update_image, :upload_image, :add_price, :set_default_supplier, :delete_price_history, :update_price_history, :proxy_image ]
 
       # GET /api/v1/pricebook
       def index
@@ -53,20 +53,17 @@ module Api
           column_mapping = {
             "item_code" => "item_code",
             "item_name" => "item_name",
-            "category" => "category",
-            "current_price" => "current_price",
-            "supplier" => "contacts.display_name"
+            "current_price" => "current_price"
           }
 
-          db_column = column_mapping[sort_column] || "item_code"
-
-          # Join contacts table if sorting by supplier
           if sort_column == "supplier"
             @items = @items.left_joins(:supplier)
-            # Use Arel to safely construct the query
             @items = @items.order(Arel.sql("#{Contact.connection.quote_column_name('contacts')}.#{Contact.connection.quote_column_name('display_name')} #{sort_direction}"))
+          elsif sort_column == "category"
+            @items = @items.left_joins(:pricebook_category)
+            @items = @items.order(Arel.sql("pricebook_categories.name #{sort_direction}"))
           else
-            # Use Arel to safely construct the query with sanitized column name
+            db_column = column_mapping[sort_column] || "item_code"
             @items = @items.order(Arel.sql("#{PricebookItem.connection.quote_column_name(db_column)} #{sort_direction}"))
           end
         end
@@ -102,15 +99,16 @@ module Api
         suppliers_list = if params[:category].present?
           # Get suppliers (contacts) who have items in the selected category
           # Check both as default supplier AND in price history
+          cat_ids = PricebookCategory.where(name: params[:category]).pluck(:id)
           default_supplier_ids = Contact.joins("INNER JOIN pricebooks ON pricebooks.default_supplier_id = contacts.id")
-                                        .where(pricebooks: { category: params[:category], is_active: true })
+                                        .where(pricebooks: { category_id: cat_ids, is_active: true })
                                         .where("contacts.roles LIKE '%supplier%'")
                                         .distinct
                                         .pluck(:id)
 
           price_history_supplier_ids = Contact.joins("INNER JOIN price_histories ON price_histories.supplier_id = contacts.id")
                                               .joins("INNER JOIN pricebooks ON pricebooks.id = price_histories.pricebook_item_id")
-                                              .where(pricebooks: { category: params[:category], is_active: true })
+                                              .where(pricebooks: { category_id: cat_ids, is_active: true })
                                               .where("contacts.roles LIKE '%supplier%'")
                                               .distinct
                                               .pluck(:id)
@@ -225,7 +223,7 @@ module Api
           item = PricebookItem.find_by(id: update[:id])
           if item
             # Permit the attributes we want to update (excluding :id which is used for lookup)
-            permitted_attrs = update.to_unsafe_h.slice(:current_price, :supplier_id, :default_supplier_id, :notes, :category, :requires_photo, :requires_spec, :photo_attached, :spec_attached, :needs_pricing_review)
+            permitted_attrs = update.to_unsafe_h.slice(:current_price, :supplier_id, :default_supplier_id, :notes, :category_id, :brand_id, :range_id, :requires_photo, :requires_spec, :photo_attached, :spec_attached, :needs_pricing_review)
 
             # If update_price_to_current_default is true, create/update price history for the new default supplier
             if update[:update_price_to_current_default] == true && update[:default_supplier_id].present? && item.current_price.present?
@@ -380,6 +378,9 @@ module Api
             photo_attached: true
           )
 
+          # Async: download URL and create blob for fast serving via presigned URL
+          CreatePricebookImageBlobJob.perform_later(@item.id, params[:image_url])
+
           render json: {
             success: true,
             message: "Image updated",
@@ -388,6 +389,36 @@ module Api
         else
           render_error("image_url is required", status: :unprocessable_entity)
         end
+      end
+
+      # POST /api/v1/pricebook/:id/upload_image
+      # Upload an image file directly for a pricebook item (e.g. from Tender Builder)
+      def upload_image
+        unless params[:file]
+          return render_error("No file provided", status: :unprocessable_entity)
+        end
+
+        file = params[:file]
+        content = file.read
+        filename = file.original_filename || "pricebook_image.jpg"
+        content_type = file.content_type || "image/jpeg"
+
+        # StorageBlob.find_or_create_for_content! handles dedup + upload to storage provider
+        blob = StorageBlob.find_or_create_for_content!(content, filename: filename, content_type: content_type)
+
+        @item.update!(
+          image_storage_blob: blob,
+          image_source: "upload",
+          image_fetched_at: Time.current,
+          image_fetch_status: "success",
+          photo_attached: true
+        )
+
+        render json: {
+          success: true,
+          message: "Image uploaded for #{@item.item_name}",
+          item: item_with_image_data(@item)
+        }
       end
 
       # POST /api/v1/pricebook/fetch_all_images
@@ -545,6 +576,372 @@ module Api
         else
           render_validation_errors(price_history)
         end
+      end
+
+      # POST /api/v1/pricebook/refresh_from_defaults
+      # Refreshes current_price from default supplier's latest price history for selected items
+      def refresh_from_defaults
+        item_ids = params[:pricebook_item_ids]
+        unless item_ids.is_a?(Array) && item_ids.any?
+          return render json: { success: false, error: "pricebook_item_ids required" }, status: :unprocessable_entity
+        end
+
+        items = PricebookItem.includes(:price_histories).where(id: item_ids)
+        today = TenantSetting.today
+        updated = []
+        skipped = 0
+        unchanged = 0
+
+        items.find_each do |item|
+          unless item.default_supplier_id
+            skipped += 1
+            next
+          end
+
+          active_history = item.price_histories
+            .select { |ph| ph.supplier_id == item.default_supplier_id }
+            .select { |ph| ph.date_effective.nil? || ph.date_effective <= today }
+            .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+
+          unless active_history
+            skipped += 1
+            next
+          end
+
+          if active_history.new_price == item.current_price
+            unchanged += 1
+            next
+          end
+
+          old_price = item.current_price
+          item.skip_price_history_callback = true
+          item.update!(current_price: active_history.new_price)
+          updated << {
+            id: item.id,
+            item_code: item.item_code,
+            item_name: item.item_name,
+            old_price: old_price,
+            new_price: active_history.new_price
+          }
+        end
+
+        render json: {
+          success: true,
+          updated_count: updated.length,
+          skipped_count: skipped,
+          unchanged_count: unchanged,
+          updated: updated
+        }
+      end
+
+      # POST /api/v1/pricebook/compare_all_prices
+      # Returns all supplier prices for selected items in a comparison format
+      def compare_all_prices
+        item_ids = params[:pricebook_item_ids]
+        unless item_ids.is_a?(Array) && item_ids.any?
+          return render json: { success: false, error: "pricebook_item_ids required" }, status: :unprocessable_entity
+        end
+
+        today = TenantSetting.today
+        requested_ids = item_ids.map(&:to_i).to_set
+        items = PricebookItem.includes(:default_supplier, price_histories: :supplier).where(id: item_ids)
+
+        # Get all price_only contacts for the dropdown
+        price_only_contact_ids = Contact.where(entity_type: "price_only", is_active: true).pluck(:id).to_set
+        price_only_contacts = Contact.where(id: price_only_contact_ids)
+          .order(:display_name)
+          .pluck(:id, :display_name)
+          .map { |id, name| { id: id, name: name } }
+
+        # Include specific suppliers as columns even if they have no prices
+        # (used by PO page to show the selected supplier for comparison)
+        include_supplier_ids = Array(params[:include_supplier_ids]).map(&:to_i).reject(&:zero?)
+
+        # Collect unique suppliers across all items
+        suppliers_hash = {}
+        # Pre-seed included suppliers so they always appear as columns
+        if include_supplier_ids.any?
+          Contact.where(id: include_supplier_ids).pluck(:id, :display_name).each do |id, name|
+            suppliers_hash[id] = { id: id, name: name || "Supplier #{id}", priceOnly: price_only_contact_ids.include?(id) }
+          end
+        end
+        items_data = items.map do |item|
+          prices = {}
+          price_only_supplier_id = nil
+
+          # Group price histories by supplier, pick latest active price per supplier
+          item.price_histories
+            .select { |ph| ph.supplier_id.present? }
+            .select { |ph| ph.date_effective.nil? || ph.date_effective <= today }
+            .group_by(&:supplier_id)
+            .each do |supplier_id, histories|
+              latest = histories.max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+              next unless latest&.new_price
+
+              # Track supplier
+              supplier = latest.supplier
+              is_price_only = price_only_contact_ids.include?(supplier_id)
+              suppliers_hash[supplier_id] ||= { id: supplier_id, name: supplier&.display_name || "Supplier #{supplier_id}", priceOnly: is_price_only }
+
+              # Track the price_only supplier for this item (use the one with the latest price)
+              if is_price_only
+                price_only_supplier_id = supplier_id
+              end
+
+              prices[supplier_id.to_s] = {
+                price: latest.new_price.to_f,
+                dateEffective: latest.date_effective&.iso8601
+              }
+            end
+
+          # If no price_only supplier found in active prices, check ALL price histories
+          price_only_supplier_name = nil
+          if price_only_supplier_id.nil?
+            all_po_history = item.price_histories
+              .select { |ph| ph.supplier_id.present? && price_only_contact_ids.include?(ph.supplier_id) }
+              .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+            price_only_supplier_id = all_po_history&.supplier_id
+            price_only_supplier_name = all_po_history&.supplier&.display_name
+          end
+          # Resolve name from suppliers_hash (active prices) or fallback already set above
+          price_only_supplier_name ||= suppliers_hash.dig(price_only_supplier_id, :name) if price_only_supplier_id
+
+          # Calculate highest price
+          highest_entry = prices.values.max_by { |p| p[:price] }
+          highest_supplier_id = highest_entry ? prices.find { |_k, v| v[:price] == highest_entry[:price] }&.first : nil
+
+          # Get LGA from the most recent price history that has LGA set
+          latest_with_lga = item.price_histories
+            .select { |ph| ph.lga.present? }
+            .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+
+          {
+            id: item.id,
+            itemCode: item.item_code,
+            itemName: item.item_name,
+            currentPrice: item.current_price&.to_f,
+            defaultSupplierId: item.default_supplier_id,
+            defaultSupplierName: item.default_supplier&.display_name,
+            prices: prices,
+            highestPrice: highest_entry ? highest_entry[:price] : nil,
+            highestSupplierId: highest_supplier_id&.to_i,
+            priceOnlySupplierId: price_only_supplier_id,
+            priceOnlySupplierName: price_only_supplier_name,
+            lga: latest_with_lga&.lga || [],
+            onPo: requested_ids.include?(item.id)
+          }
+        end
+
+        # Expand to include ALL pricebook items that have prices from the price-only contacts
+        # found in the initial items (not all suppliers - just the price list contacts)
+        if ActiveModel::Type::Boolean.new.cast(params[:expand_to_supplier_items])
+          # Collect price-only supplier IDs discovered from the initial PO items
+          po_price_only_ids = items_data.filter_map { |d| d[:priceOnlySupplierId] }.uniq
+          # Also include any explicitly requested supplier IDs that are price-only
+          include_supplier_ids.each { |sid| po_price_only_ids << sid if price_only_contact_ids.include?(sid) }
+          po_price_only_ids.uniq!
+
+          # Find pricebook items NOT in the original set that have price histories from these price-only contacts
+          extra_item_ids = po_price_only_ids.any? ? PriceHistory
+            .where(supplier_id: po_price_only_ids)
+            .where.not(pricebook_item_id: requested_ids.to_a)
+            .distinct
+            .pluck(:pricebook_item_id) : []
+
+          if extra_item_ids.any?
+            extra_items = PricebookItem.includes(:default_supplier, price_histories: :supplier).where(id: extra_item_ids)
+            extra_items.each do |item|
+              prices = {}
+              price_only_supplier_id = nil
+
+              item.price_histories
+                .select { |ph| ph.supplier_id.present? }
+                .select { |ph| ph.date_effective.nil? || ph.date_effective <= today }
+                .group_by(&:supplier_id)
+                .each do |supplier_id, histories|
+                  latest = histories.max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+                  next unless latest&.new_price
+
+                  supplier = latest.supplier
+                  is_price_only = price_only_contact_ids.include?(supplier_id)
+                  suppliers_hash[supplier_id] ||= { id: supplier_id, name: supplier&.display_name || "Supplier #{supplier_id}", priceOnly: is_price_only }
+
+                  if is_price_only
+                    price_only_supplier_id = supplier_id
+                  end
+
+                  prices[supplier_id.to_s] = {
+                    price: latest.new_price.to_f,
+                    dateEffective: latest.date_effective&.iso8601
+                  }
+                end
+
+              price_only_supplier_name = nil
+              if price_only_supplier_id.nil?
+                all_po_history = item.price_histories
+                  .select { |ph| ph.supplier_id.present? && price_only_contact_ids.include?(ph.supplier_id) }
+                  .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+                price_only_supplier_id = all_po_history&.supplier_id
+                price_only_supplier_name = all_po_history&.supplier&.display_name
+              end
+              price_only_supplier_name ||= suppliers_hash.dig(price_only_supplier_id, :name) if price_only_supplier_id
+
+              highest_entry = prices.values.max_by { |p| p[:price] }
+              highest_supplier_id = highest_entry ? prices.find { |_k, v| v[:price] == highest_entry[:price] }&.first : nil
+
+              latest_with_lga = item.price_histories
+                .select { |ph| ph.lga.present? }
+                .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+
+              items_data << {
+                id: item.id,
+                itemCode: item.item_code,
+                itemName: item.item_name,
+                currentPrice: item.current_price&.to_f,
+                defaultSupplierId: item.default_supplier_id,
+                defaultSupplierName: item.default_supplier&.display_name,
+                prices: prices,
+                highestPrice: highest_entry ? highest_entry[:price] : nil,
+                highestSupplierId: highest_supplier_id&.to_i,
+                priceOnlySupplierId: price_only_supplier_id,
+                priceOnlySupplierName: price_only_supplier_name,
+                lga: latest_with_lga&.lga || [],
+                onPo: false
+              }
+            end
+          end
+        end
+
+        # Full list of all active contacts for the "Record For" dropdown (exclude employees of companies)
+        all_supplier_contacts = Contact.where(is_active: true)
+          .where.not(entity_type: "person")
+          .order(:display_name)
+          .pluck(:id, :display_name)
+          .map { |id, name| { id: id, name: name } }
+
+        render json: {
+          success: true,
+          suppliers: suppliers_hash.values.sort_by { |s| s[:name].to_s },
+          items: items_data,
+          priceOnlyContacts: price_only_contacts,
+          allSupplierContacts: all_supplier_contacts
+        }
+      end
+
+      # POST /api/v1/pricebook/apply_selected_prices
+      # Apply user-selected prices from the comparison sheet
+      def apply_selected_prices
+        updates = params[:updates]
+        unless updates.is_a?(Array) && updates.any?
+          return render json: { success: false, error: "updates required" }, status: :unprocessable_entity
+        end
+
+        effective_date = if params[:effective_date].present?
+          Date.parse(params[:effective_date])
+        else
+          TenantSetting.today
+        end
+
+        updated_count = 0
+        unchanged_count = 0
+
+        updates.each do |update|
+          item = PricebookItem.find_by(id: update[:item_id])
+          next unless item
+
+          new_price = update[:new_price].to_f
+          price_only_contact_id = update[:price_only_contact_id]
+          lga_values = Array(update[:lga]).select(&:present?)
+
+          if item.current_price&.to_f == new_price && price_only_contact_id.blank? && lga_values.empty?
+            unchanged_count += 1
+            next
+          end
+
+          # Update the item's current price
+          if item.current_price&.to_f != new_price
+            item.skip_price_history_callback = true
+            item.update!(current_price: new_price)
+            updated_count += 1
+          else
+            unchanged_count += 1
+          end
+
+          # Create price history for the selected price_only contact (with LGA if provided)
+          if price_only_contact_id.present?
+            PriceHistory.create!(
+              pricebook_item: item,
+              supplier_id: price_only_contact_id.to_i,
+              new_price: new_price,
+              old_price: item.current_price_before_last_save,
+              date_effective: effective_date,
+              change_reason: "Applied from comparison sheet",
+              lga: lga_values.presence || []
+            )
+          elsif lga_values.present?
+            # LGA set but no price_only contact - create history with default supplier
+            supplier_id = item.default_supplier_id || item.supplier_id
+            if supplier_id
+              PriceHistory.create!(
+                pricebook_item: item,
+                supplier_id: supplier_id,
+                new_price: new_price,
+                old_price: item.current_price_before_last_save,
+                date_effective: effective_date,
+                change_reason: "Applied from comparison sheet",
+                lga: lga_values
+              )
+            end
+          end
+        end
+
+        render json: {
+          success: true,
+          updated_count: updated_count,
+          unchanged_count: unchanged_count
+        }
+      end
+
+      # POST /api/v1/pricebook/bulk_set_default_supplier
+      def bulk_set_default_supplier
+        item_ids = Array(params[:pricebook_item_ids]).map(&:to_i)
+        supplier_id = params[:supplier_id].to_i
+
+        unless item_ids.any? && supplier_id > 0
+          return render json: { success: false, error: "pricebook_item_ids and supplier_id required" }, status: :unprocessable_entity
+        end
+
+        items = PricebookItem.where(id: item_ids)
+        updated = 0
+
+        items.find_each do |item|
+          item.update!(default_supplier_id: supplier_id)
+          updated += 1
+        end
+
+        render json: { success: true, updated_count: updated }
+      end
+
+      # POST /api/v1/pricebook/bulk_delete_price_histories
+      # Delete all price history records for a supplier across specified items
+      def bulk_delete_price_histories
+        item_ids = Array(params[:pricebook_item_ids]).map(&:to_i)
+        supplier_id = params[:supplier_id].to_i
+
+        unless item_ids.any? && supplier_id > 0
+          return render json: { success: false, error: "pricebook_item_ids and supplier_id required" }, status: :unprocessable_entity
+        end
+
+        histories = PriceHistory.where(pricebook_item_id: item_ids, supplier_id: supplier_id)
+        deleted_count = histories.count
+        histories.destroy_all
+
+        # Recalculate current_price for affected items (in case the deleted supplier was the default)
+        PricebookItem.where(id: item_ids).find_each do |item|
+          recalculate_current_price(item)
+        end
+
+        render json: { success: true, deleted_count: deleted_count }
       end
 
       def recalculate_current_price(item)
@@ -887,11 +1284,13 @@ module Api
         params.require(:pricebook_item).permit(
           :item_code,
           :item_name,
-          :category,
+          :category_id,
           :unit_of_measure,
           :current_price,
           :supplier_id,
           :brand,
+          :brand_id,
+          :range_id,
           :notes,
           :is_active,
           :needs_pricing_review,

@@ -35,6 +35,7 @@ import {
   CheckSquare,
   Download,
   ExternalLink,
+  Mail,
 } from "lucide-react";
 import { getTodayAsString, getCompanyTimezone } from "@/lib/timezone-utils";
 import { Button } from "@/components/ui/button";
@@ -487,6 +488,14 @@ export function PhotoGallery({
               onClick={() => onSelectionAction("download", getSelectedPhotos())}
             >
               Download
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSelectionAction("email", getSelectedPhotos())}
+            >
+              <Mail className="h-4 w-4 mr-1" />
+              Email
             </Button>
             <Button
               variant="destructive"

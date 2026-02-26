@@ -91,16 +91,22 @@ class WarehouseDocumentCreator
     linkable: nil,
     storage_blob: nil,
     warehouse_folder_id: nil,
+    warehouse_folder_document_type_id: nil,
     documentable: nil,
     file_size: nil,
     content_type: nil,
     metadata: {},
     user: nil,
     parent_document: nil,
-    folder_path: nil
+    folder_path: nil,
+    expiry_date: nil
   )
-    # 1. Look up WFDT from warehouse_folder_id (if provided)
-    wfdt = resolve_wfdt(warehouse_folder_id)
+    # 1. Look up WFDT: use explicit WFDT if provided, else primary from folder
+    wfdt = if warehouse_folder_document_type_id.present?
+      WarehouseFolderDocumentType.find_by(id: warehouse_folder_document_type_id)
+    else
+      resolve_wfdt(warehouse_folder_id)
+    end
 
     # 2. Build metadata with document type info
     doc_metadata = build_metadata(
@@ -127,6 +133,7 @@ class WarehouseDocumentCreator
       metadata: doc_metadata
     }
     attrs[:folder_path] = folder_path if folder_path.present?
+    attrs[:expiry_date] = expiry_date if expiry_date.present?
 
     WarehouseDocument.create!(attrs)
   end
@@ -296,7 +303,13 @@ class WarehouseDocumentCreator
 
     if find_by[:metadata_match].present?
       find_by[:metadata_match].each do |key, value|
-        scope = scope.where("metadata->>? = ?", key.to_s, value.to_s)
+        # FRC (Feb 2026): Use explicit single-quoted key name to match all other metadata JSONB
+        # patterns in the codebase (e.g. where("metadata->>'is_primary' = ?", "true")).
+        # The `?` placeholder for the key position is ambiguous in some pg adapter versions
+        # when used immediately after the ->> operator (Sentry TEEEM-BACKEND-7H).
+        # connection.quote() returns 'key' with single quotes — identical to hardcoded patterns.
+        quoted_key = ActiveRecord::Base.connection.quote(key.to_s)
+        scope = scope.where("metadata->>#{quoted_key} = ?", value.to_s)
       end
     end
 

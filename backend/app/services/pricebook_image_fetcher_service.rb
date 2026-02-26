@@ -4,6 +4,7 @@
 #
 # SSoT: Uses StorageUploadable for provider-agnostic storage (Wasabi/S3/SharePoint)
 
+require "mini_magick"
 require "httparty"
 require "open-uri"
 require "resolv"
@@ -274,7 +275,8 @@ class PricebookImageFetcherService
     # Add User-Agent and other headers to bypass 403 Forbidden errors
     referer = begin
       url.match(/^https?:\/\/[^\/]+/)[0]
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn("[PricebookImageFetcher] Failed to extract referer from URL: #{e.message}")
       url
     end
 
@@ -300,7 +302,6 @@ class PricebookImageFetcherService
   # Compress image to be under MAX_FILE_SIZE (900KB) and make it square with padding
   def compress_image(source_path)
     begin
-      require "mini_magick"
       image = MiniMagick::Image.open(source_path)
 
       # Get current dimensions and file size

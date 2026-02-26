@@ -114,7 +114,8 @@ module Bpmn
           status: "pending",
           assigned_to: resolve_assignee(config, token.bpmn_process_instance),
           assigned_to_role: role_value,
-          due_date: calculate_due_date(config)
+          due_date: calculate_due_date(config),
+          form_data: prefill_form_data(token)
         )
 
         token.wait!
@@ -122,8 +123,10 @@ module Bpmn
       end
 
       def execute_service_task(token)
-        # Check if task already exists and is completed
-        existing_task = BpmnTaskInstance.find_by(bpmn_token: token, bpmn_node: token.current_node)
+        # Look for existing tasks - prefer completed over in_progress over pending
+        # This prevents infinite loops when duplicate task instances exist for the same (token, node)
+        existing_tasks = BpmnTaskInstance.where(bpmn_token: token, bpmn_node: token.current_node)
+        existing_task = existing_tasks.completed.first || existing_tasks.in_progress.first || existing_tasks.first
 
         if existing_task&.completed?
           # Task is done, advance to next node
@@ -291,6 +294,25 @@ module Bpmn
         end
       end
 
+      # Pre-populate adaptive form fields from subject data when field names match
+      def prefill_form_data(token)
+        form_schema = token.current_node.config&.dig("form_schema")
+        return nil unless form_schema
+
+        fields = form_schema["fields"] || []
+        field_names = fields.map { |f| f["name"] }
+        subject = token.bpmn_process_instance.subject
+        data = {}
+
+        if subject.is_a?(Corporate)
+          data["company_name"] = subject.name if field_names.include?("company_name") && subject.name.present?
+          data["acn"] = subject.formatted_acn if field_names.include?("acn") && subject.try(:formatted_acn).present?
+          data["abn"] = subject.formatted_abn if field_names.include?("abn") && subject.try(:formatted_abn).present?
+        end
+
+        data.present? ? data : nil
+      end
+
       def calculate_due_date(config)
         return nil unless config["due_days"]
 
@@ -302,7 +324,8 @@ module Bpmn
 
         # Parse ISO 8601 duration (e.g., "P1D", "PT2H", "P1W")
         ActiveSupport::Duration.parse(duration_string)
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[BPMN::Engine] Failed to parse ISO8601 duration '#{duration_string}': #{e.message}"
         1.hour # Default fallback
       end
     end

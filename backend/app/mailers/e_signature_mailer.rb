@@ -51,6 +51,7 @@ class ESignatureMailer < ApplicationMailer
   def completion_notification(request)
     @request = request
     @certificate = request.certificate
+    @download_url = request.download_url
 
     recipients = [ request.created_by&.email ]
     recipients += request.signers.pluck(:email)

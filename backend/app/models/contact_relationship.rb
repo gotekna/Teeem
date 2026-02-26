@@ -171,7 +171,8 @@ class ContactRelationship < ApplicationRecord
   # Class method to get effective metadata (TenantSetting override or default)
   def self.relationship_type_metadata
     TenantSetting.relationship_type_metadata
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[ContactRelationship] Failed to load relationship_type_metadata from TenantSetting: #{e.message}"
     DEFAULT_RELATIONSHIP_TYPE_METADATA
   end
 

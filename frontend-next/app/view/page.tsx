@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { Download, ExternalLink, FileText, Image as ImageIcon, Mail, User, Users, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Detect file type from filename or URL
 function getFileType(filename: string, url?: string | null): "pdf" | "image" | "eml" | "excel" | "other" {
@@ -256,14 +257,12 @@ function ViewerContent() {
           <h1 className="text-lg font-medium truncate">{emlData?.subject || name}</h1>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <a
-            href={downloadUrl || url}
-            download={name}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Download</span>
-          </a>
+          <Button asChild>
+            <a href={downloadUrl || url} download={name}>
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Download</span>
+            </a>
+          </Button>
           <a
             href={url}
             target="_blank"
@@ -283,14 +282,12 @@ function ViewerContent() {
             <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-800 mb-2">Unable to Preview</h2>
             <p className="text-gray-600 mb-4">{error}</p>
-            <a
-              href={downloadUrl || url}
-              download={name}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
-            >
-              <Download className="h-5 w-5" />
-              Download File
-            </a>
+            <Button asChild size="lg">
+              <a href={downloadUrl || url} download={name}>
+                <Download className="h-5 w-5" />
+                Download File
+              </a>
+            </Button>
           </div>
         ) : fileType === "pdf" ? (
           <iframe
@@ -372,14 +369,12 @@ function ViewerContent() {
             <p className="text-gray-600 mb-4">
               This file type cannot be previewed in the browser.
             </p>
-            <a
-              href={downloadUrl || url}
-              download={name}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
-            >
-              <Download className="h-5 w-5" />
-              Download {name}
-            </a>
+            <Button asChild size="lg">
+              <a href={downloadUrl || url} download={name}>
+                <Download className="h-5 w-5" />
+                Download {name}
+              </a>
+            </Button>
           </div>
         )}
       </main>

@@ -25,6 +25,7 @@ module Api
           tables: service.available_tables,
           counts: service.table_counts,
           groups: TenantConfigSyncService.groups,
+          dependencies: TenantConfigSyncService.table_dependencies,
           tenant: current_tenant ? tenant_info(current_tenant) : nil,
           master_tenant: master_tenant ? tenant_info(master_tenant) : nil,
           is_master_tenant: current_tenant&.is_master_tenant? || false,
@@ -230,6 +231,23 @@ module Api
         batch_size = params[:batch_size]&.to_i
         offset = params[:offset]&.to_i || 0
 
+        # Check if dependency tables have records in current tenant (only on first batch)
+        dependency_warnings = []
+        if offset == 0
+          deps = TenantConfigSyncService.table_dependencies[table.to_s] || []
+          deps.each do |dep_table_key|
+            dep_config = TenantConfigSyncService::CONFIG_TABLES[dep_table_key.to_sym]
+            next unless dep_config
+
+            dep_model = dep_config[:model].constantize
+            dep_count = ActsAsTenant.with_tenant(current_tenant) { dep_model.count }
+            if dep_count == 0
+              dep_label = dep_config[:model].underscore.humanize.pluralize
+              dependency_warnings << "#{dep_label} must be synced first (0 records found)"
+            end
+          end
+        end
+
         # Allow overriding scope filter (e.g. contacts: price_only=false to sync ALL contacts)
         effective_config = table_config
         if params[:price_only] == "false" && table.in?([:contacts, :price_histories])
@@ -356,7 +374,8 @@ module Api
             next_offset: has_more ? offset + batch_size : nil,
             source: best_source.name,
             errors: result[:errors]&.first(5),
-            skipped_reasons: result[:skipped]&.first(5)&.map { |s| "#{s[:name]}: #{s[:reason]}" }
+            skipped_reasons: result[:skipped]&.first(5)&.map { |s| "#{s[:name]}: #{s[:reason]}" },
+            dependency_warnings: dependency_warnings.presence
           }
         else
           # Non-master tenant: pull from master (respecting scope filters)
@@ -436,7 +455,8 @@ module Api
             has_more: has_more,
             next_offset: has_more ? offset + batch_size : nil,
             errors: result[:errors]&.first(5),
-            skipped_reasons: result[:skipped]&.first(5)&.map { |s| "#{s[:name]}: #{s[:reason]}" }
+            skipped_reasons: result[:skipped]&.first(5)&.map { |s| "#{s[:name]}: #{s[:reason]}" },
+            dependency_warnings: dependency_warnings.presence
           }
         end
       rescue => e

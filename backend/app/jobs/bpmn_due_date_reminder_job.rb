@@ -1,6 +1,7 @@
 # Sends reminder notifications for tasks due soon
 # Run daily via scheduler: bin/rails runner "BpmnDueDateReminderJob.perform_now"
 class BpmnDueDateReminderJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # Reminder windows

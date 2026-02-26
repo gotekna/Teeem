@@ -72,10 +72,6 @@ export const STORAGE_KEYS = {
   GANTT_COLUMNS_PREFIX: 'gantt-columns-', // Append jobId or 'template-{templateId}'
   GANTT_COLLAPSED_PREFIX: 'gantt-collapsed-', // Append jobId or 'template-{templateId}'
 
-  // Modal Field Preferences (per-foundation)
-  // Usage: getStorageItem(`${STORAGE_KEYS.MODAL_FIELDS_PREFIX}${foundationId}`, defaultValue)
-  MODAL_FIELDS_PREFIX: 'modal-fields-',
-
   // Email Reading Pane Position
   EMAIL_READING_PANE: 'email_reading_pane',
 
@@ -87,11 +83,17 @@ export const STORAGE_KEYS = {
   // Tours
   TOUR_COMPLETED_PREFIX: 'tour_completed_', // Append tourId
 
+  // Tutorial (TEEEM Academy)
+  TUTORIAL_DISMISSED: 'tutorial_dismissed',
+
   // Takeoff
   TAKEOFF_SIDEBAR_PINNED: 'takeoff-sidebar-pinned',
 
   // Help System
   HELP_BUTTON_HOVER_ONLY: 'teeem_help_button_hover_only',
+
+  // Schedule Master PO Task default template filter
+  SM_DEFAULT_PO_TEMPLATE: 'sm_default_po_template',
 
 } as const;
 

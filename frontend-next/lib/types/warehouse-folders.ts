@@ -10,7 +10,7 @@ import type { TabType } from '@/lib/constants/tab-types';
 
 // SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
-export type WarehouseFolderScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
+export type WarehouseFolderScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero' | 'library';
 
 // Tab groups - matches backend WarehouseFolder::TAB_GROUPS
 // 'system' is for system-managed tabs (email storage, warehousing) - read-only in UI
@@ -69,6 +69,16 @@ export interface WarehouseFolder {
   can_delete: boolean;
   children: WarehouseFolder[];
   document_types: WarehouseFolderDocumentType[];
+  // SM Task link: populated when folder is linked to a Schedule Master task
+  sm_task_info?: {
+    taskId: number;
+    taskName: string;
+    startDate: string | null;
+    endDate: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    status: string; // "not_started" | "started" | "waiting_for_response" | "waiting_for_info" | "completed"
+  };
   /** @deprecated Use tab_type === 'photo' instead */
   is_photo_category: boolean;
   /** @deprecated Use tab_type === 'revit' instead */
@@ -82,6 +92,7 @@ export interface WarehouseFolderDocumentType {
   abbreviation?: string;
   download_name?: string;
   is_primary?: boolean;  // SSoT: true = this tab is the primary home, false = secondary ("also show in")
+  is_system?: boolean;  // SSoT: System-managed doc type (can't remove from folder)
 }
 
 export interface WarehouseFoldersResponse {
@@ -172,6 +183,7 @@ export const SCOPE_LABELS: Record<WarehouseFolderScope, string> = {
   warehouse: 'Warehouse',
   task: 'Task',
   xero: 'Xero',
+  library: 'Library',
 };
 
 // Tab group display names for UI

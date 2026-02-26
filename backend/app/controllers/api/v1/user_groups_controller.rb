@@ -1,12 +1,14 @@
 class Api::V1::UserGroupsController < ApplicationController
   # GET /api/v1/groups or /api/v1/user_groups
   def index
+    # FRC (Feb 2026): Batch load user counts to avoid N+1 (was 1 COUNT per group)
+    group_counts = User.group(:user_group_id).count
     groups = UserGroup.order(:name).map do |group|
       {
         id: group.id,
         name: group.name,
         description: group.label,
-        members_count: User.where(user_group_id: group.id).count
+        members_count: group_counts[group.id] || 0
       }
     end
     render json: groups

@@ -88,7 +88,8 @@ module ImportValidators
       return nil if value.blank?
 
       value.to_s.gsub(/[$,]/, '').to_f
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[PriceHistoryValidator] Failed to parse currency '#{value}': #{e.message}"
       nil
     end
 
@@ -97,7 +98,8 @@ module ImportValidators
 
       cleaned = value.to_s.gsub(/[$,]/, '')
       "$#{format('%.2f', cleaned.to_f)}"
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[PriceHistoryValidator] Failed to format currency '#{value}': #{e.message}"
       value
     end
 

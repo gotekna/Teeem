@@ -4,15 +4,6 @@ import { GeistMono } from "geist/font/mono";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { TenantProvider } from "@/contexts/TenantContext";
-import { QueryProvider } from "@/components/providers/query-provider";
-import { JotaiProvider } from "@/components/providers/jotai-provider";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as SonnerToaster } from "sonner";
-import { DynamicTitle } from "@/components/dynamic-title";
-import { CompanyColorsProvider } from "@/components/providers/company-colors-provider";
-import { OfflineProvider } from "@/components/providers/offline-provider";
 import type { Metadata, Viewport } from "next";
 import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
@@ -51,6 +42,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Root layout is intentionally lightweight - NO heavy providers here.
+  // AppProviders lives in (app)/layout.tsx so public pages like /sign
+  // never download or parse provider JS bundles.
   return (
     <html lang="en" className={cn(GeistSans.variable, GeistMono.variable)} suppressHydrationWarning>
       <body
@@ -66,25 +60,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <JotaiProvider>
-            <QueryProvider>
-              <AuthProvider>
-                <TenantProvider>
-                  <CompanyColorsProvider>
-                    <OfflineProvider>
-                      <DynamicTitle />
-                      {children}
-                      <Toaster />
-                      <SonnerToaster />
-                    </OfflineProvider>
-                  </CompanyColorsProvider>
-                </TenantProvider>
-              </AuthProvider>
-            </QueryProvider>
-          </JotaiProvider>
+          {children}
         </ThemeProvider>
       </body>
     </html>
   );
 }
-// Trigger rebuild Sun Dec 28 11:06:24 AEST 2025

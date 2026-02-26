@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Package, Copy, TrendingUp, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Package, Copy, TrendingUp, Star, Trash2, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
@@ -17,6 +18,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -47,6 +53,16 @@ interface PricebookResponse {
     limit: number;
     total_pages: number;
   };
+}
+
+interface PriceHistoryEntry {
+  id: number;
+  pricebook_item_id: number;
+  old_price: number | null;
+  new_price: number | null;
+  change_reason: string | null;
+  date_effective: string | null;
+  created_at: string;
 }
 
 interface ContactPriceBookTabProps {
@@ -95,6 +111,7 @@ const ROUNDING_OPTIONS: { value: RoundingMode; label: string; description: strin
 ];
 
 export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBookTabProps) {
+  const router = useRouter();
   const [items, setItems] = useState<PricebookItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +131,9 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const [targetPrices, setTargetPrices] = useState<Record<number, number>>({});
   const [loadingTargetPrices, setLoadingTargetPrices] = useState(false);
   const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
+
+  // Price history map: pricebook_item_id -> recent entries (most recent first)
+  const [priceHistoryMap, setPriceHistoryMap] = useState<Map<number, PriceHistoryEntry[]>>(new Map());
 
   const { toast } = useToast();
 
@@ -138,6 +158,31 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     }
   }, [toast]);
 
+  // Delete handler - deactivates a pricebook item
+  const handleDelete = useCallback(async (row: TableRow) => {
+    try {
+      await api.delete(`/api/v1/pricebook/${row.id}`);
+      toast({ title: "Item removed" });
+      setItems(prev => prev.filter(item => item.id !== Number(row.id)));
+      setTotal(prev => prev - 1);
+    } catch (err) {
+      console.error("Failed to delete pricebook item:", err);
+      toast({
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : "Failed to remove item",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  // Bulk delete handler
+  const handleBulkDelete = useCallback(async (ids: (number | string)[]) => {
+    await Promise.allSettled(ids.map(id => api.delete(`/api/v1/pricebook/${id}`)));
+    toast({ title: "Items removed", description: `${ids.length} item(s) removed` });
+    setItems(prev => prev.filter(item => !ids.map(Number).includes(item.id)));
+    setTotal(prev => prev - ids.length);
+  }, [toast]);
+
   useEffect(() => {
     loadPricebookItems();
   }, [contactId]);
@@ -146,15 +191,33 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<PricebookResponse>(
-        `/api/v1/pricebook?supplier_id=${contactId}&limit=0`
-      );
+      const [itemsResponse, historiesResponse] = await Promise.all([
+        api.get<PricebookResponse>(
+          `/api/v1/pricebook?supplier_id=${contactId}&limit=0&include_risk=false`
+        ),
+        api.get<{ success: boolean; data: PriceHistoryEntry[] }>(
+          `/api/v1/pricebook/all_price_histories?supplier_id=${contactId}&limit=5000`
+        ),
+      ]);
 
-      if (response?.items) {
-        setItems(response.items);
-        setTotal(response.pagination?.total_count || response.items.length);
+      if (itemsResponse?.items) {
+        setItems(itemsResponse.items);
+        setTotal(itemsResponse.pagination?.total_count || itemsResponse.items.length);
       } else {
         setError("Failed to load price book items");
+      }
+
+      // Group histories by pricebook_item_id, keep max 5 per item
+      if (historiesResponse?.success && historiesResponse.data) {
+        const map = new Map<number, PriceHistoryEntry[]>();
+        for (const entry of historiesResponse.data) {
+          const existing = map.get(entry.pricebook_item_id) || [];
+          if (existing.length < 5) {
+            existing.push(entry);
+          }
+          map.set(entry.pricebook_item_id, existing);
+        }
+        setPriceHistoryMap(map);
       }
     } catch (err) {
       console.error("Failed to load price book:", err);
@@ -169,7 +232,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     setLoadingSuppliers(true);
     try {
       const response = await api.get<{ contacts: { id: number; display_name?: string; name?: string }[] }>(
-        "/api/v1/contacts?entity_type=company,trust,sole_trader"
+        "/api/v1/contacts?entity_type=company,trust,sole_trader,price_only"
       );
       const list = (response?.contacts || []).map((c) => ({
         id: String(c.id),
@@ -187,12 +250,13 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const columns: TableColumn[] = useMemo(() => [
     { key: "item_code", label: "Code", width: 120, sortable: true, column_type: "single_line_text" },
     { key: "item_name", label: "Item Name", width: 300, sortable: true, column_type: "single_line_text" },
+    { key: "is_default", label: "Default", width: 80, sortable: true, column_type: "boolean" },
+    { key: "supplier_price", label: "Supplier Price", width: 130, sortable: true, column_type: "currency" },
+    { key: "current_price", label: "Current Price", width: 120, sortable: true, column_type: "currency" },
+    { key: "price_last_updated_at", label: "Price Updated", width: 120, sortable: true, column_type: "date" },
     { key: "category", label: "Category", width: 150, sortable: true, column_type: "single_line_text" },
     { key: "brand", label: "Brand", width: 120, sortable: true, column_type: "single_line_text" },
     { key: "unit_of_measure", label: "UOM", width: 80, sortable: true, column_type: "single_line_text" },
-    { key: "current_price", label: "Current Price", width: 120, sortable: true, column_type: "currency" },
-    { key: "supplier_price", label: "Supplier Price", width: 120, sortable: true, column_type: "currency" },
-    { key: "price_last_updated_at", label: "Price Updated", width: 120, sortable: true, column_type: "date" },
     { key: "needs_pricing_review", label: "Review", width: 80, sortable: true, column_type: "boolean" },
   ], []);
 
@@ -201,6 +265,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       id: item.id,
       item_code: item.item_code,
       item_name: item.item_name,
+      is_default: item.default_supplier?.id === contactId,
       category: item.category,
       brand: item.brand,
       unit_of_measure: item.unit_of_measure,
@@ -209,7 +274,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       price_last_updated_at: item.price_last_updated_at,
       needs_pricing_review: item.needs_pricing_review,
     }));
-  }, [items]);
+  }, [items, contactId]);
 
   // Fetch target supplier's current prices when target is selected
   useEffect(() => {
@@ -345,12 +410,13 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     if (selectedIds.length === 0) return;
 
     try {
+      const itemIds = selectedIds.map(Number);
       const response = await api.post<{
         success: boolean;
         message: string;
         updated_count: number;
       }>(`/api/v1/contacts/supplier_pricing/${contactId}/set_default`, {
-        pricebook_item_ids: selectedIds.map(Number),
+        pricebook_item_ids: itemIds,
       });
 
       if (response?.success) {
@@ -360,6 +426,12 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
         });
         clearSelection();
         loadPricebookItems();
+      } else {
+        toast({
+          title: "Update Failed",
+          description: "Server returned an unexpected response.",
+          variant: "destructive",
+        });
       }
     } catch (err) {
       console.error("Failed to set default supplier:", err);
@@ -370,6 +442,138 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       });
     }
   }, [contactId, toast]);
+
+  // Remove price history state
+  const [removeModalOpen, setRemoveModalOpen] = useState(false);
+  const [removeSelectedIds, setRemoveSelectedIds] = useState<(number | string)[]>([]);
+  const [removeClearSelection, setRemoveClearSelection] = useState<(() => void) | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  const handleOpenRemoveModal = useCallback((selectedIds: (number | string)[], clearSelection: () => void) => {
+    setRemoveSelectedIds(selectedIds);
+    setRemoveClearSelection(() => clearSelection);
+    setRemoveModalOpen(true);
+  }, []);
+
+  const removeSelectedItems = useMemo(() => {
+    const idSet = new Set(removeSelectedIds.map(Number));
+    return items.filter((item) => idSet.has(item.id));
+  }, [items, removeSelectedIds]);
+
+  const handleRemovePriceHistory = useCallback(async () => {
+    if (removeSelectedIds.length === 0) return;
+
+    setRemoving(true);
+    try {
+      const response = await api.delete<{
+        success: boolean;
+        message: string;
+        deleted_histories_count: number;
+        removed_default_count: number;
+      }>(`/api/v1/contacts/supplier_pricing/${contactId}/remove_items`, {
+        data: { pricebook_item_ids: removeSelectedIds.map(Number) },
+      });
+
+      if (response?.success) {
+        toast({
+          title: "Price History Removed",
+          description: response.message,
+        });
+        setRemoveModalOpen(false);
+        removeClearSelection?.();
+        loadPricebookItems();
+      } else {
+        toast({
+          title: "Remove Failed",
+          description: "Failed to remove price history. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to remove price history:", err);
+      toast({
+        title: "Remove Failed",
+        description: err instanceof Error ? err.message : "An error occurred while removing price history.",
+        variant: "destructive",
+      });
+    } finally {
+      setRemoving(false);
+    }
+  }, [removeSelectedIds, contactId, toast, removeClearSelection]);
+
+  // Custom cell renderer for supplier_price with price history popover
+  const priceCellRenderer = useCallback((entry: TableRow, columnKey: string): React.ReactNode | null => {
+    if (columnKey !== "supplier_price") return null;
+
+    const price = entry.supplier_price as number | null;
+    const histories = priceHistoryMap.get(Number(entry.id)) || [];
+    const itemCode = entry.item_code as string;
+
+    if (histories.length === 0) {
+      // No history - render price normally (fall through to default)
+      return null;
+    }
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            className="flex items-center gap-1 text-right w-full hover:text-primary transition-colors group"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="flex-1 text-right tabular-nums">{formatCurrency(price)}</span>
+            <ChevronDown className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0" align="start" side="bottom">
+          <div className="px-3 py-2 border-b">
+            <p className="text-sm font-medium">Price History</p>
+            <p className="text-xs text-muted-foreground">{entry.item_name as string}</p>
+          </div>
+          <div className="max-h-[200px] overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50 sticky top-0">
+                <tr>
+                  <th className="text-left px-3 py-1.5 font-medium">Date</th>
+                  <th className="text-right px-3 py-1.5 font-medium">Old</th>
+                  <th className="text-right px-3 py-1.5 font-medium">New</th>
+                  <th className="text-left px-3 py-1.5 font-medium">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {histories.map((h) => (
+                  <tr key={h.id} className="hover:bg-muted/30">
+                    <td className="px-3 py-1.5 whitespace-nowrap">
+                      {h.date_effective
+                        ? new Date(h.date_effective).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "2-digit" })
+                        : new Date(h.created_at).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "2-digit" })}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                      {formatCurrency(h.old_price)}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums font-medium">
+                      {formatCurrency(h.new_price)}
+                    </td>
+                    <td className="px-3 py-1.5 truncate max-w-[80px]" title={h.change_reason || ""}>
+                      {h.change_reason || "\u2014"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-3 py-2 border-t">
+            <button
+              className="text-xs text-primary hover:underline"
+              onClick={() => router.push(`/pricebook/${itemCode}`)}
+            >
+              View full history
+            </button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  }, [priceHistoryMap, router]);
 
   if (loading) {
     return (
@@ -409,6 +613,13 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
           tableName="Price Book Items"
           enableExport={true}
           onRowUpdate={handleRowUpdate}
+          onDelete={handleDelete}
+          onBulkDelete={handleBulkDelete}
+          customCellRenderer={priceCellRenderer}
+          onRowDoubleClick={(row) => {
+            if (row.item_code) router.push(`/pricebook/${row.item_code}`);
+          }}
+          hideAddRecord
           customBulkActions={(selectedIds, clearSelection) => (
             <>
               <Button
@@ -427,6 +638,15 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                 <Copy className="h-4 w-4 mr-1" />
                 Copy Prices ({selectedIds.length})
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() => handleOpenRemoveModal(selectedIds, clearSelection)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Remove Prices ({selectedIds.length})
+              </Button>
             </>
           )}
         />
@@ -434,7 +654,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
 
       {/* Copy Prices Modal */}
       <Dialog open={copyModalOpen} onOpenChange={setCopyModalOpen}>
-        <DialogContent className="sm:max-w-5xl max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Copy Prices to Supplier</DialogTitle>
             <DialogDescription>
@@ -557,18 +777,18 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                     <tr>
                       <th className="text-left px-3 py-2 font-medium">Code</th>
                       <th className="text-left px-3 py-2 font-medium">Item Name</th>
-                      <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
-                        {contactName}
+                      <th className="text-right px-3 py-2 font-medium">
+                        <span className="truncate block max-w-[120px] ml-auto" title={contactName}>Source</span>
                       </th>
                       {targetSupplier && (
-                        <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
-                          {targetSupplier.name || "Target"} Current
+                        <th className="text-right px-3 py-2 font-medium">
+                          Current
                         </th>
                       )}
-                      <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
+                      <th className="text-right px-3 py-2 font-medium">
                         <span className="flex items-center justify-end gap-1">
                           {hasAdjustment && <TrendingUp className="h-3 w-3" />}
-                          {targetSupplier ? `${targetSupplier.name || "Target"} New` : "New Price"}
+                          New Price
                         </span>
                       </th>
                     </tr>
@@ -652,6 +872,70 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                 <>
                   <Copy className="h-4 w-4 mr-1" />
                   Save {copySelectedIds.length} Price{copySelectedIds.length !== 1 ? "s" : ""}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Price History Modal */}
+      <Dialog open={removeModalOpen} onOpenChange={setRemoveModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Remove Price History</DialogTitle>
+            <DialogDescription>
+              Remove all price history for {removeSelectedIds.length} selected item{removeSelectedIds.length !== 1 ? "s" : ""} from{" "}
+              <span className="font-medium text-foreground">{contactName}</span>.
+              This will also remove {contactName} as default supplier for these items if applicable.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="border rounded-md overflow-auto max-h-[250px]">
+            <table className="w-full text-sm">
+              <thead className="bg-background sticky top-0 z-10 border-b">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium">Code</th>
+                  <th className="text-left px-3 py-2 font-medium">Item Name</th>
+                  <th className="text-right px-3 py-2 font-medium">Price</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {removeSelectedItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-muted/30">
+                    <td className="px-3 py-1.5 font-mono text-xs">{item.item_code}</td>
+                    <td className="px-3 py-1.5 truncate max-w-[250px]">{item.item_name}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">
+                      {formatCurrency(item.supplier_price ?? item.current_price)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRemoveModalOpen(false)}
+              disabled={removing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemovePriceHistory}
+              disabled={removing}
+            >
+              {removing ? (
+                <>
+                  <Spinner size={16} className="mr-1" />
+                  Removing...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Remove {removeSelectedIds.length} Price{removeSelectedIds.length !== 1 ? "s" : ""}
                 </>
               )}
             </Button>

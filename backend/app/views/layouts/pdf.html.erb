@@ -20,6 +20,9 @@
       width: 100%;
       padding: 0;
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: calc(297mm - 30mm); /* A4 height minus Grover's 15mm top+bottom margins */
     }
     h1, h2, h3, h4 {
       margin-bottom: 0.5em;
@@ -105,30 +108,9 @@
       font-size: 9pt;
       color: #666;
     }
-    .signature-badge {
-      display: inline-block;
-      background: #e8f4fd;
-      border: 1.5px solid #2196F3;
-      border-radius: 4px;
-      padding: 6px 12px;
-      font-size: 9pt;
-      color: #1565C0;
-      margin-top: 4px;
-    }
-    .signature-badge .badge-icon {
-      font-size: 14pt;
-      vertical-align: middle;
-      margin-right: 4px;
-    }
-    .signature-badge .badge-name {
-      font-weight: bold;
-    }
-    .signature-badge .badge-label {
-      font-size: 8pt;
-      color: #1976D2;
-      display: block;
-      margin-top: 1px;
-    }
+    /* Legacy .signature-badge CSS removed (Feb 2026).
+       Signing indicator is now the e-signature field overlay system.
+       Templates just have an empty .signature-box placeholder. */
     @media print {
       body { -webkit-print-color-adjust: exact; }
       .page { page-break-after: always; }

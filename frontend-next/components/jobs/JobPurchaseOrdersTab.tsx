@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -23,6 +22,9 @@ import {
   Lock,
   LockOpen,
   FileStack,
+  Calendar,
+  CheckCircle2,
+  BookmarkPlus,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -34,6 +36,8 @@ import { useAtom, useSetAtom } from "jotai";
 import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { INTERNAL_ROLES } from "@/lib/constants/job-roles";
+import { POSummaryToolbar } from "@/components/jobs/POSummaryToolbar";
+import { usePOInvoiceModal } from "@/hooks/use-po-invoice-modal";
 import type { Contact as BaseContact, User } from '@/lib/types';
 
 // Local Role interface for combobox usage
@@ -82,8 +86,8 @@ interface JobPurchaseOrdersTabProps {
 }
 
 export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabProps) {
-  const router = useRouter();
   const { user: currentUser } = useAuth();
+  const { open: openPOInvoice } = usePOInvoiceModal();
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Selection state from Jotai atoms (shared with TeeemTableView)
@@ -96,12 +100,35 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [templatePacks, setTemplatePacks] = useState<Array<{ id: number; name: string; itemCount: number; estimatedTotal: number }>>([]);
   const [selectedPackId, setSelectedPackId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<{
-    items: Array<{ name: string; supplierName: string | null; taskName: string | null; taskMatched: boolean; supplierMatched: boolean; lineItemCount: number; estimatedTotal: number }>;
-    totalPos: number; estimatedTotal: number; tasksMatched: number; tasksUnmatched: number; warnings: string[];
+    items: Array<{ name: string; supplierName: string | null; taskName: string | null; taskMatched: boolean; taskWillCreate: boolean; supplierMatched: boolean; lineItemCount: number; estimatedTotal: number; profitCentreName: string | null; smScheduleMasterName: string | null }>;
+    totalPos: number; estimatedTotal: number; tasksMatched: number; tasksUnmatched: number; tasksWillCreate: number; warnings: string[];
+    scheduleTemplate?: { id: number; name: string; rowCount: number; jobHasSchedule: boolean; sameTemplate: boolean; existingTaskCount: number; actionRequired: boolean; existingTemplateName?: string };
   } | null>(null);
+  const [scheduleAction, setScheduleAction] = useState<"copy_new" | "use_existing" | null>(null);
   const [loadingTemplatePacks, setLoadingTemplatePacks] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
+
+  // Save as Template state
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState("");
+  const [saveIncludeSuppliers, setSaveIncludeSuppliers] = useState(true);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [saveTemplateSuccess, setSaveTemplateSuccess] = useState<string | null>(null);
+  const [saveTemplatePreview, setSaveTemplatePreview] = useState<{ poCount: number; smTemplateName: string | null } | null>(null);
+  const [loadingSavePreview, setLoadingSavePreview] = useState(false);
+
+  // Supplier coverage gaps - shows which POs have items not supplied by their supplier
+  const [coverageGaps, setCoverageGaps] = useState<Record<string, { covered: number; total: number }>>({});
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{ success: boolean; gaps: Record<string, { covered: number; total: number }> }>(
+      `/api/v1/purchase_orders/supplier_coverage_gaps?job_id=${jobId}`
+    ).then((res) => {
+      if (!cancelled && res?.success) setCoverageGaps(res.gaps);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [jobId, refreshKey]);
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -122,14 +149,14 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [assignedUserId, setAssignedUserId] = useState<string>("");
   const [assignedRole, setAssignedRole] = useState<string>("");
 
-  // Handle row click - navigate to PO detail page
+  // Handle row click - open PO in Sheet (instant, no page navigation)
   const handleRowClick = useCallback((row: TableRow) => {
     const poNumber = row.purchase_order_number as string | undefined;
     const slug = poNumber?.replace('PO-', '') || row.id;
     if (slug) {
-      router.push(`/purchase_orders/${slug}`);
+      openPOInvoice(slug, poNumber);
     }
-  }, [router]);
+  }, [openPOInvoice]);
 
   // Handle inline row update - use slug-based API
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -276,6 +303,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const handleOpenTemplateModal = async () => {
     setSelectedPackId(null);
     setTemplatePreview(null);
+    setScheduleAction(null);
     setShowTemplateModal(true);
     await loadTemplatePacks();
   };
@@ -283,6 +311,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const handleSelectPack = async (packId: number) => {
     setSelectedPackId(packId);
     setTemplatePreview(null);
+    setScheduleAction(null);
     try {
       setLoadingPreview(true);
       const response = await api.get<{ success: boolean; data: typeof templatePreview }>(
@@ -302,6 +331,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setApplyingTemplate(true);
       await api.post(`/api/v1/po_template_packs/${selectedPackId}/apply`, {
         job_id: jobId,
+        ...(scheduleAction && { schedule_action: scheduleAction }),
       });
       setShowTemplateModal(false);
       setRefreshKey((k) => k + 1);
@@ -310,6 +340,54 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setError("Failed to apply template");
     } finally {
       setApplyingTemplate(false);
+    }
+  };
+
+  // Save as Template handlers
+  const handleOpenSaveTemplate = async () => {
+    setSaveTemplateName(`Template from ${jobTitle || "Job"}`);
+    setSaveIncludeSuppliers(true);
+    setSavingTemplate(false);
+    setSaveTemplateSuccess(null);
+    setSaveTemplatePreview(null);
+    setShowSaveTemplateModal(true);
+    // Fetch preview (PO count + detected SM template)
+    try {
+      setLoadingSavePreview(true);
+      const response = await api.get<{ success: boolean; data: { poCount: number; smTemplateName: string | null } }>(
+        `/api/v1/po_template_packs/preview_from_job?job_id=${jobId}`
+      );
+      setSaveTemplatePreview(response?.data || null);
+    } catch (err) {
+      console.error("Failed to load save template preview:", err);
+    } finally {
+      setLoadingSavePreview(false);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!saveTemplateName.trim()) return;
+    try {
+      setSavingTemplate(true);
+      setSaveTemplateSuccess(null);
+      const response = await api.post<{ success: boolean; message: string }>(
+        "/api/v1/po_template_packs/create_from_job",
+        {
+          job_id: jobId,
+          name: saveTemplateName.trim(),
+          include_suppliers: saveIncludeSuppliers,
+        }
+      );
+      setSaveTemplateSuccess(response?.message || "Template saved successfully");
+      // Auto-close after brief delay
+      setTimeout(() => {
+        setShowSaveTemplateModal(false);
+      }, 1500);
+    } catch (err) {
+      console.error("Failed to save as template:", err);
+      setError("Failed to save as template");
+    } finally {
+      setSavingTemplate(false);
     }
   };
 
@@ -362,11 +440,11 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setShowCreateModal(false);
       setRefreshKey(k => k + 1);
 
-      // Navigate to PO detail page if requested
+      // Open PO in Sheet if requested (instant, no page navigation)
       if (openAfterCreate && response?.purchase_order) {
         const poNumber = response.purchase_order.purchase_order_number;
         const slug = poNumber?.replace('PO-', '') || response.purchase_order.id;
-        router.push(`/purchase_orders/${slug}`);
+        openPOInvoice(slug, poNumber);
       }
     } catch (err) {
       console.error("Failed to create purchase order:", err);
@@ -423,11 +501,35 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         </span>
       );
     }
+
+    // Show warning icon on supplier column when supplier doesn't cover all items
+    if (columnKey === "supplier_id") {
+      const poId = String(entry.id);
+      const gap = coverageGaps[poId];
+      if (gap) {
+        // Foundation lookup values can be objects or raw IDs
+        const rawValue = entry.supplier_id;
+        const supplierName = typeof rawValue === "object" && rawValue !== null
+          ? ((rawValue as Record<string, unknown>).display || (rawValue as Record<string, unknown>).display_value || (rawValue as Record<string, unknown>).name || "")
+          : String(rawValue || "");
+        return (
+          <span className="flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <span className="truncate">{String(supplierName)}</span>
+            <span className="text-xs text-amber-600 dark:text-amber-400 whitespace-nowrap">
+              ({gap.covered}/{gap.total})
+            </span>
+          </span>
+        );
+      }
+    }
+
     return null; // Use default renderer for other columns
-  }, []);
+  }, [coverageGaps]);
 
   return (
     <div className="flex flex-col h-full -mx-4">
+      <POSummaryToolbar jobId={jobId} />
       {/* TeeemTableView with server-side filtering by job_id */}
       {/* SSoT: onAddRow opens the PO modal - single way to create POs */}
       <TeeemTableView
@@ -454,6 +556,15 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             >
               <FileStack className="h-4 w-4" />
               Apply Template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenSaveTemplate}
+              className="gap-1"
+            >
+              <BookmarkPlus className="h-4 w-4" />
+              Save as Template
             </Button>
             <Button
               variant="outline"
@@ -736,7 +847,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       </Dialog>
       {/* Apply Template Modal */}
       <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
-        <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Apply PO Template</DialogTitle>
             <DialogDescription>
@@ -776,6 +887,74 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
 
             {templatePreview && !loadingPreview && (
               <div className="space-y-3">
+                {/* Schedule template info - three scenarios:
+                    1. sameTemplate → silent (no UI needed, POs link to existing tasks)
+                    2. actionRequired → show choice: use existing or copy new schedule
+                    3. No schedule on job → show "will copy" info */}
+                {templatePreview.scheduleTemplate && !templatePreview.scheduleTemplate.sameTemplate && (
+                  templatePreview.scheduleTemplate.actionRequired ? (
+                    <div className="rounded-md p-3 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                            This job already has a schedule
+                            {templatePreview.scheduleTemplate.existingTemplateName
+                              ? ` ("${templatePreview.scheduleTemplate.existingTemplateName}")`
+                              : ` (${templatePreview.scheduleTemplate.existingTaskCount} tasks)`
+                            }
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            The template pack uses &quot;{templatePreview.scheduleTemplate.name}&quot;. Choose how to handle the schedule:
+                          </p>
+                        </div>
+                      </div>
+                      <div className="ml-8 space-y-2">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="scheduleAction"
+                            checked={scheduleAction === "use_existing"}
+                            onChange={() => setScheduleAction("use_existing")}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <span className="text-sm font-medium">Use existing schedule</span>
+                            <p className="text-xs text-muted-foreground">Keep current tasks. POs will link to matching SM tasks where possible.</p>
+                          </div>
+                        </label>
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="scheduleAction"
+                            checked={scheduleAction === "copy_new"}
+                            onChange={() => setScheduleAction("copy_new")}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <span className="text-sm font-medium">Copy new schedule</span>
+                            <p className="text-xs text-muted-foreground">
+                              Add &quot;{templatePreview.scheduleTemplate.name}&quot; ({templatePreview.scheduleTemplate.rowCount} tasks with dependencies) to this job.
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-md p-3 flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                          Will copy schedule &quot;{templatePreview.scheduleTemplate.name}&quot; ({templatePreview.scheduleTemplate.rowCount} tasks with dependencies)
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          The full schedule with task dependencies and calculated dates will be created first, then POs linked to those tasks.
+                        </p>
+                      </div>
+                    </div>
+                  )
+                )}
+
                 {/* Summary badges */}
                 <div className="flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
@@ -784,9 +963,14 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                   <span className="inline-flex items-center rounded-md bg-green-100 dark:bg-green-900/30 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-400">
                     {templatePreview.tasksMatched} tasks matched
                   </span>
+                  {templatePreview.tasksWillCreate > 0 && (
+                    <span className="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-400">
+                      {templatePreview.tasksWillCreate} tasks to create
+                    </span>
+                  )}
                   {templatePreview.tasksUnmatched > 0 && (
                     <span className="inline-flex items-center rounded-md bg-amber-100 dark:bg-amber-900/30 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
-                      {templatePreview.tasksUnmatched} unmatched
+                      {templatePreview.tasksUnmatched} no template
                     </span>
                   )}
                   <span className="inline-flex items-center rounded-md bg-muted px-2.5 py-1 text-xs font-mono font-medium">
@@ -814,6 +998,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                         <th className="text-left py-2 px-3 font-medium">PO Name</th>
                         <th className="text-left py-2 px-3 font-medium">Supplier</th>
                         <th className="text-left py-2 px-3 font-medium">Task</th>
+                        <th className="text-left py-2 px-3 font-medium">PC</th>
                         <th className="text-right py-2 px-3 font-medium">Lines</th>
                         <th className="text-right py-2 px-3 font-medium">Total</th>
                       </tr>
@@ -828,11 +1013,16 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                           <td className="py-1.5 px-3">
                             {item.taskMatched ? (
                               <span className="text-green-700 dark:text-green-400">{item.taskName}</span>
-                            ) : (
-                              <span className="text-amber-600 dark:text-amber-400 italic">
-                                {item.taskName || "no link"}
+                            ) : item.taskWillCreate ? (
+                              <span className="text-blue-600 dark:text-blue-400">
+                                + {item.taskName}
                               </span>
+                            ) : (
+                              <span className="text-muted-foreground italic">no link</span>
                             )}
+                          </td>
+                          <td className="py-1.5 px-3 text-muted-foreground">
+                            {item.profitCentreName || <span className="italic">—</span>}
                           </td>
                           <td className="py-1.5 px-3 text-right">{item.lineItemCount}</td>
                           <td className="py-1.5 px-3 text-right font-mono">
@@ -853,7 +1043,10 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             </Button>
             <Button
               onClick={handleApplyTemplate}
-              disabled={!selectedPackId || !templatePreview || applyingTemplate}
+              disabled={
+                !selectedPackId || !templatePreview || applyingTemplate ||
+                (templatePreview?.scheduleTemplate?.actionRequired && !scheduleAction)
+              }
             >
               {applyingTemplate ? (
                 <>
@@ -863,11 +1056,120 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               ) : (
                 <>
                   <FileStack className="h-4 w-4 mr-2" />
-                  Apply All ({templatePreview?.totalPos || 0} POs)
+                  {(() => {
+                    const st = templatePreview?.scheduleTemplate;
+                    const willCopy = st && !st.sameTemplate && (
+                      (!st.jobHasSchedule) || scheduleAction === "copy_new"
+                    );
+                    return willCopy
+                      ? `Apply Schedule + ${templatePreview?.totalPos || 0} POs`
+                      : `Apply ${templatePreview?.totalPos || 0} POs`;
+                  })()}
                 </>
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save as Template Modal */}
+      <Dialog open={showSaveTemplateModal} onOpenChange={setShowSaveTemplateModal}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Save as PO Template</DialogTitle>
+            <DialogDescription>
+              Create a reusable template from this job&apos;s purchase orders.
+            </DialogDescription>
+          </DialogHeader>
+
+          {saveTemplateSuccess ? (
+            <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3">
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <p className="text-sm text-green-700 dark:text-green-400">{saveTemplateSuccess}</p>
+            </div>
+          ) : (
+            <>
+              {/* Preview summary */}
+              {loadingSavePreview ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Spinner size={14} />
+                  <span className="text-sm text-muted-foreground">Loading preview...</span>
+                </div>
+              ) : saveTemplatePreview && (
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                    {saveTemplatePreview.poCount} POs
+                  </span>
+                  {saveTemplatePreview.smTemplateName && (
+                    <span className="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-400">
+                      {saveTemplatePreview.smTemplateName}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="template-name">Template Name</Label>
+                  <div className="relative">
+                    <Input
+                      id="template-name"
+                      value={saveTemplateName}
+                      onChange={(e) => setSaveTemplateName(e.target.value)}
+                      placeholder="Enter template name..."
+                      autoFocus
+                      className="pr-8"
+                    />
+                    {saveTemplateName && (
+                      <button
+                        type="button"
+                        onClick={() => setSaveTemplateName("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={saveIncludeSuppliers}
+                    onChange={(e) => setSaveIncludeSuppliers(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <span className="text-sm font-medium">Include Suppliers</span>
+                    <p className="text-xs text-muted-foreground">
+                      {saveIncludeSuppliers
+                        ? "Each PO keeps its assigned supplier contact (e.g. TL Electrical Pty Ltd)"
+                        : "Price only — uses pricebook category contacts instead (e.g. ELECTRICAL)"}
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowSaveTemplateModal(false)} disabled={savingTemplate}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveTemplate} disabled={savingTemplate || !saveTemplateName.trim()}>
+                  {savingTemplate ? (
+                    <>
+                      <Spinner size={16} className="mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <BookmarkPlus className="h-4 w-4 mr-2" />
+                      Save Template
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -16,32 +16,38 @@ module Api
       class SupplierPricingController < ApplicationController
         before_action :authorize_request
         before_action :set_contact
-        before_action :require_supplier
+        # Skip supplier check for copy_history (target may not be a supplier yet)
+        # and prices (fetching target's current prices for comparison)
+        before_action :require_supplier, except: [:copy_history, :prices]
 
         # GET /api/v1/contacts/supplier_pricing/:contact_id/categories
         # Returns categories where this supplier has pricing
         def categories
           # Get distinct categories from pricebook items where this contact is the default supplier
           # or has provided price histories
-          categories_from_default = PricebookItem.where(default_supplier_id: @contact.id)
-                                                .where.not(category: nil)
+          # FRC (Feb 2026): PricebookItem has category_id FK, NOT a category varchar column.
+          # Must join pricebook_categories to get category names.
+          categories_from_default = PricebookItem.joins(:pricebook_category)
+                                                .where(default_supplier_id: @contact.id)
                                                 .distinct
-                                                .pluck(:category)
+                                                .pluck("pricebook_categories.name")
 
-          categories_from_histories = PricebookItem.joins(:price_histories)
+          categories_from_histories = PricebookItem.joins(:pricebook_category, :price_histories)
                                                   .where(price_histories: { supplier_id: @contact.id })
-                                                  .where.not(category: nil)
                                                   .distinct
-                                                  .pluck(:category)
+                                                  .pluck("pricebook_categories.name")
 
           all_categories = (categories_from_default + categories_from_histories).uniq.sort
 
           # Get item counts per category
           categories_with_counts = all_categories.map do |category|
-            default_count = PricebookItem.where(default_supplier_id: @contact.id, category: category).count
+            cat_id = PricebookCategory.find_by(name: category)&.id
+            next nil unless cat_id
+
+            default_count = PricebookItem.where(default_supplier_id: @contact.id, category_id: cat_id).count
             history_count = PricebookItem.joins(:price_histories)
                                         .where(price_histories: { supplier_id: @contact.id })
-                                        .where(category: category)
+                                        .where(category_id: cat_id)
                                         .distinct
                                         .count
 
@@ -51,7 +57,7 @@ module Api
               price_history_count: history_count,
               total_count: [default_count, history_count].max
             }
-          end
+          end.compact
 
           render json: {
             success: true,
@@ -84,6 +90,58 @@ module Api
           render json: { success: true, prices: prices_map }
         rescue => e
           render json: { success: false, error: "Failed to fetch prices: #{e.message}" }, status: :internal_server_error
+        end
+
+        # DELETE /api/v1/contacts/supplier_pricing/:contact_id/remove_items
+        # Remove all price histories for specific pricebook items from this supplier
+        # Also removes this supplier as default if applicable
+        def remove_items
+          pricebook_item_ids = params[:pricebook_item_ids]
+
+          if pricebook_item_ids.blank? || !pricebook_item_ids.is_a?(Array) || pricebook_item_ids.empty?
+            return render json: {
+              success: false,
+              error: "pricebook_item_ids (array) is required"
+            }, status: :bad_request
+          end
+
+          item_ids = pricebook_item_ids.map(&:to_i)
+          deleted_histories_count = 0
+          removed_default_count = 0
+
+          ActiveRecord::Base.transaction do
+            # Delete all price histories for these items from this supplier
+            histories = PriceHistory.where(supplier_id: @contact.id, pricebook_item_id: item_ids)
+            deleted_histories_count = histories.count
+            histories.delete_all
+
+            # Remove as default supplier for these items if applicable
+            default_items = PricebookItem.where(id: item_ids, default_supplier_id: @contact.id)
+            removed_default_count = default_items.count
+            default_items.update_all(default_supplier_id: nil) if removed_default_count > 0
+          end
+
+          parts = []
+          parts << "#{deleted_histories_count} price #{deleted_histories_count == 1 ? 'history' : 'histories'}" if deleted_histories_count > 0
+          parts << "default supplier from #{removed_default_count} #{removed_default_count == 1 ? 'item' : 'items'}" if removed_default_count > 0
+
+          message = if parts.any?
+            "Removed #{parts.join(' and ')} for #{@contact.display_name}"
+          else
+            "No price histories found for this supplier on the selected items"
+          end
+
+          render json: {
+            success: true,
+            message: message,
+            deleted_histories_count: deleted_histories_count,
+            removed_default_count: removed_default_count
+          }
+        rescue => e
+          render json: {
+            success: false,
+            error: "Failed to remove price histories: #{e.message}"
+          }, status: :internal_server_error
         end
 
         # POST /api/v1/contacts/supplier_pricing/:contact_id/copy_history
@@ -144,10 +202,10 @@ module Api
               .select("DISTINCT ON (pricebook_item_id) price_histories.*")
               .order(order_clause)
 
-            # Filter by categories if provided
-            # Note: PricebookItem uses table_name = 'pricebooks'
+            # Filter by categories if provided (SSoT: category_id FK to pricebook_categories)
             if categories_param.present? && categories_param.is_a?(Array) && categories_param.any?
-              source_price_histories = source_price_histories.where(pricebooks: { category: categories_param })
+              cat_ids = PricebookCategory.where(name: categories_param).pluck(:id)
+              source_price_histories = source_price_histories.where(pricebooks: { category_id: cat_ids })
             end
 
             # Filter by specific pricebook item IDs if provided
@@ -260,10 +318,11 @@ module Api
 
           ActiveRecord::Base.transaction do
             # Find all pricebook items where this contact is the default supplier
-            # and the category is in the provided list
+            # and the category is in the provided list (SSoT: category_id FK)
+            cat_ids = PricebookCategory.where(name: categories_param).pluck(:id)
             default_supplier_items = PricebookItem.where(
               default_supplier_id: @contact.id,
-              category: categories_param
+              category_id: cat_ids
             )
 
             default_supplier_items.each do |item|
@@ -272,10 +331,9 @@ module Api
             end
 
             # Delete all price histories for this supplier in the selected categories
-            # Note: PricebookItem uses table_name = 'pricebooks'
             price_histories_to_delete = PriceHistory.joins(:pricebook_item)
               .where(supplier_id: @contact.id)
-              .where(pricebooks: { category: categories_param })
+              .where(pricebooks: { category_id: cat_ids })
 
             deleted_price_histories_count = price_histories_to_delete.count
             price_histories_to_delete.delete_all

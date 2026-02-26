@@ -97,7 +97,19 @@ class XeroContactSyncService
     begin
       # Fetch all contacts from Xero for this tenant
       xero_contacts = fetch_xero_contacts(tenant_id)
-      teeem_contacts = Contact.all.to_a
+      # N+1 fix: eager-load all associations accessed in process_contacts_for_tenant:
+      #   - contact_emails: primary_email (line ~237), teeem_by_email index, ContactEmail SSoT
+      #   - contact_phones: primary_mobile, primary_office_phone (build_xero_contact_payload)
+      #   - contact_addresses: build_xero_addresses, sync_addresses_from_xero
+      #   - contact_persons: sync_contact_persons (existing_persons lookup)
+      #   - xero_links: sync_contact_to_tenant (find_by xero_org_id), create_or_update_xero_link
+      teeem_contacts = Contact.includes(
+        :contact_emails,
+        :contact_phones,
+        :contact_addresses,
+        :contact_persons,
+        :xero_links
+      ).to_a
 
       Rails.logger.info("Fetched #{xero_contacts.length} Xero contacts and #{teeem_contacts.length} TEEEM contacts")
 
@@ -222,10 +234,15 @@ class XeroContactSyncService
 
     # Get existing links for this Xero org
     # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
-    existing_links = ContactExternalLink.xero.where(xero_org_id: tenant_id).index_by(&:external_contact_id)
+    # N+1 fix: includes(:contact) so link.contact doesn't fire per-row queries below
+    existing_links = ContactExternalLink.xero
+                                        .where(xero_org_id: tenant_id)
+                                        .includes(:contact)
+                                        .index_by(&:external_contact_id)
 
     # Build lookup maps for efficient matching
-    teeem_by_xero_link = existing_links.transform_values { |link| Contact.find_by(id: link.contact_id) }
+    # N+1 fix: contacts already eager-loaded via includes(:contact) above - no extra queries
+    teeem_by_xero_link = existing_links.transform_values(&:contact)
     teeem_by_tax_number = teeem_contacts.select { |c| c.abn.present? }
                                           .group_by(&:abn)
     # SSoT: Use primary_email from contact_emails table
@@ -442,8 +459,10 @@ class XeroContactSyncService
 
     # Priority 2: Exact email match (100% confidence, auto-link)
     # SSoT: Search in contact_emails table
+    # N+1 fix: includes(:contact) so contact_email.contact doesn't fire a second query
     if xero_email.present?
-      contact_email = ContactEmail.joins(:contact)
+      contact_email = ContactEmail.includes(:contact)
+        .joins(:contact)
         .where("LOWER(contact_emails.email) = ?", xero_email.downcase.strip)
         .where.not(contacts: { entity_type: 'price_only' })
         .first
@@ -458,7 +477,29 @@ class XeroContactSyncService
       end
     end
 
-    # Priority 3: Fuzzy name match (requires review)
+    # Priority 3: Exact case-insensitive name match (100% confidence, auto-link)
+    # FRC (Feb 2026): Fuzzy matching filters by entity_type which can miss valid matches.
+    # "Howard Smith Wharves" vs "howard smith wharves" from different Xero orgs were not
+    # matched because the name doesn't contain company keywords (pty, ltd, etc.).
+    # This exact name match has NO entity_type filter - catches all case/whitespace differences.
+    if xero_name.present?
+      normalized_xero_name = xero_name.downcase.gsub(/\s+/, ' ').strip
+      existing_contact = Contact.where(is_active: true)
+        .where.not(entity_type: 'price_only')
+        .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = ?", normalized_xero_name)
+        .first
+      if existing_contact
+        Rails.logger.info("Cross-tenant match by exact name: #{xero_name} -> #{existing_contact.display_name}")
+        return {
+          contact: existing_contact,
+          match_type: "exact_name",
+          match_confidence: 1.0,
+          needs_review: false
+        }
+      end
+    end
+
+    # Priority 4: Fuzzy name match (requires review for <95% confidence)
     if xero_name.present?
       # Include companies, trusts, sole traders AND contacts with no entity_type
       # Also include any contact whose name looks like a company (contains Pty, Ltd, etc.)
@@ -652,30 +693,22 @@ class XeroContactSyncService
     # Determine if this is a company contact based on Xero data
     is_company = xero_contact_is_company?(xero_contact)
 
-    # Apply field mappings
-    # Note: Field mapping key is "display_name", not "name"
+    # ⚠️ DO NOT SIMPLIFY - Name fields are NEVER overwritten by Xero sync (Feb 2026)
+    # ════════════════════════════════════════════════════════════════════════
+    # Why: TEEEM names are SSoT. Xero's name is tracked via external_name on the
+    # ContactExternalLink (updated in sync_matched_contact before this method).
+    # The Review tab (/settings/integrations/xero?tab=mismatches) shows discrepancies
+    # and lets users manually push TEEEM names to Xero or review differences.
+    #
+    # ❌ WRONG: Setting first_name/last_name/display_name/company_name_or_trust from Xero
+    #    - Triggers generate_display_name callback, overwrites user's chosen name
+    #    - Causes "Team Harder" → "Rachel Anne Harder" type bugs every 5 min
+    # ✅ CORRECT: Only set entity_type if blank (first sync). Names stay as user set them.
+    # ════════════════════════════════════════════════════════════════════════
     if importable_fields.include?("display_name")
-      updates[:display_name] = xero_contact["Name"] if xero_contact["Name"].present?
-
-      # FRC: Only set entity_type if contact doesn't already have one set
-      # User's manual entity_type choice should be preserved (SSoT: user decision)
-      # This prevents Xero sync from overwriting "person" back to "company" when user corrects it
+      # Only set entity_type if contact doesn't already have one
       if teeem_contact.entity_type.blank?
         updates[:entity_type] = is_company ? "company" : "person"
-      end
-
-      # Only update name fields if entity_type matches what we would set
-      # This prevents clearing first_name/last_name when user set entity_type to "person"
-      # but Xero thinks it's a company (because FirstName is blank in Xero)
-      effective_entity_type = teeem_contact.entity_type.presence || (is_company ? "company" : "person")
-
-      if %w[company trust].include?(effective_entity_type)
-        updates[:first_name] = nil
-        updates[:last_name] = nil
-        updates[:company_name_or_trust] = xero_contact["Name"]
-      else
-        updates[:first_name] = xero_contact["FirstName"] if xero_contact["FirstName"].present?
-        updates[:last_name] = xero_contact["LastName"] if xero_contact["LastName"].present?
       end
     end
 
@@ -836,7 +869,8 @@ class XeroContactSyncService
     changes_made = changed_fields.each_with_object({}) do |field, hash|
       old_value = begin
         teeem_contact.send(field)
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("[XeroContactSync] Failed to read field '#{field}' from contact ##{teeem_contact.id}: #{e.message}")
         nil
       end
       new_value = updates[field]
@@ -888,7 +922,7 @@ class XeroContactSyncService
       last_name: is_company ? nil : xero_contact["LastName"],
       company_name_or_trust: is_company ? xero_contact["Name"] : nil,
       entity_type: is_company ? "company" : "person",
-      tax_number: normalize_tax_number(xero_contact["TaxNumber"]),
+      abn: normalize_tax_number(xero_contact["TaxNumber"]),  # FRC: column renamed tax_number→abn in migration 20251215220404
       email: extract_xero_email(xero_contact),
       roles: roles.any? ? roles : nil,
       xero_contact_types: xero_contact_types,
@@ -1479,7 +1513,8 @@ class XeroContactSyncService
     Rails.logger.info("Found #{count} orphaned xero_links for tenant #{tenant_id}")
 
     # Mark all orphaned links as not_found (SSoT: track stale links instead of immediate deletion)
-    orphaned_links.find_each do |link|
+    # N+1 fix: includes(:contact) so link.contact doesn't fire a query per iteration
+    orphaned_links.includes(:contact).find_each do |link|
       begin
         contact = link.contact
         Rails.logger.info("Marking as stale: #{contact&.display_name} (xero_id: #{link.external_contact_id})")

@@ -41,6 +41,20 @@ module Api
         end
       end
 
+      # POST /api/v1/heroku/restart
+      # Restarts all dynos for a given Heroku app. Any known TEEEM app allowed.
+      def restart
+        app = params[:app]
+
+        result = HerokuPlatformService.restart_dyno(app)
+
+        if result[:success]
+          render json: { success: true, data: result[:data] }
+        else
+          render_error(result[:error], status: :unprocessable_entity)
+        end
+      end
+
       # GET /api/v1/heroku/vercel_billing
       # Returns real Vercel billing data (invoices, build minutes, costs)
       def vercel_billing

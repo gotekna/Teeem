@@ -1,4 +1,8 @@
 class PurchaseOrderLineItem < ApplicationRecord
+  # FRC (Feb 2026): acts_as_tenant REQUIRED. Without it, delete_all/update_all are UNSCOPED
+  # and affect ALL tenants. This caused total loss of Tekna PO line items.
+  acts_as_tenant :tenant
+
   # SSoT: GstCode model (database table, tenant-scoped)
 
   # Associations
@@ -17,6 +21,7 @@ class PurchaseOrderLineItem < ApplicationRecord
 
   # Callbacks
   before_validation :set_line_number, if: :new_record?
+  before_validation :set_default_profit_centre, if: :new_record?
   before_validation :set_defaults_from_pricebook_item, if: -> { pricebook_item.present? }
   before_save :calculate_totals
   after_save :update_purchase_order_totals
@@ -85,6 +90,11 @@ class PurchaseOrderLineItem < ApplicationRecord
   end
 
   private
+
+  def set_default_profit_centre
+    return if profit_centre_id.present?
+    self.profit_centre_id = ProfitCentre.default_for_tenant&.id
+  end
 
   def set_line_number
     return if line_number.present?

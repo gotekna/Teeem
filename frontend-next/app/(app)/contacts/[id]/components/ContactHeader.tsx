@@ -9,8 +9,19 @@ import {
   Globe,
   Trash2,
   ShieldCheck,
+  ChevronDown,
+  AlertTriangle,
+  Upload,
+  Check,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 // Exported for use in other components (ContactFinancialTab)
 // SSoT: Must match types/xero.ts XeroLink for compatibility with XeroTransactionsSection
@@ -25,6 +36,7 @@ export interface XeroLink {
   created_at: string;
   updated_at: string;
   invoice_count?: number;
+  external_name?: string | null;
 }
 
 interface XeroTenant {
@@ -66,9 +78,12 @@ export function ContactHeader({
   enrichingFromWeb,
   onXeroLinksChange,
 }: ContactHeaderProps) {
+  const { toast } = useToast();
   const [xeroLinks, setXeroLinks] = useState<XeroLink[]>([]);
   const [allTenants, setAllTenants] = useState<XeroTenant[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
+  const [selectedMismatchIds, setSelectedMismatchIds] = useState<Set<number>>(new Set());
+  const [pushing, setPushing] = useState(false);
 
   // Load Xero links and all tenants when contact changes
   useEffect(() => {
@@ -106,6 +121,60 @@ export function ContactHeader({
       }
     } catch (err) {
       console.error("Failed to load Xero tenants:", err);
+    }
+  };
+
+  // Mismatch link IDs for convenience
+  const mismatchedLinks = xeroLinks.filter(
+    (l) => l.external_name && l.external_name !== contact.display_name
+  );
+
+  const toggleMismatchSelection = (linkId: number) => {
+    setSelectedMismatchIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(linkId)) next.delete(linkId);
+      else next.add(linkId);
+      return next;
+    });
+  };
+
+  const handlePushSelected = async () => {
+    if (selectedMismatchIds.size === 0) return;
+    setPushing(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { success: number; failed: number; errors: Array<{ error: string }> };
+      }>("/api/v1/xero/push_contact_names", {
+        xero_link_ids: Array.from(selectedMismatchIds),
+      });
+
+      const ok = response?.data?.success ?? 0;
+      const failed = response?.data?.failed ?? 0;
+
+      if (ok > 0 && failed === 0) {
+        toast({
+          title: "Updated",
+          description: `Pushed "${contact.display_name}" to ${ok} Xero org${ok !== 1 ? "s" : ""}`,
+        });
+      } else if (ok > 0) {
+        toast({
+          title: `${ok} updated, ${failed} failed`,
+          description: response?.data?.errors?.[0]?.error || "Some updates failed",
+        });
+      } else {
+        toast({
+          title: "Failed",
+          description: response?.data?.errors?.[0]?.error || "Failed to push names",
+          variant: "destructive",
+        });
+      }
+      setSelectedMismatchIds(new Set());
+      loadXeroLinks();
+    } catch {
+      toast({ title: "Error", description: "Failed to push names to Xero", variant: "destructive" });
+    } finally {
+      setPushing(false);
     }
   };
 
@@ -147,12 +216,97 @@ export function ContactHeader({
                 Family
               </Badge>
             )}
-            {/* SSoT: Simple badge showing linked org count. Org management is in Financial tab. */}
+            {/* Xero links popover - shows which orgs and name in each */}
             {allTenants.length > 0 && (
-              <Badge variant="outline" className="gap-1">
-                <ShieldCheck className="h-3 w-3" />
-                {new Set(xeroLinks.map(l => l.xero_tenant_id)).size}/{allTenants.length} Xero
-              </Badge>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors hover:bg-accent cursor-pointer">
+                    <ShieldCheck className="h-3 w-3" />
+                    {new Set(xeroLinks.map(l => l.xero_tenant_id)).size}/{allTenants.length} Xero
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-80 p-0">
+                  <div className="px-3 py-2 border-b">
+                    <p className="text-sm font-medium">Xero Connections</p>
+                    {mismatchedLinks.length > 0 && (
+                      <p className="text-xs text-muted-foreground">Select mismatches to push TEEEM name</p>
+                    )}
+                  </div>
+                  <div className="py-1 max-h-[320px] overflow-y-auto">
+                    {allTenants.map((tenant) => {
+                      const link = xeroLinks.find(l => l.xero_tenant_id === tenant.tenant_id);
+                      const isLinked = !!link;
+                      const nameMismatch = isLinked && link.external_name && link.external_name !== contact.display_name;
+                      return (
+                        <div
+                          key={tenant.tenant_id}
+                          className="px-3 py-2 flex items-start gap-2"
+                        >
+                          {nameMismatch ? (
+                            <Checkbox
+                              className="mt-0.5 shrink-0"
+                              checked={selectedMismatchIds.has(link.id)}
+                              onCheckedChange={() => toggleMismatchSelection(link.id)}
+                            />
+                          ) : (
+                            <div className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${isLinked ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-sm ${isLinked ? "font-medium" : "text-muted-foreground"}`}>
+                              {tenant.tenant_name}
+                            </p>
+                            {isLinked && link.external_name && (
+                              <p className={`text-xs truncate ${nameMismatch ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                                {nameMismatch && <AlertTriangle className="h-3 w-3 inline mr-1 -mt-0.5" />}
+                                {link.external_name}
+                              </p>
+                            )}
+                            {isLinked && !link.external_name && (
+                              <p className="text-xs text-muted-foreground italic">No name stored</p>
+                            )}
+                            {!isLinked && (
+                              <p className="text-xs text-muted-foreground">Not linked</p>
+                            )}
+                          </div>
+                          {isLinked && !nameMismatch && link.external_name && (
+                            <Check className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {mismatchedLinks.length > 0 && (
+                    <div className="px-3 py-2 border-t flex items-center justify-between gap-2">
+                      <button
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          if (selectedMismatchIds.size === mismatchedLinks.length) {
+                            setSelectedMismatchIds(new Set());
+                          } else {
+                            setSelectedMismatchIds(new Set(mismatchedLinks.map(l => l.id)));
+                          }
+                        }}
+                      >
+                        {selectedMismatchIds.size === mismatchedLinks.length ? "Deselect all" : "Select all"}
+                      </button>
+                      <Button
+                        size="sm"
+                        disabled={selectedMismatchIds.size === 0 || pushing}
+                        onClick={handlePushSelected}
+                        className="h-7 text-xs"
+                      >
+                        {pushing ? (
+                          <Spinner size={12} className="mr-1" />
+                        ) : (
+                          <Upload className="h-3 w-3 mr-1" />
+                        )}
+                        Push to Xero ({selectedMismatchIds.size})
+                      </Button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
             )}
           </div>
           {contact.company_name && (

@@ -486,11 +486,14 @@ function MS365MailboxAccessConfig() {
   // Poll for consent completion
   React.useEffect(() => {
     if (!ms365Waiting || !ms365ConsentOrg) return;
+    let mounted = true;
     const interval = setInterval(async () => {
+      if (!mounted) return;
       try {
         const res = await api.get<{ configured: boolean; organizations: Array<{ name: string; status: string }> }>(
           "/api/v1/microsoft_app/status"
         );
+        if (!mounted) return;
         const org = res.organizations?.find(o => o.name === ms365ConsentOrg);
         if (org?.status === "connected") {
           setMs365Waiting(false);
@@ -499,7 +502,10 @@ function MS365MailboxAccessConfig() {
         }
       } catch (err) { console.error("[EmailAccounts] Polling error:", err); }
     }, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [ms365Waiting, ms365ConsentOrg]);
 
   if (loading) {

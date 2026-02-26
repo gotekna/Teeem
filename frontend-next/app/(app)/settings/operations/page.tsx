@@ -4,6 +4,7 @@ import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { usePathTabs } from "@/hooks/usePathTabs";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 
 // Import operations-related tab components from admin
 import { ScheduleMasterTab } from "@/app/(app)/admin/system/components/ScheduleMasterTab";
@@ -13,8 +14,13 @@ import { SupervisorChecklistTab } from "@/app/(app)/admin/system/components/Supe
 import { SMTasksTab } from "@/app/(app)/admin/system/components/SMTasksTab";
 import { CostTab } from "@/app/(app)/admin/system/components/CostTab";
 import { PoTemplatesTab } from "@/app/(app)/admin/system/components/PoTemplatesTab";
+import { QuoteTemplatesTab } from "./components/QuoteTemplatesTab";
 import { ClaimTemplatesTab } from "@/app/(app)/admin/system/components/ClaimTemplatesTab";
 import { ProfitCentresTab } from "./components/ProfitCentresTab";
+import { CostCentresTab } from "./components/CostCentresTab";
+import { TenderHeadersTab } from "./components/TenderHeadersTab";
+import { TenderSectionsTab } from "./components/TenderSectionsTab";
+import { TenderDocumentTemplatesTab } from "./components/TenderDocumentTemplatesTab";
 
 /**
  * Operations Settings Page - Organization Settings
@@ -24,6 +30,8 @@ import { ProfitCentresTab } from "./components/ProfitCentresTab";
  * Admin role required (enforced by layout).
  *
  * URL is SSoT for tab state: /settings/operations/[tab]
+ *
+ * All tabs render inline with expand-to-fullscreen button.
  */
 
 const OPERATIONS_TABS = [
@@ -34,13 +42,20 @@ const OPERATIONS_TABS = [
   { id: "supervisor", label: "Supervisor Checklist" },
   { id: "cost", label: "Cost" },
   { id: "po-templates", label: "PO Templates" },
+  { id: "quote-templates", label: "Quote Templates" },
   { id: "claim-templates", label: "Claim Templates" },
   { id: "profit-centres", label: "Profit Centres" },
+  { id: "cost-centres", label: "Cost Centres" },
+  { id: "tender-headers", label: "Tender Headers" },
+  { id: "tender-sections", label: "Tender Sections" },
+  { id: "tender-documents", label: "Tender Documents" },
 ];
 
-const DEFAULT_TAB = "schedule-master";
+const DEFAULT_TAB = "sm-tasks";
 
 export default function OperationsSettingsPage() {
+  const [expanded, toggleExpanded] = useExpandedState("operations");
+
   // Tab panels use absolute inset-0 positioning, which requires full-height layout
   useSetLayoutMode("full-height");
 
@@ -54,22 +69,28 @@ export default function OperationsSettingsPage() {
   );
 
   return (
+    <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
     <div className="flex flex-col h-full">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-        <TabsList className="flex-wrap h-auto gap-1 shrink-0">
-          {OPERATIONS_TABS.map((tab) => (
-            <TabsTrigger
-              key={tab.id}
-              value={tab.id}
-              className="text-sm"
-            >
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : "flex flex-col h-full"}>
+        <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
+          <div className="flex items-start gap-2">
+            <TabsList className="flex-wrap h-auto gap-1 shrink-0 flex-1 min-w-0">
+              {OPERATIONS_TABS.map((tab) => (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className="text-sm"
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+          </div>
+        </div>
 
-        <div className="flex-1 min-h-0 mt-4 relative">
-          <TabsContent value="schedule-master" className="absolute inset-0 h-full">
+        <div className={expanded ? "flex-1 overflow-auto p-4" : "flex-1 min-h-0 mt-4 relative"}>
+          <TabsContent value="schedule-master" className="absolute inset-0 overflow-auto">
             <ScheduleMasterTab basePath="/settings/operations/schedule-master" />
           </TabsContent>
           <TabsContent value="sm-tasks" className="absolute inset-0 overflow-auto">
@@ -90,14 +111,30 @@ export default function OperationsSettingsPage() {
           <TabsContent value="po-templates" className="absolute inset-0 overflow-auto">
             <PoTemplatesTab />
           </TabsContent>
+          <TabsContent value="quote-templates" className="absolute inset-0 overflow-auto">
+            <QuoteTemplatesTab />
+          </TabsContent>
           <TabsContent value="claim-templates" className="absolute inset-0 overflow-auto">
             <ClaimTemplatesTab />
           </TabsContent>
           <TabsContent value="profit-centres" className="absolute inset-0 h-full">
             <ProfitCentresTab />
           </TabsContent>
+          <TabsContent value="cost-centres" className="absolute inset-0 h-full">
+            <CostCentresTab />
+          </TabsContent>
+          <TabsContent value="tender-headers" className="absolute inset-0 h-full">
+            <TenderHeadersTab />
+          </TabsContent>
+          <TabsContent value="tender-sections" className="absolute inset-0 h-full">
+            <TenderSectionsTab />
+          </TabsContent>
+          <TabsContent value="tender-documents" className="absolute inset-0 overflow-auto">
+            <TenderDocumentTemplatesTab />
+          </TabsContent>
         </div>
       </Tabs>
     </div>
+    </ExpandableSection>
   );
 }

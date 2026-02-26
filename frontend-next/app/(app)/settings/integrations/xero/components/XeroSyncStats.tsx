@@ -127,6 +127,39 @@ interface TenantDataSyncStats {
   } | null;
 }
 
+// FRC (Feb 2026): Backend returns stage2_pdf_download / stage1_data_sync with different
+// field names than the frontend TenantPdfSyncStats / TenantDataSyncStats interfaces.
+// This mapper bridges the two. Without it, pdf_sync is always undefined → shows "0/total".
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapPdfSyncResponse(data: any): { pdf_sync?: TenantPdfSyncStats; data_sync?: TenantDataSyncStats } {
+  const stage2 = data?.stage2_pdf_download;
+  const stage1 = data?.stage1_data_sync;
+
+  const pdf_sync: TenantPdfSyncStats | undefined = stage2 ? {
+    total: stage2.total_to_sync ?? 0,
+    synced: stage2.downloaded ?? 0,
+    pending: stage2.pending ?? 0,
+    percentage: stage2.progress_percentage ?? 0,
+    last_synced_at: stage2.last_synced_at ?? null,
+    next_sync_at: stage2.next_sync_at ?? null,
+    schedule: stage2.schedule ?? null,
+    blocker: stage2.blocker ?? null,
+    breakdown: stage2.breakdown ?? null,
+  } : undefined;
+
+  const data_sync: TenantDataSyncStats | undefined = stage1 ? {
+    total_in_database: stage1.total_in_database ?? 0,
+    linked_to_contacts: stage1.linked_to_contacts ?? 0,
+    unlinked_count: stage1.unlinked_count ?? 0,
+    last_synced_at: stage1.last_synced_at ?? null,
+    next_sync_at: stage1.next_sync_at ?? null,
+    schedule: stage1.schedule ?? null,
+    blocker: stage1.blocker ?? null,
+  } : undefined;
+
+  return { pdf_sync, data_sync };
+}
+
 interface TotalsSummary {
   total_all: number;
   active: number;
@@ -396,6 +429,9 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
   const [jobImportOpen, setJobImportOpen] = React.useState(false);
   const [databuildImportOpen, setDatabuildImportOpen] = React.useState(false);
 
+  // Track whether initial per-tenant PDF sync has been fetched
+  const hasFetchedPdfSyncRef = React.useRef(false);
+
   // Search/filter state for large tenant lists (Scale to 15k feature)
   const [searchQuery, setSearchQuery] = React.useState("");
   // Track expanded tenant cards for lazy-loading PDF details
@@ -429,23 +465,75 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
       ]);
 
       if (response.success) {
-        // Extract global totals and blob health (single call, not aggregated)
+        // Extract global totals, blob health, and per-tenant status from the GLOBAL pdf_sync_status call.
+        // FRC (Feb 2026): The global call already includes per_tenant_status with total/synced/pending/percentage
+        // for every tenant. Using this eliminates N+1 per-tenant API calls that were timing out (H12)
+        // on staging with 10+ Xero orgs, causing pdf_sync to always be undefined → shows "0/total".
         let globalTotals: TotalsSummary | undefined;
         let globalBlobHealth: BlobHealth | undefined;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let globalPerTenantStatus: Array<any> = [];
         if (globalPdfResponse.success && globalPdfResponse.data) {
           globalTotals = globalPdfResponse.data.totals_summary;
           globalBlobHealth = globalPdfResponse.data.blob_health;
+          globalPerTenantStatus = globalPdfResponse.data.per_tenant_status || [];
         }
 
-        // Per-tenant PDF sync is now lazy-loaded only for expanded tenants
-        // This eliminates N API calls on every 30s poll cycle
+        // Build per-tenant PDF data from the global response's per_tenant_status.
+        // This is reliable (single API call already succeeded) vs the old approach
+        // of making N separate per-tenant calls that would time out.
+        const perTenantPdfData: Record<string, { pdf_sync?: TenantPdfSyncStats; data_sync?: TenantDataSyncStats }> = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        globalPerTenantStatus.forEach((pts: any) => {
+          if (pts.tenant_id) {
+            perTenantPdfData[pts.tenant_id] = {
+              pdf_sync: {
+                total: pts.total ?? 0,
+                synced: pts.synced ?? 0,
+                pending: pts.pending ?? 0,
+                percentage: pts.percentage ?? 0,
+                last_synced_at: null,
+                next_sync_at: null,
+                schedule: null,
+                blocker: pts.status === "rate_limited" ? {
+                  reason: pts.reason || "Rate limited",
+                  detail: pts.detail || "",
+                } : null,
+                breakdown: null,
+              },
+            };
+          }
+        });
+
+        // On first load, also try per-tenant detailed calls for breakdown/schedule info.
+        // These enhance the display but are NOT required — the global data above is sufficient.
+        const isFirstFetch = !hasFetchedPdfSyncRef.current;
+        if (isFirstFetch && response.data.tenants.length > 0) {
+          hasFetchedPdfSyncRef.current = true;
+          const pdfResponses = await Promise.all(
+            response.data.tenants.map((tenant) =>
+              api.get<{ success: boolean; data: { pdf_sync?: TenantPdfSyncStats; data_sync?: TenantDataSyncStats } }>(
+                `/api/v1/xero/pdf_sync_status?tenant_id=${tenant.tenant_id}`
+              ).catch(() => null)
+            )
+          );
+          response.data.tenants.forEach((tenant, i) => {
+            const pdfRes = pdfResponses[i];
+            if (pdfRes?.success && pdfRes.data) {
+              // Detailed per-tenant data overrides the basic global data
+              perTenantPdfData[tenant.tenant_id] = mapPdfSyncResponse(pdfRes.data);
+            }
+          });
+        }
+
         const enrichedTenants = response.data.tenants.map((tenant) => {
-          // Preserve existing pdf_sync/data_sync data from previous fetches
+          // Use fresh data from global or per-tenant calls; on polls, preserve existing
           const existing = data?.tenants?.find((t) => t.tenant_id === tenant.tenant_id);
+          const freshPdf = perTenantPdfData[tenant.tenant_id];
           return {
             ...tenant,
-            pdf_sync: existing?.pdf_sync,
-            data_sync: existing?.data_sync,
+            pdf_sync: freshPdf?.pdf_sync ?? existing?.pdf_sync,
+            data_sync: freshPdf?.data_sync ?? existing?.data_sync,
           };
         });
 
@@ -480,6 +568,12 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
     const interval = setInterval(fetchData, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [fetchData, isActiveTab]);
+
+  // Manual refresh re-fetches per-tenant PDF sync data too
+  const handleManualRefresh = React.useCallback(() => {
+    hasFetchedPdfSyncRef.current = false;
+    fetchData();
+  }, [fetchData]);
 
   const handleSyncContacts = async () => {
     setSyncing("contacts");
@@ -593,13 +687,14 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
         `/api/v1/xero/pdf_sync_status?tenant_id=${tenantId}`
       );
       if (response.success && response.data) {
+        const mapped = mapPdfSyncResponse(response.data);
         setData((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
             tenants: prev.tenants.map((t) =>
               t.tenant_id === tenantId
-                ? { ...t, pdf_sync: response.data.pdf_sync, data_sync: response.data.data_sync }
+                ? { ...t, pdf_sync: mapped.pdf_sync, data_sync: mapped.data_sync }
                 : t
             ),
           };
@@ -618,9 +713,10 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
         next.delete(tenantId);
       } else {
         next.add(tenantId);
-        // Lazy-load PDF sync data for this tenant if not already loaded
+        // Lazy-load detailed PDF sync data for this tenant if we only have basic data
+        // (basic data comes from global per_tenant_status, detailed adds breakdown/schedule/timing)
         const tenant = data?.tenants?.find((t) => t.tenant_id === tenantId);
-        if (tenant && !tenant.pdf_sync) {
+        if (tenant && (!tenant.pdf_sync || !tenant.pdf_sync.breakdown)) {
           fetchTenantPdfSync(tenantId);
         }
       }
@@ -668,7 +764,7 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={fetchData}
+                onClick={handleManualRefresh}
                 disabled={loading}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />

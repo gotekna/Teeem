@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "stripe"
+
 # Service to provision new tenants during self-service signup
 #
 # This service creates the full multi-tenancy structure for a new customer:

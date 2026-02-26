@@ -106,48 +106,44 @@ class XeroDuplicateFixService
   # @param group_id [String] Normalized name (parameterized)
   # @param target_contact_id [Integer] The SSoT contact to merge into
   # @return [Hash] Result with merged_count and deleted_ids
+  #
+  # FRC (Feb 2026): Previous manual merge only handled 5 FK types but contacts have 60+ DB FK
+  # constraints (gl_invoices, bill_inboxes, meeting_participants, etc.). source.destroy! failed
+  # with FK violation errors. Now delegates to GenericMergeService which handles ALL FKs via
+  # Rails reflection + database schema queries.
   def merge_group(group_id, target_contact_id)
     target = Contact.find(target_contact_id)
 
     # Find all contacts in this group by matching against target's normalized name
     # This ensures we use the same normalization as find_duplicate_groups
     # Don't try to reverse parameterize - special chars like & get lost
-    contacts = Contact.where(is_active: true)
+    sources = Contact.where(is_active: true)
                      .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = LOWER(TRIM(REGEXP_REPLACE(?, '\\s+', ' ', 'g')))", target.display_name)
                      .where.not(id: target_contact_id)
+                     .to_a
 
-    deleted_ids = []
-    merged_count = 0
-
-    ActiveRecord::Base.transaction do
-      contacts.each do |source|
-        # 1. Move Xero links to target
-        merge_xero_links(target, [ source ])
-
-        # 2. Transfer relationships
-        transfer_relationships(target, source)
-
-        # 3. Merge contact data (fill missing fields on target)
-        merge_contact_data(target, source)
-
-        # 4. Reload source to clear association caches (critical for destroy!)
-        #    After update_all transfers, Rails cache still shows old associations
-        #    This prevents dependent: :restrict_with_error from false-triggering
-        source.reload
-
-        # 5. Hard-delete source contact
-        deleted_ids << source.id
-        source.destroy!
-
-        merged_count += 1
-      end
-
-      target.save!
+    if sources.empty?
+      return {
+        success: true,
+        merged_count: 0,
+        deleted_ids: [],
+        target_id: target.id
+      }
     end
+
+    deleted_ids = sources.map(&:id)
+
+    # GenericMergeService handles ALL FK references:
+    # - Rails associations (has_many/has_one with any dependent option)
+    # - Database FK constraints (catches undeclared associations)
+    # - Unique constraint conflicts (deletes duplicates)
+    # - Fills blank fields from sources
+    merger = GenericMergeService.new(target, sources, Contact)
+    merger.merge!
 
     {
       success: true,
-      merged_count: merged_count,
+      merged_count: merger.merged_count,
       deleted_ids: deleted_ids,
       target_id: target.id
     }
@@ -163,158 +159,4 @@ class XeroDuplicateFixService
     }
   end
 
-  private
-
-  # Move external_links from sources to target
-  def merge_xero_links(target, sources)
-    sources.each do |source|
-      ContactExternalLink.where(contact_id: source.id).each do |link|
-        # Check if target already has this tenant
-        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
-        existing = ContactExternalLink.find_by(
-          contact_id: target.id,
-          xero_org_id: link.xero_org_id,
-          source: link.source
-        )
-
-        if existing
-          # Target already linked to this tenant - destroy duplicate link
-          Rails.logger.info("Skipping link #{link.id} - target already linked to #{link.xero_org_id}")
-          link.destroy
-        else
-          # Move link to target
-          link.update!(contact_id: target.id)
-          Rails.logger.info("Moved link #{link.id} (#{link.tenant_name}) to contact #{target.id}")
-        end
-      end
-    end
-  end
-
-  # Transfer relationships from source to target
-  def transfer_relationships(target, source)
-    # Transfer job contacts
-    source.job_contacts.each do |jc|
-      existing = target.job_contacts.find_by(job_id: jc.job_id)
-      if existing
-        jc.destroy
-      else
-        jc.update!(contact_id: target.id)
-      end
-    end
-
-    # Transfer case contacts
-    source.case_contacts.each do |cc|
-      existing = target.case_contacts.find_by(case_id: cc.case_id)
-      if existing
-        cc.destroy
-      else
-        cc.update!(contact_id: target.id)
-      end
-    end
-
-    # Transfer purchase orders
-    # Use update_all to avoid association cache issues that prevent destroy
-    source.purchase_orders.update_all(supplier_id: target.id)
-
-    # Transfer pricebook items
-    source.pricebook_items.each do |item|
-      existing = target.pricebook_items.find_by(
-        material_id: item.material_id,
-        unit: item.unit
-      )
-      if existing
-        # Keep newer price
-        if item.updated_at > existing.updated_at
-          existing.update!(
-            price: item.price,
-            updated_at: item.updated_at
-          )
-        end
-        item.destroy
-      else
-        item.update!(supplier_id: target.id)
-      end
-    end
-
-    # Transfer contact relationships
-    source.outgoing_relationships.each do |rel|
-      existing = target.outgoing_relationships.find_by(
-        related_contact_id: rel.related_contact_id,
-        relationship_type: rel.relationship_type
-      )
-      if existing
-        rel.destroy
-      else
-        rel.update!(source_contact_id: target.id)
-      end
-    end
-
-    # Update incoming relationships pointing to source
-    ContactRelationship.where(related_contact_id: source.id).each do |rel|
-      existing = ContactRelationship.find_by(
-        source_contact_id: rel.source_contact_id,
-        related_contact_id: target.id,
-        relationship_type: rel.relationship_type
-      )
-      if existing
-        rel.destroy
-      else
-        rel.update!(related_contact_id: target.id)
-      end
-    end
-  end
-
-  # Merge contact data from source to target (fill missing fields)
-  def merge_contact_data(target, source)
-    # Fill missing email
-    target.email = source.email if target.email.blank? && source.email.present?
-
-    # Fill missing phone numbers
-    target.mobile_phone = source.mobile_phone if target.mobile_phone.blank? && source.mobile_phone.present?
-    target.office_phone = source.office_phone if target.office_phone.blank? && source.office_phone.present?
-
-    # Fill missing tax number (ABN)
-    target.abn = source.abn if target.abn.blank? && source.abn.present?
-
-    # Fill missing website
-    target.website = source.website if target.website.blank? && source.website.present?
-
-    # Fill missing address from contact_addresses (SSoT)
-    if target.contact_addresses.empty? && source.contact_addresses.any?
-      source.contact_addresses.each do |addr|
-        target.contact_addresses.build(
-          address_type: addr.address_type,
-          line1: addr.line1,
-          line2: addr.line2,
-          line3: addr.line3,
-          line4: addr.line4,
-          city: addr.city,
-          region: addr.region,
-          postal_code: addr.postal_code,
-          country: addr.country,
-          is_primary: addr.is_primary
-        )
-      end
-    end
-
-    # Merge roles (union)
-    # Handle roles stored as JSON strings (e.g., "[]" or "[\"role1\"]")
-    source_roles = parse_roles(source.roles)
-    target_roles = parse_roles(target.roles)
-    if source_roles.any?
-      target.roles = (target_roles + source_roles).uniq
-    end
-
-    # Don't save here - let merge_group handle it
-  end
-
-  # Parse roles that might be stored as JSON string or array
-  def parse_roles(roles)
-    return [] if roles.blank?
-    return roles if roles.is_a?(Array)
-    return JSON.parse(roles) if roles.is_a?(String) && roles.start_with?('[')
-    []
-  rescue JSON::ParserError
-    []
-  end
 end

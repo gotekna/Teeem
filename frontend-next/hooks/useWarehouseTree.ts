@@ -533,6 +533,15 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
             isImage?: boolean;
           }>;
           count: { folders: number; files: number; total: number };
+          smTaskInfo?: {
+            taskId: number;
+            taskName: string;
+            startDate: string | null;
+            endDate: string | null;
+            startedAt: string | null;
+            completedAt: string | null;
+            status: string;
+          };
         };
       }>(`/api/v1/warehouse_types/scoped_folder_files?linkable_type=${encodeURIComponent(mode.linkableType)}&linkable_id=${mode.linkableId}&folder_id=${folderId}`);
 
@@ -552,7 +561,14 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           count: f.count,
           folderId: f.folderId,
         }));
-        setS3Folders(prev => ({ ...prev, [cacheKey]: { folders, files } }));
+        setS3Folders(prev => ({
+          ...prev,
+          [cacheKey]: {
+            folders,
+            files,
+            smTaskInfo: response.data.smTaskInfo || undefined,
+          },
+        }));
       }
     } catch (err) {
       console.error(`Failed to fetch scoped folder files for folder ${folderId}:`, err);

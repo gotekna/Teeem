@@ -21,7 +21,7 @@
 #
 class TenantConfigSyncService
   # SSoT: Configuration tables available for sync
-  # Groups for UI organization: jobs, documents, contacts, schedule, operations
+  # Groups for UI organization: jobs, documents, contacts, schedule, pricebook, operations, po_templates
   CONFIG_TABLES = {
     # ============================================================================
     # Jobs Group
@@ -33,7 +33,10 @@ class TenantConfigSyncService
       sync_fields: [:name, :color, :icon, :description, :is_active, :position,
                     :sm_schedule_master_template_id],
       description: "Job type classifications",
-      group: "jobs"
+      group: "jobs",
+      remap_fks: {
+        sm_schedule_master_template_id: { model: "SmScheduleMasterTemplate", match_field: :name }
+      }
     },
     job_statuses: {
       model: "JobStatus",
@@ -201,16 +204,20 @@ class TenantConfigSyncService
       model: "SmScheduleMaster",
       name_field: :name,
       match_fields: [:task_number],
+      # NOTE: hold, confirm, supplier_confirm EXCLUDED - job-reality flags that
+      # should never be true on templates (they represent actual job commitments)
       sync_fields: [:task_number, :name, :description, :sequence_order, :duration_days,
                     :trade, :stage, :pass_fail_enabled, :order_time_days, :call_time_days,
-                    :require_photo, :confirm, :po_required, :critical_po, :has_subtasks,
+                    :require_photo, :po_required, :critical_po, :has_subtasks,
                     :subtask_count, :subtask_names, :tags, :color, :is_active, :cost_centre,
-                    :supplier_confirm, :header_gantt, :hold, :assigned_role, :is_claim_task,
-                    :claim_percentage, :is_variation, :sm_template_ids],
+                    :header_gantt, :assigned_role, :is_claim_task,
+                    :claim_percentage, :is_variation, :sm_template_ids, :predecessor_ids],
       description: "Schedule Master task templates",
       group: "schedule",
       remap_fks: {
-        sm_template_ids: { model: "SmScheduleMasterTemplate", match_field: :name, array: true }
+        sm_template_ids: { model: "SmScheduleMasterTemplate", match_field: :name, array: true },
+        trade: { model: "SmTrade", match_field: :name },
+        stage: { model: "SmStage", match_field: :name }
       }
     },
     sm_trades: {
@@ -244,7 +251,10 @@ class TenantConfigSyncService
       sync_fields: [:resource_type, :name, :code, :description, :trade, :hourly_rate,
                     :daily_rate, :unit, :unit_cost, :is_active, :availability_hours_per_day],
       description: "Schedule Master resources",
-      group: "schedule"
+      group: "schedule",
+      remap_fks: {
+        trade: { model: "SmTrade", match_field: :name }
+      }
     },
     sm_schedule_master_document_types: {
       model: "SmScheduleMasterDocumentType",
@@ -256,6 +266,76 @@ class TenantConfigSyncService
       remap_fks: {
         sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key },
         document_type_id: { model: "DocumentType", match_field: :name }
+      }
+    },
+
+    # ============================================================================
+    # Pricebook Group
+    # ============================================================================
+    pricebook_categories: {
+      model: "PricebookCategory",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :display_name, :position, :icon, :color, :is_active],
+      description: "Pricebook organization categories",
+      group: "pricebook"
+    },
+    pricebook_brands: {
+      model: "PricebookBrand",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :display_name, :color, :icon, :position, :is_active],
+      description: "Pricebook brand classifications",
+      group: "pricebook"
+    },
+    pricebook_ranges: {
+      model: "PricebookRange",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :display_name, :color, :icon, :position, :is_active],
+      description: "Pricebook product ranges",
+      group: "pricebook"
+    },
+    units_of_measure: {
+      model: "UnitOfMeasure",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :sort_order, :is_active],
+      description: "Units of measure (global lookup)",
+      group: "pricebook"
+    },
+    gst_codes: {
+      model: "GstCode",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :rate, :xero_tax_types, :active, :position],
+      description: "GST/tax code definitions",
+      group: "pricebook"
+    },
+    pricebook_items: {
+      model: "PricebookItem",
+      name_field: :item_name,
+      match_fields: [:item_code],
+      sync_fields: [:item_code, :item_name, :category, :unit_of_measure, :current_price,
+                    :brand, :notes, :is_active, :supplier_price, :colour, :colour_code,
+                    :colour_brand, :lead_time_days, :call_time_days, :gst_code,
+                    :requires_photo, :requires_spec],
+      description: "Pricebook products and pricing",
+      group: "pricebook"
+    },
+    # price_histories MUST come after contacts + pricebook_items (FK dependencies)
+    price_histories: {
+      model: "PriceHistory",
+      name_field: :id,
+      match_fields: [:pricebook_item_id, :supplier_id],
+      sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
+                    :quote_reference, :lga, :date_effective, :user_name],
+      scope: -> { where(supplier_id: Contact.where(entity_type: "price_only").select(:id)) },  # SSoT: Only sync prices from price_only suppliers
+      description: "Price histories (price_only suppliers only)",
+      group: "pricebook",
+      remap_fks: {
+        supplier_id: { model: "Contact", match_field: :display_name },
+        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
       }
     },
 
@@ -273,40 +353,6 @@ class TenantConfigSyncService
                     :notification_settings, :is_active, :is_system_default],
       description: "Meeting type definitions",
       group: "operations"
-    },
-    pricebook_categories: {
-      model: "PricebookCategory",
-      name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name, :display_name, :position, :icon, :color, :is_active],
-      description: "Pricebook organization categories",
-      group: "operations"
-    },
-    pricebook_items: {
-      model: "PricebookItem",
-      name_field: :item_name,
-      match_fields: [:item_code],
-      sync_fields: [:item_code, :item_name, :category, :unit_of_measure, :current_price,
-                    :brand, :notes, :is_active, :supplier_price, :colour, :colour_code,
-                    :colour_brand, :lead_time_days, :call_time_days, :gst_code,
-                    :requires_photo, :requires_spec],
-      description: "Pricebook products and pricing",
-      group: "operations"
-    },
-    # price_histories MUST come after contacts + pricebook_items (FK dependencies)
-    price_histories: {
-      model: "PriceHistory",
-      name_field: :id,
-      match_fields: [:pricebook_item_id, :supplier_id],
-      sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
-                    :quote_reference, :lga, :date_effective, :user_name],
-      scope: -> { where(supplier_id: Contact.where(entity_type: "price_only").select(:id)) },  # SSoT: Only sync prices from price_only suppliers
-      description: "Price histories (price_only suppliers only)",
-      group: "operations",
-      remap_fks: {
-        supplier_id: { model: "Contact", match_field: :display_name },
-        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
-      }
     },
     public_holidays: {
       model: "PublicHoliday",
@@ -328,6 +374,27 @@ class TenantConfigSyncService
         parent_id: { model: "CostCentre", match_field: :code }
       }
     },
+    tender_headers: {
+      model: "TenderHeader",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :sort_order, :active, :metadata],
+      description: "Tender header groupings (top-level containers for tender sections)",
+      group: "operations"
+    },
+    tenders: {
+      model: "Tender",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :section_type, :sort_order, :show_line_items,
+                    :section_notes, :active, :default_note, :tender_header_id, :metadata,
+                    :attached_document_types],
+      description: "Tender section definitions (grouped under tender headers)",
+      group: "operations",
+      remap_fks: {
+        tender_header_id: { model: "TenderHeader", match_field: :code }
+      }
+    },
     supervisor_checklist_templates: {
       model: "SupervisorChecklistTemplate",
       name_field: :name,
@@ -340,33 +407,38 @@ class TenantConfigSyncService
       model: "PoTemplatePack",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :description, :is_active, :position],
+      sync_fields: [:name, :description, :is_active, :position, :sm_schedule_master_template_id],
       description: "PO template pack definitions",
-      group: "operations"
+      group: "po_templates",
+      remap_fks: {
+        sm_schedule_master_template_id: { model: "SmScheduleMasterTemplate", match_field: :name }
+      }
     },
     po_template_items: {
       model: "PoTemplateItem",
       name_field: :name,
       match_fields: [:po_template_pack_id, :name],
       sync_fields: [:po_template_pack_id, :name, :sm_schedule_master_id, :supplier_sync_key,
-                    :position, :budget, :notes, :status_on_create],
+                    :position, :budget, :notes, :status_on_create, :profit_centre_id],
       description: "PO template pack items (individual PO definitions)",
-      group: "operations",
+      group: "po_templates",
       remap_fks: {
         po_template_pack_id: { model: "PoTemplatePack", match_field: :name },
-        sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key }
+        sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key },
+        profit_centre_id: { model: "ProfitCentre", match_field: :code }
       }
     },
     po_template_line_items: {
       model: "PoTemplateLineItem",
       name_field: :description,
       match_fields: [:po_template_item_id, :line_number],
-      sync_fields: [:po_template_item_id, :pricebook_item_code, :description, :quantity,
+      sync_fields: [:po_template_item_id, :pricebook_item_id, :pricebook_item_code, :description, :quantity,
                     :unit_price, :gst_code, :line_number],
       description: "PO template line item details",
-      group: "operations",
+      group: "po_templates",
       remap_fks: {
-        po_template_item_id: { model: "PoTemplateItem", match_field: :sync_key }
+        po_template_item_id: { model: "PoTemplateItem", match_field: :sync_key },
+        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
       }
     },
 
@@ -544,7 +616,9 @@ class TenantConfigSyncService
     "documents" => "Documents",
     "contacts" => "Contacts",
     "schedule" => "Schedule Master",
+    "pricebook" => "Pricebook",
     "operations" => "Operations",
+    "po_templates" => "PO Templates",
     "estimating" => "Estimating",
     "finance" => "Finance",
     "warehouse" => "Warehouse",
@@ -552,6 +626,29 @@ class TenantConfigSyncService
     "email" => "Email",
     "plans" => "Plans"
   }.freeze
+
+  # Derive table dependencies from remap_fks configuration.
+  # Returns { "po_template_line_items" => ["po_template_items", "pricebook_items"], ... }
+  # This tells the UI which tables must be synced BEFORE a given table.
+  def self.table_dependencies
+    # Build model → table_key lookup (e.g. "PricebookItem" => "pricebook_items")
+    model_to_table = {}
+    CONFIG_TABLES.each { |key, config| model_to_table[config[:model]] = key.to_s }
+
+    deps = {}
+    CONFIG_TABLES.each do |key, config|
+      next unless config[:remap_fks].present?
+
+      table_deps = config[:remap_fks].values.filter_map do |fk_config|
+        dep_table = model_to_table[fk_config[:model]]
+        # Skip self-referential dependencies (e.g. cost_centres parent_id → CostCentre)
+        dep_table if dep_table && dep_table != key.to_s
+      end.uniq
+
+      deps[key.to_s] = table_deps if table_deps.any?
+    end
+    deps
+  end
 
   # List all available config tables with counts
   def available_tables
@@ -578,14 +675,21 @@ class TenantConfigSyncService
 
     CONFIG_TABLES.each do |key, config|
       model = config[:model].constantize
+      has_tenant = model.column_names.include?("tenant_id")
 
-      master_count = if master
+      master_count = if !has_tenant
+        scoped_query(model, config).count
+      elsif master
         ActsAsTenant.with_tenant(master) { scoped_query(model, config).count }
       else
         0
       end
 
-      tenant_count = ActsAsTenant.with_tenant(tenant) { scoped_query(model, config).count }
+      tenant_count = if has_tenant
+        ActsAsTenant.with_tenant(tenant) { scoped_query(model, config).count }
+      else
+        scoped_query(model, config).count
+      end
 
       counts[key.to_s] = {
         master: master_count,
@@ -605,15 +709,25 @@ class TenantConfigSyncService
 
     CONFIG_TABLES.each do |key, config|
       model = config[:model].constantize
+      has_tenant = model.column_names.include?("tenant_id")
       counts[key.to_s] = {}
 
-      tenants.each do |t|
-        count = ActsAsTenant.with_tenant(t) { scoped_query(model, config).count }
-        counts[key.to_s][t.slug || t.id.to_s] = count
-      end
+      if has_tenant
+        tenants.each do |t|
+          count = ActsAsTenant.with_tenant(t) { scoped_query(model, config).count }
+          counts[key.to_s][t.slug || t.id.to_s] = count
+        end
 
-      # Also count NULL tenant records (unscoped)
-      counts[key.to_s]["null"] = model.unscoped.where(tenant_id: nil).count
+        # Also count NULL tenant records (unscoped)
+        counts[key.to_s]["null"] = model.unscoped.where(tenant_id: nil).count
+      else
+        # Global lookup table (no tenant_id) - same count for all tenants
+        global_count = scoped_query(model, config).count
+        tenants.each do |t|
+          counts[key.to_s][t.slug || t.id.to_s] = global_count
+        end
+        counts[key.to_s]["null"] = 0
+      end
     end
 
     {

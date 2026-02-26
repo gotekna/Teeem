@@ -462,7 +462,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
             )}
             {/* Icon: Loading > Clear > Search */}
             {isLoading ? (
-              <Spinner size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"><Spinner size={16} /></span>
             ) : clearable && selectedItem && !open ? (
               <X
                 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"

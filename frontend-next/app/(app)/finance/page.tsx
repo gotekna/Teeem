@@ -55,8 +55,8 @@ export default function FinancePage() {
       setLoading(true);
       try {
         const [statusRes, statsRes] = await Promise.all([
-          api.get<{ success: boolean; data: XeroStatus }>("/api/v1/xero/status").catch(() => null),
-          api.get<BillStats>("/api/v1/bill_inbox/stats").catch(() => null),
+          api.get<{ success: boolean; data: XeroStatus }>("/api/v1/xero/status").catch((err) => { console.error("[Finance] Failed to fetch Xero status:", err); return null; }),
+          api.get<BillStats>("/api/v1/bill_inbox/stats").catch((err) => { console.error("[Finance] Failed to fetch bill stats:", err); return null; }),
         ]);
 
         if (statusRes?.data) {

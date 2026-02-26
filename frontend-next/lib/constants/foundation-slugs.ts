@@ -43,6 +43,8 @@ export const FOUNDATION_SLUGS = {
   ACCOUNTING_INTEGRATIONS: 'accounting_integrations',
   COST_CENTRES: 'cost_centres',
   PROFIT_CENTRES: 'profit_centres',
+  TENDERS: 'tenders',
+  TENDER_HEADERS: 'tender_headers',
   GL_RECURRING_INVOICES: 'gl_recurring_invoices',
   PAY_NOW_REQUESTS: 'pay_now_requests',
   PAY_NOW_WEEKLY_LIMITS: 'pay_now_weekly_limits',
@@ -133,6 +135,9 @@ export const FOUNDATION_SLUGS = {
   // ═══════════════════════════════════════════════════════════════════════════
   PRICEBOOK_ITEMS: 'pricebook-items',  // ⚠️ HYPHEN
   PRICEBOOK_CATEGORIES: 'pricebook_categories',  // underscore
+  PRICEBOOK_BRANDS: 'pricebook_brands',  // underscore
+  PRICEBOOK_RANGES: 'pricebook_ranges',  // underscore
+  UNITS_OF_MEASURE: 'units_of_measure',  // underscore
   PRICE_HISTORIES: 'price-histories',  // ⚠️ HYPHEN
   RECIPES: 'recipes',
   RECIPE_CATEGORIES: 'recipe_categories',
@@ -153,6 +158,7 @@ export const FOUNDATION_SLUGS = {
   // Quotes & Requests
   // ═══════════════════════════════════════════════════════════════════════════
   QUOTE_TRACKER: 'quote-tracker',  // ⚠️ HYPHEN - PreCon quote tracking
+  QUOTE_TEMPLATES: 'quote-templates',  // ⚠️ HYPHEN - RFQ template system
   QUOTE_REQUESTS: 'quote_requests',
   QUOTE_REQUEST_CONTACTS: 'quote_request_contacts',
   QUOTE_RESPONSES: 'quote_responses',

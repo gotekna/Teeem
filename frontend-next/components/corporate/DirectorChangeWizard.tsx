@@ -42,6 +42,7 @@ import {
   Check,
   Clock,
   Download,
+  Eye,
   FileText,
   Pencil,
   Plus,
@@ -250,7 +251,8 @@ export function DirectorChangeWizard({
   const [pdfGenerationId, setPdfGenerationId] = React.useState<number | null>(null);
   const [pdfDownloadUrl, setPdfDownloadUrl] = React.useState<string | null>(null);
   const [generatedFilename, setGeneratedFilename] = React.useState<string>("");
-  const [generatedDocuments, setGeneratedDocuments] = React.useState<Array<{ type: string; name: string }>>([]);
+  const [generatedDocuments, setGeneratedDocuments] = React.useState<Array<{ type: string; name: string; page?: number }>>([]);
+  const [previewPage, setPreviewPage] = React.useState<number | null>(null);
 
   // Step 4 state
   const [sending, setSending] = React.useState(false);
@@ -283,6 +285,7 @@ export function DirectorChangeWizard({
       setPdfDownloadUrl(null);
       setGeneratedFilename("");
       setGeneratedDocuments([]);
+      setPreviewPage(null);
       setSent(false);
       setRequestNumber("");
       setError(null);
@@ -341,7 +344,7 @@ export function DirectorChangeWizard({
         const blobUrl = await fetchPdfAsBlob(gen.downloadUrl!);
         if (blobUrl) setPdfDownloadUrl(blobUrl);
         setGeneratedFilename(gen.filename || "");
-        const docs = gen.result?.documents as Array<{ type: string; name: string }> | undefined;
+        const docs = gen.result?.documents as Array<{ type: string; name: string; page?: number }> | undefined;
         if (docs) setGeneratedDocuments(docs);
         setStep(3);
       } finally {
@@ -367,7 +370,7 @@ export function DirectorChangeWizard({
           const blobUrl = await fetchPdfAsBlob(result.downloadUrl);
           if (blobUrl) setPdfDownloadUrl(blobUrl);
           setGeneratedFilename(result.filename || "");
-          const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
+          const docs = result.result?.documents as Array<{ type: string; name: string; page?: number }> | undefined;
           if (docs) setGeneratedDocuments(docs);
           setStep(3);
         } else {
@@ -427,6 +430,10 @@ export function DirectorChangeWizard({
       );
       return others.length < 2;
     });
+    // Normalize to lowercase snake_case to match POSITION_OPTIONS values
+    const normalizedPositions = uniquePositions.map((p) =>
+      p.toLowerCase().trim().replace(/\s+/g, "_")
+    );
 
     // Collect all officer record IDs for this contact
     const officerIds = currentOfficers
@@ -475,7 +482,7 @@ export function DirectorChangeWizard({
         officer_ids: officerIds,
         name: officer.contact?.display_name || "Unknown",
         position: officer.position,
-        positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
+        positions: normalizedPositions.length > 0 ? normalizedPositions : [officer.position.toLowerCase().trim().replace(/\s+/g, "_")],
         cessation_date: format(new Date(), DATE_ISO),
         has_dob: hasDob,
         has_address: hasAddress,
@@ -550,13 +557,18 @@ export function DirectorChangeWizard({
       // If fetch fails, keep search-level values
     }
 
+    // Default positions to match ceasing directors' positions (if any)
+    const defaultPositions = ceasingDirectors.length > 0
+      ? [...new Set(ceasingDirectors.flatMap((cd) => cd.positions))]
+      : ["director"];
+
     setNewAppointments((prev) => [
       ...prev,
       {
         contact_id: contact.id,
         name: contact.display_name,
         email: contact.email || "",
-        positions: ["director"],
+        positions: defaultPositions,
         appointment_date: defaultDate,
         has_dob: hasDob,
         has_address: hasAddress,
@@ -654,7 +666,7 @@ export function DirectorChangeWizard({
           setError("Failed to download generated PDF");
         }
         setGeneratedFilename(result.filename || "");
-        const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
+        const docs = result.result?.documents as Array<{ type: string; name: string; page?: number }> | undefined;
         if (docs) {
           setGeneratedDocuments(docs);
         }
@@ -1462,18 +1474,24 @@ export function DirectorChangeWizard({
                 } else if (doc.type === "minutes") {
                   signerLabel = "Signed by Chairperson at meeting";
                   signerColor = "text-blue-600 dark:text-blue-400";
-                } else if (doc.type === "form_484") {
+                } else if (doc.type === "form_484" || doc.type === "form_484_cessation" || doc.type === "form_484_appointment") {
                   signerLabel = "Internal record — no signature required";
                 }
 
+                const isSelected = previewPage === (doc.page || 1);
                 return (
                   <div
                     key={i}
-                    className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm cursor-pointer hover:bg-muted transition-colors"
-                    onDoubleClick={() => pdfDownloadUrl && window.open(pdfDownloadUrl, "_blank")}
-                    title="Double-click to open in new window"
+                    className={cn(
+                      "flex items-center gap-2 p-2 rounded text-sm cursor-pointer transition-colors",
+                      isSelected
+                        ? "bg-primary/10 border border-primary/30"
+                        : "bg-muted/50 hover:bg-muted",
+                    )}
+                    onClick={() => doc.page && setPreviewPage(doc.page)}
+                    title="Click to preview this document"
                   >
-                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <Eye className={cn("w-4 h-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
                     <div className="flex-1 min-w-0">
                       <span className="select-none">{doc.name}</span>
                       {signerLabel && (
@@ -1483,9 +1501,9 @@ export function DirectorChangeWizard({
                         </div>
                       )}
                     </div>
-                    <Badge variant="secondary" className="ml-auto text-xs shrink-0">
-                      {doc.type}
-                    </Badge>
+                    {doc.page && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">p.{doc.page}</span>
+                    )}
                   </div>
                 );
               })}
@@ -1495,7 +1513,8 @@ export function DirectorChangeWizard({
             {pdfDownloadUrl && (
               <div className="border rounded-lg overflow-hidden" style={{ height: "500px" }}>
                 <object
-                  data={`${pdfDownloadUrl}#toolbar=1&navpanes=0`}
+                  key={previewPage || 0}
+                  data={`${pdfDownloadUrl}#toolbar=1&navpanes=0${previewPage ? `&page=${previewPage}` : ""}`}
                   type="application/pdf"
                   className="w-full h-full"
                 >

@@ -1,14 +1,21 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+require "grover"
+
 # DirectorChangeService generates ASIC Form 484 director change packages.
 #
-# Generates 4 documents:
+# Generates up to 5 documents:
 # 1. Minutes of Meeting of Directors (board resolution)
 # 2. Director Resignation Letter (for outgoing director to sign)
 # 3. Consent to Act as Director (for incoming director to sign)
-# 4. Form 484 Record Copy (internal record for ASIC filing)
+# 4. Form 484 Record - Cessation (internal record for ASIC filing)
+# 5. Form 484 Record - Appointment (internal record for ASIC filing)
 #
-# All three are combined into a single PDF package and optionally sent
+# Document names are resolved from DocumentType records (SSoT) via abbreviation,
+# so renaming in settings is reflected in generated documents.
+#
+# All documents are combined into a single PDF package and optionally sent
 # for e-signature via TEEEM's e-signature system.
 #
 # Usage:
@@ -44,14 +51,22 @@ class DirectorChangeService
   end
 
   # Generate combined PDF package without sending
-  def generate_package
-    documents = generate_all_documents
-    combined_pdf = combine_pdfs(documents)
+  def generate_package(on_progress: nil)
+    documents = generate_all_documents(on_progress: on_progress)
+    on_progress&.call(nil, nil, "Combining documents...")
+    combined_pdf, page_offsets = combine_pdfs_with_offsets(documents)
+
+    # Attach 1-based page offset to each document for frontend navigation.
+    # Include :abbreviation and :pdf_content so callers (e.g. DirectorChangeTask)
+    # can store individual documents in the warehouse.
+    doc_metadata = documents.each_with_index.map do |d, i|
+      d.slice(:type, :name, :abbreviation, :pdf_content).merge(page: page_offsets[i] || 1)
+    end
 
     {
       pdf_content: combined_pdf,
       filename: generate_filename,
-      documents: documents.map { |d| { type: d[:type], name: d[:name] } },
+      documents: doc_metadata,
       generated_at: Time.current
     }
   end
@@ -112,17 +127,19 @@ class DirectorChangeService
         )
       end
 
-      # Create new CorporateDirector records for appointments
+      # Create new CorporateDirector records for appointments.
+      # DB unique constraint (company_id, contact_id) WHERE is_current = true
+      # means ONE record per contact with combined position string.
       new_appointments.each do |appt_data|
         contact = appt_data[:contact]
-        appt_data[:positions].each do |position|
-          company.corporate_directors.create!(
-            contact: contact,
-            position: position,
-            appointment_date: appt_data[:appointment_date],
-            is_current: true
-          )
-        end
+        combined_position = appt_data[:positions].join("_")
+
+        company.corporate_directors.create!(
+          contact: contact,
+          position: combined_position,
+          appointment_date: appt_data[:appointment_date],
+          is_current: true
+        )
 
         log_activity(
           "director_appointed",
@@ -148,14 +165,36 @@ class DirectorChangeService
     when "consent"
       raise GenerationError, "No new appointments to preview" if new_appointments.empty?
       render_consent(new_appointments.first)[:html]
-    when "form_484"
-      render_form_484[:html]
+    when "form_484", "form_484_cessation"
+      raise GenerationError, "No ceasing directors to preview" if ceasing_directors.empty?
+      render_form_484_cessation[:html]
+    when "form_484_appointment"
+      raise GenerationError, "No new appointments to preview" if new_appointments.empty?
+      render_form_484_appointment[:html]
     else
       raise GenerationError, "Unknown document type: #{document_type}"
     end
   end
 
+  # Pre-calculate total document count for progress tracking.
+  # Public because BpmnTasks::DirectorChangeTask calls this externally.
+  def document_count
+    count = 1 # Minutes
+    count += ceasing_directors.sum { |cd| cd[:positions].size } # Resignations
+    count += new_appointments.sum { |appt| appt[:positions].size } # Consents
+    count += 1 if ceasing_directors.present? # Form 484 cessation
+    count += 1 if new_appointments.present? # Form 484 appointment
+    count
+  end
+
   private
+
+  # Resolve the Form 484 document type from the "ASIC" warehouse folder.
+  # This ensures the e-signature request (and its stored signed PDF) gets the
+  # correct document type for folder routing and metadata.
+  def resolve_form484_document_type
+    DocumentType.find_by(abbreviation: "F484")
+  end
 
   def validate!
     raise GenerationError, "Company is required" unless company
@@ -179,24 +218,44 @@ class DirectorChangeService
 
   # --- Document Generation ---
 
-  def generate_all_documents
+  def generate_all_documents(on_progress: nil)
     documents = []
+    total = document_count
 
     # Generate minutes of directors' meeting (first - it's the board resolution)
+    on_progress&.call(1, total, "Minutes of Meeting")
     documents << render_minutes
 
-    # Generate resignation letters
+    # Generate one resignation letter per position per ceasing director
     ceasing_directors.each do |cd|
-      documents << render_resignation(cd)
+      cd[:positions].each do |position|
+        doc_name = "Resignation - #{cd[:corporate_director].contact.display_name}"
+        on_progress&.call(documents.size + 1, total, doc_name)
+        documents << render_resignation(cd.merge(positions: [position]))
+      end
     end
 
-    # Generate consent forms
+    # Generate one consent form per position per new appointment
     new_appointments.each do |appt|
-      documents << render_consent(appt)
+      appt[:positions].each do |position|
+        doc_name = "Consent - #{appt[:contact].display_name}"
+        on_progress&.call(documents.size + 1, total, doc_name)
+        documents << render_consent(appt.merge(positions: [position]))
+      end
     end
 
-    # Generate Form 484 record
-    documents << render_form_484
+    # Generate Form 484 records (separate documents for cessation and appointment)
+    if ceasing_directors.present?
+      on_progress&.call(documents.size + 1, total, "Form 484 - Cessation")
+      form_484_cessation = render_form_484_cessation
+      documents << form_484_cessation if form_484_cessation
+    end
+
+    if new_appointments.present?
+      on_progress&.call(documents.size + 1, total, "Form 484 - Appointment")
+      form_484_appointment = render_form_484_appointment
+      documents << form_484_appointment if form_484_appointment
+    end
 
     documents
   end
@@ -217,9 +276,15 @@ class DirectorChangeService
     html = render_template("director_resignation", context)
     pdf = convert_to_pdf(html)
 
+    # Resolve name from DocumentType by primary position abbreviation
+    primary_pos = cd_data[:positions]&.first || "director"
+    resignation_abbr = RESIGNATION_DOC_TYPES[primary_pos] || "RD"
+    doc_name = resolve_doc_name(resignation_abbr, "Resignation")
+
     {
       type: :resignation,
-      name: "Resignation - #{contact.display_name}",
+      name: "#{doc_name} - #{contact.display_name}",
+      abbreviation: resignation_abbr,
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
@@ -244,9 +309,15 @@ class DirectorChangeService
     html = render_template("consent_to_act", context)
     pdf = convert_to_pdf(html)
 
+    # Resolve name from DocumentType by primary position abbreviation
+    primary_pos = appt_data[:positions]&.first || "director"
+    consent_abbr = CONSENT_DOC_TYPES[primary_pos] || "CAD"
+    doc_name = resolve_doc_name(consent_abbr, "Consent to Act")
+
     {
       type: :consent,
-      name: "Consent to Act - #{contact.display_name}",
+      name: "#{doc_name} - #{contact.display_name}",
+      abbreviation: consent_abbr,
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
@@ -270,26 +341,9 @@ class DirectorChangeService
     end
 
     # Determine chairperson for signing badge
-    # Priority: 1) remaining director with "chair" position, 2) first remaining director,
-    # 3) first ceasing director (outgoing chairs the meeting), 4) first new appointment
-    chairperson_contact = nil
-    chairperson_selected_email = nil
-    remaining.each do |dir|
-      if dir.position&.downcase&.include?("chair")
-        chairperson_contact = dir.contact
-        break
-      end
-    end
-    chairperson_contact ||= remaining.first&.contact
-    unless chairperson_contact
-      # Fallback to ceasing director - use their wizard-selected email
-      cd = ceasing_directors.first
-      if cd
-        chairperson_contact = cd[:corporate_director]&.contact
-        chairperson_selected_email = cd[:email]
-      end
-    end
-    chairperson_contact ||= new_appointments.first&.dig(:contact)
+    chair = determine_chairperson(remaining)
+    chairperson_contact = chair[:contact]
+    chairperson_selected_email = chair[:selected_email]
 
     context = {
       company: build_company_context,
@@ -322,14 +376,22 @@ class DirectorChangeService
 
     {
       type: :minutes,
-      name: "Minutes of Meeting of Directors",
+      name: resolve_doc_name("DM", "Minutes of Meeting of Directors"),
+      abbreviation: "DM",
       html: html,
-      pdf_content: pdf
+      pdf_content: pdf,
+      signer_name: chairperson_contact&.display_name,
+      signer_email: chairperson_selected_email.presence || chairperson_contact&.primary_email,
+      signer_contact: chairperson_contact,
+      signer_role: "chairperson"
     }
   end
 
-  def render_form_484
+  def render_form_484_cessation
+    return nil if ceasing_directors.empty?
+
     lodgement_date = Date.current
+    base_name = resolve_doc_name("F484", "Form 484")
 
     context = {
       company: build_company_context,
@@ -343,6 +405,32 @@ class DirectorChangeService
           cessation_date_formatted: cd[:cessation_date].strftime("%d/%m/%Y")
         }
       end,
+      new_appointments: [],
+      lodgement_date: lodgement_date,
+      lodgement_date_formatted: lodgement_date.strftime("%d/%m/%Y")
+    }
+
+    html = render_template("form_484_record", context)
+    pdf = convert_to_pdf(html)
+
+    {
+      type: :form_484_cessation,
+      name: "#{base_name} - Cessation",
+      abbreviation: "F484",
+      html: html,
+      pdf_content: pdf
+    }
+  end
+
+  def render_form_484_appointment
+    return nil if new_appointments.empty?
+
+    lodgement_date = Date.current
+    base_name = resolve_doc_name("F484", "Form 484")
+
+    context = {
+      company: build_company_context,
+      ceasing_directors: [],
       new_appointments: new_appointments.map do |appt|
         contact = appt[:contact]
         {
@@ -361,8 +449,9 @@ class DirectorChangeService
     pdf = convert_to_pdf(html)
 
     {
-      type: :form_484,
-      name: "Form 484 Record",
+      type: :form_484_appointment,
+      name: "#{base_name} - Appointment",
+      abbreviation: "F484",
       html: html,
       pdf_content: pdf
     }
@@ -413,19 +502,25 @@ class DirectorChangeService
 
   # --- PDF Combination ---
 
-  def combine_pdfs(documents)
+  # Combine individual document PDFs into one, tracking where each starts.
+  # Returns [combined_pdf_binary, page_offsets_array] where offsets are 1-based.
+  def combine_pdfs_with_offsets(documents)
     combined = HexaPDF::Document.new
+    page_offsets = []
+    current_page = 1
 
     documents.each do |doc|
       next unless doc[:pdf_content]
 
+      page_offsets << current_page
       source = HexaPDF::Document.new(io: StringIO.new(doc[:pdf_content]))
       source.pages.each { |page| combined.pages << combined.import(page) }
+      current_page += source.pages.count
     end
 
     output = StringIO.new
     combined.write(output)
-    output.string
+    [output.string, page_offsets]
   end
 
   # --- Storage ---
@@ -438,27 +533,102 @@ class DirectorChangeService
     )
   end
 
+  # Position → document type abbreviation mapping (matches ASIC warehouse folder WFDTs)
+  RESIGNATION_DOC_TYPES = {
+    "director" => "RD",
+    "secretary" => "RS",
+    "public_officer" => "RPO"
+  }.freeze
+
+  CONSENT_DOC_TYPES = {
+    "director" => "CAD",
+    "secretary" => "CAS",
+    "public_officer" => "CAPO"
+  }.freeze
+
+  # Fixed badge position matching the flex-pushed signature section in ASIC templates.
+  # With margin-top: auto on the signature block and flexbox on .page, the badge
+  # always renders at a consistent position regardless of content length.
+  # Values are percentages of the FULL PDF page dimensions (including margins).
+  #
+  # Signature field positions per template type (measured from rendered PDFs at 66% zoom).
+  # Each template has `margin-top: auto` pushing the signature block to the bottom,
+  # but the block HEIGHT varies by template (different fields below the signature line),
+  # so the "Signature:" label ends up at different y_percent positions.
+  #
+  # Common: x_percent: 5.0 (left margin), width_percent: 42.0 (left column), height_percent: 8.0
+  BADGE_POSITIONS = {
+    # Minutes: only "Chairperson: [name]" below signature → signature at ~85%
+    minutes:     { x_percent: 5.0, y_percent: 85.0, width_percent: 42.0, height_percent: 8.0 },
+    # Resignation: Full Name + DOB + Address below signature → signature at ~74%
+    resignation: { x_percent: 5.0, y_percent: 74.0, width_percent: 42.0, height_percent: 8.0 },
+    # Consent: only "Full Name: [name]" below signature → signature at ~83%
+    consent:     { x_percent: 5.0, y_percent: 83.0, width_percent: 42.0, height_percent: 8.0 }
+  }.freeze
+
+  # Legacy alias for external references (BPMN task etc.)
+  BADGE_POSITION = BADGE_POSITIONS[:resignation].freeze
+
   def store_signed_document(e_signature_request)
-    # Link to the signed PDF blob from the e-signature system
     signed_blob = StorageBlob.find_by(id: e_signature_request.signed_storage_reference)
+    asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
+    base_metadata = {
+      form_type: "form_484",
+      e_signature_request_id: e_signature_request.id,
+      signed_at: e_signature_request.completed_at
+    }
 
-    # Find the "Officers" warehouse folder (corporate doc type for director changes)
-    officers_folder = WarehouseFolder.find_by_type_and_name("corporate", "Officers")
+    # One warehouse document per position-specific doc type
+    minutes_name = resolve_doc_name("DM", "Minutes of Meeting of Directors")
+    store_one(signed_blob, asic_folder, "DM", minutes_name, base_metadata)
 
+    ceasing_directors.each do |cd|
+      person_name = cd[:corporate_director].contact.display_name
+      date_str = cd[:cessation_date].strftime("%d/%m/%Y")
+      cd[:positions].select { |p| RESIGNATION_DOC_TYPES.key?(p) }.each do |pos|
+        abbr = RESIGNATION_DOC_TYPES[pos]
+        doc_name = resolve_doc_name(abbr, "Resignation #{pos.tr('_', ' ').split.map(&:capitalize).join(' ')}")
+        store_one(signed_blob, asic_folder, abbr, "#{doc_name} - #{person_name} #{date_str}",
+          base_metadata.merge(person: person_name, position: pos, date: cd[:cessation_date].iso8601))
+      end
+    end
+
+    new_appointments.each do |appt|
+      person_name = appt[:contact].display_name
+      date_str = appt[:appointment_date].strftime("%d/%m/%Y")
+      appt[:positions].select { |p| CONSENT_DOC_TYPES.key?(p) }.each do |pos|
+        abbr = CONSENT_DOC_TYPES[pos]
+        doc_name = resolve_doc_name(abbr, "Consent to Act as #{pos.tr('_', ' ').split.map(&:capitalize).join(' ')}")
+        store_one(signed_blob, asic_folder, abbr, "#{doc_name} - #{person_name} #{date_str}",
+          base_metadata.merge(person: person_name, position: pos, date: appt[:appointment_date].iso8601))
+      end
+    end
+
+    # Store separate Form 484 records for cessation and appointment
+    f484_name = resolve_doc_name("F484", "Form 484")
+    if ceasing_directors.any?
+      store_one(signed_blob, asic_folder, "F484", "#{f484_name} - Cessation", base_metadata.merge(form_subtype: "cessation"))
+    end
+    if new_appointments.any?
+      store_one(signed_blob, asic_folder, "F484", "#{f484_name} - Appointment", base_metadata.merge(form_subtype: "appointment"))
+    end
+  end
+
+  def store_one(blob, asic_folder, abbreviation, fallback_name, metadata)
+    wfdt = asic_folder && WarehouseFolderDocumentType
+      .joins(:document_type)
+      .find_by(warehouse_folder: asic_folder, document_types: { abbreviation: abbreviation })
+
+    # Pass specific WFDT so materialize_ui_name uses the correct template.
+    # fallback_name used as original_filename if no template resolves.
     WarehouseDocumentCreator.create!(
-      filename: generate_filename,
+      filename: fallback_name,
       source_type: "corporate",
       linkable: company,
-      storage_blob: signed_blob,
-      warehouse_folder_id: officers_folder&.id,
-      metadata: {
-        form_type: "form_484",
-        document_type: "Officers",
-        e_signature_request_id: e_signature_request.id,
-        ceasing_directors: ceasing_directors.map { |cd| cd[:corporate_director].contact.display_name },
-        new_appointments: new_appointments.map { |appt| appt[:contact].display_name },
-        signed_at: e_signature_request.completed_at
-      },
+      storage_blob: blob,
+      warehouse_folder_id: asic_folder&.id,
+      warehouse_folder_document_type_id: wfdt&.id,
+      metadata: metadata,
       user: user
     )
   end
@@ -470,6 +640,7 @@ class DirectorChangeService
       title: "Director Change - #{company.name}",
       documentable: company,
       created_by: user,
+      document_type: resolve_form484_document_type,
       signing_order: ESignatureRequest::SIGNING_ORDERS[:sequential],
       send_reminders: true,
       original_document_hash: Digest::SHA256.hexdigest(package[:pdf_content])
@@ -482,8 +653,8 @@ class DirectorChangeService
     # Add signers from input data (no need to regenerate PDFs for signer metadata)
     add_signers_to_request(request)
 
-    # Create positioned signature fields by detecting blue badges in the PDF
-    ESignatureBadgeDetector.create_fields_from_pdf!(request, package[:pdf_content])
+    # Create positioned signature fields from metadata (deterministic document order)
+    create_fields_from_metadata(request)
 
     request
   end
@@ -494,6 +665,7 @@ class DirectorChangeService
       title: "Director Change - #{company.name}",
       documentable: company,
       created_by: user,
+      document_type: resolve_form484_document_type,
       signing_order: ESignatureRequest::SIGNING_ORDERS[:sequential],
       send_reminders: true,
       original_document_hash: Digest::SHA256.hexdigest(pdf_content)
@@ -504,8 +676,8 @@ class DirectorChangeService
 
     add_signers_to_request(request)
 
-    # Create positioned signature fields by detecting blue badges in the PDF
-    ESignatureBadgeDetector.create_fields_from_pdf!(request, pdf_content)
+    # Create positioned signature fields from metadata (deterministic document order)
+    create_fields_from_metadata(request)
 
     request
   end
@@ -546,17 +718,159 @@ class DirectorChangeService
     end
   end
 
-  # Build document metadata without generating PDFs
+  # Build document metadata without generating PDFs.
+  # One entry per position per person (mirrors generate_all_documents).
   def build_document_metadata
-    docs = [{ type: :minutes, name: "Minutes of Meeting of Directors" }]
+    docs = [{ type: :minutes, name: resolve_doc_name("DM", "Minutes of Meeting of Directors") }]
+
     ceasing_directors.each do |cd|
-      docs << { type: :resignation, name: "Resignation - #{cd[:corporate_director].contact.display_name}" }
+      cd[:positions].each do |position|
+        abbr = RESIGNATION_DOC_TYPES[position] || "RD"
+        doc_name = resolve_doc_name(abbr, "Resignation")
+        docs << { type: :resignation, name: "#{doc_name} - #{cd[:corporate_director].contact.display_name}" }
+      end
     end
+
     new_appointments.each do |appt|
-      docs << { type: :consent, name: "Consent to Act - #{appt[:contact].display_name}" }
+      appt[:positions].each do |position|
+        abbr = CONSENT_DOC_TYPES[position] || "CAD"
+        doc_name = resolve_doc_name(abbr, "Consent to Act")
+        docs << { type: :consent, name: "#{doc_name} - #{appt[:contact].display_name}" }
+      end
     end
-    docs << { type: :form_484, name: "Form 484 Record" }
+
+    f484_name = resolve_doc_name("F484", "Form 484")
+    docs << { type: :form_484_cessation, name: "#{f484_name} - Cessation" } if ceasing_directors.any?
+    docs << { type: :form_484_appointment, name: "#{f484_name} - Appointment" } if new_appointments.any?
     docs
+  end
+
+  # --- Document Name Resolution (SSoT: DocumentType records) ---
+
+  # Look up document name from DocumentType by abbreviation, with fallback.
+  # Caches results for the lifetime of this service instance.
+  def resolve_doc_name(abbreviation, fallback = nil)
+    @doc_name_cache ||= {}
+    @doc_name_cache[abbreviation] ||= DocumentType.find_by(abbreviation: abbreviation)&.name || fallback
+  end
+
+  # --- Chairperson Resolution ---
+
+  # Determine the chairperson contact for minutes signing.
+  # Priority: 1) first ceasing director (outgoing director chairs the transition meeting),
+  # 2) remaining director with "chair" position, 3) first remaining director,
+  # 4) first new appointment (last resort)
+  def determine_chairperson(remaining_directors_relation = nil)
+    chairperson_contact = nil
+    chairperson_selected_email = nil
+
+    # Outgoing director chairs the meeting
+    cd = ceasing_directors.first
+    if cd
+      chairperson_contact = cd[:corporate_director]&.contact
+      chairperson_selected_email = cd[:email]
+    end
+
+    # Fallback to remaining directors
+    unless chairperson_contact
+      remaining = remaining_directors_relation || begin
+        ceasing_contact_ids = ceasing_directors.map { |cd_data| cd_data[:corporate_director].contact_id }
+        company.corporate_directors.where(is_current: true).where.not(contact_id: ceasing_contact_ids).includes(:contact)
+      end
+      remaining.each do |dir|
+        if dir.position&.downcase&.include?("chair")
+          chairperson_contact = dir.contact
+          break
+        end
+      end
+      chairperson_contact ||= remaining.first&.contact
+    end
+
+    chairperson_contact ||= new_appointments.first&.dig(:contact)
+
+    { contact: chairperson_contact, selected_email: chairperson_selected_email }
+  end
+
+  # --- Metadata-Based Field Creation ---
+
+  # Create ESignatureField records from the deterministic document order.
+  # System-generated PDFs have a known page-to-signer mapping, so we can
+  # place signature fields without parsing the PDF content stream.
+  #
+  # Document order (matches generate_all_documents):
+  #   Page 1: Minutes → chairperson signs
+  #   Page 2+: Resignations → one per position per ceasing director
+  #   After resignations: Consents → one per position per new appointment
+  #   Final pages: Form 484 records → no signature (informational only)
+  def create_fields_from_metadata(request)
+    signers = request.signers.order(:signing_order).to_a
+    return if signers.empty?
+
+    # Build page-to-contact mapping from deterministic document order
+    # Each signing page has exactly one signer and a template type
+    page_signer_map = build_page_signer_map(signers)
+
+    page_signer_map.each do |page_number, entry|
+      signer = entry[:signer]
+      pos = BADGE_POSITIONS[entry[:template]] || BADGE_POSITIONS[:resignation]
+
+      request.fields.create!(
+        e_signature_signer: signer,
+        field_type: "signature",
+        page_number: page_number,
+        x_percent: pos[:x_percent],
+        y_percent: pos[:y_percent],
+        width_percent: pos[:width_percent],
+        height_percent: pos[:height_percent],
+        label: "Signature - #{signer.name}",
+        required: true
+      )
+    end
+  end
+
+  # Map each signing page to its signer and template type.
+  # Returns: { page_number => { signer: ESignatureSigner, template: :minutes|:resignation|:consent } }
+  def build_page_signer_map(signers)
+    page_map = {}
+    current_page = 1
+
+    # Build a contact_id → signer lookup
+    signer_by_contact_id = {}
+    signers.each { |s| signer_by_contact_id[s.contact_id] = s }
+
+    # Page 1: Minutes - chairperson signs (first signer = first ceasing director)
+    chair = determine_chairperson
+    chairperson_signer = signer_by_contact_id[chair[:contact]&.id] || signers.first
+    page_map[current_page] = { signer: chairperson_signer, template: :minutes }
+    current_page += 1
+
+    # Resignations: one page per position per ceasing director
+    ceasing_directors.each do |cd|
+      contact = cd[:corporate_director].contact
+      signer = signer_by_contact_id[contact.id]
+      next unless signer
+
+      cd[:positions].each do |_position|
+        page_map[current_page] = { signer: signer, template: :resignation }
+        current_page += 1
+      end
+    end
+
+    # Consents: one page per position per new appointment
+    new_appointments.each do |appt|
+      contact = appt[:contact]
+      signer = signer_by_contact_id[contact.id]
+      next unless signer
+
+      appt[:positions].each do |_position|
+        page_map[current_page] = { signer: signer, template: :consent }
+        current_page += 1
+      end
+    end
+
+    # Form 484 pages follow but have no signature fields
+
+    page_map
   end
 
   # --- Helpers ---

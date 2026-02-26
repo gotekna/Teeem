@@ -62,7 +62,8 @@ class MicrosoftEmailService
     else
       error_message = begin
         JSON.parse(response.body).dig("error", "message")
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("[MicrosoftEmail] Failed to parse error response: #{e.message}")
         response.body
       end
       Rails.logger.error "Failed to send email: #{response.code} - #{error_message}"

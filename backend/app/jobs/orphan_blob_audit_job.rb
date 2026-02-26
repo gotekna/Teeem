@@ -19,6 +19,7 @@
 #   OrphanBlobAuditJob.perform_later(min_age_days: 7)
 #
 class OrphanBlobAuditJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   def perform(min_age_days: 7)

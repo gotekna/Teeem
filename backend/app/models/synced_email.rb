@@ -96,6 +96,9 @@ class SyncedEmail < ApplicationRecord
   scope :owned_by, ->(user) { where(ssot_owner: user) }
   scope :with_ai_summary, -> { where.not(ai_summary: nil) }
   scope :needs_ai_summary, -> { where(ai_summary: nil) }
+  scope :needs_ai_processing, -> { where(ai_processed_at: nil) }
+  scope :with_follow_up, -> { where(follow_up_required: true) }
+  scope :follow_up_due, -> { where("follow_up_date <= ?", Date.current).where(follow_up_required: true) }
   scope :spam, -> { where("email_classification->>'email_type' = ?", "spam") }
   # Use IS DISTINCT FROM to properly handle: NULL classification, empty hash {}, and non-spam types
   scope :not_spam, -> { where("email_classification->>'email_type' IS DISTINCT FROM ?", "spam") }

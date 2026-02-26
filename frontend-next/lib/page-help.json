@@ -2,7 +2,7 @@
   "_meta": {
     "description": "SSoT for contextual page help. Claude updates this when screens change.",
     "lastUpdated": "2026-02-14",
-    "totalPages": 186,
+    "totalPages": 188,
     "format": "Each page has: title, description, tips (array), tasks (array)"
   },
   "pages": {
@@ -24,11 +24,17 @@
       "tips": ["Use a valid business email", "Choose a strong password", "Check email for verification"],
       "tasks": ["Enter your details", "Verify email address", "Complete profile setup"]
     },
+    "/learn": {
+      "title": "TEEEM Academy",
+      "description": "Interactive tutorials to learn TEEEM features for your role. Joshua guides you through each chapter step by step.",
+      "tips": ["Chapters are filtered by your role — you only see what's relevant", "Complete chapters to track your progress", "Click 'Try It Now' to jump to the feature being explained", "You can return anytime from the Learn link in the sidebar"],
+      "tasks": ["Select a chapter from the sidebar", "Step through the tutorial with Joshua", "Mark chapters complete when done", "Try features in real-time with 'Try It Now' buttons"]
+    },
     "/dashboard": {
       "title": "Dashboard",
-      "description": "Your home base showing key metrics, recent activity, and quick access to important items.",
-      "tips": ["Click any metric card to drill down into details", "Recent items show your last 10 accessed records", "Use the quick actions bar for common tasks"],
-      "tasks": ["View overdue tasks and upcoming deadlines", "Check recent job updates", "Access frequently used pages"]
+      "description": "Your home base showing key metrics, AI briefing, recent activity, and quick access to important items.",
+      "tips": ["The AI Briefing card shows tasks due, overdue items, and email follow-ups", "Click any metric card to drill down into details", "Recent items show your last 10 accessed records", "The briefing auto-refreshes every 5 minutes"],
+      "tasks": ["Review your AI daily briefing", "View overdue tasks and upcoming deadlines", "Check recent job updates", "Access frequently used pages"]
     },
     "/tasks": {
       "title": "Task Hub",
@@ -150,11 +156,23 @@
       "tips": ["Assign team members and equipment", "Track resource availability", "View resource utilization"],
       "tasks": ["Assign resources", "View availability", "Track utilization", "Manage allocations"]
     },
+    "/jobs/[id]/quote-returns": {
+      "title": "Quote Returns",
+      "description": "Unified view of all supplier quote responses from both Quote Tracker and Custom Quotes. Select winning quotes and create purchase orders.",
+      "tips": ["Green prices indicate the best price for that item", "Click 'Select' to open the side-by-side confirmation dialog", "Expired quotes are highlighted in red in the Valid To column", "Use filters to focus on responded quotes needing action"],
+      "tasks": ["Review supplier responses", "Select winning quote and create PO", "Reject unsuitable quotes", "View attached quote documents"]
+    },
     "/jobs/[id]/purchase-orders": {
       "title": "Job Purchase Orders",
       "description": "Purchase orders linked to this job.",
       "tips": ["View all POs for this job", "Track delivery status", "Create new POs directly"],
       "tasks": ["View purchase orders", "Create new PO", "Track deliveries", "Export PO list"]
+    },
+    "/jobs/[id]/tender": {
+      "title": "Job Tender",
+      "description": "Create and manage professional tender documents for this job. Snapshots purchase order data into versioned tenders with PDF generation.",
+      "tips": ["Each tender version freezes current PO data - changes won't affect existing versions", "POs are locked when a tender is created and unlocked when a revision is requested", "Compare versions to see what changed between tenders"],
+      "tasks": ["Create a new tender document", "Generate a tender PDF", "Send tender to client", "Request a revision to unlock POs", "Compare two versions"]
     },
     "/jobs/[id]/colours": {
       "title": "Job Colours",
@@ -251,6 +269,12 @@
       "description": "View and manage a specific purchase order.",
       "tips": ["Track line item status", "Record deliveries received", "Link to invoices"],
       "tasks": ["View PO details", "Update line items", "Record delivery", "Mark as complete"]
+    },
+    "/library": {
+      "title": "Library",
+      "description": "Company-wide reference documents including standards, guidelines, manuals, and specifications.",
+      "tips": ["Documents are organized into tabs by category", "Click a document to preview it", "Upload reference documents that apply across all jobs"],
+      "tasks": ["Browse reference standards", "Upload new documents", "Preview document details"]
     },
     "/warehouse": {
       "title": "File Warehouse",
@@ -960,6 +984,12 @@
       "tips": ["Customize your experience", "Set default views", "Configure shortcuts"],
       "tasks": ["Set preferences", "Configure defaults", "Customize UI", "Save settings"]
     },
+    "/settings/assistant": {
+      "title": "Assistant Preferences",
+      "description": "Configure your personal AI Assistant notification channels, quiet hours, and autopilot settings.",
+      "tips": ["Web notifications are always on", "Quiet hours suppress non-critical alerts", "Autopilot lets the assistant act without approval", "Priority threshold filters low-priority notifications"],
+      "tasks": ["Choose notification channels", "Set quiet hours", "Configure priority threshold", "Enable autopilot for selected actions", "Connect your Slack account"]
+    },
     "/settings/notifications": {
       "title": "Notification Settings",
       "description": "Control how and when you receive notifications.",
@@ -1004,9 +1034,9 @@
     },
     "/settings/operations": {
       "title": "Operations Settings",
-      "description": "Configure operational settings like schedule master, contact types, PO templates, and claim stage templates.",
-      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records", "PO Templates let you stamp all POs onto a new job in one click", "Claim Templates define progress claim stages with percentage splits"],
-      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates", "Create PO template packs", "Create claim stage templates"]
+      "description": "Configure operational settings like schedule master, contact types, PO templates, tender sections, and claim stage templates.",
+      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records", "PO Templates let you stamp all POs onto a new job in one click", "Claim Templates define progress claim stages with percentage splits", "Tender Headers group tender sections into a two-level hierarchy (e.g., Site Costs > Site Preparation)", "Tender Sections with a default note show that text when no PO items are assigned"],
+      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates", "Create PO template packs", "Create claim stage templates", "Manage tender headers and sections"]
     },
     "/settings/operations/po-templates": {
       "title": "PO Template Packs",
@@ -1014,17 +1044,35 @@
       "tips": ["Create packs from existing jobs using 'Create from Job'", "Each pack contains multiple PO definitions with line items", "Templates link to SM tasks and suppliers for automatic matching", "Duplicate a pack to create variations (e.g., 2-storey house)"],
       "tasks": ["Create a template pack", "Create pack from existing job", "Edit pack items and line items", "Duplicate a pack", "Apply template to a job"]
     },
+    "/settings/operations/quote-templates": {
+      "title": "Quote Templates",
+      "description": "Define reusable RFQ templates with trades and preferred suppliers. Apply templates to jobs to create quote tracker rows for each trade-supplier combination.",
+      "tips": ["Each template defines trades (e.g. Roof Trusses, Plumbing) and assigns suppliers to each", "Star a supplier to mark them as preferred for that trade", "Default instructions are included when sending RFQ emails", "Apply a template to a job to populate the Quote Tracker board"],
+      "tasks": ["Create a quote template", "Add trades and suppliers", "Set preferred suppliers", "Duplicate a template", "Apply template to a job"]
+    },
     "/settings/operations/claim-templates": {
       "title": "Claim Stage Templates",
       "description": "Define reusable progress claim templates with percentage-based stages. Apply templates to jobs to auto-generate claim stages.",
       "tips": ["Each template defines stages with percentage splits that should total 100%", "Templates are applied on a job's Claims tab when no stages exist", "Duplicate templates to create variations for different project types", "Default retainage % applies to all stages unless overridden per stage"],
       "tasks": ["Create a claim template", "Edit template stages", "Duplicate a template", "Apply template to a job from the Claims tab"]
     },
+    "/settings/tables": {
+      "title": "Tables",
+      "description": "Manage lookup tables including Pricebook Categories, Brands, Ranges, GST Codes, and Units of Measure.",
+      "tips": ["Pricebook tab manages category groupings for pricebook items", "Brands tab manages brand names for pricebook items", "Ranges tab manages product range/line groupings for pricebook items", "Accounts tab manages GST codes used in POs and Xero sync", "UOM tab manages units of measure (Each, Lm, m2, m3) for pricebook items"],
+      "tasks": ["Manage pricebook categories", "Manage pricebook brands", "Manage pricebook ranges", "Add or edit GST codes", "Sync GST codes from Xero", "Add or edit units of measure"]
+    },
     "/settings/connections": {
       "title": "Connections",
       "description": "Manage integrations with external services (Storage, Email, Xero) and configure backups.",
       "tips": ["Storage provider syncs documents to cloud", "Email integration syncs your inbox", "Xero connects accounting data", "Backups tab configures automatic storage mirroring to Backblaze B2"],
       "tasks": ["Connect storage provider", "Add email account", "Link Xero organization", "Test connections", "Configure backup schedules and mirroring"]
+    },
+    "/settings/connections/ai-assistant": {
+      "title": "AI Assistant Setup",
+      "description": "Configure AI Assistant service connections for your organization.",
+      "tips": ["Claude AI and Signal are platform-managed", "Deepgram enables voice transcription for WhatsApp voice notes", "Slack bot allows slash commands and DM chat with the assistant", "Test Connection verifies your credentials are valid"],
+      "tasks": ["Enter Deepgram API key", "Configure Slack bot token and signing secret", "Test service connections", "Enable or disable the AI Assistant"]
     },
     "/settings/integrations": {
       "title": "Integrations",

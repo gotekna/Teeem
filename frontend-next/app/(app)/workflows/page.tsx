@@ -246,7 +246,7 @@ export default function WorkflowsDashboardPage() {
                 />
               ) : (
                 <div className="space-y-3">
-                  {myTasks.map((task) => (
+                  {[...myTasks].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((task) => (
                     <div
                       key={task.id}
                       className={`flex items-center justify-between p-4 border rounded-lg ${

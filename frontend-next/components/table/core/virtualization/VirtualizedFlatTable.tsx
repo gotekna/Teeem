@@ -61,6 +61,7 @@ export interface VirtualizedFlatTableProps {
   visibleColumnsInOrder: TableColumn[];
   columnWidths: Record<string, number>;
   editingRowIds: Set<number | string>;
+  dirtyRowIds: Set<number | string>;
   getStickyColumnStyles: (key: string, isHeader: boolean) => React.CSSProperties;
   isSystemGeneratedColumn: (column: TableColumn) => boolean;
   SYSTEM_COLUMN_BG: string;
@@ -88,6 +89,7 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
   visibleColumnsInOrder,
   columnWidths,
   editingRowIds,
+  dirtyRowIds,
   getStickyColumnStyles,
   isSystemGeneratedColumn,
   SYSTEM_COLUMN_BG,
@@ -200,7 +202,6 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                       className={cn(
                         selectedRows.has(row.id) && "bg-muted/50",
                         isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
-                        editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
                         focusedRowIndex === rowIndex && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                         "hover:bg-muted/30 cursor-pointer"
                       )}

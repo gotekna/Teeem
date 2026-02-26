@@ -6,6 +6,8 @@
 module Api
   module V1
     class WarehouseFoldersController < ApplicationController
+      include WarehouseFolderPathLookup
+
       before_action :set_warehouse_folder, only: [:show, :update, :destroy]
 
       # GET /api/v1/warehouse_folders?warehouse_type=corporate
@@ -104,6 +106,26 @@ module Api
         }
       end
 
+      # GET /api/v1/warehouse_folders/all_scopes
+      # FRC (Feb 2026): Replaces 15 parallel GET /api/v1/warehouse_folders?scope=X requests
+      # that were causing H12 timeouts on staging (single dyno overwhelmed).
+      # Returns ALL scopes' nested tabs in a single query.
+      def all_scopes
+        service = WarehouseFolderQueryService.new(
+          include_disabled: params[:include_disabled] == "true"
+        )
+
+        tabs_by_scope = service.all_scopes_nested_tabs
+
+        render json: {
+          success: true,
+          data: {
+            tabs_by_scope: tabs_by_scope,
+            groups: WarehouseFolder::TAB_GROUPS
+          }
+        }
+      end
+
       # GET /api/v1/warehouse_folders/for_warehouse_type/:warehouse_type
       # Also accepts for_scope/:scope for backwards compatibility (route alias)
       # Returns flat list of all tabs for a warehouse type (for dropdowns)
@@ -126,7 +148,7 @@ module Api
                 tab_key: tab.tab_key,
                 display_name: tab.display_name || tab.name,
                 display_code: tab.display_code,
-                hierarchy_path: tab.full_folder_path,
+                hierarchy_path: lookup_full_folder_path(tab),
                 tab_group: tab.tab_group,
                 warehouse_enabled: tab.warehouse_enabled,
                 has_storage_folder: tab.warehouse_enabled
@@ -240,7 +262,7 @@ module Api
         end
 
         if defined?(NavigationItem)
-          NavigationItem.where.not(icon: [nil, '']).each do |item|
+          NavigationItem.where.not(icon: [nil, '']).includes(:navigation_group).each do |item|
             icon = item.icon
             usages[icon] ||= []
             usages[icon] << {
@@ -261,17 +283,25 @@ module Api
 
       # GET /api/v1/warehouse_folders/tree
       # Returns full folder tree for File Warehouse page
+      # FRC (Feb 2026): Pre-load ALL folders in one query and build tree in Ruby.
+      # Old code used folder.children.where(...) recursively → N+1 queries (Sentry TEEEM-BACKEND-4M).
       def tree
         counts = fetch_warehouse_counts
 
+        # Single query: load ALL warehouse-enabled folders with their warehouse_type
         all_folders = WarehouseFolder
-          .where(parent_id: nil, warehouse_enabled: true, enabled: true)
+          .where(warehouse_enabled: true, enabled: true)
           .where.not(folder_segment: [nil, ''])
-          .includes(:children, :warehouse_type)
+          .includes(:warehouse_type)
           .order(:order_position, :name)
+          .to_a
 
-        # Group folders by warehouse_type (FK-driven, not display name strings)
-        grouped = all_folders.group_by { |folder| folder.warehouse_type }
+        # Build lookup: parent_id → children (in-memory, zero DB queries for tree building)
+        @tree_children_by_parent = all_folders.group_by(&:parent_id)
+        root_folders = @tree_children_by_parent[nil] || []
+
+        # Group roots by warehouse_type
+        grouped = root_folders.group_by(&:warehouse_type)
 
         tree = grouped.map do |wt, folders|
           next nil if wt.blank?
@@ -306,9 +336,9 @@ module Api
       private
 
       def build_tree_node(folder, depth = 0)
-        children = folder.children
-          .where(warehouse_enabled: true, enabled: true)
-          .order(:order_position, :name)
+        # Use pre-loaded children from @tree_children_by_parent (zero DB queries)
+        children = (@tree_children_by_parent[folder.id] || [])
+          .sort_by(&:order_position)
 
         {
           id: "wf-#{folder.id}",
@@ -316,8 +346,8 @@ module Api
           type: "category",
           icon: folder.icon_name || "folder",
           warehouseType: folder.warehouse_type_code,
-          folderPath: folder.full_folder_path,
-          fullPath: folder.full_folder_path,
+          folderPath: lookup_full_folder_path(folder),
+          fullPath: lookup_full_folder_path(folder),
           fileCount: 0,
           children: depth < 5 ? children.map { |child| build_tree_node(child, depth + 1) } : []
         }

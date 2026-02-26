@@ -8,7 +8,7 @@
 # the folder still appears until explicitly deleted.
 #
 class UserFolder < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
 
   validates :path, presence: true
   validates :path, uniqueness: { scope: :user_id }

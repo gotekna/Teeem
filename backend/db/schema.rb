@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -386,6 +386,87 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["tenant_id"], name: "index_assets_on_tenant_id"
   end
 
+  create_table "assistant_actions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "tenant_id", null: false
+    t.bigint "assistant_conversation_id"
+    t.string "action_type", limit: 50, null: false
+    t.string "status", limit: 20, default: "pending", null: false
+    t.text "description"
+    t.jsonb "action_data", default: {}
+    t.jsonb "result_data", default: {}
+    t.string "source_type"
+    t.bigint "source_id"
+    t.datetime "approved_at"
+    t.datetime "executed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assistant_conversation_id"], name: "index_assistant_actions_on_assistant_conversation_id"
+    t.index ["source_type", "source_id"], name: "index_assistant_actions_on_source_type_and_source_id"
+    t.index ["status"], name: "index_assistant_actions_on_status"
+    t.index ["tenant_id"], name: "index_assistant_actions_on_tenant_id"
+    t.index ["user_id", "action_type"], name: "index_assistant_actions_on_user_id_and_action_type"
+    t.index ["user_id", "status"], name: "index_assistant_actions_on_user_id_and_status"
+    t.index ["user_id"], name: "index_assistant_actions_on_user_id"
+  end
+
+  create_table "assistant_alerts", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "tenant_id", null: false
+    t.string "alert_type", limit: 50, null: false
+    t.string "priority", limit: 20, default: "medium", null: false
+    t.string "status", limit: 20, default: "pending", null: false
+    t.string "title", limit: 255, null: false
+    t.text "summary"
+    t.jsonb "context_data", default: {}
+    t.string "source_type"
+    t.bigint "source_id"
+    t.bigint "assistant_action_id"
+    t.datetime "seen_at"
+    t.datetime "actioned_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "suggested_action_data"
+    t.index ["alert_type"], name: "index_assistant_alerts_on_alert_type"
+    t.index ["assistant_action_id"], name: "index_assistant_alerts_on_assistant_action_id"
+    t.index ["source_type", "source_id"], name: "index_assistant_alerts_on_source_type_and_source_id"
+    t.index ["tenant_id"], name: "index_assistant_alerts_on_tenant_id"
+    t.index ["user_id", "priority"], name: "index_assistant_alerts_on_user_id_and_priority"
+    t.index ["user_id", "status"], name: "index_assistant_alerts_on_user_id_and_status"
+    t.index ["user_id"], name: "index_assistant_alerts_on_user_id"
+  end
+
+  create_table "assistant_conversations", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "tenant_id", null: false
+    t.string "title", limit: 255
+    t.string "channel", limit: 50, default: "web", null: false
+    t.string "status", limit: 20, default: "active", null: false
+    t.jsonb "metadata", default: {}
+    t.datetime "last_message_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["last_message_at"], name: "index_assistant_conversations_on_last_message_at"
+    t.index ["tenant_id"], name: "index_assistant_conversations_on_tenant_id"
+    t.index ["user_id", "channel"], name: "index_assistant_conversations_on_user_id_and_channel"
+    t.index ["user_id", "status"], name: "index_assistant_conversations_on_user_id_and_status"
+    t.index ["user_id"], name: "index_assistant_conversations_on_user_id"
+  end
+
+  create_table "assistant_messages", force: :cascade do |t|
+    t.bigint "assistant_conversation_id", null: false
+    t.string "role", limit: 20, null: false
+    t.text "content"
+    t.string "content_type", limit: 30, default: "text"
+    t.jsonb "tool_calls", default: []
+    t.jsonb "tool_results", default: []
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assistant_conversation_id", "created_at"], name: "idx_assistant_msgs_conversation_created"
+    t.index ["assistant_conversation_id"], name: "index_assistant_messages_on_assistant_conversation_id"
+  end
+
   create_table "ato_effective_life_categories", force: :cascade do |t|
     t.string "code", null: false
     t.string "name", null: false
@@ -741,6 +822,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["storage_item_id"], name: "index_bill_inboxes_on_storage_item_id"
     t.index ["supplier_id", "invoice_number"], name: "index_bill_inboxes_on_supplier_id_and_invoice_number", unique: true, where: "(invoice_number IS NOT NULL)"
     t.index ["supplier_id"], name: "index_bill_inboxes_on_supplier_id"
+    t.index ["tenant_id", "match_status"], name: "index_bill_inboxes_on_tenant_id_and_match_status"
+    t.index ["tenant_id", "status"], name: "index_bill_inboxes_on_tenant_id_and_status"
     t.index ["tenant_id"], name: "index_bill_inboxes_on_tenant_id"
   end
 
@@ -891,6 +974,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.datetime "overdue_reminded_at"
     t.index ["assigned_to_type", "assigned_to_id"], name: "idx_on_assigned_to_type_assigned_to_id_c36150f21d"
     t.index ["bpmn_node_id"], name: "index_bpmn_task_instances_on_bpmn_node_id"
+    t.index ["bpmn_token_id", "bpmn_node_id"], name: "idx_bpmn_task_instances_unique_token_node", unique: true
     t.index ["bpmn_token_id"], name: "index_bpmn_task_instances_on_bpmn_token_id"
     t.index ["status"], name: "index_bpmn_task_instances_on_status"
   end
@@ -2157,6 +2241,136 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["pricing_type"], name: "index_custom_pricings_on_pricing_type"
   end
 
+  create_table "custom_quote_allocations", force: :cascade do |t|
+    t.bigint "custom_quote_supplier_id", null: false
+    t.bigint "custom_quote_line_id", null: false
+    t.decimal "allocated_amount", precision: 12, scale: 2, null: false
+    t.text "notes"
+    t.bigint "purchase_order_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["custom_quote_line_id"], name: "index_custom_quote_allocations_on_custom_quote_line_id"
+    t.index ["custom_quote_supplier_id", "custom_quote_line_id"], name: "idx_cqa_supplier_line", unique: true
+    t.index ["custom_quote_supplier_id"], name: "index_custom_quote_allocations_on_custom_quote_supplier_id"
+    t.index ["purchase_order_id"], name: "index_custom_quote_allocations_on_purchase_order_id"
+  end
+
+  create_table "custom_quote_lines", force: :cascade do |t|
+    t.bigint "custom_quote_id", null: false
+    t.bigint "parent_id"
+    t.bigint "cost_centre_id"
+    t.bigint "sm_schedule_master_id"
+    t.bigint "sm_task_id"
+    t.string "name", null: false
+    t.string "quote_level", default: "po", null: false
+    t.integer "position", default: 0, null: false
+    t.text "tender_description"
+    t.text "po_description"
+    t.text "rfq_instructions"
+    t.decimal "budget_amount", precision: 12, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "document_type_ids", default: [], null: false, array: true
+    t.index ["cost_centre_id"], name: "index_custom_quote_lines_on_cost_centre_id"
+    t.index ["custom_quote_id", "position"], name: "idx_cql_quote_position"
+    t.index ["custom_quote_id"], name: "index_custom_quote_lines_on_custom_quote_id"
+    t.index ["parent_id"], name: "index_custom_quote_lines_on_parent_id"
+    t.index ["sm_schedule_master_id"], name: "index_custom_quote_lines_on_sm_schedule_master_id"
+    t.index ["sm_task_id"], name: "index_custom_quote_lines_on_sm_task_id"
+  end
+
+  create_table "custom_quote_suppliers", force: :cascade do |t|
+    t.bigint "custom_quote_line_id", null: false
+    t.bigint "supplier_id", null: false
+    t.bigint "contact_person_id"
+    t.string "contact_email"
+    t.string "status", default: "draft", null: false
+    t.decimal "price_quoted", precision: 12, scale: 2
+    t.string "quote_number"
+    t.date "date_sent"
+    t.date "date_received"
+    t.date "valid_to"
+    t.text "response_notes"
+    t.string "timeframe"
+    t.boolean "is_best_price", default: false, null: false
+    t.bigint "sent_by_id"
+    t.datetime "sent_at"
+    t.string "email_message_id"
+    t.bigint "purchase_order_id"
+    t.bigint "warehouse_document_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "confirmed_by_id"
+    t.datetime "confirmed_at"
+    t.text "confirmation_notes"
+    t.index ["contact_person_id"], name: "index_custom_quote_suppliers_on_contact_person_id"
+    t.index ["custom_quote_line_id", "supplier_id"], name: "idx_cqs_line_supplier", unique: true
+    t.index ["custom_quote_line_id"], name: "index_custom_quote_suppliers_on_custom_quote_line_id"
+    t.index ["purchase_order_id"], name: "index_custom_quote_suppliers_on_purchase_order_id"
+    t.index ["sent_by_id"], name: "index_custom_quote_suppliers_on_sent_by_id"
+    t.index ["status"], name: "index_custom_quote_suppliers_on_status"
+    t.index ["supplier_id"], name: "index_custom_quote_suppliers_on_supplier_id"
+    t.index ["warehouse_document_id"], name: "index_custom_quote_suppliers_on_warehouse_document_id"
+  end
+
+  create_table "custom_quote_template_lines", force: :cascade do |t|
+    t.bigint "custom_quote_template_id", null: false
+    t.bigint "parent_id"
+    t.bigint "cost_centre_id"
+    t.bigint "sm_schedule_master_id"
+    t.string "name", null: false
+    t.string "quote_level", default: "po", null: false
+    t.integer "position", default: 0, null: false
+    t.text "tender_description"
+    t.text "po_description"
+    t.text "default_instructions"
+    t.jsonb "default_supplier_ids", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cost_centre_id"], name: "index_custom_quote_template_lines_on_cost_centre_id"
+    t.index ["custom_quote_template_id", "position"], name: "idx_cqtl_template_position"
+    t.index ["custom_quote_template_id"], name: "index_custom_quote_template_lines_on_custom_quote_template_id"
+    t.index ["parent_id"], name: "index_custom_quote_template_lines_on_parent_id"
+    t.index ["sm_schedule_master_id"], name: "index_custom_quote_template_lines_on_sm_schedule_master_id"
+  end
+
+  create_table "custom_quote_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "po_template_pack_id"
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_custom_quote_templates_on_created_by_id"
+    t.index ["po_template_pack_id"], name: "index_custom_quote_templates_on_po_template_pack_id"
+    t.index ["tenant_id", "name"], name: "index_custom_quote_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id"], name: "index_custom_quote_templates_on_tenant_id"
+    t.index ["updated_by_id"], name: "index_custom_quote_templates_on_updated_by_id"
+  end
+
+  create_table "custom_quotes", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id", null: false
+    t.bigint "custom_quote_template_id"
+    t.string "name", null: false
+    t.string "status", default: "draft", null: false
+    t.decimal "total_quoted", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_allocated", precision: 12, scale: 2, default: "0.0"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_custom_quotes_on_created_by_id"
+    t.index ["custom_quote_template_id"], name: "index_custom_quotes_on_custom_quote_template_id"
+    t.index ["job_id"], name: "index_custom_quotes_on_job_id"
+    t.index ["status"], name: "index_custom_quotes_on_status"
+    t.index ["tenant_id", "job_id"], name: "index_custom_quotes_on_tenant_id_and_job_id"
+    t.index ["tenant_id"], name: "index_custom_quotes_on_tenant_id"
+  end
+
   create_table "data_quality_issues", force: :cascade do |t|
     t.string "view_name", null: false
     t.string "check_name", null: false
@@ -3370,6 +3584,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.decimal "compliance_score", precision: 5, scale: 2
     t.datetime "compliance_checked_at"
     t.jsonb "non_compliant_columns", default: []
+    t.jsonb "edit_modal_config", default: {}
     t.index ["compliance_score"], name: "index_foundations_on_compliance_score"
     t.index ["database_table_name"], name: "index_foundations_on_database_table_name", unique: true
     t.index ["model_class"], name: "index_foundations_on_model_class"
@@ -6401,6 +6616,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.string "design_name"
     t.bigint "job_design_id"
     t.bigint "default_profit_centre_id"
+    t.string "estate"
+    t.string "facade"
+    t.boolean "developer_approval", default: false
+    t.string "developer_contact"
+    t.string "land_registration"
+    t.string "building_contract_type"
+    t.string "development_application"
+    t.string "sales_centre"
+    t.string "wind_classification"
+    t.string "soil_classification"
+    t.string "specification"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -7442,7 +7668,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.string "sync_key"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "profit_centre_id"
     t.index ["po_template_pack_id"], name: "index_po_template_items_on_po_template_pack_id"
+    t.index ["profit_centre_id"], name: "index_po_template_items_on_profit_centre_id"
     t.index ["sm_schedule_master_id"], name: "index_po_template_items_on_sm_schedule_master_id"
     t.index ["supplier_id"], name: "index_po_template_items_on_supplier_id"
     t.index ["tenant_id", "sync_key"], name: "index_po_template_items_on_tenant_id_and_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
@@ -7477,6 +7705,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "sm_schedule_master_template_id"
+    t.index ["sm_schedule_master_template_id"], name: "index_po_template_packs_on_sm_schedule_master_template_id"
     t.index ["tenant_id", "name"], name: "index_po_template_packs_on_tenant_id_and_name", unique: true
     t.index ["tenant_id", "sync_key"], name: "index_po_template_packs_on_tenant_id_and_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_po_template_packs_on_tenant_id"
@@ -7555,6 +7785,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["tenant_id"], name: "index_price_histories_on_tenant_id"
   end
 
+  create_table "pricebook_brands", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "display_name"
+    t.string "color", default: "#6B7280"
+    t.string "icon"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.bigint "tenant_id"
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_pricebook_brands_on_is_active"
+    t.index ["position"], name: "index_pricebook_brands_on_position"
+    t.index ["tenant_id", "name"], name: "index_pricebook_brands_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_pricebook_brands_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_pricebook_brands_on_tenant_id"
+  end
+
   create_table "pricebook_categories", force: :cascade do |t|
     t.string "name", null: false
     t.string "display_name"
@@ -7572,10 +7820,27 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["tenant_id"], name: "index_pricebook_categories_on_tenant_id"
   end
 
+  create_table "pricebook_ranges", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "display_name"
+    t.string "color", default: "#6B7280"
+    t.string "icon"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.bigint "tenant_id"
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_pricebook_ranges_on_is_active"
+    t.index ["position"], name: "index_pricebook_ranges_on_position"
+    t.index ["tenant_id", "name"], name: "index_pricebook_ranges_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_pricebook_ranges_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_pricebook_ranges_on_tenant_id"
+  end
+
   create_table "pricebooks", force: :cascade do |t|
     t.string "item_code", null: false
     t.string "item_name", null: false
-    t.string "category"
     t.string "unit_of_measure", default: "Each"
     t.decimal "current_price", precision: 10, scale: 2
     t.bigint "supplier_id"
@@ -7614,11 +7879,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.bigint "image_storage_blob_id"
     t.bigint "spec_storage_blob_id"
     t.bigint "qr_code_storage_blob_id"
-    t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
-    t.index ["category"], name: "index_pricebooks_on_category"
+    t.bigint "brand_id"
+    t.bigint "range_id"
+    t.bigint "unit_of_measure_id"
+    t.bigint "gst_code_id"
+    t.index ["brand_id"], name: "index_pricebooks_on_brand_id"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
     t.index ["colour"], name: "index_pricebooks_on_colour"
     t.index ["default_supplier_id"], name: "index_pricebooks_on_default_supplier_id"
+    t.index ["gst_code_id"], name: "index_pricebooks_on_gst_code_id"
     t.index ["image_fetch_status"], name: "index_pricebooks_on_image_fetch_status"
     t.index ["image_file_id"], name: "index_pricebooks_on_image_file_id"
     t.index ["image_storage_blob_id"], name: "index_pricebooks_on_image_storage_blob_id"
@@ -7627,12 +7896,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["price_last_updated_at"], name: "index_pricebooks_on_price_last_updated_at"
     t.index ["qr_code_file_id"], name: "index_pricebooks_on_qr_code_file_id"
     t.index ["qr_code_storage_blob_id"], name: "index_pricebooks_on_qr_code_storage_blob_id"
+    t.index ["range_id"], name: "index_pricebooks_on_range_id"
     t.index ["searchable_text"], name: "idx_pricebook_search", using: :gin
     t.index ["spec_file_id"], name: "index_pricebooks_on_spec_file_id"
     t.index ["spec_storage_blob_id"], name: "index_pricebooks_on_spec_storage_blob_id"
     t.index ["supplier_id"], name: "index_pricebooks_on_supplier_id"
     t.index ["tenant_id", "sync_key"], name: "idx_pricebooks_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_pricebooks_on_tenant_id"
+    t.index ["unit_of_measure_id"], name: "index_pricebooks_on_unit_of_measure_id"
   end
 
   create_table "profit_centres", force: :cascade do |t|
@@ -7649,8 +7920,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "is_default", default: false, null: false
     t.index ["active"], name: "index_profit_centres_on_active"
     t.index ["centre_type"], name: "index_profit_centres_on_centre_type"
+    t.index ["is_default"], name: "index_profit_centres_on_is_default", where: "(is_default = true)"
     t.index ["is_template"], name: "index_profit_centres_on_is_template"
     t.index ["job_id"], name: "index_profit_centres_on_job_id"
     t.index ["tenant_id", "code"], name: "idx_profit_centres_global_unique_code", unique: true, where: "(job_id IS NULL)"
@@ -7729,10 +8002,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.string "colour_code"
     t.string "spec_reference"
     t.bigint "profit_centre_id"
+    t.bigint "tenant_id"
     t.index ["pricebook_item_id"], name: "index_purchase_order_line_items_on_pricebook_item_id"
     t.index ["profit_centre_id"], name: "index_purchase_order_line_items_on_profit_centre_id"
     t.index ["purchase_order_id", "line_number"], name: "index_po_line_items_on_po_and_line_num"
     t.index ["purchase_order_id"], name: "index_purchase_order_line_items_on_purchase_order_id"
+    t.index ["tenant_id"], name: "index_purchase_order_line_items_on_tenant_id"
   end
 
   create_table "purchase_orders", force: :cascade do |t|
@@ -7807,6 +8082,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.bigint "tenant_id"
     t.bigint "external_invoice_id"
     t.decimal "credit_amount", precision: 15, scale: 2, default: "0.0"
+    t.integer "tender_id"
+    t.bigint "quote_warehouse_document_id"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["budget_locked_at"], name: "index_purchase_orders_on_budget_locked_at"
@@ -7821,6 +8098,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["payment_status"], name: "index_purchase_orders_on_payment_status"
     t.index ["purchase_order_number"], name: "index_purchase_orders_on_purchase_order_number", unique: true
     t.index ["quote_response_id"], name: "index_purchase_orders_on_quote_response_id"
+    t.index ["quote_warehouse_document_id"], name: "index_purchase_orders_on_quote_warehouse_document_id"
     t.index ["required_date"], name: "index_purchase_orders_on_required_date"
     t.index ["required_on_site_date"], name: "index_purchase_orders_on_required_on_site_date"
     t.index ["searchable"], name: "idx_purchase_orders_searchable_gin", using: :gin
@@ -7828,6 +8106,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["status"], name: "index_purchase_orders_on_status"
     t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
     t.index ["tenant_id"], name: "index_purchase_orders_on_tenant_id"
+    t.index ["tender_id"], name: "index_purchase_orders_on_tender_id"
     t.index ["visible_to_supplier"], name: "index_purchase_orders_on_visible_to_supplier"
     t.index ["xero_invoice_id"], name: "index_purchase_orders_on_xero_invoice_id"
   end
@@ -7920,6 +8199,57 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["submitted_at"], name: "index_quote_responses_on_submitted_at"
   end
 
+  create_table "quote_template_trade_suppliers", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "quote_template_trade_id", null: false
+    t.bigint "supplier_id", null: false
+    t.bigint "contact_person_id"
+    t.integer "position", default: 0, null: false
+    t.boolean "is_preferred", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_person_id"], name: "index_quote_template_trade_suppliers_on_contact_person_id"
+    t.index ["quote_template_trade_id", "supplier_id"], name: "idx_qt_trade_suppliers_trade_supplier", unique: true
+    t.index ["quote_template_trade_id"], name: "idx_on_quote_template_trade_id_4bd879638a"
+    t.index ["supplier_id"], name: "index_quote_template_trade_suppliers_on_supplier_id"
+    t.index ["tenant_id"], name: "index_quote_template_trade_suppliers_on_tenant_id"
+  end
+
+  create_table "quote_template_trades", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "quote_template_id", null: false
+    t.bigint "sm_trade_id"
+    t.integer "position", default: 0, null: false
+    t.text "default_instructions"
+    t.jsonb "required_document_types", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "sm_schedule_master_id"
+    t.index ["quote_template_id", "sm_schedule_master_id"], name: "idx_qt_trades_template_po_task", unique: true, where: "(sm_schedule_master_id IS NOT NULL)"
+    t.index ["quote_template_id"], name: "index_quote_template_trades_on_quote_template_id"
+    t.index ["sm_schedule_master_id"], name: "index_quote_template_trades_on_sm_schedule_master_id"
+    t.index ["sm_trade_id"], name: "index_quote_template_trades_on_sm_trade_id"
+    t.index ["tenant_id"], name: "index_quote_template_trades_on_tenant_id"
+  end
+
+  create_table "quote_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "po_template_pack_id"
+    t.index ["created_by_id"], name: "index_quote_templates_on_created_by_id"
+    t.index ["po_template_pack_id"], name: "index_quote_templates_on_po_template_pack_id"
+    t.index ["tenant_id", "name"], name: "index_quote_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id"], name: "index_quote_templates_on_tenant_id"
+    t.index ["updated_by_id"], name: "index_quote_templates_on_updated_by_id"
+  end
+
   create_table "quote_trackers", force: :cascade do |t|
     t.bigint "tenant_id", null: false
     t.bigint "job_id", null: false
@@ -7937,9 +8267,33 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.text "estimating_notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "status", default: "draft", null: false
+    t.datetime "sent_at"
+    t.bigint "sent_by_id"
+    t.boolean "is_best_price", default: false, null: false
+    t.bigint "purchase_order_id"
+    t.bigint "quote_template_id"
+    t.string "email_message_id"
+    t.text "response_notes"
+    t.string "timeframe"
+    t.integer "reminder_count", default: 0
+    t.datetime "last_reminder_at"
+    t.bigint "sm_schedule_master_id"
+    t.bigint "sm_task_id"
+    t.bigint "confirmed_by_id"
+    t.datetime "confirmed_at"
+    t.text "confirmation_notes"
     t.index ["contact_id"], name: "index_quote_trackers_on_contact_id"
+    t.index ["job_id", "sm_schedule_master_id", "is_best_price"], name: "idx_quote_trackers_best_price_by_task"
+    t.index ["job_id", "sm_trade_id", "is_best_price"], name: "idx_quote_trackers_best_price"
     t.index ["job_id"], name: "index_quote_trackers_on_job_id"
+    t.index ["purchase_order_id"], name: "index_quote_trackers_on_purchase_order_id"
+    t.index ["quote_template_id"], name: "index_quote_trackers_on_quote_template_id"
+    t.index ["sent_by_id"], name: "index_quote_trackers_on_sent_by_id"
+    t.index ["sm_schedule_master_id"], name: "index_quote_trackers_on_sm_schedule_master_id"
+    t.index ["sm_task_id"], name: "index_quote_trackers_on_sm_task_id"
     t.index ["sm_trade_id"], name: "index_quote_trackers_on_sm_trade_id"
+    t.index ["status"], name: "index_quote_trackers_on_status"
     t.index ["supplier_id"], name: "index_quote_trackers_on_supplier_id"
     t.index ["tenant_id", "job_id"], name: "index_quote_trackers_on_tenant_id_and_job_id"
     t.index ["tenant_id", "supplier_id"], name: "index_quote_trackers_on_tenant_id_and_supplier_id"
@@ -8633,6 +8987,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.bigint "dependency_broken_by_id"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.string "task_code", limit: 50
+    t.integer "tender_id"
+    t.jsonb "plan_type_ids", default: []
+    t.jsonb "document_ref_type_ids", default: []
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
@@ -8656,6 +9014,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["task_number"], name: "index_sm_schedule_masters_on_task_number"
     t.index ["tenant_id", "sync_key"], name: "idx_sm_schedule_masters_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_schedule_masters_on_tenant_id"
+    t.index ["tender_id"], name: "index_sm_schedule_masters_on_tender_id"
     t.index ["trade"], name: "index_sm_schedule_masters_on_trade"
     t.index ["updated_by_id"], name: "index_sm_schedule_masters_on_updated_by_id"
   end
@@ -8929,6 +9288,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.datetime "response_zip_created_at"
     t.boolean "auto_attach_email_files", default: true, null: false
     t.string "sync_key"
+    t.string "task_code", limit: 50
+    t.integer "tender_id"
+    t.bigint "warehouse_folder_id"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
@@ -8965,8 +9327,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["supplier_confirmed_by_id"], name: "index_sm_tasks_on_supplier_confirmed_by_id"
     t.index ["supplier_id"], name: "index_sm_tasks_on_supplier_id"
     t.index ["tenant_id"], name: "index_sm_tasks_on_tenant_id"
+    t.index ["tender_id"], name: "index_sm_tasks_on_tender_id"
     t.index ["ticket_priority"], name: "index_sm_tasks_on_ticket_priority"
     t.index ["updated_by_id"], name: "index_sm_tasks_on_updated_by_id"
+    t.index ["warehouse_folder_id"], name: "index_sm_tasks_on_warehouse_folder_id"
   end
 
   create_table "sm_time_entries", force: :cascade do |t|
@@ -9534,14 +9898,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.boolean "content_unavailable", default: false, null: false
     t.string "content_unavailable_reason"
     t.boolean "needs_enrichment", default: false
+    t.boolean "follow_up_required", default: false
+    t.date "follow_up_date"
+    t.string "follow_up_reason", limit: 255
+    t.datetime "ai_processed_at"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
+    t.index ["ai_processed_at"], name: "index_synced_emails_on_ai_unprocessed", where: "(ai_processed_at IS NULL)"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
     t.index ["content_unavailable"], name: "index_synced_emails_on_content_unavailable", where: "(content_unavailable = true)"
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
     t.index ["direction"], name: "index_synced_emails_on_direction"
     t.index ["email_mailbox_id"], name: "index_synced_emails_on_email_mailbox_id"
+    t.index ["follow_up_required", "follow_up_date"], name: "index_synced_emails_on_follow_up_due", where: "(follow_up_required = true)"
+    t.index ["follow_up_required"], name: "index_synced_emails_on_follow_up_required", where: "(follow_up_required = true)"
     t.index ["from_email"], name: "idx_email_warehouse_from_email"
     t.index ["id"], name: "idx_email_warehouse_unassigned", where: "(job_id IS NULL)"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
@@ -9992,6 +10363,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.string "xero_tracking_category_name", default: "Job", comment: "Xero tracking category name used for job matching (e.g., 'Job', 'JOB ID')"
     t.string "po_template_variant", default: "classic", comment: "PO visual design variant (classic, modern, bold, compact, professional, construction, custom)"
     t.text "po_custom_template", comment: "Custom HTML template for PO (used when po_template_variant is 'custom')"
+    t.string "deepgram_api_key"
+    t.string "slack_bot_token"
+    t.string "slack_signing_secret"
+    t.boolean "assistant_enabled", default: false
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
@@ -10046,6 +10421,163 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["tier"], name: "index_tenants_on_tier"
     t.index ["trial_ends_at"], name: "index_tenants_on_trial_ends_at"
     t.index ["trial_status"], name: "index_tenants_on_trial_status"
+  end
+
+  create_table "tender_document_items", force: :cascade do |t|
+    t.bigint "tender_document_id", null: false
+    t.string "tender_section_name", null: false
+    t.string "tender_section_code"
+    t.integer "section_sort_order"
+    t.string "section_type", default: "priced"
+    t.integer "line_number", null: false
+    t.text "description", null: false
+    t.decimal "quantity", precision: 15, scale: 3
+    t.string "unit"
+    t.decimal "unit_price", precision: 15, scale: 2
+    t.decimal "total_amount", precision: 15, scale: 2
+    t.string "gst_code", default: "GST"
+    t.string "item_type", default: "priced"
+    t.text "notes"
+    t.bigint "source_purchase_order_id"
+    t.string "source_po_number"
+    t.bigint "source_line_item_id"
+    t.string "cost_centre_name"
+    t.string "trade_name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "tender_header_name"
+    t.string "tender_header_code"
+    t.integer "header_sort_order"
+    t.text "default_note"
+    t.boolean "excluded", default: false, null: false
+    t.bigint "pricebook_item_id"
+    t.index ["pricebook_item_id"], name: "index_tender_document_items_on_pricebook_item_id"
+    t.index ["source_purchase_order_id"], name: "index_tender_document_items_on_source_purchase_order_id"
+    t.index ["tender_document_id", "tender_section_name", "line_number"], name: "idx_tender_doc_items_section_line"
+    t.index ["tender_document_id"], name: "index_tender_document_items_on_tender_document_id"
+  end
+
+  create_table "tender_document_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", null: false
+    t.text "cover_letter_html"
+    t.text "terms_and_conditions_html"
+    t.text "base_specification_html"
+    t.text "acceptance_page_html"
+    t.text "notes_html"
+    t.integer "validity_days", default: 30
+    t.boolean "is_default", default: true
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "default_document_types", default: []
+    t.index ["tenant_id"], name: "index_tender_document_templates_on_tenant_id"
+  end
+
+  create_table "tender_documents", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id", null: false
+    t.bigint "created_by_id"
+    t.string "document_number", null: false
+    t.integer "version", default: 1, null: false
+    t.string "status", default: "draft", null: false
+    t.date "date_prepared", null: false
+    t.date "valid_until"
+    t.integer "validity_days", default: 30
+    t.decimal "subtotal", precision: 15, scale: 2, default: "0.0"
+    t.decimal "gst", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total", precision: 15, scale: 2, default: "0.0"
+    t.string "job_name"
+    t.string "job_address"
+    t.string "job_code"
+    t.string "client_name"
+    t.string "client_address"
+    t.string "client_email"
+    t.string "client_phone"
+    t.string "salesperson_name"
+    t.text "cover_letter_html"
+    t.text "terms_and_conditions_html"
+    t.text "base_specification_html"
+    t.text "acceptance_page_html"
+    t.text "notes_html"
+    t.bigint "pdf_generation_id"
+    t.bigint "storage_blob_id"
+    t.bigint "previous_version_id"
+    t.datetime "locked_at"
+    t.bigint "locked_by_id"
+    t.datetime "sent_at"
+    t.datetime "accepted_at"
+    t.datetime "declined_at"
+    t.text "revision_notes"
+    t.jsonb "settings", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "council"
+    t.string "estate"
+    t.string "facade"
+    t.string "design_name"
+    t.string "specification"
+    t.boolean "developer_approval"
+    t.string "developer_contact"
+    t.string "land_registration"
+    t.string "building_contract_type"
+    t.string "development_application"
+    t.string "sales_centre"
+    t.string "wind_classification"
+    t.string "soil_classification"
+    t.string "lot_address"
+    t.string "plan_number"
+    t.index ["created_by_id"], name: "index_tender_documents_on_created_by_id"
+    t.index ["job_id", "version"], name: "index_tender_documents_on_job_id_and_version"
+    t.index ["job_id"], name: "index_tender_documents_on_job_id"
+    t.index ["locked_by_id"], name: "index_tender_documents_on_locked_by_id"
+    t.index ["pdf_generation_id"], name: "index_tender_documents_on_pdf_generation_id"
+    t.index ["status"], name: "index_tender_documents_on_status"
+    t.index ["storage_blob_id"], name: "index_tender_documents_on_storage_blob_id"
+    t.index ["tenant_id", "document_number"], name: "index_tender_documents_on_tenant_id_and_document_number", unique: true
+  end
+
+  create_table "tender_headers", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 100, null: false
+    t.text "description"
+    t.integer "sort_order"
+    t.boolean "active", default: true
+    t.jsonb "metadata", default: {}
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "header_type", limit: 20, default: "standard", null: false
+    t.boolean "system_locked", default: false, null: false
+    t.index ["active"], name: "index_tender_headers_on_active"
+    t.index ["sort_order"], name: "index_tender_headers_on_sort_order"
+    t.index ["tenant_id", "code"], name: "index_tender_headers_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id"], name: "index_tender_headers_on_tenant_id"
+  end
+
+  create_table "tenders", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 100, null: false
+    t.text "description"
+    t.string "section_type", limit: 30, default: "priced"
+    t.integer "sort_order"
+    t.boolean "show_line_items", default: true
+    t.text "section_notes"
+    t.boolean "active", default: true
+    t.jsonb "metadata", default: {}
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "default_note"
+    t.bigint "tender_header_id", null: false
+    t.jsonb "attached_document_types", default: []
+    t.index ["active"], name: "index_tenders_on_active"
+    t.index ["sort_order"], name: "index_tenders_on_sort_order"
+    t.index ["tenant_id", "code"], name: "index_tenders_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id"], name: "index_tenders_on_tenant_id"
+    t.index ["tender_header_id"], name: "index_tenders_on_tender_header_id"
   end
 
   create_table "trial_invitations", force: :cascade do |t|
@@ -10282,12 +10814,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.string "openclaw_api_key_last4"
     t.jsonb "openclaw_permissions", default: {"chat"=>false, "notes"=>false, "contacts"=>false, "job_updates"=>false}
     t.datetime "openclaw_api_key_created_at"
+    t.jsonb "assistant_preferences", default: {}
+    t.string "slack_user_id"
+    t.integer "default_tenant_id"
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
+    t.index ["default_tenant_id"], name: "index_users_on_default_tenant_id"
     t.index ["email", "tenant_id"], name: "index_users_on_email_and_tenant", unique: true
     t.index ["openclaw_api_key_digest"], name: "index_users_on_openclaw_api_key_digest", unique: true, where: "(openclaw_api_key_digest IS NOT NULL)"
     t.index ["photo_blob_id"], name: "index_users_on_photo_blob_id"
     t.index ["signature_blob_id"], name: "index_users_on_signature_blob_id"
+    t.index ["slack_user_id"], name: "index_users_on_slack_user_id", unique: true, where: "(slack_user_id IS NOT NULL)"
     t.index ["tenant_id"], name: "index_users_on_tenant_id"
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
     t.index ["username"], name: "index_users_on_username", unique: true, where: "(username IS NOT NULL)"
@@ -10333,6 +10870,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.bigint "warehouse_folder_id"
     t.integer "path_template_version", default: 0
     t.string "warehouse_type"
+    t.integer "sort_order", default: 0
+    t.date "expiry_date"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["linkable_type", "linkable_id", "folder_path"], name: "idx_wd_linkable_folder_path"
@@ -10343,12 +10882,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.index ["source_type"], name: "index_warehouse_documents_on_source_type"
     t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
+    t.index ["tenant_id", "expiry_date"], name: "idx_warehouse_docs_tenant_expiry", where: "(expiry_date IS NOT NULL)"
     t.index ["tenant_id", "folder_path"], name: "idx_wd_tenant_folder_path"
     t.index ["tenant_id", "warehouse_type"], name: "idx_wd_tenant_warehouse_type"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
     t.index ["warehouse_folder_document_type_id"], name: "index_warehouse_documents_on_warehouse_folder_document_type_id"
+    t.index ["warehouse_folder_id", "sort_order"], name: "idx_wd_folder_sort"
     t.index ["warehouse_folder_id"], name: "idx_wd_warehouse_folder"
     t.index ["warehouse_type"], name: "idx_wd_warehouse_type"
   end
@@ -10375,6 +10916,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.boolean "is_system", default: false, null: false
     t.index ["document_type_id", "is_primary"], name: "idx_wfdt_primary"
     t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
     t.index ["download_name_template"], name: "idx_wfdt_download_name_template", where: "(download_name_template IS NOT NULL)"
@@ -11128,6 +11670,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
   add_foreign_key "assets", "corporates", column: "company_id"
   add_foreign_key "assets", "tenants"
   add_foreign_key "assets", "users", column: "assigned_user_id"
+  add_foreign_key "assistant_actions", "assistant_conversations"
+  add_foreign_key "assistant_actions", "tenants"
+  add_foreign_key "assistant_actions", "users"
+  add_foreign_key "assistant_alerts", "assistant_actions"
+  add_foreign_key "assistant_alerts", "tenants"
+  add_foreign_key "assistant_alerts", "users"
+  add_foreign_key "assistant_conversations", "tenants"
+  add_foreign_key "assistant_conversations", "users"
+  add_foreign_key "assistant_messages", "assistant_conversations"
   add_foreign_key "ato_effective_life_rates", "ato_effective_life_categories"
   add_foreign_key "backup_configurations", "s3_compatible_credentials", column: "primary_credential_id"
   add_foreign_key "backup_configurations", "s3_compatible_credentials", column: "secondary_credential_id"
@@ -11271,6 +11822,33 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
   add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
   add_foreign_key "cost_centres", "tenants", on_delete: :cascade
   add_foreign_key "custom_pricings", "contacts"
+  add_foreign_key "custom_quote_allocations", "custom_quote_lines"
+  add_foreign_key "custom_quote_allocations", "custom_quote_suppliers"
+  add_foreign_key "custom_quote_allocations", "purchase_orders"
+  add_foreign_key "custom_quote_lines", "cost_centres"
+  add_foreign_key "custom_quote_lines", "custom_quote_lines", column: "parent_id"
+  add_foreign_key "custom_quote_lines", "custom_quotes"
+  add_foreign_key "custom_quote_lines", "sm_schedule_masters"
+  add_foreign_key "custom_quote_lines", "sm_tasks"
+  add_foreign_key "custom_quote_suppliers", "contact_persons"
+  add_foreign_key "custom_quote_suppliers", "contacts", column: "supplier_id"
+  add_foreign_key "custom_quote_suppliers", "custom_quote_lines"
+  add_foreign_key "custom_quote_suppliers", "purchase_orders"
+  add_foreign_key "custom_quote_suppliers", "users", column: "confirmed_by_id"
+  add_foreign_key "custom_quote_suppliers", "users", column: "sent_by_id"
+  add_foreign_key "custom_quote_suppliers", "warehouse_documents"
+  add_foreign_key "custom_quote_template_lines", "cost_centres"
+  add_foreign_key "custom_quote_template_lines", "custom_quote_template_lines", column: "parent_id"
+  add_foreign_key "custom_quote_template_lines", "custom_quote_templates"
+  add_foreign_key "custom_quote_template_lines", "sm_schedule_masters"
+  add_foreign_key "custom_quote_templates", "po_template_packs"
+  add_foreign_key "custom_quote_templates", "tenants"
+  add_foreign_key "custom_quote_templates", "users", column: "created_by_id"
+  add_foreign_key "custom_quote_templates", "users", column: "updated_by_id"
+  add_foreign_key "custom_quotes", "custom_quote_templates"
+  add_foreign_key "custom_quotes", "jobs"
+  add_foreign_key "custom_quotes", "tenants"
+  add_foreign_key "custom_quotes", "users", column: "created_by_id"
   add_foreign_key "desktop_clients", "tenants", on_delete: :cascade
   add_foreign_key "desktop_clients", "users"
   add_foreign_key "director_onboarding_requests", "contacts"
@@ -11799,17 +12377,23 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
   add_foreign_key "po_template_items", "po_template_packs"
+  add_foreign_key "po_template_items", "profit_centres", on_delete: :nullify
   add_foreign_key "po_template_line_items", "po_template_items"
+  add_foreign_key "po_template_packs", "sm_schedule_master_templates"
   add_foreign_key "polaris_credentials", "tenants", on_delete: :cascade
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
   add_foreign_key "price_histories", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "price_histories", "tenants"
+  add_foreign_key "pricebook_brands", "tenants"
   add_foreign_key "pricebook_categories", "tenants"
+  add_foreign_key "pricebook_ranges", "tenants"
   add_foreign_key "pricebooks", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
   add_foreign_key "pricebooks", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
+  add_foreign_key "pricebooks", "pricebook_brands", column: "brand_id", on_delete: :nullify
   add_foreign_key "pricebooks", "pricebook_categories", column: "category_id"
+  add_foreign_key "pricebooks", "pricebook_ranges", column: "range_id", on_delete: :nullify
   add_foreign_key "pricebooks", "storage_blobs", column: "image_storage_blob_id"
   add_foreign_key "pricebooks", "storage_blobs", column: "qr_code_storage_blob_id"
   add_foreign_key "pricebooks", "storage_blobs", column: "spec_storage_blob_id"
@@ -11824,6 +12408,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
   add_foreign_key "purchase_order_line_items", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "purchase_order_line_items", "profit_centres", on_delete: :nullify
   add_foreign_key "purchase_order_line_items", "purchase_orders"
+  add_foreign_key "purchase_order_line_items", "tenants"
   add_foreign_key "purchase_orders", "bill_inboxes", column: "last_bill_inbox_id"
   add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"
   add_foreign_key "purchase_orders", "estimates"
@@ -11833,6 +12418,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
   add_foreign_key "purchase_orders", "tenants"
   add_foreign_key "purchase_orders", "users", column: "budget_locked_by_id"
   add_foreign_key "purchase_orders", "users", column: "budget_unlocked_by_id"
+  add_foreign_key "purchase_orders", "warehouse_documents", column: "quote_warehouse_document_id"
   add_foreign_key "quantity_variables", "tenants", on_delete: :cascade
   add_foreign_key "quote_request_contacts", "contacts"
   add_foreign_key "quote_request_contacts", "quote_requests"
@@ -11842,11 +12428,26 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
   add_foreign_key "quote_responses", "contacts"
   add_foreign_key "quote_responses", "portal_users", column: "responded_by_portal_user_id"
   add_foreign_key "quote_responses", "quote_requests"
+  add_foreign_key "quote_template_trade_suppliers", "contact_persons"
+  add_foreign_key "quote_template_trade_suppliers", "contacts", column: "supplier_id"
+  add_foreign_key "quote_template_trade_suppliers", "quote_template_trades"
+  add_foreign_key "quote_template_trade_suppliers", "tenants"
+  add_foreign_key "quote_template_trades", "quote_templates"
+  add_foreign_key "quote_template_trades", "sm_trades"
+  add_foreign_key "quote_template_trades", "tenants"
+  add_foreign_key "quote_templates", "po_template_packs"
+  add_foreign_key "quote_templates", "tenants"
+  add_foreign_key "quote_templates", "users", column: "created_by_id"
+  add_foreign_key "quote_templates", "users", column: "updated_by_id"
   add_foreign_key "quote_trackers", "contact_persons", column: "contact_id"
   add_foreign_key "quote_trackers", "contacts", column: "supplier_id"
   add_foreign_key "quote_trackers", "jobs"
+  add_foreign_key "quote_trackers", "purchase_orders"
+  add_foreign_key "quote_trackers", "quote_templates"
   add_foreign_key "quote_trackers", "sm_trades"
   add_foreign_key "quote_trackers", "tenants"
+  add_foreign_key "quote_trackers", "users", column: "confirmed_by_id"
+  add_foreign_key "quote_trackers", "users", column: "sent_by_id"
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
   add_foreign_key "recipe_categories", "recipe_categories", column: "parent_id"
@@ -12072,6 +12673,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
   add_foreign_key "tenant_sync_preferences", "tenants"
   add_foreign_key "tenants", "corporates", column: "billing_company_id"
   add_foreign_key "tenants", "jobs", column: "onboarding_job_id", on_delete: :nullify
+  add_foreign_key "tender_document_items", "tender_documents"
+  add_foreign_key "tender_documents", "jobs"
+  add_foreign_key "tender_documents", "pdf_generations"
+  add_foreign_key "tender_documents", "storage_blobs"
+  add_foreign_key "tender_documents", "tenants", on_delete: :cascade
+  add_foreign_key "tender_documents", "tender_documents", column: "previous_version_id", on_delete: :nullify
+  add_foreign_key "tender_documents", "users", column: "created_by_id"
+  add_foreign_key "tender_documents", "users", column: "locked_by_id"
+  add_foreign_key "tenders", "tenants", on_delete: :cascade
+  add_foreign_key "tenders", "tender_headers"
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "sent_from_user_id", on_delete: :nullify
@@ -12093,6 +12704,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
   add_foreign_key "users", "storage_blobs", column: "photo_blob_id"
   add_foreign_key "users", "storage_blobs", column: "signature_blob_id"
   add_foreign_key "users", "tenants"
+  add_foreign_key "users", "tenants", column: "default_tenant_id", on_delete: :nullify
   add_foreign_key "users", "user_groups"
   add_foreign_key "vip_senders", "users"
   add_foreign_key "warehouse_documents", "storage_blobs"

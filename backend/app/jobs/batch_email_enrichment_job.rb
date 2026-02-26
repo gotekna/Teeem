@@ -13,7 +13,10 @@
 #   3. Clears needs_enrichment flag
 #   4. Broadcasts new emails via WebSocket
 class BatchEmailEnrichmentJob < ApplicationJob
-  queue_as :email_sync
+  # FRC (Feb 2026): Moved from :email_sync to :email_enrichment to prevent R14.
+  # Root cause: Enrichment + sync competing for same threads on email worker.
+  # Separate queue lets email worker prioritize sync, then enrich when idle.
+  queue_as :email_enrichment
 
   # Retry on transient DB/network errors
   retry_on ActiveRecord::Deadlocked, wait: :polynomially_longer, attempts: 3

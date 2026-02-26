@@ -1,5 +1,5 @@
 class GrokPlan < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
 
   # Constants
   # Statuses: planning, in_progress, completed, archived

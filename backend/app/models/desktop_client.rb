@@ -8,7 +8,7 @@
 # SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
 #
 class DesktopClient < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant
 

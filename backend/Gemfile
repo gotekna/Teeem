@@ -54,19 +54,19 @@ gem "rack-attack", "~> 6.7"
 # TeeemXl replaces roo and creek for Excel/CSV parsing (see lib/teeem_xl/)
 gem "caxlsx", "~> 4.1.0"  # Excel generation
 gem "caxlsx_rails", "~> 0.6.3"  # Rails integration for Excel export
-gem "pdf-reader", "~> 2.12"  # PDF text extraction for email attachments
+gem "pdf-reader", "~> 2.12", require: false  # PDF text extraction (lazy-loaded in services)
 gem "rubyzip", "~> 2.3"  # Zip file creation for bulk downloads
 gem "business_time", "~> 0.13"  # Business days calculation for bill approval workflows
 # PDF/document processing gems - shared by web and worker dynos
 # (Web and worker share the same Heroku slug, so BUNDLE_WITHOUT can't separate them)
-gem "hexapdf", "~> 0.42"  # PDF manipulation for splitting documents
-gem "sablon", "~> 0.4"  # DOCX mail merge for document templates
-gem "docx", "~> 0.8"  # DOCX reading for Universal Document Reader
-gem "grover", "~> 1.1"  # HTML → PDF via Puppeteer (Tekna document templates)
-gem "mini_magick", "~> 4.12"  # Image processing (PDF→image for OCR)
+gem "hexapdf", "~> 0.42", require: false  # PDF manipulation (lazy-loaded in services)
+gem "sablon", "~> 0.4", require: false  # DOCX mail merge (lazy-loaded in services)
+gem "docx", "~> 0.8", require: false  # DOCX reading (lazy-loaded in services)
+gem "grover", "~> 1.1", require: false  # HTML → PDF via Puppeteer (lazy-loaded in services)
+gem "mini_magick", "~> 4.12", require: false  # Image processing (lazy-loaded in services)
 
 # Image management and scraping
-gem "cloudinary", "~> 2.1"  # Cloud image storage and CDN
+gem "cloudinary", "~> 2.1", require: false  # Cloud image storage (lazy-loaded in services)
 
 # S3-compatible cloud storage (AWS S3, Backblaze B2, MinIO, Wasabi)
 gem "aws-sdk-s3", "~> 1.170"  # S3 client for document providers
@@ -79,16 +79,16 @@ gem "fuzzy_match", "~> 2.1"  # Fuzzy string matching for contact sync
 gem "rexml"  # XML parsing (required for ABN lookup service, removed from Ruby 3.0+ stdlib)
 
 # SMS integration
-gem "twilio-ruby", "~> 7.3"  # Twilio SDK for SMS messaging
+gem "twilio-ruby", "~> 7.3", require: false  # Twilio SMS (lazy-loaded in services)
 
 # Payment processing
-gem "stripe", "~> 13.0"  # Stripe SDK for payment portal
+gem "stripe", "~> 13.0", require: false  # Stripe payments (lazy-loaded in services)
 
 # Multi-tenancy
 gem "acts_as_tenant", "~> 1.0"  # Row-level multi-tenant data isolation
 
 # AI integration for plan analysis
-gem "anthropic", "~> 0.3.0"  # Claude API for AI-powered plan review
+gem "anthropic", "~> 0.3.0", require: false  # Claude API (lazy-loaded via AnthropicClient concern)
 
 # Error tracking and monitoring
 gem "sentry-ruby", "~> 5.22"
@@ -125,4 +125,4 @@ group :development, :test do
   gem "vcr", "~> 6.3"
   gem "simplecov", "~> 0.22", require: false
 end
-gem "dentaku"
+gem "dentaku", require: false  # Formula evaluation (lazy-loaded in services)

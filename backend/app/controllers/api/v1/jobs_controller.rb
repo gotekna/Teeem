@@ -150,8 +150,16 @@ module Api
 
         jobs = jobs.order(created_at: :desc).limit(100)
 
+        # Default preview job: most recent job that has purchase orders (tenant-dynamic)
+        default_preview_job = Job.joins(:purchase_orders)
+                                 .where.not(purchase_orders: { status: "cancelled" })
+                                 .order("purchase_orders.created_at DESC")
+                                 .limit(1)
+                                 .pick(:id)
+
         render json: {
           success: true,
+          default_preview_job_id: default_preview_job,
           jobs: jobs.map do |job|
             client = job.job_contacts.find { |jc| jc.role == "client" }&.contact
             employees = job.job_contacts
@@ -290,17 +298,30 @@ module Api
         # Use already-eager-loaded job_contacts from set_job
         # Sort in Ruby since we already have the data loaded
         job_json[:contacts] = @job.job_contacts
-                                                     .select { |jc| jc.contact_id.present? && jc.contact }
+                                                     .select { |jc| jc.contact_id.present? || jc.user_id.present? }
                                                      .sort_by { |jc| [jc.primary ? 0 : 1, jc.created_at] }
                                                      .map do |cc|
+          contact_json = if cc.contact.present?
+            cj = cc.contact.as_json
+            # Include computed fields for frontend display (not in as_json by default)
+            cj["full_address"] = cc.contact.full_address
+            cj["primary_email"] = cc.contact.primary_email
+            cj["primary_mobile"] = cc.contact.primary_mobile
+            cj
+          end
+
           {
             id: cc.id,
             contact_id: cc.contact_id,
+            user_id: cc.user_id,
             primary: cc.primary,
             role: cc.role,
-            contact: cc.contact.as_json,
+            contact: contact_json,
+            # Include user info for internal roles (supervisor, internal_sales, etc.)
+            user: cc.user.present? ? { id: cc.user.id, name: cc.user.name, email: cc.user.email } : nil,
+            display_name: cc.person_name,
             # Use .size to use the already-loaded collection (not .count which triggers a query)
-            relationships_count: cc.contact.outgoing_relationships.size
+            relationships_count: cc.contact.present? ? cc.contact.outgoing_relationships.size : 0
           }
         end
 
@@ -430,23 +451,14 @@ module Api
       # GET /api/v1/jobs/:id/documentation_tabs
       # SSoT: Now uses WarehouseFolder (warehouse_type: 'job', tab_group: 'documents')
       def documentation_tabs
-        # First check for job-specific tabs, fall back to global job document tabs
+        # FRC (Feb 2026): warehouse_folders has no job_id column - folders are
+        # tenant-scoped (via acts_as_tenant), not per-job. Previous code queried
+        # .where(job_id: @job.id) which raised PG::UndefinedColumn.
         job_tabs = WarehouseFolder.for_warehouse_type('job')
-                            .where(job_id: @job.id, tab_group: 'documents')
-                            .where(parent_id: nil)
+                            .where(tab_group: 'documents', parent_id: nil)
                             .enabled
                             .ordered
                             .includes(:children)
-
-        # If no job-specific tabs, use global job document tabs
-        if job_tabs.empty?
-          job_tabs = WarehouseFolder.for_warehouse_type('job')
-                              .where(job_id: nil, tab_group: 'documents')
-                              .where(parent_id: nil)
-                              .enabled
-                              .ordered
-                              .includes(:children)
-        end
 
         render json: { success: true, data: job_tabs.map(&:as_nested_json) }
       end
@@ -769,10 +781,17 @@ module Api
       def boq
         purchase_orders = @job.purchase_orders
                               .where.not(status: "cancelled")
-                              .includes(:supplier, line_items: :pricebook_item,
-                                        sm_task: :sm_schedule_master)
+                              .includes(:supplier, :tender, line_items: [:pricebook_item, :profit_centre],
+                                        sm_task: [:sm_schedule_master, :tender])
 
         cost_budgets = @job.job_cost_budgets.includes(:cost_centre)
+
+        # Pre-load tenders + their tender headers for efficient lookup (avoids N+1)
+        # SSoT priority: PO direct > SmTask (synced) > SmScheduleMaster (template)
+        tender_ids = purchase_orders.filter_map { |po|
+          po.tender_id || po.sm_task&.tender_id || po.sm_task&.sm_schedule_master&.tender_id
+        }.uniq
+        tenders_by_id = tender_ids.any? ? Tender.where(id: tender_ids).includes(:tender_header).index_by(&:id) : {}
 
         # Pre-load Databuild BOQ line items (SmScheduleMaster records linked to cost centres)
         cc_ids = cost_budgets.filter_map { |b| b.cost_centre&.id }
@@ -847,10 +866,14 @@ module Api
                   supplierId: nil,
                   supplierName: nil,
                   taskName: nil,
+                  taskPosition: nil,
                   tradeName: nil,
                   stageName: nil,
                   stagePosition: nil,
                   costCentreName: cc_name,
+                  tenderName: nil,
+                  tenderHeaderName: nil,
+                  profitCentreName: nil,
                   items: items
                 }
               end
@@ -862,10 +885,14 @@ module Api
                 supplierId: nil,
                 supplierName: nil,
                 taskName: nil,
+                taskPosition: nil,
                 tradeName: nil,
                 stageName: nil,
                 stagePosition: nil,
                 costCentreName: cc_name,
+                tenderName: nil,
+                tenderHeaderName: nil,
+                profitCentreName: nil,
                 items: [{
                   id: "budget-#{budget.id}",
                   description: "Budget allocation",
@@ -880,7 +907,9 @@ module Api
 
             # Add matched PO line items as their own group
             matched_pos.each do |po|
+              sm = po.sm_task&.sm_schedule_master
               items = po.line_items.sort_by(&:line_number).map do |item|
+                pc = item.profit_centre
                 {
                   id: item.id,
                   description: item.description,
@@ -888,7 +917,11 @@ module Api
                   unitPrice: item.unit_price.to_f,
                   gstCode: item.gst_code || "GST",
                   subtotal: item.total_amount.to_f,
-                  pricebookItemCode: item.pricebook_item&.item_code
+                  pricebookItemCode: item.pricebook_item&.item_code,
+                  hasPricebookImage: item.pricebook_item&.image_storage_blob_id.present?,
+                  pricebookItemId: item.pricebook_item_id,
+                  profitCentreId: item.profit_centre_id,
+                  profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
                 }
               end
 
@@ -897,11 +930,15 @@ module Api
                 name: po.purchase_order_number || "PO-#{po.id}",
                 supplierId: po.supplier_id,
                 supplierName: po.supplier&.display_name,
-                taskName: po.description,
-                tradeName: nil,
-                stageName: nil,
-                stagePosition: nil,
-                costCentreName: cc_name,
+                taskName: po.sm_task&.name || po.description,
+                taskPosition: po.sm_task&.sequence_order,
+                tradeName: po.trade_from_task,
+                stageName: po.stage_from_task,
+                stagePosition: sm&.sequence_order,
+                costCentreName: po.cost_centre_from_task,
+                tenderName: (tenders_by_id[po.tender_id || po.sm_task&.tender_id || po.sm_task&.sm_schedule_master&.tender_id]&.name),
+                tenderHeaderName: (tenders_by_id[po.tender_id || po.sm_task&.tender_id || po.sm_task&.sm_schedule_master&.tender_id]&.tender_header&.name),
+                profitCentreName: po.profit_centre_from_line_items,
                 items: items
               }
             end
@@ -918,11 +955,16 @@ module Api
               supplierId: po.supplier_id,
               supplierName: po.supplier&.display_name,
               taskName: po.sm_task&.name || po.description,
-              tradeName: sm&.trade.is_a?(String) ? sm.trade : nil,
-              stageName: sm&.stage.is_a?(String) ? sm.stage : nil,
+              taskPosition: po.sm_task&.sequence_order,
+              tradeName: po.trade_from_task,
+              stageName: po.stage_from_task,
               stagePosition: sm&.sequence_order,
-              costCentreName: nil,
+              costCentreName: po.cost_centre_from_task,
+              tenderName: (tenders_by_id[po.tender_id || po.sm_task&.tender_id || po.sm_task&.sm_schedule_master&.tender_id]&.name),
+              tenderHeaderName: (tenders_by_id[po.tender_id || po.sm_task&.tender_id || po.sm_task&.sm_schedule_master&.tender_id]&.tender_header&.name),
+              profitCentreName: po.profit_centre_from_line_items,
               items: po.line_items.sort_by(&:line_number).map do |item|
+                pc = item.profit_centre
                 {
                   id: item.id,
                   description: item.description,
@@ -930,42 +972,54 @@ module Api
                   unitPrice: item.unit_price.to_f,
                   gstCode: item.gst_code || "GST",
                   subtotal: item.total_amount.to_f,
-                  pricebookItemCode: item.pricebook_item&.item_code
+                  pricebookItemCode: item.pricebook_item&.item_code,
+                  hasPricebookImage: item.pricebook_item&.image_storage_blob_id.present?,
+                  pricebookItemId: item.pricebook_item_id,
+                  profitCentreId: item.profit_centre_id,
+                  profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
                 }
               end
             }
           end
         end
 
-        # Add unmatched POs as a separate group (when cost budgets exist)
+        # Add unmatched POs as individual groups with "X - No Task" (sorts to bottom)
         if cost_budgets.any? && unmatched_pos.any?
-          unmatched_items = []
           unmatched_pos.each do |po|
-            po.line_items.sort_by(&:line_number).each do |item|
-              unmatched_items << {
+            items = po.line_items.sort_by(&:line_number).map do |item|
+              pc = item.profit_centre
+              {
                 id: item.id,
-                description: "#{po.purchase_order_number}: #{item.description}",
+                description: item.description,
                 quantity: item.quantity.to_f,
                 unitPrice: item.unit_price.to_f,
                 gstCode: item.gst_code || "GST",
                 subtotal: item.total_amount.to_f,
-                pricebookItemCode: item.pricebook_item&.item_code
+                pricebookItemCode: item.pricebook_item&.item_code,
+                hasPricebookImage: item.pricebook_item&.image_storage_blob_id.present?,
+                pricebookItemId: item.pricebook_item_id,
+                profitCentreId: item.profit_centre_id,
+                profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
               }
             end
-          end
 
-          if unmatched_items.any?
+            next if items.empty?
+
             boq_groups << {
-              id: "unallocated",
-              name: "Unallocated POs",
-              supplierId: nil,
-              supplierName: nil,
-              taskName: nil,
+              id: "po-#{po.id}",
+              name: po.purchase_order_number || "PO-#{po.id}",
+              supplierId: po.supplier_id,
+              supplierName: po.supplier&.display_name,
+              taskName: "X - No Task",
+              taskPosition: nil,
               tradeName: nil,
               stageName: nil,
               stagePosition: nil,
-              costCentreName: nil,
-              items: unmatched_items
+              costCentreName: "X - No Task",
+              tenderName: nil,
+              tenderHeaderName: nil,
+              profitCentreName: po.profit_centre_from_line_items,
+              items: items
             }
           end
         end
@@ -973,7 +1027,14 @@ module Api
         # Calculate summary from cost budgets + POs
         total_boq = cost_budgets.sum { |b| (b.total_budget || 0).to_f }
         total_po = purchase_orders.sum { |po| (po.total || 0).to_f }
+        total_po_ex_gst = purchase_orders.sum { |po| (po.sub_total || 0).to_f }
+        total_po_gst = purchase_orders.sum { |po| (po.tax || 0).to_f }
         total_variance = total_po - total_boq
+
+        # Profit centres available for this tenant (templates + job-specific)
+        available_profit_centres = ProfitCentre.where(job_id: [nil, @job.id])
+                                               .order(:code)
+                                               .map { |pc| { id: pc.id, code: pc.code, name: pc.name, label: "#{pc.code} - #{pc.name}" } }
 
         render json: {
           success: true,
@@ -983,9 +1044,12 @@ module Api
             contract_value: @job.contract_value.to_f
           },
           groups: boq_groups,
+          profitCentres: available_profit_centres,
           summary: {
             boq_total: total_boq.round(2),
             po_total: total_po.round(2),
+            po_subtotal: total_po_ex_gst.round(2),
+            po_gst: total_po_gst.round(2),
             variance: total_variance.round(2),
             variance_percent: total_boq > 0 ? (total_variance / total_boq * 100).round(1) : 0,
             contract_value: @job.contract_value.to_f,
@@ -1200,8 +1264,8 @@ module Api
             # Attachments
             secondary_job.attachments.update_all(attachable_id: @job.id) if secondary_job.respond_to?(:attachments)
 
-            # Job-specific WarehouseFolders (SSoT: replaces job_documentation_tabs)
-            WarehouseFolder.for_warehouse_type('job').where(job_id: secondary_job.id).update_all(job_id: @job.id)
+            # FRC (Feb 2026): Removed dead code that queried warehouse_folders.job_id
+            # (column doesn't exist - warehouse_folders are tenant-scoped, not per-job)
 
             # Fill in any blank fields on primary job from secondary job
             Job.column_names.each do |col|
@@ -1752,6 +1816,18 @@ module Api
           :spec_date,
           :practical_completion_date,
           :warranty_end_date,
+          # Tender details
+          :estate,
+          :facade,
+          :developer_approval,
+          :developer_contact,
+          :land_registration,
+          :building_contract_type,
+          :development_application,
+          :sales_centre,
+          :wind_classification,
+          :soil_classification,
+          :specification,
           # Profit centre
           :default_profit_centre_id
         )

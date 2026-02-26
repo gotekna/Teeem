@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TASK_STATUS } from "@/lib/constants/task-status";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ import {
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { SupplierPicker, type Supplier as SupplierPickerType } from "@/components/ui/supplier-picker";
 import { PricebookCodePicker, type PricebookItem as PricebookPickerType } from "@/components/ui/pricebook-code-picker";
+import { PricebookLineSearch } from "@/components/ui/bill-of-quantities";
 import { BackButton } from "@/components/ui/back-button";
 import {
   DollarSign,
@@ -61,6 +62,7 @@ import {
   Send,
   Paperclip,
   Files,
+  BarChart3,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -87,6 +89,7 @@ import {
   STATUS_BADGE_VARIANTS,
 } from "@/lib/constants/purchase-order-constants";
 import { useGstCodes } from "@/lib/hooks/useGstCodes";
+import PriceComparisonSheet from "@/app/(app)/pricebook/components/PriceComparisonSheet";
 
 // Schedule Sync Preview Types
 interface SyncTaskPredecessor {
@@ -259,6 +262,16 @@ export default function PurchaseOrderDetailPage() {
 
   // Profit centres for the job
   const [profitCentres, setProfitCentres] = useState<ProfitCentre[]>([]);
+
+  // Default profit centre for new lines (BASE if available, else first)
+  const defaultProfitCentre = useMemo(() => {
+    if (profitCentres.length === 0) return null;
+    return profitCentres.find((pc) => pc.code.toUpperCase().startsWith("BASE")) ?? profitCentres[0] ?? null;
+  }, [profitCentres]);
+
+  // Price comparison sheet (for unsupplied items)
+  const [priceComparisonOpen, setPriceComparisonOpen] = useState(false);
+  const [priceComparisonItemIds, setPriceComparisonItemIds] = useState<number[]>([]);
 
   // Budget lockdown state
   const [budgetLocked, setBudgetLocked] = useState(false);
@@ -815,6 +828,21 @@ export default function PurchaseOrderDetailPage() {
 
   // PDF action handlers
   const hasLineItems = lineItems.filter((item) => !item._destroy && (item.description || item.pricebook_item_id)).length > 0;
+
+  // Count line items needing price attention (unsupplied or price changed)
+  const priceIssueCount = useMemo(() => {
+    let count = 0;
+    for (const item of lineItems) {
+      if (item._destroy || isBlankLineItem(item)) continue;
+      const isNotSupplied = selectedSupplier && item.pricebook_item_id &&
+        selectedSupplier.supplied_pricebook_item_ids &&
+        !selectedSupplier.supplied_pricebook_item_ids.includes(item.pricebook_item_id);
+      const hasPriceChanged = item.pricebook_item?.active_price != null &&
+        Number(item.unit_price) !== Number(item.pricebook_item.active_price);
+      if (isNotSupplied || hasPriceChanged) count++;
+    }
+    return count;
+  }, [lineItems, selectedSupplier]);
   const canSendEmail = hasLineItems && selectedSupplier?.email;
 
   const [printingPdf, setPrintingPdf] = useState(false);
@@ -956,7 +984,11 @@ export default function PurchaseOrderDetailPage() {
     const activeItems = updated.filter((item) => !item._destroy);
     const isLastItem = activeItems[activeItems.length - 1] === updated[index];
     if (isLastItem && !isBlankLineItem(updated[index])) {
-      updated.push({ description: "", quantity: 0, unit_price: 0 });
+      updated.push({
+        description: "", quantity: 0, unit_price: 0,
+        profit_centre_id: defaultProfitCentre?.id ?? null,
+        profit_centre: defaultProfitCentre,
+      });
     }
     setLineItems(updated);
   };
@@ -987,7 +1019,11 @@ export default function PurchaseOrderDetailPage() {
     const activeItems = updated.filter((i) => !i._destroy);
     const isLastItem = activeItems[activeItems.length - 1] === updated[index];
     if (isLastItem) {
-      updated.push({ description: "", quantity: 0, unit_price: 0 });
+      updated.push({
+        description: "", quantity: 0, unit_price: 0,
+        profit_centre_id: defaultProfitCentre?.id ?? null,
+        profit_centre: defaultProfitCentre,
+      });
     }
     setLineItems(updated);
   };
@@ -1220,6 +1256,30 @@ export default function PurchaseOrderDetailPage() {
         </div>
 
         <div className="flex gap-2">
+          {/* Compare Prices */}
+          <Button
+            onClick={() => {
+              const allPbIds = lineItems
+                .filter((li) => !li._destroy && li.pricebook_item_id)
+                .map((li) => li.pricebook_item_id!);
+              const uniqueIds = [...new Set(allPbIds)];
+              setPriceComparisonItemIds(uniqueIds);
+              setPriceComparisonOpen(true);
+            }}
+            variant={priceIssueCount > 0 ? "default" : "outline"}
+            size="sm"
+            disabled={!hasLineItems || saving}
+            className={priceIssueCount > 0 ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}
+            title={priceIssueCount > 0 ? `${priceIssueCount} item${priceIssueCount !== 1 ? "s" : ""} need attention` : "Compare prices from all suppliers"}
+          >
+            <BarChart3 className="h-4 w-4 mr-1.5" />
+            Compare Prices
+            {priceIssueCount > 0 && (
+              <span className="ml-1.5 bg-white/20 rounded-full px-1.5 py-0.5 text-xs font-semibold leading-none">
+                {priceIssueCount}
+              </span>
+            )}
+          </Button>
           {/* PDF Actions */}
           <Button
             onClick={handlePrint}
@@ -1495,6 +1555,34 @@ export default function PurchaseOrderDetailPage() {
             {selectedSupplier?.email && (
               <p className="text-sm text-muted-foreground mt-2">{selectedSupplier.email}</p>
             )}
+            {/* Unlinked items: show clickable codes for items not priced by this supplier */}
+            {selectedSupplier?.supplied_pricebook_item_ids && (() => {
+              const suppliedIds = new Set(selectedSupplier.supplied_pricebook_item_ids);
+              const unlinked = lineItems.filter(
+                (li) => li.pricebook_item_id && !li._destroy && !suppliedIds.has(li.pricebook_item_id)
+              );
+              if (unlinked.length === 0) return null;
+              return (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {unlinked.map((li) => {
+                    const code = li.pricebook_item?.item_code || `#${li.pricebook_item_id}`;
+                    return (
+                      <a
+                        key={li.pricebook_item_id}
+                        href={`/pricebook/${encodeURIComponent(code)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                        title={`View ${code} in Price Book`}
+                      >
+                        {code}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 
@@ -1565,7 +1653,7 @@ export default function PurchaseOrderDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[150px] py-2 border-r">CODE</TableHead>
+                  <TableHead className="w-[220px] py-2 border-r">CODE</TableHead>
                   <TableHead className="py-2 border-r">DESCRIPTION</TableHead>
                   <TableHead className="w-[90px] text-right py-2 border-r">QTY</TableHead>
                   <TableHead className="w-[90px] text-right py-2 border-r">PRICE</TableHead>
@@ -1600,11 +1688,11 @@ export default function PurchaseOrderDetailPage() {
                     !selectedSupplier.supplied_pricebook_item_ids.includes(item.pricebook_item_id);
 
                   // Determine background color (priority: grey out > not supplied > price changed > normal)
-                  // Not supplied = amber, Price changed = orange
+                  // Not supplied = yellow, Price changed = orange
                   const rowBgColor = shouldGreyOut
                     ? '#f1f5f9'
                     : isNotSuppliedBySelectedSupplier
-                      ? '#fef3c7' // amber-100 for items not supplied
+                      ? '#fef08a' // yellow-200 for items not supplied by selected supplier
                       : hasPriceChanged
                         ? '#fb923c' // orange for price changed
                         : undefined;
@@ -1617,47 +1705,88 @@ export default function PurchaseOrderDetailPage() {
                   >
                     <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <div className="flex flex-col">
-                        <PricebookCodePicker
-                          value={item.pricebook_item ? {
-                            id: item.pricebook_item.id,
-                            item_code: item.pricebook_item.item_code,
-                            item_name: item.pricebook_item.item_name,
-                            current_price: item.pricebook_item.current_price,
-                            active_price: item.pricebook_item.active_price,
-                            gst_code: item.pricebook_item.gst_code,
-                            default_supplier: item.pricebook_item.default_supplier,
-                          } : null}
-                          onSelect={(pbItem) => {
-                            if (pbItem) {
-                              selectPricebookItem(originalIndex, {
-                                id: pbItem.id,
-                                item_code: pbItem.item_code,
-                                item_name: pbItem.item_name,
-                                current_price: pbItem.current_price,
-                                active_price: pbItem.active_price,
-                                gst_code: pbItem.gst_code,
-                                default_supplier: pbItem.default_supplier,
-                              });
-                            }
-                          }}
-                          placeholder="Search items..."
-                          showPrice
-                          className="border-0 rounded-none shadow-none focus-visible:ring-0"
-                        />
+                        <div className="flex items-center">
+                          <PricebookCodePicker
+                            value={item.pricebook_item ? {
+                              id: item.pricebook_item.id,
+                              item_code: item.pricebook_item.item_code,
+                              item_name: item.pricebook_item.item_name,
+                              current_price: item.pricebook_item.current_price,
+                              active_price: item.pricebook_item.active_price,
+                              gst_code: item.pricebook_item.gst_code,
+                              default_supplier: item.pricebook_item.default_supplier,
+                            } : null}
+                            onSelect={(pbItem) => {
+                              if (pbItem) {
+                                selectPricebookItem(originalIndex, {
+                                  id: pbItem.id,
+                                  item_code: pbItem.item_code,
+                                  item_name: pbItem.item_name,
+                                  current_price: pbItem.current_price,
+                                  active_price: pbItem.active_price,
+                                  gst_code: pbItem.gst_code,
+                                  default_supplier: pbItem.default_supplier,
+                                });
+                              }
+                            }}
+                            placeholder="Search items..."
+                            showPrice
+                            supplierId={selectedSupplier?.id}
+                            className="border-0 rounded-none shadow-none focus-visible:ring-0 flex-1"
+                          />
+                          {item.pricebook_item?.item_code && (
+                            <a
+                              href={`/pricebook/${encodeURIComponent(item.pricebook_item.item_code)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 p-1 mr-1 text-muted-foreground hover:text-foreground transition-colors"
+                              title={`View ${item.pricebook_item.item_code} in Price Book`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
                         {item.pricebook_item?.default_supplier && (
                           <div className="px-3 pb-1 -mt-1 text-xs text-muted-foreground truncate">
                             {item.pricebook_item.default_supplier.display_name || item.pricebook_item.default_supplier.name}
                           </div>
                         )}
+                        {isNotSuppliedBySelectedSupplier && item.pricebook_item_id && (
+                          <button
+                            className="inline-flex items-center gap-1 text-xs mx-3 mb-1 px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors cursor-pointer"
+                            onClick={() => {
+                              // Load ALL PO line items so user can compare full supplier coverage
+                              const allPbIds = lineItems
+                                .filter((li) => !li._destroy && li.pricebook_item_id)
+                                .map((li) => li.pricebook_item_id!);
+                              const uniqueIds = [...new Set(allPbIds)];
+                              setPriceComparisonItemIds(uniqueIds);
+                              setPriceComparisonOpen(true);
+                            }}
+                            title="Compare prices from all suppliers for all PO items"
+                          >
+                            <BarChart3 className="h-3 w-3" />
+                            Compare Prices
+                          </button>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
-                      <Input
-                        value={item.description}
-                        onChange={(e) => updateLineItem(originalIndex, "description", e.target.value)}
-                        placeholder="Item description"
-                        className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
-                        style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
+                      <PricebookLineSearch
+                        value={item.description || ""}
+                        onChange={(val) => updateLineItem(originalIndex, "description", val)}
+                        supplierId={selectedSupplier?.id}
+                        autoFocus={false}
+                        onSelect={(pbItem) => {
+                          selectPricebookItem(originalIndex, {
+                            id: pbItem.pricebookItemId,
+                            item_code: pbItem.pricebookItemCode,
+                            item_name: pbItem.description,
+                            current_price: pbItem.unitPrice,
+                            gst_code: pbItem.gstCode,
+                          } as PricebookItem);
+                        }}
                       />
                     </TableCell>
                     <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
@@ -2228,6 +2357,33 @@ export default function PurchaseOrderDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Price Comparison Sheet for unsupplied items */}
+      <PriceComparisonSheet
+        open={priceComparisonOpen}
+        onOpenChange={setPriceComparisonOpen}
+        selectedIds={priceComparisonItemIds}
+        includeSupplierIds={selectedSupplier ? [selectedSupplier.id] : undefined}
+        currentSupplierLabel="PO supplier"
+        expandToSupplierItems
+        clearSelection={() => setPriceComparisonItemIds([])}
+        onRefresh={() => {}}
+        onUpdateSupplier={async (supplierId, supplierName) => {
+          // Update local state immediately
+          setSelectedSupplier({
+            id: supplierId,
+            display_name: supplierName,
+          });
+          // Save the supplier change to the PO
+          try {
+            await api.patch(`/api/v1/purchase_orders/${recordId}`, {
+              purchase_order: { supplier_id: supplierId },
+            });
+          } catch (err) {
+            console.error("Failed to update PO supplier:", err);
+          }
+        }}
+      />
     </div>
   );
 }

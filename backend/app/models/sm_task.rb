@@ -80,7 +80,16 @@ class SmTask < ApplicationRecord
 
   # SSoT association - points to sm_schedule_master (THE ONE template system)
   belongs_to :sm_schedule_master, optional: true
+  # Tender section - synced from SmScheduleMaster template via SM sync
+  belongs_to :tender, optional: true
   belongs_to :parent_task, class_name: "SmTask", optional: true
+
+  # Lookup associations for stage/trade/cost_centre integer FK columns
+  # FRC (Feb 2026): These columns store IDs but lack _id suffix. Without associations,
+  # PurchaseOrder.as_json virtual methods did find_by per row (N+1).
+  belongs_to :sm_stage_ref, class_name: "SmStage", foreign_key: :stage, optional: true
+  belongs_to :sm_trade_ref, class_name: "SmTrade", foreign_key: :trade, optional: true
+  belongs_to :cost_centre_ref, class_name: "CostCentre", foreign_key: :cost_centre, optional: true
   has_many :children, class_name: "SmTask", foreign_key: :parent_task_id, dependent: :nullify
 
   # Claim stage link - for CLAIM tasks, links to the job's claim stage
@@ -99,7 +108,7 @@ class SmTask < ApplicationRecord
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :po_supplier, class_name: "Contact", optional: true
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
-  belongs_to :photo_entity_tab, class_name: "WarehouseFolder", optional: true
+  belongs_to :warehouse_folder, optional: true
   belongs_to :spawn_scan_task, class_name: "SmScheduleMaster", optional: true
 
   belongs_to :created_by, class_name: "User", optional: true

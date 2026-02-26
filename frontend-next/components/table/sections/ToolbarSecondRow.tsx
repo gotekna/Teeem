@@ -50,6 +50,8 @@ export interface ToolbarSecondRowProps {
   collapsedGroupsCount?: number;
   /** Number of rows being edited (not in context yet) */
   editingRowCount?: number;
+  /** Number of rows with actual changes (dirty) */
+  dirtyRowCount?: number;
   /** Number of validation errors (not in context yet) */
   validationErrorCount?: number;
   /** @deprecated Use TableContext instead. Selected row IDs */
@@ -85,6 +87,7 @@ export function ToolbarSecondRow({
   groupByColumn: propGroupByColumn,
   collapsedGroupsCount: propCollapsedGroupsCount,
   editingRowCount = 0,
+  dirtyRowCount = 0,
   validationErrorCount = 0,
   selectedRowIds: propSelectedRowIds,
   filteredRowsCount: propFilteredRowsCount,
@@ -181,11 +184,16 @@ export function ToolbarSecondRow({
         <>
           <span className={cn(
             "text-[11px] font-medium",
-            validationErrorCount > 0 ? "text-red-700 dark:text-red-300" : "text-blue-700 dark:text-blue-300"
+            validationErrorCount > 0 ? "text-red-700 dark:text-red-300" : dirtyRowCount > 0 ? "text-orange-700 dark:text-orange-300" : "text-blue-700 dark:text-blue-300"
           )}>
             Editing {editingRowCount} row{editingRowCount !== 1 ? "s" : ""}
+            {dirtyRowCount > 0 && (
+              <span className="ml-1 text-orange-600 dark:text-orange-400">
+                ({dirtyRowCount} changed)
+              </span>
+            )}
             {validationErrorCount > 0 && (
-              <span className="ml-2 text-red-600 dark:text-red-400">
+              <span className="ml-1 text-red-600 dark:text-red-400">
                 ({validationErrorCount} error{validationErrorCount !== 1 ? "s" : ""})
               </span>
             )}

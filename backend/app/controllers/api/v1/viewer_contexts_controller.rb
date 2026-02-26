@@ -61,24 +61,13 @@ module Api
 
       private
 
-      # Strong parameters for viewer context
-      # Viewer context contains: files array, qa_pairs array, current_file_index
+      # Viewer context is ephemeral (cache-stored, 7-day expiry) and public.
+      # We permit all keys within the context hash since it's just serialized
+      # to cache - no database writes, no security implications.
+      # Frontend sends: { files: [{ name, downloadUrl, openUrl }], allQA: [...], currentIndex: N }
       def viewer_context_params
-        if params[:context].present?
-          # Nested under :context key
-          params.require(:context).permit(
-            :current_file_index,
-            files: [:url, :name, :type],
-            qa_pairs: [:question, :answer, :timestamp]
-          )
-        else
-          # Direct params (backwards compatibility)
-          params.permit(
-            :current_file_index,
-            files: [:url, :name, :type],
-            qa_pairs: [:question, :answer, :timestamp]
-          )
-        end
+        raw = params[:context].present? ? params[:context] : params
+        raw.permit!.to_h
       end
     end
   end

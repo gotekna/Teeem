@@ -81,6 +81,7 @@ class MigrateAllDocumentsToBlobStorageJob < ApplicationJob
     end
   end
 
+  # Memory-safe: downloads to Tempfile, uses find_or_create_from_file! for disk-backed hash+upload
   def migrate_document(wd, provider, dry_run:)
     # Get legacy path from the source record
     old_path = wd.legacy_storage_path
@@ -89,22 +90,37 @@ class MigrateAllDocumentsToBlobStorageJob < ApplicationJob
       return :skipped
     end
 
-    # Download content from old location
+    # Download to Tempfile (memory-safe: streams to disk, not heap)
+    tempfile = nil
     begin
-      content = provider.download_file(old_path)
+      if provider.respond_to?(:download_to_tempfile)
+        tempfile = provider.download_to_tempfile(old_path)
+      else
+        # Fallback for providers without streaming support (e.g., SharePoint)
+        content = provider.download_file(old_path)
+        unless content.present?
+          Rails.logger.warn "[BlobMigration] WD##{wd.id}: Empty content at #{old_path}, skipping"
+          return :skipped
+        end
+        tempfile = Tempfile.new(["blob_migration_#{wd.id}", File.extname(old_path)], binmode: true)
+        tempfile.write(content)
+        tempfile.flush
+        tempfile.rewind
+        content = nil # Release String from heap
+      end
     rescue DocumentProviders::NotFoundError
       Rails.logger.warn "[BlobMigration] WD##{wd.id}: File not found at #{old_path}, skipping"
       return :skipped
     end
 
-    unless content.present?
+    if tempfile.nil? || tempfile.size == 0
       Rails.logger.warn "[BlobMigration] WD##{wd.id}: Empty content at #{old_path}, skipping"
+      tempfile&.close! rescue nil
       return :skipped
     end
 
-    # Calculate hash for deduplication
-    content_hash = Digest::SHA256.hexdigest(content)
-    extension = File.extname(old_path).presence || detect_extension(wd)
+    # Disk-backed hash for dedup check (4KB buffer, O(1) memory)
+    content_hash = Digest::SHA256.file(tempfile.path).hexdigest
 
     # Check if blob already exists (deduplication!)
     existing_blob = StorageBlob.find_by(content_hash: content_hash)
@@ -113,41 +129,34 @@ class MigrateAllDocumentsToBlobStorageJob < ApplicationJob
       unless dry_run
         wd.update!(storage_blob_id: existing_blob.id)
         existing_blob.increment_reference!
-        # Don't delete old file yet - might be needed by other records
       end
+      tempfile.close! rescue nil
       return :deduped
     end
 
-    return :migrated if dry_run
+    if dry_run
+      tempfile.close! rescue nil
+      return :migrated
+    end
 
-    # Upload to flat blob storage: Blobs/{first2}/{hash}.ext
-    new_path = "Blobs/#{content_hash[0..1]}/#{content_hash}#{extension}"
+    # Use StorageBlob.find_or_create_from_file! for disk-backed upload with race-condition handling
+    filename = wd.ui_name || File.basename(old_path)
+    content_type = wd.content_type || detect_content_type(File.extname(old_path).presence || detect_extension(wd))
 
-    provider.upload_file(
-      File.dirname(new_path),
-      content,
-      File.basename(new_path),
-      content_type: wd.content_type || detect_content_type(extension)
-    )
-
-    # Create blob record
-    blob = StorageBlob.create!(
-      content_hash: content_hash,
-      storage_path: new_path,
-      file_size: content.bytesize,
-      content_type: wd.content_type || detect_content_type(extension),
-      original_filename: wd.ui_name || File.basename(old_path),
-      reference_count: 1
+    blob = StorageBlob.find_or_create_from_file!(
+      tempfile.path,
+      filename: filename,
+      content_type: content_type
     )
 
     # Link warehouse document to blob
     wd.update!(storage_blob_id: blob.id)
+    blob.increment_reference!
 
-    # Optionally delete old file (commented out for safety - enable after verification)
-    # provider.delete_file(old_path)
-
-    Rails.logger.info "[BlobMigration] WD##{wd.id}: Migrated #{old_path} -> #{new_path}"
+    Rails.logger.info "[BlobMigration] WD##{wd.id}: Migrated #{old_path} -> #{blob.storage_path}"
     :migrated
+  ensure
+    tempfile&.close! rescue nil
   end
 
   def log_progress(stats)

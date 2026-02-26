@@ -1,5 +1,10 @@
 module Bpmn
   module Tasks
+    # Raised for errors that are permanent and should NOT be retried
+    # (e.g., referenced record deleted, invalid configuration).
+    # ServiceTaskExecutor catches this and fails the process immediately.
+    class PermanentError < StandardError; end
+
     class BaseTask
       def initialize(token, config)
         @token = token

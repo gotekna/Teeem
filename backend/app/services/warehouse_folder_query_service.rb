@@ -12,13 +12,54 @@
 # 4. Build tree in Ruby memory (no recursive queries)
 #
 class WarehouseFolderQueryService
-  def initialize(warehouse_type: nil, scope: nil, entity_type: nil, include_disabled: false, tab_group: nil, with_document_types: false)
+  def initialize(warehouse_type: nil, scope: nil, entity_type: nil, include_disabled: false, tab_group: nil, with_document_types: false, include_counts: false)
     # Accept both warehouse_type and scope (scope for backwards compat)
     @warehouse_type = warehouse_type || scope
     @entity_type = entity_type
     @include_disabled = include_disabled
     @tab_group = tab_group
     @with_document_types = with_document_types
+    @include_counts = include_counts
+  end
+
+  # Returns ALL scopes' nested tabs in a single query.
+  # FRC (Feb 2026): WarehouseProviderTab was firing 15 parallel requests (one per scope)
+  # causing H12 timeouts on staging. This method loads ALL folders once and groups by
+  # warehouse_type code, reducing 15 queries to 1.
+  def all_scopes_nested_tabs
+    # Step 1: Load ALL tabs across all warehouse types (single query)
+    all_tabs = WarehouseFolder
+      .includes(:warehouse_folder_document_types, :document_types, :parent)
+      .eager_load(:warehouse_type)
+    all_tabs = all_tabs.enabled unless @include_disabled
+    all_tabs = all_tabs.to_a
+
+    Rails.logger.info "[WarehouseFolderQueryService] all_scopes: loaded #{all_tabs.size} folders total"
+
+    # Step 2: Set up shared state for tree building
+    @children_by_parent_id = all_tabs.group_by(&:parent_id)
+    @document_counts_by_type = {}
+    @storage_config = load_storage_config
+    @document_types_json_by_tab = build_document_types_json(all_tabs)
+    @tabs_by_id = all_tabs.index_by(&:id)
+
+    # Step 3: Group by warehouse_type code and build nested structure per scope
+    tabs_by_type = all_tabs.group_by { |t| t.warehouse_type&.code }
+    result = {}
+
+    tabs_by_type.each do |type_code, _type_tabs|
+      next if type_code.blank?
+
+      # Find root tabs for this warehouse_type
+      root_tabs = (_type_tabs.select { |t| t.parent_id.nil? })
+        .select { |t| @include_disabled || t.enabled }
+        .sort_by(&:order_position)
+        .map { |tab| build_tab_json(tab) }
+
+      result[type_code] = root_tabs
+    end
+
+    result
   end
 
   # Returns nested tabs JSON matching the expected format
@@ -29,9 +70,14 @@ class WarehouseFolderQueryService
     # Step 2: Group by parent for tree building
     @children_by_parent_id = all_tabs.group_by(&:parent_id)
 
-    # Step 3: Pre-fetch document counts (single grouped query)
-    all_doc_type_ids = all_tabs.flat_map { |t| t.document_types.map(&:id) }.compact.uniq
-    @document_counts_by_type = preload_document_counts(all_doc_type_ids)
+    # Step 3: Pre-fetch document counts only when explicitly requested
+    # Querying 303K+ WarehouseDocuments is expensive (~15-25s). Skip unless needed.
+    if @include_counts
+      all_doc_type_ids = all_tabs.flat_map { |t| t.document_types.map(&:id) }.compact.uniq
+      @document_counts_by_type = preload_document_counts(all_doc_type_ids)
+    else
+      @document_counts_by_type = {}
+    end
 
     # Step 4: Memoize storage config (single query)
     @storage_config = load_storage_config
@@ -77,7 +123,8 @@ class WarehouseFolderQueryService
   # Single query to load all tabs with associations
   def preload_tabs
     tabs = WarehouseFolder.for_warehouse_type(@warehouse_type)
-                     .includes(:warehouse_folder_document_types, :document_types, :parent, :warehouse_type)
+                     .includes(:warehouse_folder_document_types, :document_types, :parent)
+                     .eager_load(:warehouse_type)
 
     tabs = tabs.enabled unless @include_disabled
     tabs = tabs.for_entity_type(@entity_type) if @entity_type.present?
@@ -205,7 +252,7 @@ class WarehouseFolderQueryService
       full_warehouse_path: full_path,
       uses_custom_path: tab.uses_custom_path,
       warehouse_type_override: tab.warehouse_type_override,
-      path_preview: tab.path_preview,
+      path_preview: compute_path_preview(full_path, tab.name),
       hierarchy_path: full_path,
       document_count: doc_count,
       is_photo_category: tab.is_photo_category,
@@ -275,6 +322,32 @@ class WarehouseFolderQueryService
     return false if tab.warehouse_folder_document_types.any?  # already eager-loaded
 
     true
+  end
+
+  # Compute path preview from pre-computed full_path (no DB queries).
+  # Replaces tab.path_preview which calls full_path_template → full_folder_path →
+  # ancestor_segment_chain → parent.parent... (N+1 per parent level).
+  def compute_path_preview(full_path, fallback_name)
+    return fallback_name if full_path.blank?
+
+    preview = full_path.dup
+    preview.gsub!("{{JobCode}}", "J-001")
+    preview.gsub!("{{JobName}}", "Smith Residence")
+    preview.gsub!("{{ContactName}}", "John Smith")
+    preview.gsub!("{{CompanyCode}}", "ABC")
+    preview.gsub!("{{CompanyName}}", "ABC Pty Ltd")
+    preview.gsub!("{{CompanyGroup}}", "ABC Group")
+    preview.gsub!("{{TaskId}}", "123")
+    preview.gsub!("{{TaskName}}", "Site Inspection")
+    preview.gsub!("{{CaseId}}", "456")
+    preview.gsub!("{{CaseName}}", "Insurance Claim")
+    preview.gsub!("{{UserName}}", "John Doe")
+    preview.gsub!("{{TabName}}", "Sales")
+    preview.gsub!("{{Year}}", Time.current.year.to_s)
+    preview.gsub!("{{Month}}", Time.current.strftime("%B"))
+    preview.gsub!("{{Mailbox}}", "inbox@example.com")
+    preview.gsub!("{{Date}}", Time.current.strftime("%Y-%m-%d"))
+    preview
   end
 
   # Compute effective icon (inherits from parent)

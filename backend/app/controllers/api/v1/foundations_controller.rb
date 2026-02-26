@@ -4,7 +4,7 @@ module Api
       include CacheConstants
 
       skip_before_action :authorize_request, only: [ :table_ids ]
-      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :fix_health, :schema, :groups ]
+      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :fix_health, :schema, :groups, :update_edit_modal_config ]
 
       # GET /api/v1/foundations
       # Performance: Use include_counts=true to include record counts (adds 141 COUNT queries)
@@ -216,7 +216,8 @@ module Api
               formula: nil,  # Not implemented yet
               formula_output_type: nil,  # Not implemented yet
               choices: col.available_choices,  # Database column is available_choices
-              validation_regex: col.effective_validation_regex
+              validation_regex: col.effective_validation_regex,
+              settings: col.settings
             }
 
             # Add format config for Australian identifier types (ABN, ACN, BSB, etc.)
@@ -397,22 +398,24 @@ module Api
                   when "is_not_null"
                     query = query.where.not(column => nil)
                   when "is_empty"
-                    # Handle JSONB arrays specially - empty array is '[]', not ''
                     col_type = model.columns_hash[column]&.type
                     quoted_col = conn.quote_column_name(column)
                     if col_type == :jsonb
-                      # JSONB: NULL or empty array []
                       query = query.where("#{quoted_col} IS NULL OR #{quoted_col} = '[]'::jsonb")
+                    elsif %i[integer bigint decimal float boolean].include?(col_type)
+                      # Numeric/boolean types can only be NULL, not empty string
+                      query = query.where(column => nil)
                     else
                       query = query.where("#{quoted_col} IS NULL OR #{quoted_col} = ''")
                     end
                   when "is_not_empty"
-                    # Handle JSONB arrays specially - non-empty means has at least one element
                     col_type = model.columns_hash[column]&.type
                     quoted_col = conn.quote_column_name(column)
                     if col_type == :jsonb
-                      # JSONB: NOT NULL and NOT empty array
                       query = query.where("#{quoted_col} IS NOT NULL AND #{quoted_col} != '[]'::jsonb")
+                    elsif %i[integer bigint decimal float boolean].include?(col_type)
+                      # Numeric/boolean types: not empty just means not NULL
+                      query = query.where.not(column => nil)
                     else
                       query = query.where("#{quoted_col} IS NOT NULL AND #{quoted_col} != ''")
                     end
@@ -450,12 +453,65 @@ module Api
 
           # Get group counts via SQL aggregation
           # Handle NULL values by coalescing to a display-friendly string
-          quoted_column = conn.quote_column_name(group_by_column)
+          #
+          # FRC (Feb 2026): Some Foundation columns are virtual Ruby methods, not DB columns.
+          # GROUP BY on them causes PG::UndefinedColumn. Two strategies:
+          # 1. Map to the real FK column (e.g., po_task_name → sm_task_id)
+          # 2. Use JOIN to resolve through relationships (e.g., cost_centre_from_task → sm_tasks.cost_centre)
+          actual_db_columns = model.column_names
 
-          groups_result = query
-            .group(group_by_column)
-            .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
-            .order(Arel.sql("COUNT(*) DESC"))
+          # Virtual column mapping for purchase_orders Foundation
+          # Maps virtual method names → { real_column:, join:, display_model:, display_method: }
+          virtual_column_map = {}
+          if model.table_name == "purchase_orders"
+            virtual_column_map = {
+              "po_task_name"              => { real_column: "sm_task_id", display_model: "SmTask", display_method: :name },
+              "stage_from_task"           => { join_table: "sm_tasks", join_fk: "sm_task_id", join_column: "stage", display_model: "SmStage" },
+              "trade_from_task"           => { join_table: "sm_tasks", join_fk: "sm_task_id", join_column: "trade", display_model: "SmTrade" },
+              "cost_centre_from_task"     => { join_table: "sm_tasks", join_fk: "sm_task_id", join_column: "cost_centre", display_model: "CostCentre" },
+              "profit_centre_from_line_items" => nil, # Too complex (aggregation over line_items) - skip
+            }
+          end
+
+          virtual_config = virtual_column_map[group_by_column]
+
+          if !actual_db_columns.include?(group_by_column) && virtual_config.nil?
+            # Unknown virtual column with no mapping
+            return render json: {
+              success: false,
+              error: "Column '#{group_by_column}' is a virtual column and cannot be used for grouping."
+            }, status: :bad_request
+          end
+
+          if virtual_config && virtual_config[:join_table]
+            # Strategy 2: JOIN through related table
+            jt = virtual_config[:join_table]
+            jfk = virtual_config[:join_fk]
+            jcol = virtual_config[:join_column]
+            groups_result = query
+              .joins("LEFT JOIN #{conn.quote_table_name(jt)} ON #{conn.quote_table_name(jt)}.id = #{conn.quote_table_name(model.table_name)}.#{conn.quote_column_name(jfk)}")
+              .group("#{conn.quote_table_name(jt)}.#{conn.quote_column_name(jcol)}")
+              .select(Arel.sql("#{conn.quote_table_name(jt)}.#{conn.quote_column_name(jcol)} as group_key, COUNT(*) as count"))
+              .order(Arel.sql("COUNT(*) DESC"))
+          elsif virtual_config && virtual_config[:real_column]
+            # Strategy 1: Simple FK substitution
+            real_col = virtual_config[:real_column]
+            original_virtual_column = group_by_column # Save for display_values_map key
+            quoted_column = conn.quote_column_name(real_col)
+            groups_result = query
+              .group(real_col)
+              .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
+              .order(Arel.sql("COUNT(*) DESC"))
+            # Override group_by_column for display value resolution below
+            group_by_column = real_col
+          else
+            # Normal DB column
+            quoted_column = conn.quote_column_name(group_by_column)
+            groups_result = query
+              .group(group_by_column)
+              .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
+              .order(Arel.sql("COUNT(*) DESC"))
+          end
 
           # SSoT: Build display_values_map for ALL grouping columns using DisplayValueResolver
           # This provides display values for nested group levels (not just the primary)
@@ -479,6 +535,31 @@ module Api
             lookup_model = col_def.lookup_foundation.dynamic_model
             records = lookup_model.where(id: lookup_ids)
             display_values_map[col_name] = DisplayValueResolver.resolve_lookup_batch(records, col_def)
+          end
+
+          # Display value resolution for virtual columns
+          # These don't have Foundation lookup column definitions, so resolve manually
+          if virtual_config && virtual_config[:display_model]
+            lookup_ids = groups_result.map(&:group_key).compact.map(&:to_i).uniq
+            if lookup_ids.any?
+              display_model_class = virtual_config[:display_model].constantize
+              display_records = display_model_class.where(id: lookup_ids)
+              virtual_display_map = {}
+              display_records.each do |rec|
+                virtual_display_map[rec.id] = if rec.respond_to?(:code) && rec.respond_to?(:name)
+                  "#{rec.code} - #{rec.name}"
+                else
+                  rec.name
+                end
+              end
+              # Store under overridden column name for display_value resolution below
+              display_values_map[group_by_column] = virtual_display_map
+              # Also store under original virtual column name so frontend can look up
+              # display values by the column name it knows (e.g., "po_task_name" not "sm_task_id")
+              if defined?(original_virtual_column) && original_virtual_column != group_by_column
+                display_values_map[original_virtual_column] = virtual_display_map
+              end
+            end
           end
 
           # Transform results (resolve lookup display values for primary column)
@@ -572,6 +653,28 @@ module Api
             error: "Failed to get group counts: #{e.message}"
           }, status: :internal_server_error
         end
+      end
+
+      # PATCH /api/v1/foundations/:id/update_edit_modal_config
+      # Saves edit modal field config (visible fields + order) tenant-wide
+      def update_edit_modal_config
+        config = params[:edit_modal_config]
+        unless config.is_a?(ActionController::Parameters) || config.is_a?(Hash)
+          return render json: { success: false, error: "edit_modal_config is required" }, status: :bad_request
+        end
+
+        # Build sanitized config - visible_fields is an array, field_order is a dynamic key hash
+        sanitized = {}
+        if config[:visible_fields].is_a?(Array)
+          sanitized["visible_fields"] = config[:visible_fields].map(&:to_s)
+        end
+        if config[:field_order].is_a?(ActionController::Parameters) || config[:field_order].is_a?(Hash)
+          sanitized["field_order"] = config[:field_order].to_unsafe_h.transform_values(&:to_i)
+        end
+
+        @foundation.update!(edit_modal_config: sanitized)
+
+        render json: { success: true, edit_modal_config: @foundation.edit_modal_config }
       end
 
       # GET /api/v1/foundations/table_ids
@@ -841,7 +944,8 @@ module Api
           feature: foundation.feature,
           api_endpoint: foundation.api_endpoint,
           created_at: foundation.created_at,
-          updated_at: foundation.updated_at
+          updated_at: foundation.updated_at,
+          edit_modal_config: foundation.edit_modal_config
         }
 
         if include_columns
@@ -958,7 +1062,8 @@ module Api
           # Get record count
           begin
             json[:record_count] = foundation.dynamic_model.count
-          rescue StandardError
+          rescue StandardError => e
+            Rails.logger.warn "[Foundations] Failed to get record count for foundation '#{foundation.slug}': #{e.message}"
             json[:record_count] = 0
           end
         end

@@ -23,6 +23,9 @@ class BpmnRetryWaitingTaskJob < ApplicationJob
 
     # Re-execute the service task
     Bpmn::ServiceTaskExecutor.execute(token)
+  rescue Bpmn::Tasks::PermanentError => e
+    # Non-transient error - don't retry (ServiceTaskExecutor already failed the process)
+    Rails.logger.error "BpmnRetryWaitingTaskJob: Permanent failure for token #{token_id}: #{e.message}"
   rescue StandardError => e
     Rails.logger.error "BpmnRetryWaitingTaskJob: Error retrying token #{token_id}: #{e.message}"
     raise # Let the job retry mechanism handle it

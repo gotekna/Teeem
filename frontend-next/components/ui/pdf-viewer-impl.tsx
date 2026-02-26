@@ -132,8 +132,11 @@ export function PDFViewerImpl({
 
             if (fileId) {
               // Fetch presigned URL from backend (skips Rails streaming) - returns JSON
+              // skipAuthRedirect: A 401 from storage endpoints means "storage not connected",
+              // not "session expired". Without this, storage errors trigger logout.
               const presignedResponse = await api.get<{ success: boolean; url: string }>(
-                `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`
+                `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
+                { skipAuthRedirect: true }
               );
 
               if (presignedResponse?.success && presignedResponse.url) {
@@ -417,7 +420,7 @@ export function PDFViewerImpl({
 
   // Success state - iframe with native PDF viewer
   return (
-    <div ref={containerRef} className={cn("h-full w-full relative", className)}>
+    <div ref={containerRef} className={cn("h-full w-full relative overflow-hidden", className)}>
       {/* Floating controls: page navigation + zoom */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
         {/* Page navigation - only show for multi-page PDFs */}
@@ -497,7 +500,8 @@ export function PDFViewerImpl({
       <iframe
         key={`${containerKey}-displayed-${displayedPage}`}
         src={displayedIframeSrc}
-        className="absolute inset-0 w-full h-full border-0"
+        className="absolute inset-0 h-full border-0"
+        style={{ width: 'calc(100% + 17px)' }}
         title="PDF Viewer"
       />
 
@@ -506,8 +510,8 @@ export function PDFViewerImpl({
         <iframe
           key={`${containerKey}-loading-${currentPage}`}
           src={newPageIframeSrc}
-          className="absolute inset-0 w-full h-full border-0 transition-opacity duration-150 ease-in-out opacity-100"
-          style={{ backgroundColor: 'var(--background)' }}
+          className="absolute inset-0 h-full border-0 transition-opacity duration-150 ease-in-out opacity-100"
+          style={{ width: 'calc(100% + 17px)', backgroundColor: 'var(--background)' }}
           title="PDF Viewer Loading"
           onLoad={handleNewPageLoad}
         />

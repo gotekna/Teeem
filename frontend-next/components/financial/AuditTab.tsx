@@ -35,7 +35,7 @@ import {
   CheckCircle,
   Clock,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { formatDate, formatDateTime } from "@/utils/formatters";
 
 interface AuditLog {
@@ -133,7 +133,7 @@ export default function AuditTab() {
 
   const handleExportSnapshot = async (snapshot: AuditSnapshot) => {
     try {
-      window.open(`/api/v1/gl/audit/snapshots/${snapshot.id}/export`, "_blank");
+      window.open(`${getApiBaseUrl()}/api/v1/gl/audit/snapshots/${snapshot.id}/export`, "_blank");
     } catch (error) {
       console.error("Failed to export snapshot:", error);
     }

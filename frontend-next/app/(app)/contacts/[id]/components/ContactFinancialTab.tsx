@@ -706,7 +706,7 @@ function PurchaseOrdersSubTab({ contact }: { contact: Contact }) {
     setError(null);
     try {
       const response = await api.get<PurchaseOrdersResponse>(
-        `/api/v1/purchase_orders?supplier_id=${contact.id}&per_page=100`
+        `/api/v1/purchase_orders?supplier_id=${contact.id}&per_page=1000`
       );
 
       if (response?.purchase_orders) {

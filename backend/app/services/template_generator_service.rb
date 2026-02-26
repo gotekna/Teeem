@@ -206,8 +206,8 @@ class TemplateGeneratorService
           sheet.add_row [ct.name, ct.code, ct.description, ct.respond_to?(:is_active) ? ct.is_active : true]
         end
       end
-    rescue StandardError
-      # If tenant associations fail, just leave empty
+    rescue StandardError => e
+      Rails.logger.warn "[TemplateGenerator] Failed to populate sample data: #{e.message}"
     end
 
     def generate_readme

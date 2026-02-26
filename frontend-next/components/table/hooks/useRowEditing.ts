@@ -23,7 +23,7 @@
  * editing.actions.saveEditing();
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useAtom } from 'jotai';
 import {
   editingRowIdsAtom,
@@ -33,6 +33,7 @@ import {
 import { validateCell as validateCellValue } from '../core/column-renderer/CellValidation';
 import { api } from '@/lib/api';
 import { clearCachedRecords } from '@/lib/records-cache';
+import { invalidateLookupCache } from '../utils/lookup-cache';
 import { isLookupColumn } from '@/lib/constants/column-types';
 import type { TableColumn } from '../types';
 
@@ -60,10 +61,14 @@ export interface UseRowEditingOptions {
   onRowUpdate?: (rowId: string | number, field: string, value: unknown) => void | Promise<void>;
   /** Whether in auto-fetch mode */
   isAutoFetch?: boolean;
+  /** Whether edit mode is active (accumulate rows instead of replacing) */
+  isEditMode?: boolean;
   /** Setter for auto-fetched records (for optimistic updates) */
   setRecords?: React.Dispatch<React.SetStateAction<TableRow[]>>;
   /** Callback to pre-fetch lookup options */
   fetchLookupOptions?: (column: TableColumn) => void;
+  /** Current lookup options (for resolving display values in optimistic updates) */
+  lookupOptions?: Record<string, Array<{ id: number | string; display: string }>>;
 }
 
 export interface RowEditingState {
@@ -79,6 +84,8 @@ export interface RowEditingState {
   editingRowCount: number;
   /** Total validation error count */
   validationErrorCount: number;
+  /** IDs of rows that have been modified (have actual changes vs original) */
+  dirtyRowIds: Set<string | number>;
 }
 
 export interface RowEditingActions {
@@ -114,14 +121,19 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     onRefresh,
     onRowUpdate,
     isAutoFetch = false,
+    isEditMode = false,
     setRecords,
     fetchLookupOptions,
+    lookupOptions,
   } = options;
 
   // State from atoms
   const [editingRowIds, setEditingRowIds] = useAtom(editingRowIdsAtom);
   const [editingData, setEditingData] = useAtom(editingDataAtom);
   const [validationErrors, setValidationErrors] = useAtom(legacyValidationErrorsAtom);
+
+  // Track which fields the user explicitly modified (prevents sending untouched FK columns)
+  const modifiedFieldsRef = useRef<Record<string | number, Set<string>>>({});
 
   // ============================================================================
   // COMPUTED STATE
@@ -133,6 +145,22 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
       0
     );
 
+    // Compute dirty rows: rows where editingData differs from original row data
+    const dirty = new Set<string | number>();
+    for (const rowId of editingRowIds) {
+      const originalRow = rows.find(r => r.id === rowId);
+      const rowData = editingData[rowId];
+      if (!originalRow || !rowData) continue;
+
+      for (const [key, value] of Object.entries(rowData)) {
+        if (key === 'id') continue;
+        if (JSON.stringify(originalRow[key]) !== JSON.stringify(value)) {
+          dirty.add(rowId);
+          break;
+        }
+      }
+    }
+
     return {
       editingRowIds,
       editingData,
@@ -140,16 +168,32 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
       isEditing: editingRowIds.size > 0,
       editingRowCount: editingRowIds.size,
       validationErrorCount: errorCount,
+      dirtyRowIds: dirty,
     };
-  }, [editingRowIds, editingData, validationErrors]);
+  }, [editingRowIds, editingData, validationErrors, rows]);
 
   // ============================================================================
   // ACTIONS
   // ============================================================================
 
   const startEditing = useCallback((row: TableRow) => {
-    setEditingRowIds(new Set([row.id]));
-    setEditingData({ [row.id]: { ...row } });
+    if (isEditMode) {
+      // In edit mode: accumulate rows - add to existing set, preserve pending edits
+      setEditingRowIds(prev => {
+        if (prev.has(row.id)) return prev; // Already editing this row
+        const next = new Set(prev);
+        next.add(row.id);
+        return next;
+      });
+      setEditingData(prev => {
+        if (prev[row.id]) return prev; // Already have data for this row
+        return { ...prev, [row.id]: { ...row } };
+      });
+    } else {
+      // Single-row mode: replace (legacy behavior for double-click editing)
+      setEditingRowIds(new Set([row.id]));
+      setEditingData({ [row.id]: { ...row } });
+    }
 
     // Pre-fetch lookup options for lookup columns
     if (fetchLookupOptions) {
@@ -159,7 +203,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         }
       });
     }
-  }, [columns, fetchLookupOptions, setEditingRowIds, setEditingData]);
+  }, [columns, fetchLookupOptions, isEditMode, setEditingRowIds, setEditingData]);
 
   const startMultiEditing = useCallback((rowIds: (string | number)[]) => {
     const newEditingData: Record<string | number, Record<string, unknown>> = {};
@@ -186,9 +230,16 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     setEditingRowIds(new Set());
     setEditingData({});
     setValidationErrors({});
+    modifiedFieldsRef.current = {};
   }, [setEditingRowIds, setEditingData, setValidationErrors]);
 
   const updateCell = useCallback((rowId: string | number, columnKey: string, value: unknown) => {
+    // Track this field as explicitly modified by the user
+    if (!modifiedFieldsRef.current[rowId]) {
+      modifiedFieldsRef.current[rowId] = new Set();
+    }
+    modifiedFieldsRef.current[rowId].add(columnKey);
+
     setEditingData(prev => ({
       ...prev,
       [rowId]: {
@@ -272,20 +323,46 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
       return;
     }
 
+    // Declared outside try so catch block can reference for field-level errors
+    const rowsToUpdate: Array<{ rowId: string | number; changes: Record<string, unknown> }> = [];
+
     try {
-      // Collect changes
-      const rowsToUpdate: Array<{ rowId: string | number; changes: Record<string, unknown> }> = [];
+      // Build set of editable column keys - ONLY these get sent to the API
+      // This prevents sending expanded lookup objects, display values, and computed fields
+      // which would cause FK violations (e.g. supplier_id=0 from coercing {id:123,name:"..."})
+      const NON_EDITABLE_KEYS = ['id', 'created_at', 'updated_at', 'select', 'actions'];
+      const editableColumnKeys = new Set(
+        columns
+          .filter(c => {
+            const isComputed = c.column_type === 'computed' || c.column_type === 'formula';
+            const isSystem = NON_EDITABLE_KEYS.includes(c.key) || c.system === true;
+            return c.editable !== false && !isSystem && !isComputed;
+          })
+          .map(c => c.key)
+      );
 
       for (const rowId of editingRowIds) {
         const originalRow = rows.find(r => r.id === rowId);
         const rowData = editingData[rowId];
         if (!originalRow || !rowData) continue;
 
+        const modifiedForRow = modifiedFieldsRef.current[rowId];
+        const hasTracking = modifiedForRow && modifiedForRow.size > 0;
         const changes: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(rowData)) {
+          // Only send fields that correspond to actual editable columns
+          if (!editableColumnKeys.has(key)) continue;
+          // If we have explicit tracking, only send tracked fields
+          // If no tracking (fallback), send all changed editable fields
+          if (hasTracking && !modifiedForRow.has(key)) continue;
           const originalValue = originalRow[key];
           if (JSON.stringify(originalValue) !== JSON.stringify(value)) {
-            changes[key] = value;
+            // Sanitize FK values: convert 0/"0"/"" to null for _id columns
+            if (key.endsWith('_id') && (value === 0 || value === '0' || value === '')) {
+              changes[key] = null;
+            } else {
+              changes[key] = value;
+            }
           }
         }
 
@@ -296,27 +373,53 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
 
       // Save via API
       if (foundationId && rowsToUpdate.length > 0) {
-        for (const { rowId, changes } of rowsToUpdate) {
-          await api.patch(`/api/v1/foundations/${foundationId}/records/${rowId}`, {
-            record: changes,
+        if (rowsToUpdate.length === 1) {
+          // Single row: use direct PATCH
+          await api.patch(`/api/v1/foundations/${foundationId}/records/${rowsToUpdate[0].rowId}`, {
+            record: rowsToUpdate[0].changes,
+          });
+        } else {
+          // Multiple rows: batch into single request to avoid rate limiting
+          await api.post(`/api/v1/foundations/${foundationId}/records/batch_update`, {
+            updates: rowsToUpdate.map(({ rowId, changes }) => ({
+              id: rowId,
+              changes,
+            })),
           });
         }
 
-        // Clear cache
+        // Clear cache (records + lookup options so downstream tables get fresh dropdowns)
         clearCachedRecords(foundationId);
+        invalidateLookupCache();
 
-        // Optimistic update
+        // Optimistic update: apply changes to local records immediately
+        // When optimistic update succeeds, skip onRefresh to avoid component remount
+        // (remount discards optimistic state and shows stale SSR data until re-fetch)
         if (isAutoFetch && setRecords) {
           setRecords(prev => prev.map(record => {
             const update = rowsToUpdate.find(r => r.rowId === record.id);
             if (update) {
-              return { ...record, ...update.changes };
+              // Resolve lookup column values to {id, display} format for display
+              // Without this, optimistic update overwrites {id, display} with raw ID
+              const resolvedChanges = { ...update.changes };
+              for (const [key, value] of Object.entries(resolvedChanges)) {
+                const col = columns.find(c => c.key === key);
+                if (col && isLookupColumn(col.column_type) && value != null && typeof value !== 'object') {
+                  const opts = lookupOptions?.[key];
+                  const match = opts?.find(o => String(o.id) === String(value));
+                  if (match) {
+                    resolvedChanges[key] = { id: Number(value), display: match.display };
+                  }
+                }
+              }
+              return { ...record, ...resolvedChanges };
             }
             return record;
           }));
+        } else {
+          // No optimistic update available - fall back to parent refresh
+          onRefresh?.();
         }
-
-        onRefresh?.();
       } else if (onRowUpdate) {
         // Legacy: call onRowUpdate for each field
         for (const { rowId, changes } of rowsToUpdate) {
@@ -326,12 +429,25 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         }
         if (foundationId) {
           clearCachedRecords(foundationId);
+          invalidateLookupCache();
         }
         if (isAutoFetch && setRecords) {
           setRecords(prev => prev.map(record => {
             const update = rowsToUpdate.find(r => r.rowId === record.id);
             if (update) {
-              return { ...record, ...update.changes };
+              // Resolve lookup values (same as primary path above)
+              const resolvedChanges = { ...update.changes };
+              for (const [key, value] of Object.entries(resolvedChanges)) {
+                const col = columns.find(c => c.key === key);
+                if (col && isLookupColumn(col.column_type) && value != null && typeof value !== 'object') {
+                  const opts = lookupOptions?.[key];
+                  const match = opts?.find(o => String(o.id) === String(value));
+                  if (match) {
+                    resolvedChanges[key] = { id: Number(value), display: match.display };
+                  }
+                }
+              }
+              return { ...record, ...resolvedChanges };
             }
             return record;
           }));
@@ -342,16 +458,43 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
       setEditingRowIds(new Set());
       setEditingData({});
       setValidationErrors({});
+      modifiedFieldsRef.current = {};
 
       toast?.({
         title: "Saved",
-        description: `Successfully saved ${editingRowIds.size} row${editingRowIds.size !== 1 ? "s" : ""}`,
+        description: `Successfully saved ${rowsToUpdate.length} row${rowsToUpdate.length !== 1 ? "s" : ""}`,
       });
     } catch (error) {
-      console.error("Failed to save:", error);
+      // Use console.warn for 422 validation errors (expected behavior, not bugs)
+      const apiErr = error as { status?: number };
+      if (apiErr.status === 422) {
+        console.warn("Validation error on save:", error);
+      } else {
+        console.error("Failed to save:", error);
+      }
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+      // Parse server validation errors (e.g., "Code has already been taken")
+      // and attach them to the relevant field so they show inline
+      if (rowsToUpdate.length === 1) {
+        const rowId = rowsToUpdate[0].rowId;
+        const fieldErrors: Record<string, string> = {};
+        // Match "FieldName error message" pattern from Rails full_messages
+        const changedKeys = Object.keys(rowsToUpdate[0].changes);
+        for (const key of changedKeys) {
+          const fieldLabel = key.replace(/_/g, ' ');
+          if (errorMessage.toLowerCase().includes(fieldLabel.toLowerCase())) {
+            fieldErrors[key] = errorMessage;
+          }
+        }
+        if (Object.keys(fieldErrors).length > 0) {
+          setValidationErrors(prev => ({ ...prev, [rowId]: { ...prev[rowId], ...fieldErrors } }));
+        }
+      }
+
       toast?.({
         title: "Save failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: errorMessage,
         variant: "destructive",
       });
     }

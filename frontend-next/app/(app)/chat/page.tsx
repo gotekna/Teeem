@@ -147,36 +147,41 @@ export default function ChatPage() {
 
   // Load online users
   useEffect(() => {
+    let mounted = true;
     const loadOnlineUsers = async () => {
-      setLoadingUsers(true);
+      if (mounted) setLoadingUsers(true);
       try {
         const response = await api.get<OnlineUser[]>("/api/v1/chat_messages/online_users");
-        setOnlineUsers(response);
+        if (mounted) setOnlineUsers(response);
       } catch (error) {
         console.error("Failed to load online users:", error);
-        setOnlineUsers([]);
+        if (mounted) setOnlineUsers([]);
       }
-      setLoadingUsers(false);
+      if (mounted) setLoadingUsers(false);
     };
     loadOnlineUsers();
 
     const interval = setInterval(loadOnlineUsers, POLLING_INTERVAL_MS);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Load conversations (initial + poll for unread badge updates)
   useEffect(() => {
+    let mounted = true;
     let isInitial = true;
     const loadConversations = async () => {
-      if (isInitial) setLoading(true);
+      if (isInitial && mounted) setLoading(true);
       try {
         const response = await api.get<{ conversations: Conversation[] }>("/api/v1/chat_messages/conversations");
-        setConversations(response.conversations || []);
+        if (mounted) setConversations(response.conversations || []);
       } catch (error) {
         console.error("Failed to load conversations:", error);
-        if (isInitial) setConversations(getMockConversations());
+        if (isInitial && mounted) setConversations(getMockConversations());
       }
-      if (isInitial) {
+      if (isInitial && mounted) {
         setLoading(false);
         isInitial = false;
       }
@@ -184,7 +189,10 @@ export default function ChatPage() {
     loadConversations();
 
     const interval = setInterval(loadConversations, POLLING_INTERVAL_MS);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const loadMessages = useCallback(async (conversationId: number | string, isInitialLoad = false) => {

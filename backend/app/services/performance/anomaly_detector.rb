@@ -35,6 +35,8 @@ module Performance
       end
 
       # Detect endpoints with abnormally high P95 latency
+      # FRC (Feb 2026): Batch baseline query for all endpoints in one query.
+      # Old code called baseline_stats_for_endpoint per endpoint → N+1 (Sentry TEEEM-BACKEND-5E).
       def detect_latency_spikes
         anomalies = []
 
@@ -46,9 +48,11 @@ module Performance
         current_metrics = query_mv_hourly(current_hour)
         return anomalies if current_metrics.empty?
 
+        # Batch: Get baseline stats for ALL endpoints in one query
+        baselines = batch_baseline_stats(current_metrics.keys, baseline_start, current_hour)
+
         current_metrics.each do |endpoint, current|
-          # Get baseline stats for this endpoint (excluding current hour)
-          baseline = baseline_stats_for_endpoint(endpoint, baseline_start, current_hour)
+          baseline = baselines[endpoint] || { count: 0, mean: 0, stddev: 0 }
           next unless baseline[:count] >= MIN_BASELINE_POINTS
 
           # Calculate z-score for P95 latency
@@ -85,6 +89,7 @@ module Performance
         anomalies = []
 
         current_hour = Time.current.beginning_of_hour
+        baseline_start = 7.days.ago
 
         # Get endpoints with errors in the current hour
         current_errors = PerformanceRequest
@@ -96,29 +101,43 @@ module Performance
 
         return anomalies if current_errors.empty?
 
+        # Bulk-fetch total request counts for all affected endpoints (avoids N+1)
+        affected_endpoints = current_errors.map(&:endpoint)
+
+        total_by_endpoint = PerformanceRequest
+          .where("created_at >= ?", current_hour)
+          .where(endpoint: affected_endpoints)
+          .group(:endpoint)
+          .count
+
+        # Bulk-fetch baseline error counts for all affected endpoints (avoids N+1)
+        baseline_errors_by_endpoint = PerformanceRequest
+          .where("created_at > ? AND created_at < ?", baseline_start, current_hour)
+          .where(endpoint: affected_endpoints)
+          .where("status_code >= 500")
+          .group(:endpoint)
+          .count
+
+        # Bulk-fetch baseline total counts for all affected endpoints (avoids N+1)
+        baseline_total_by_endpoint = PerformanceRequest
+          .where("created_at > ? AND created_at < ?", baseline_start, current_hour)
+          .where(endpoint: affected_endpoints)
+          .group(:endpoint)
+          .count
+
         current_errors.each do |record|
           endpoint = record.endpoint
           error_count = record.error_count
 
-          # Get total requests for this hour to calculate rate
-          total_requests = PerformanceRequest
-            .where("created_at >= ?", current_hour)
-            .where(endpoint: endpoint)
-            .count
-
+          total_requests = total_by_endpoint[endpoint] || 0
           next if total_requests < 10 # Need enough requests
 
           current_error_rate = error_count.to_f / total_requests
 
-          # Get baseline error rate
-          baseline_error_rate = PerformanceRequest
-            .where("created_at > ? AND created_at < ?", 7.days.ago, current_hour)
-            .where(endpoint: endpoint)
-            .where("status_code >= 500")
-            .count.to_f / [PerformanceRequest
-              .where("created_at > ? AND created_at < ?", 7.days.ago, current_hour)
-              .where(endpoint: endpoint)
-              .count, 1].max
+          # Compute baseline error rate from preloaded bulk data
+          baseline_errors = baseline_errors_by_endpoint[endpoint] || 0
+          baseline_total = [baseline_total_by_endpoint[endpoint] || 0, 1].max
+          baseline_error_rate = baseline_errors.to_f / baseline_total
 
           # Simple threshold: 5x baseline or > 5% error rate
           next unless current_error_rate > 0.05 || current_error_rate > (baseline_error_rate * 5)
@@ -155,6 +174,7 @@ module Performance
         anomalies = []
 
         current_hour = Time.current.beginning_of_hour
+        baseline_start = 7.days.ago
 
         # Count slow queries per table in current hour
         current_counts = PerformanceSlowQuery
@@ -164,14 +184,20 @@ module Performance
 
         return anomalies if current_counts.empty?
 
+        # Bulk-fetch 7-day baseline counts for all affected tables (avoids N+1)
+        affected_tables = current_counts.keys
+        baseline_counts_by_table = PerformanceSlowQuery
+          .where("created_at > ? AND created_at < ?", baseline_start, current_hour)
+          .where(table_name: affected_tables)
+          .group(:table_name)
+          .count
+
         current_counts.each do |table_name, current_count|
           next if current_count < 5 # Minimum threshold
 
-          # Get baseline hourly average
-          baseline_avg = PerformanceSlowQuery
-            .where("created_at > ? AND created_at < ?", 7.days.ago, current_hour)
-            .where(table_name: table_name)
-            .count.to_f / (7 * 24) # Average per hour over 7 days
+          # Compute baseline hourly average from preloaded bulk data (avoids N+1)
+          baseline_total = baseline_counts_by_table[table_name] || 0
+          baseline_avg = baseline_total.to_f / (7 * 24) # Average per hour over 7 days
 
           next if baseline_avg < 1 # Not enough baseline data
 
@@ -322,25 +348,35 @@ module Performance
         result
       end
 
-      def baseline_stats_for_endpoint(endpoint, start_time, end_time)
-        result = PerformanceRequest
+      # Batch baseline stats for ALL endpoints in a single query.
+      # Returns Hash<endpoint => { count:, mean:, stddev: }>
+      # FRC (Feb 2026): Replaces per-endpoint baseline_stats_for_endpoint (N+1).
+      def batch_baseline_stats(endpoints, start_time, end_time)
+        return {} if endpoints.empty?
+
+        # Single query: P95 per (endpoint, hour) for all endpoints
+        rows = PerformanceRequest
           .where("created_at > ? AND created_at < ?", start_time, end_time)
-          .where(endpoint: endpoint)
-          .group(Arel.sql("date_trunc('hour', created_at)"))
+          .where(endpoint: endpoints)
+          .group(:endpoint, Arel.sql("date_trunc('hour', created_at)"))
           .select(
+            "endpoint",
             "PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95"
           )
           .to_a
 
-        return { count: 0, mean: 0, stddev: 0 } if result.empty?
+        # Group by endpoint and compute mean/stddev in Ruby
+        grouped = rows.group_by(&:endpoint)
 
-        p95_values = result.map { |r| r.p95.to_f }
-        count = p95_values.size
-        mean = p95_values.sum / count
-        variance = p95_values.map { |v| (v - mean) ** 2 }.sum / count
-        stddev = Math.sqrt(variance)
+        grouped.transform_values do |hourly_rows|
+          p95_values = hourly_rows.map { |r| r.p95.to_f }
+          count = p95_values.size
+          mean = p95_values.sum / count
+          variance = p95_values.map { |v| (v - mean) ** 2 }.sum / count
+          stddev = Math.sqrt(variance)
 
-        { count: count, mean: mean, stddev: stddev }
+          { count: count, mean: mean, stddev: stddev }
+        end
       end
 
       def calculate_z_score(observed, mean, stddev)

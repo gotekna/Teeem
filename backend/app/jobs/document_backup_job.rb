@@ -128,7 +128,7 @@ class DocumentBackupJob < ApplicationJob
     return nil unless storage_path.present?
 
     provider.download_file(storage_path)
-  rescue DocumentProviders::Base::NotFoundError
+  rescue DocumentProviders::NotFoundError
     Rails.logger.warn "[DocumentBackup] Primary file not found for document #{doc.id}: #{storage_path}"
     nil
   rescue => e

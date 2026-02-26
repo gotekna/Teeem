@@ -1,0 +1,430 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Check,
+  X,
+  FileText,
+  ClipboardCheck,
+} from "lucide-react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { format, parseISO } from "date-fns";
+import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
+import { QuoteConfirmDialog } from "./quote-returns/QuoteConfirmDialog";
+import { RecordResponseDialog, type ParentLineContext } from "./custom-quotes/RecordResponseDialog";
+import { useSupplierDocumentUpload } from "./custom-quotes/useSupplierDocumentUpload";
+import type {
+  QuoteReturn,
+  QuoteReturnsData,
+  QuoteReturnStatus,
+} from "./quote-returns/types";
+import { STATUS_COLORS, STATUS_LABELS } from "./quote-returns/types";
+
+interface JobQuoteReturnsTabProps {
+  jobId: string | number;
+}
+
+const ACCEPTED_DROP_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+]);
+
+export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
+  const [data, setData] = useState<QuoteReturnsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [confirmDialog, setConfirmDialog] = useState<QuoteReturn | null>(null);
+  const [filter, setFilter] = useState<QuoteReturnStatus | "all">("all");
+  const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
+  const [recordResponseDialog, setRecordResponseDialog] = useState<{
+    sourceId: number;
+    supplierName: string;
+    attachedDocument?: { warehouseDocumentId: number; filename: string } | null;
+    parentLine?: ParentLineContext | null;
+  } | null>(null);
+  const { uploading, uploadForSupplier } = useSupplierDocumentUpload();
+
+  const loadReturns = useCallback(async () => {
+    try {
+      const res = await api.get<{ success: boolean; data: QuoteReturnsData }>(
+        `/api/v1/jobs/${jobId}/quote_returns`
+      );
+      setData(res?.data ?? null);
+    } catch (err) {
+      console.error("[JobQuoteReturnsTab] Failed to load:", err);
+      toast.error("Failed to load quote returns");
+    } finally {
+      setLoading(false);
+    }
+  }, [jobId]);
+
+  useEffect(() => {
+    loadReturns();
+  }, [loadReturns]);
+
+  const handleRowDoubleClick = useCallback((qr: QuoteReturn) => {
+    // Encode quote return context in URL hash for the detail page
+    const context = {
+      id: qr.id,
+      supplierName: qr.supplierName,
+      itemName: qr.itemName,
+      parentName: qr.parentName,
+      priceQuoted: qr.priceQuoted,
+      status: qr.status,
+      isBestPrice: qr.isBestPrice,
+      dateSent: qr.dateSent,
+      dateReceived: qr.dateReceived,
+      quoteNumber: qr.quoteNumber,
+      validTo: qr.validTo,
+      warehouseDocumentId: qr.warehouseDocumentId,
+      purchaseOrderNumber: qr.purchaseOrderNumber,
+      responseNotes: qr.responseNotes,
+      parentLine: qr.parentLine,
+    };
+    const hash = encodeURIComponent(JSON.stringify(context));
+    window.open(`/quote-return/${qr.id}#${hash}`, "_blank");
+  }, []);
+
+  const handleReject = async (qr: QuoteReturn) => {
+    try {
+      await api.post(`/api/v1/quote_returns/${qr.id}/reject`);
+      toast.success("Quote rejected");
+      loadReturns();
+    } catch (err) {
+      console.error("[JobQuoteReturnsTab] Reject failed:", err);
+      toast.error("Failed to reject quote");
+    }
+  };
+
+  const handleRowDrop = useCallback(async (qr: QuoteReturn, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverRowId(null);
+
+    if (qr.source !== "custom_quote" || qr.status !== "sent") return;
+
+    const files = Array.from(e.dataTransfer.files);
+    const validFile = files.find((f) => ACCEPTED_DROP_TYPES.has(f.type));
+    if (!validFile) return;
+
+    const result = await uploadForSupplier(qr.sourceId, validFile);
+    if (result) {
+      toast.success(`Uploaded ${result.filename}`);
+      setRecordResponseDialog({
+        sourceId: qr.sourceId,
+        supplierName: qr.supplierName || "Supplier",
+        attachedDocument: result,
+        parentLine: qr.parentLine,
+      });
+    }
+  }, [uploadForSupplier]);
+
+  const handleRecordResponseSubmit = useCallback(async (data: {
+    price_quoted: number;
+    quote_number?: string;
+    valid_to?: string;
+    response_notes?: string;
+    warehouse_document_id?: number;
+  }) => {
+    if (!recordResponseDialog) return;
+    try {
+      await api.post(
+        `/api/v1/custom_quote_suppliers/${recordResponseDialog.sourceId}/record_response`,
+        data
+      );
+      toast.success("Response recorded");
+      setRecordResponseDialog(null);
+      loadReturns();
+    } catch (err) {
+      console.error("[JobQuoteReturnsTab] Record response failed:", err);
+      toast.error("Failed to record response");
+    }
+  }, [recordResponseDialog, loadReturns]);
+
+  const filteredReturns =
+    data?.returns.filter((r) => filter === "all" || r.status === filter) ?? [];
+
+  const formatCurrency = (val: number | null | undefined) => {
+    if (val == null) return "—";
+    return `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const isExpired = (validTo: string | null) => {
+    if (!validTo) return false;
+    return new Date(validTo) < new Date();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (!data || data.returns.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+        <ClipboardCheck className="h-12 w-12 mb-3 opacity-50" />
+        <p className="text-lg font-medium">No Quote Returns Yet</p>
+        <p className="text-sm mt-1">
+          Supplier responses from Quote Tracker and Custom Quotes will appear here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Summary Bar */}
+      <div className="flex items-center gap-4 px-4 py-3 border-b bg-muted/30">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Total</span>
+          <Badge variant="secondary">{data.summary.totalReturns}</Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Sent</span>
+          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+            {data.summary.sentCount}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Responded</span>
+          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+            {data.summary.respondedCount}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Accepted</span>
+          <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+            {data.summary.acceptedCount}
+          </Badge>
+        </div>
+        <div className="ml-auto text-sm">
+          <span className="text-muted-foreground">Accepted Value: </span>
+          <span className="font-semibold">
+            {formatCurrency(data.summary.totalAcceptedValue)}
+          </span>
+        </div>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-1 px-4 py-2 border-b">
+        {(["all", "sent", "responded", "accepted", "rejected"] as const).map((f) => (
+          <Button
+            key={f}
+            variant={filter === f ? "default" : "ghost"}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setFilter(f)}
+          >
+            {f === "all" ? "All" : STATUS_LABELS[f]}
+            <Badge variant="outline" className="ml-1 text-xs h-4 px-1">
+              {f === "all"
+                ? data.returns.length
+                : data.returns.filter((r) => r.status === f).length}
+            </Badge>
+          </Button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 sticky top-0">
+            <tr className="border-b">
+              <th className="text-left px-4 py-2 font-medium">Supplier</th>
+              <th className="text-left px-3 py-2 font-medium">Item / Task</th>
+              <th className="text-left px-3 py-2 font-medium">CC / Trade</th>
+              <th className="text-right px-3 py-2 font-medium">Price</th>
+              <th className="text-left px-3 py-2 font-medium">Sent</th>
+              <th className="text-left px-3 py-2 font-medium">Received</th>
+              <th className="text-left px-3 py-2 font-medium">Quote #</th>
+              <th className="text-left px-3 py-2 font-medium">Valid To</th>
+              <th className="text-left px-3 py-2 font-medium">Status</th>
+              <th className="text-left px-3 py-2 font-medium">Confirmed</th>
+              <th className="text-center px-3 py-2 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredReturns.map((qr) => {
+              const canDropOnRow = qr.source === "custom_quote" && qr.status === "sent";
+              const isRowDragOver = dragOverRowId === qr.id;
+              return (
+              <tr
+                key={qr.id}
+                className={`border-b hover:bg-muted/30 transition-colors cursor-pointer ${
+                  qr.status === "rejected" ? "opacity-50" : ""
+                } ${isRowDragOver ? "bg-blue-50 dark:bg-blue-950/50" : ""}`}
+                onDoubleClick={() => handleRowDoubleClick(qr)}
+                onDragOver={canDropOnRow ? (e) => { e.preventDefault(); e.stopPropagation(); setDragOverRowId(qr.id); } : undefined}
+                onDragLeave={canDropOnRow ? (e) => { e.preventDefault(); e.stopPropagation(); setDragOverRowId(null); } : undefined}
+                onDrop={canDropOnRow ? (e) => handleRowDrop(qr, e) : undefined}
+              >
+                <td className="px-4 py-2 font-medium truncate max-w-[160px]">
+                  {qr.supplierName || "Unknown"}
+                </td>
+                <td className="px-3 py-2 truncate max-w-[160px]">
+                  {qr.itemName || "—"}
+                </td>
+                <td className="px-3 py-2 truncate max-w-[120px] text-muted-foreground">
+                  {qr.parentName || "—"}
+                </td>
+                <td className="px-3 py-2 text-right font-mono">
+                  <span
+                    className={
+                      qr.isBestPrice
+                        ? "text-green-600 dark:text-green-400 font-bold"
+                        : ""
+                    }
+                  >
+                    {formatCurrency(qr.priceQuoted)}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {qr.dateSent ? (
+                    <span title={qr.sentByName ? `by ${qr.sentByName}` : ""}>
+                      {format(parseISO(qr.dateSent), DATE_DISPLAY)}
+                    </span>
+                  ) : "—"}
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {qr.dateReceived
+                    ? format(parseISO(qr.dateReceived), DATE_DISPLAY)
+                    : "—"}
+                </td>
+                <td className="px-3 py-2">{qr.quoteNumber || "—"}</td>
+                <td className="px-3 py-2">
+                  {qr.validTo ? (
+                    <span
+                      className={
+                        isExpired(qr.validTo)
+                          ? "text-red-600 dark:text-red-400"
+                          : ""
+                      }
+                    >
+                      {format(parseISO(qr.validTo), DATE_DISPLAY)}
+                      {isExpired(qr.validTo) && " (expired)"}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  <Badge
+                    variant="outline"
+                    className={`text-xs ${STATUS_COLORS[qr.status]}`}
+                  >
+                    {STATUS_LABELS[qr.status]}
+                  </Badge>
+                </td>
+                <td className="px-3 py-2 text-xs text-muted-foreground">
+                  {qr.confirmedBy ? (
+                    <span title={qr.confirmedAt ? format(parseISO(qr.confirmedAt), DATETIME_DISPLAY) : ""}>
+                      {qr.confirmedBy}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex items-center justify-center gap-1">
+                    {qr.status === "sent" && (
+                      <span className="text-xs text-muted-foreground">Awaiting response</span>
+                    )}
+                    {qr.status === "responded" && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
+                          onClick={() => setConfirmDialog(qr)}
+                          title="Select this quote"
+                        >
+                          <Check className="h-3.5 w-3.5 mr-1" />
+                          Select
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                          onClick={() => handleReject(qr)}
+                          title="Reject this quote"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                    {qr.status === "accepted" && qr.purchaseOrderNumber && (
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                        PO {qr.purchaseOrderNumber}
+                      </span>
+                    )}
+                    {qr.warehouseDocumentId && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        title="View quote document"
+                        onClick={async () => {
+                          try {
+                            const res = await api.post<{ success: boolean; shareUrl: string }>(
+                              `/api/v1/documents/${qr.warehouseDocumentId}/share_link`,
+                              { open: true }
+                            );
+                            if (res?.shareUrl) {
+                              window.open(res.shareUrl, "_blank");
+                            }
+                          } catch {
+                            toast.error("Failed to open document");
+                          }
+                        }}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {filteredReturns.length === 0 && (
+          <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
+            No {filter !== "all" ? STATUS_LABELS[filter].toLowerCase() : ""} returns found.
+          </div>
+        )}
+      </div>
+
+      {/* Confirmation Dialog */}
+      {confirmDialog && (
+        <QuoteConfirmDialog
+          open={true}
+          onClose={() => setConfirmDialog(null)}
+          quoteReturn={confirmDialog}
+          onAccepted={loadReturns}
+        />
+      )}
+
+      {/* Record Response Sheet (from drag-drop upload) */}
+      <RecordResponseDialog
+        open={!!recordResponseDialog}
+        onClose={() => setRecordResponseDialog(null)}
+        supplierName={recordResponseDialog?.supplierName || ""}
+        supplierId={recordResponseDialog?.sourceId || 0}
+        attachedDocument={recordResponseDialog?.attachedDocument}
+        parentLine={recordResponseDialog?.parentLine}
+        onSubmit={handleRecordResponseSubmit}
+      />
+
+    </div>
+  );
+}

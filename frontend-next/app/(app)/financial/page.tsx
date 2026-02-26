@@ -65,7 +65,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { StatCard } from "@/components/ui/stat-card";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { cn, safePercent } from "@/lib/utils";
 import { formatDate, formatCurrency, formatCurrencyCompact } from "@/utils/formatters";
 import type { Company } from "@/lib/types";
@@ -824,7 +824,7 @@ function AgedReportsTab({
         await api.post(`/api/v1/companies/${companyId}/bill_payment_batches/${batchId}/generate_aba`);
 
         // Download the ABA file
-        window.open(`/api/v1/companies/${companyId}/bill_payment_batches/${batchId}/download_aba`, "_blank");
+        window.open(`${getApiBaseUrl()}/api/v1/companies/${companyId}/bill_payment_batches/${batchId}/download_aba`, "_blank");
 
         setSelectedPayables(new Set());
       }
@@ -1497,7 +1497,7 @@ export default function FinancialPage() {
 
     try {
       // Fetch companies list
-      const companiesRes = await api.get<{ success: boolean; companies: Company[] }>("/api/v1/companies").catch(() => null);
+      const companiesRes = await api.get<{ success: boolean; companies: Company[] }>("/api/v1/companies").catch((err) => { console.error("[GL Dashboard] Failed to fetch companies:", err); return null; });
       if (companiesRes?.companies) {
         setCompanies(companiesRes.companies);
       }
@@ -1515,16 +1515,16 @@ export default function FinancialPage() {
         basDataRes,
         jobsRes,
       ] = await Promise.all([
-        api.get<{ success: boolean; data: DashboardApiResponse }>(`/api/v1/gl/dashboard${companyParam}`).catch(() => null),
-        api.get<{ success: boolean; data: { accounts: BankAccountApiResponse[] } }>(`/api/v1/gl/dashboard/bank_accounts${companyParam}`).catch(() => null),
-        api.get<{ success: boolean; data: AgedReportApiResponse }>(`/api/v1/gl/aged_reports/receivables${companyParam}`).catch(() => null),
-        api.get<{ success: boolean; data: AgedReportApiResponse }>(`/api/v1/gl/aged_reports/payables${companyParam}`).catch(() => null),
-        api.get<{ success: boolean; data: AgedContactApiResponse[] }>(`/api/v1/gl/aged_reports/receivables/by_customer${companyParam}`).catch(() => null),
-        api.get<{ success: boolean; data: AgedContactApiResponse[] }>(`/api/v1/gl/aged_reports/payables/by_supplier${companyParam}`).catch(() => null),
-        api.get<{ success: boolean; data: { weeks: CashFlowWeekApiResponse[] } }>(`/api/v1/gl/cash_flow/weekly${companyParam}`).catch(() => null),
-        api.get<{ success: boolean; data: { periods: BasPeriodApiResponse[] } }>(`/api/v1/gl/bas/periods${companyParam}`).catch(() => null),
-        api.get<{ success: boolean; data: BasDataApiResponse }>(`/api/v1/gl/bas${companyParam}`).catch(() => null),
-        api.get<{ success: boolean; data: { jobs: JobApiResponse[] } }>(`/api/v1/gl/job_costing/summary${companyParam}`).catch(() => null),
+        api.get<{ success: boolean; data: DashboardApiResponse }>(`/api/v1/gl/dashboard${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch dashboard:", err); return null; }),
+        api.get<{ success: boolean; data: { accounts: BankAccountApiResponse[] } }>(`/api/v1/gl/dashboard/bank_accounts${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch bank accounts:", err); return null; }),
+        api.get<{ success: boolean; data: AgedReportApiResponse }>(`/api/v1/gl/aged_reports/receivables${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch aged receivables:", err); return null; }),
+        api.get<{ success: boolean; data: AgedReportApiResponse }>(`/api/v1/gl/aged_reports/payables${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch aged payables:", err); return null; }),
+        api.get<{ success: boolean; data: AgedContactApiResponse[] }>(`/api/v1/gl/aged_reports/receivables/by_customer${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch receivables by customer:", err); return null; }),
+        api.get<{ success: boolean; data: AgedContactApiResponse[] }>(`/api/v1/gl/aged_reports/payables/by_supplier${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch payables by supplier:", err); return null; }),
+        api.get<{ success: boolean; data: { weeks: CashFlowWeekApiResponse[] } }>(`/api/v1/gl/cash_flow/weekly${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch cash flow:", err); return null; }),
+        api.get<{ success: boolean; data: { periods: BasPeriodApiResponse[] } }>(`/api/v1/gl/bas/periods${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch BAS periods:", err); return null; }),
+        api.get<{ success: boolean; data: BasDataApiResponse }>(`/api/v1/gl/bas${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch BAS data:", err); return null; }),
+        api.get<{ success: boolean; data: { jobs: JobApiResponse[] } }>(`/api/v1/gl/job_costing/summary${companyParam}`).catch((err) => { console.error("[GL Dashboard] Failed to fetch job costing:", err); return null; }),
       ]);
 
       // Process Dashboard data
@@ -1720,7 +1720,7 @@ export default function FinancialPage() {
           const xeroStatusRes = await api.get<XeroSyncStatus & { success: boolean }>(`/api/v1/companies/${selectedCompany}/xero/status`);
           if (xeroStatusRes?.success) {
             // Also fetch tab stats for counts (includes GL accounts for SSoT consistency with GL page)
-            const tabStatsRes = await api.get<{ success: boolean; contacts?: number; invoices?: number; bills?: number; bank_accounts?: number; gl_accounts?: number }>(`/api/v1/companies/${selectedCompany}/xero/tab_stats`).catch(() => null);
+            const tabStatsRes = await api.get<{ success: boolean; contacts?: number; invoices?: number; bills?: number; bank_accounts?: number; gl_accounts?: number }>(`/api/v1/companies/${selectedCompany}/xero/tab_stats`).catch((err) => { console.error("[GL Dashboard] Failed to fetch tab stats:", err); return null; });
             // Extract status fields from response (excluding 'success')
             const { success: _, ...statusData } = xeroStatusRes;
             setXeroSyncStatus({

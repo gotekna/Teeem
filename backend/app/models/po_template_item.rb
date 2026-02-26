@@ -9,6 +9,7 @@ class PoTemplateItem < ApplicationRecord
   belongs_to :po_template_pack
   belongs_to :sm_schedule_master, optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
+  belongs_to :profit_centre, optional: true
   has_many :po_template_line_items, -> { order(:line_number) }, dependent: :destroy
 
   accepts_nested_attributes_for :po_template_line_items, allow_destroy: true

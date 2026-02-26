@@ -1,3 +1,5 @@
+require "dentaku"
+
 # RecipeItem - line items within a recipe
 #
 # SSoT: Recipe items can either reference a pricebook item (for synchronized pricing)

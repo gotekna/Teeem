@@ -23,23 +23,30 @@ class PlanStagingCleanupJob < ApplicationJob
   def perform
     Rails.logger.info "[PlanStagingCleanupJob] Starting cleanup..."
 
-    result = PlanUpload.cleanup_stale_staging_files!(max_age: 24.hours)
+    # FRC (Feb 2026): This job runs from SolidQueue without a tenant context.
+    # Both cleanup paths (DB records + storage provider) require a tenant, so
+    # iterate all tenants and run each cleanup scoped to that tenant.
+    total_cleaned = 0
+    total_errors = []
 
-    Rails.logger.info "[PlanStagingCleanupJob] Cleaned up #{result[:cleaned]} staging files"
-
-    if result[:errors].any?
-      Rails.logger.warn "[PlanStagingCleanupJob] Errors during cleanup: #{result[:errors].inspect}"
-    end
-
-    # Also clean up the staging folder in storage if it's empty or has old files
-    # FRC (Feb 2026): DocumentProviderAware requires tenant context.
-    # This job runs from SolidQueue without tenant context, so iterate tenants.
     Tenant.find_each do |tenant|
       ActsAsTenant.with_tenant(tenant) do
+        # 1. Clean up stale DB-tracked staging records for this tenant.
+        result = PlanUpload.cleanup_stale_staging_files!(tenant: tenant, max_age: 24.hours)
+        total_cleaned += result[:cleaned]
+        total_errors.concat(result[:errors])
+
+        # 2. Clean up orphaned files in the storage provider staging folder.
         cleanup_storage_staging_folder
       end
     rescue TenantErrors::TenantNotFoundError, DocumentProviders::NotConnectedError => e
       Rails.logger.debug "[PlanStagingCleanupJob] Skipping tenant #{tenant.id}: #{e.message}"
+    end
+
+    Rails.logger.info "[PlanStagingCleanupJob] Cleaned up #{total_cleaned} staging files"
+
+    if total_errors.any?
+      Rails.logger.warn "[PlanStagingCleanupJob] Errors during cleanup: #{total_errors.inspect}"
     end
 
     Rails.logger.info "[PlanStagingCleanupJob] Completed"

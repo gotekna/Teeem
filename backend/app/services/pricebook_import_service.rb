@@ -146,10 +146,12 @@ class PricebookImportService
   end
 
   def create_item(row, item_code, item_name, current_price, supplier, category)
+    pricebook_category = find_or_create_pricebook_category(category)
+
     PricebookItem.create!(
       item_code: item_code,
       item_name: item_name,
-      category: category,
+      pricebook_category: pricebook_category,
       current_price: current_price,
       supplier: supplier,
       default_supplier: supplier, # Set default supplier to match the supplier from spreadsheet
@@ -161,13 +163,16 @@ class PricebookImportService
   end
 
   def update_item(item, row, current_price, supplier)
+    category_name = row[:category]&.strip
+    pricebook_category = find_or_create_pricebook_category(category_name) if category_name.present?
+
     updates = {
       item_name: row[:item_name]&.strip || item.item_name,
-      category: row[:category]&.strip || item.category,
       unit_of_measure: row[:unit_of_measure] || row[:unit] || item.unit_of_measure,
       brand: row[:brand]&.strip || item.brand,
       notes: row[:notes]&.strip || item.notes
     }
+    updates[:pricebook_category] = pricebook_category if pricebook_category
 
     # Only update price if provided
     if current_price.present?
@@ -197,6 +202,11 @@ class PricebookImportService
   rescue ActiveRecord::RecordNotUnique
     # DB constraint caught a duplicate (concurrent import created it)
     Contact.find_by(display_name: supplier_name.strip, entity_type: "company", is_active: true)
+  end
+
+  def find_or_create_pricebook_category(name)
+    return nil if name.blank?
+    PricebookCategory.find_or_create_by!(name: name.strip)
   end
 
   def parse_price(price_str)

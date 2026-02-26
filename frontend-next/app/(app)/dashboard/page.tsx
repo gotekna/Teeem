@@ -27,9 +27,13 @@ import {
   Target,
   Network,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import FeaturesTrackingTable from "./components/FeaturesTrackingTable";
 import ArchitectureMap from "./components/ArchitectureMap";
+import BriefingWidget from "./components/BriefingWidget";
+import AIJoshuaTab from "./components/AIJoshuaTab";
+import JoshuaMascot from "./components/JoshuaMascot";
 
 interface DashboardStats {
   activeJobs: number;
@@ -83,7 +87,7 @@ export default function DashboardPage() {
   // Redirect to default tab if none specified
   useEffect(() => {
     if (activeTab === null) {
-      router.replace("/dashboard/overview", { scroll: false });
+      router.replace("/dashboard/ai-joshua", { scroll: false });
     }
     // Redirect /dashboard/architecture to /dashboard/architecture/beginner
     if (activeTab === "architecture" && !subTab) {
@@ -210,6 +214,10 @@ export default function DashboardPage() {
             <BarChart3 className="h-4 w-4" />
             Competitor Comparison
           </TabsTrigger>
+          <TabsTrigger value="ai-joshua" className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            AI Joshua
+          </TabsTrigger>
           <TabsTrigger value="architecture" className="gap-2">
             <Network className="h-4 w-4" />
             Architecture
@@ -217,7 +225,13 @@ export default function DashboardPage() {
         </TabsList>
 
         {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-6 relative">
+          {/* Joshua AI Guide - climbs around the page */}
+          <JoshuaMascot />
+
+          {/* AI Briefing */}
+          <BriefingWidget />
+
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="metrics-cards">
             {statsLoading ? (
@@ -467,6 +481,11 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* AI Joshua Tab */}
+        <TabsContent value="ai-joshua">
+          <AIJoshuaTab />
         </TabsContent>
 
         {/* Competitor Comparison Tab */}

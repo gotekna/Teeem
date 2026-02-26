@@ -1,5 +1,5 @@
 class ImapCredential < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
   has_many :email_warehouses, dependent: :nullify
   has_many :email_rules, dependent: :destroy
 

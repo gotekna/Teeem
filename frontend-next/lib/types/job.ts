@@ -137,6 +137,19 @@ export interface Job {
   stage_weather?: string;
   weekend_work?: string;
 
+  // Tender Details
+  estate?: string;
+  facade?: string;
+  developer_approval?: boolean;
+  developer_contact?: string;
+  land_registration?: string;
+  building_contract_type?: string;
+  development_application?: string;
+  sales_centre?: string;
+  wind_classification?: string;
+  soil_classification?: string;
+  specification?: string;
+
   // Construction
   level?: string;
   dwelling_type?: string;

@@ -22,6 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/utils/formatters";
+import { SmTaskStatusBar } from "@/components/documents/StandardDocumentList";
 
 import type {
   TreeNode,
@@ -381,6 +382,12 @@ export function WarehouseTreeRenderer({
 
         {isExpanded && (hasChildren || hasS3Data || s3DataLoaded || isLoading) && (
           <div className={cn(depth > 0 && "border-l border-muted ml-6")}>
+            {/* SM Task status bar - shown when folder is linked to a Schedule Master task */}
+            {s3Data?.smTaskInfo && (
+              <div style={{ paddingLeft: `${paddingLeft + 32}px` }} className="pr-3">
+                <SmTaskStatusBar info={s3Data.smTaskInfo} />
+              </div>
+            )}
             {isLoading ? (
               <div className="py-2 px-3" style={{ paddingLeft: `${paddingLeft + 32}px` }}>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">

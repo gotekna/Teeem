@@ -2,7 +2,7 @@ class TeeemSpreadsheet < ApplicationRecord
   include WarehouseSyncable
   warehouse_type :xlsx
 
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :job, optional: true
   belongs_to :storage_blob, optional: true
 

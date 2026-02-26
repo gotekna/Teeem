@@ -3,7 +3,7 @@
 module Api
   module V1
     class DocumentsController < ApplicationController
-      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task ]
+      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task, :verify, :share_link, :set_expiry ]
 
       # GET /api/v1/documents/all
       # Returns file counts for the entire warehouse (fast)
@@ -156,11 +156,16 @@ module Api
       #   offset: Pagination offset
       def warehouse
         documents = WarehouseDocument.includes(:documentable, :storage_blob)
-                                     .order(created_at: :desc)
+                                     .order(sort_order: :asc, created_at: :desc)
 
         # Filter by source_type
         if params[:source_type].present?
           documents = documents.where(source_type: params[:source_type])
+
+          # Library: only show latest versions (older versions accessible via version history)
+          if params[:source_type] == "library"
+            documents = documents.where(is_latest_version: true)
+          end
         end
 
         # Filter by documentable_type
@@ -216,9 +221,20 @@ module Api
                                          .group(:folder_path)
                                          .count
 
+        # Batch version counts for library docs (avoid N+1)
+        version_counts = {}
+        if params[:source_type] == "library"
+          group_ids = documents.map(&:version_group_id).compact.uniq
+          if group_ids.any?
+            version_counts = WarehouseDocument.where(version_group_id: group_ids)
+                                              .group(:version_group_id)
+                                              .count
+          end
+        end
+
         render json: {
           success: true,
-          documents: documents.map { |doc| warehouse_document_to_json(doc) },
+          documents: documents.map { |doc| warehouse_document_to_json(doc, version_counts: version_counts) },
           folders: folder_counts.keys.sort.map { |f| { name: f, count: folder_counts[f] } },
           pagination: {
             total: total_count,
@@ -227,6 +243,25 @@ module Api
             has_more: (offset + limit) < total_count
           }
         }
+      end
+
+      # POST /api/v1/documents/reorder
+      # Reorder library documents within a folder tab
+      # Accepts { document_ids: [3, 1, 2] } - ordered array of IDs
+      # Sets sort_order = index for each document
+      def reorder
+        document_ids = params[:document_ids]
+        unless document_ids.is_a?(Array) && document_ids.present?
+          return render json: { success: false, error: "document_ids array required" }, status: :unprocessable_entity
+        end
+
+        ActiveRecord::Base.transaction do
+          document_ids.each_with_index do |doc_id, index|
+            WarehouseDocument.where(id: doc_id).update_all(sort_order: index)
+          end
+        end
+
+        render json: { success: true, message: "Documents reordered successfully" }
       end
 
       # GET /api/v1/documents/live_folder_tree
@@ -893,6 +928,55 @@ module Api
         end
       end
 
+      # POST /api/v1/documents/:id/verify
+      # Mark a document as verified (validated by user)
+      def verify
+        meta = @document.metadata || {}
+        meta["verified"] = true
+        meta["verified_by"] = current_user&.name || "Unknown"
+        meta["verified_by_id"] = current_user&.id
+        meta["verified_at"] = Time.current.iso8601
+
+        if @document.update(metadata: meta)
+          render json: { success: true, document: warehouse_document_to_json(@document) }
+        else
+          render json: { success: false, errors: @document.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH /api/v1/documents/:id/set_expiry
+      # Set or clear expiry date on a document
+      # Params: { expiry_date: "2026-12-15" } or { expiry_date: null } to clear
+      def set_expiry
+        raw_date = params[:expiry_date]
+        parsed_date = raw_date.present? ? Date.parse(raw_date.to_s) : nil rescue nil
+
+        if raw_date.present? && parsed_date.nil?
+          return render json: { success: false, error: "Invalid date format" }, status: :unprocessable_entity
+        end
+
+        if @document.update(expiry_date: parsed_date)
+          render json: { success: true, document: warehouse_document_to_json(@document) }
+        else
+          render json: { success: false, errors: @document.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/documents/:id/share_link
+      # Generate a shareable link (presigned URL) for a document
+      # Params: open=true for inline disposition (view in browser), default is attachment (download)
+      def share_link
+        disposition = params[:open].to_s == "true" ? :inline : :attachment
+        service = DocumentStorageService.new
+        result = service.create_share_link(@document, disposition: disposition)
+
+        if result[:success]
+          render json: { success: true, shareUrl: result[:share_url] }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+      end
+
       # DELETE /api/v1/documents/:id
       def destroy
         @document.destroy
@@ -944,6 +1028,28 @@ module Api
         end
 
         redirect_to url, allow_other_host: true
+      end
+
+      # GET /api/v1/documents/:id/versions
+      # Returns all versions of a versioned document in descending order
+      def versions
+        doc = @document.is_a?(WarehouseDocument) ? @document : WarehouseDocument.find_by(id: @document.id)
+
+        unless doc&.version_group_id.present?
+          return render json: {
+            success: true,
+            versions: [warehouse_document_to_json(doc)]
+          }
+        end
+
+        all_versions = WarehouseDocument.where(version_group_id: doc.version_group_id)
+                                         .includes(:storage_blob)
+                                         .order(version_number: :desc)
+
+        render json: {
+          success: true,
+          versions: all_versions.map { |v| warehouse_document_to_json(v) }
+        }
       end
 
       # GET /api/v1/documents/:id/preview
@@ -1225,6 +1331,98 @@ module Api
         rescue StandardError => e
           Rails.logger.error "[Documents] Link to task failed: #{e.message}"
           render_error(e.message, status: :unprocessable_entity)
+        end
+      end
+
+      # POST /api/v1/documents/bulk_zip
+      # Creates a ZIP of multiple warehouse documents and returns a presigned download URL.
+      # Used by Library (and any page that emails multiple documents).
+      # Params: { document_ids: [1, 2, 3] }
+      def bulk_zip
+        require "zip"
+
+        ids = Array(params[:document_ids]).map(&:to_i).uniq
+        if ids.empty?
+          return render_error("No document IDs provided", status: :unprocessable_entity)
+        end
+
+        documents = WarehouseDocument.where(id: ids)
+        if documents.empty?
+          return render_error("No documents found", status: :unprocessable_entity)
+        end
+
+        # Build ZIP in memory
+        zip_data = Zip::OutputStream.write_buffer do |zip|
+          seen_names = {}
+          documents.each do |doc|
+            service = DocumentStorageService.new
+            result = service.download(doc)
+            next unless result[:success] && result[:content]
+
+            filename = doc.file_name || doc.ui_name || "document_#{doc.id}"
+            # Ensure unique filenames in zip
+            if seen_names[filename]
+              ext = File.extname(filename)
+              base = File.basename(filename, ext)
+              seen_names[filename] += 1
+              filename = "#{base}_#{seen_names[filename]}#{ext}"
+            else
+              seen_names[filename] = 0
+            end
+
+            zip.put_next_entry(filename)
+            zip.write(result[:content])
+          end
+        end
+        zip_data.rewind
+
+        zip_filename = "documents_#{ids.size}_files.zip"
+
+        # Upload to storage and return presigned URL
+        begin
+          provider = DocumentProviders.for_organization(current_organization)
+
+          unless provider
+            return render json: {
+              success: true,
+              download_method: "base64",
+              filename: zip_filename,
+              content: Base64.strict_encode64(zip_data.read),
+              content_type: "application/zip"
+            }
+          end
+
+          temp_folder_path = "Temp/LibraryZips"
+          timestamped_filename = "#{Time.current.strftime('%Y%m%d_%H%M%S')}_#{zip_filename}"
+          upload_result = provider.upload_file(temp_folder_path, zip_data.read, timestamped_filename, content_type: "application/zip")
+
+          if upload_result[:path]
+            download_url = provider.download_url(upload_result[:path], expires_in: TenantSetting.link_expiry_seconds)
+
+            render json: {
+              success: true,
+              download_method: "presigned_url",
+              share_url: download_url,
+              filename: zip_filename,
+              file_count: documents.size,
+              expiry_days: TenantSetting.link_expiry_days
+            }
+          else
+            render_error("Failed to upload zip file", status: :unprocessable_entity)
+          end
+        rescue DocumentProviders::NotConnectedError, ActiveRecord::Encryption::Errors::Decryption => e
+          Rails.logger.warn "[DocumentsController#bulk_zip] Storage unavailable (#{e.class.name}): #{e.message}"
+          zip_data.rewind
+          render json: {
+            success: true,
+            download_method: "base64",
+            filename: zip_filename,
+            content: Base64.strict_encode64(zip_data.read),
+            content_type: "application/zip"
+          }
+        rescue => e
+          Rails.logger.error "[DocumentsController#bulk_zip] Error: #{e.message}"
+          render_error("Failed to create zip file", status: :internal_server_error)
         end
       end
 
@@ -2418,18 +2616,22 @@ module Api
 
       # Phase 3: Serialize WarehouseDocument (universal format)
       # SSoT: Uses WarehouseDocument metadata with documentable context
-      def warehouse_document_to_json(wd)
+      def warehouse_document_to_json(wd, version_counts: {})
         # SSoT (Jan 2026): Don't access wd.documentable - it triggers NameError for deleted models
         # (e.g., ContactDocument was deleted but records still reference it)
         # Use WarehouseDocument directly - it IS the SSoT with linkable/metadata pattern
         blob = wd.storage_blob
 
         # Build download URL using WarehouseDocument.download_filename for Send Name
+        # FRC (Feb 2026): Use :inline disposition for viewable content types (PDF, images)
+        # so double-click opens in browser tab instead of downloading
+        content_type = wd.content_type || blob&.content_type || ""
+        viewable = content_type.start_with?("image/") || content_type == "application/pdf" || content_type == "text/plain"
         download_url = if blob&.storage_path.present?
-          # SSoT (Jan 2026): Use tenant for storage provider
-          provider = DocumentProviders.for_tenant(current_tenant)
           begin
-            provider&.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename)
+            # SSoT (Jan 2026): Use tenant for storage provider
+            provider = DocumentProviders.for_tenant(current_tenant)
+            provider&.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename, disposition: viewable ? :inline : :attachment)
           rescue StandardError => e
             Rails.logger.warn "[Documents] Failed to generate download URL for doc #{wd.id}: #{e.message}"
             nil
@@ -2466,7 +2668,21 @@ module Api
           isImage: image_file?(wd.original_filename),
           # Blob deduplication info
           storageBlobId: blob&.id,
-          contentHash: blob&.content_hash
+          contentHash: blob&.content_hash,
+          # Verification status (from metadata)
+          verified: wd.metadata&.dig("verified") == true,
+          verifiedBy: wd.metadata&.dig("verified_by"),
+          verifiedAt: wd.metadata&.dig("verified_at"),
+          # Version tracking
+          versionNumber: wd.version_number || 1,
+          versionGroupId: wd.version_group_id,
+          versionCount: wd.version_group_id ? (version_counts[wd.version_group_id] || 1) : 1,
+          # Expiry date
+          expiryDate: wd.expiry_date&.iso8601,
+          isExpired: wd.expired?,
+          isExpiringSoon: wd.expiring_soon?,
+          expiryStatus: wd.expiry_status&.to_s,
+          daysUntilExpiry: wd.days_until_expiry
         }
       end
 
@@ -2689,11 +2905,14 @@ module Api
 
       # Generate a download URL for a document
       # SSoT: Delegates to DocumentStorageService for all storage providers
+      # FRC (Feb 2026): Use :inline for viewable types so browser opens instead of downloading
       def generate_download_url(doc)
         return nil unless doc.present?
 
+        mime = doc.respond_to?(:mime_type) ? doc.mime_type : doc.respond_to?(:content_type) ? doc.content_type : nil
+        viewable = mime.present? && (mime.start_with?("image/") || mime == "application/pdf" || mime == "text/plain")
         service = DocumentStorageService.new
-        result = service.download_url(doc)
+        result = service.download_url(doc, disposition: viewable ? :inline : :attachment)
         result[:success] ? result[:url] : nil
       end
     end

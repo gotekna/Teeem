@@ -8,7 +8,7 @@ module Api
       # GET /api/v1/po_template_packs
       def index
         packs = PoTemplatePack.active.ordered
-          .includes(po_template_items: [:po_template_line_items, :sm_schedule_master])
+          .includes(:sm_schedule_master_template, po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre, :supplier])
 
         render json: {
           success: true,
@@ -56,7 +56,7 @@ module Api
       # POST /api/v1/po_template_packs/:id/apply
       def apply
         job = Job.find(params[:job_id])
-        service = PoTemplateApplyService.new(@pack, job)
+        service = PoTemplateApplyService.new(@pack, job, schedule_action: params[:schedule_action])
         result = service.call
 
         if result[:success]
@@ -73,7 +73,59 @@ module Api
         service = PoTemplateApplyService.new(@pack, job)
         result = service.preview
 
-        render json: { success: true, data: result }
+        # Convert to camelCase for frontend (service returns snake_case)
+        data = {
+          packName: result[:pack_name],
+          jobName: result[:job_name],
+          totalPos: result[:total_pos],
+          estimatedTotal: result[:estimated_total],
+          tasksMatched: result[:tasks_matched],
+          tasksUnmatched: result[:tasks_unmatched],
+          tasksWillCreate: result[:tasks_will_create],
+          suppliersMatched: result[:suppliers_matched],
+          suppliersUnmatched: result[:suppliers_unmatched],
+          warnings: result[:warnings],
+          items: result[:items].map { |item|
+            {
+              name: item[:name],
+              smScheduleMasterName: item[:sm_schedule_master_name],
+              supplierName: item[:supplier_name],
+              supplierMatched: item[:supplier_matched],
+              taskName: item[:task_name],
+              taskMatched: item[:task_matched],
+              taskWillCreate: item[:task_will_create],
+              lineItemCount: item[:line_item_count],
+              estimatedTotal: item[:estimated_total],
+              profitCentreName: item[:profit_centre_name],
+              lineItems: item[:line_items]&.map { |li|
+                {
+                  description: li[:description],
+                  quantity: li[:quantity],
+                  unitPrice: li[:unit_price],
+                  gstCode: li[:gst_code],
+                  subtotal: li[:subtotal],
+                  priceSource: li[:price_source]
+                }
+              }
+            }
+          }
+        }
+
+        # Add schedule template info if present
+        if (st = result[:schedule_template])
+          data[:scheduleTemplate] = {
+            id: st[:id],
+            name: st[:name],
+            rowCount: st[:row_count],
+            jobHasSchedule: st[:job_has_schedule],
+            sameTemplate: st[:same_template],
+            existingTaskCount: st[:existing_task_count],
+            actionRequired: st[:action_required],
+            existingTemplateName: st[:existing_template_name]
+          }
+        end
+
+        render json: { success: true, data: data }
       end
 
       # POST /api/v1/po_template_packs/:id/duplicate
@@ -104,10 +156,39 @@ module Api
         render json: { success: true, data: pack_json(new_pack.reload, include_line_items: true) }, status: :created
       end
 
+      # GET /api/v1/po_template_packs/preview_from_job
+      def preview_from_job
+        job = Job.find(params[:job_id])
+        pos = PurchaseOrder.where(job_id: job.id).where.not(status: "cancelled").includes(sm_task: :sm_schedule_master)
+
+        # Detect SM template (same logic as create_from_job)
+        template_id_counts = Hash.new(0)
+        pos.each do |po|
+          sm_row = po.sm_task&.sm_schedule_master
+          next unless sm_row
+          (sm_row.sm_template_ids || []).each { |tid| template_id_counts[tid] += 1 }
+        end
+
+        template_name = nil
+        if template_id_counts.any?
+          best_id = template_id_counts.max_by { |_, count| count }&.first
+          template_name = SmScheduleMasterTemplate.find_by(id: best_id)&.name if best_id
+        end
+
+        render json: {
+          success: true,
+          data: {
+            poCount: pos.count,
+            smTemplateName: template_name
+          }
+        }
+      end
+
       # POST /api/v1/po_template_packs/create_from_job
       def create_from_job
         job = Job.find(params[:job_id])
         name = params[:name] || "Template from #{job.job_code}"
+        include_suppliers = params[:include_suppliers] != false && params[:include_suppliers] != "false"
 
         pack = nil
         ActiveRecord::Base.transaction do
@@ -118,18 +199,79 @@ module Api
           )
 
           pos = PurchaseOrder.where(job_id: job.id)
+            .where.not(status: "cancelled")
             .includes(:supplier, sm_task: :sm_schedule_master)
-            .includes(:line_items)
+            .includes(line_items: [{ pricebook_item: :pricebook_category }, :profit_centre])
 
           # Sort by SM sequence_order so position reflects Schedule Master order
           sorted_pos = pos.sort_by { |po| po.sm_task&.sm_schedule_master&.sequence_order || Float::INFINITY }
 
+          # Auto-detect SM template from job's SM rows (pick most common template)
+          template_id_counts = Hash.new(0)
+          sorted_pos.each do |po|
+            sm_row = po.sm_task&.sm_schedule_master
+            next unless sm_row
+            (sm_row.sm_template_ids || []).each { |tid| template_id_counts[tid] += 1 }
+          end
+          if template_id_counts.any?
+            best_template_id = template_id_counts.max_by { |_tid, count| count }&.first
+            pack.update!(sm_schedule_master_template_id: best_template_id) if best_template_id
+          end
+
+          # When not including real suppliers, resolve price_only contacts
+          # No fallback — blank is better than wrong:
+          #   1. Supplier is already price_only → keep it
+          #   2. Line items have pricebook links → category name → price_only contact
+          #   3. Otherwise → nil (user sets manually)
+          price_only_by_name = {}
+          unless include_suppliers
+            price_only_by_name = Contact.where(entity_type: "price_only")
+              .index_by(&:display_name)
+          end
+
           sorted_pos.each_with_index do |po, idx|
+            # Determine profit centre from line items (most common across lines)
+            pc_counts = Hash.new(0)
+            po.line_items.each { |li| pc_counts[li.profit_centre_id] += 1 if li.profit_centre_id }
+            most_common_pc_id = pc_counts.any? ? pc_counts.max_by { |_id, c| c }.first : nil
+
+            # Resolve supplier
+            if include_suppliers
+              template_supplier_id = po.supplier_id
+              template_supplier_name = po.supplier&.display_name
+            else
+              supplier = po.supplier
+              if supplier&.entity_type == "price_only"
+                # Already a price_only contact — keep it
+                template_supplier_id = supplier.id
+                template_supplier_name = supplier.display_name
+              else
+                # Line items → pricebook category → price_only contact
+                # No match = blank (fail fast, no guessing)
+                price_only_contact = nil
+                cat_counts = Hash.new(0)
+                po.line_items.each do |li|
+                  next unless li.pricebook_item_id
+                  cat = li.pricebook_item&.pricebook_category
+                  cat_contact = cat ? price_only_by_name[cat.name] : nil
+                  cat_counts[cat_contact] += 1 if cat_contact
+                end
+                price_only_contact = cat_counts.any? ? cat_counts.max_by { |_, c| c }.first : nil
+
+                template_supplier_id = price_only_contact&.id
+                template_supplier_name = price_only_contact&.display_name
+              end
+            end
+
+            item_name = po.sm_task&.name || po.description || "PO #{po.purchase_order_number}"
             item = pack.po_template_items.create!(
-              name: po.sm_task&.name || po.description || "PO #{po.purchase_order_number}",
+              name: item_name,
+              # Scope sync_key to pack + position so items never collide
+              sync_key: PoTemplateItem.build_sync_key("pack-#{pack.id}-#{idx}", item_name),
               sm_schedule_master_id: po.sm_task&.sm_schedule_master_id,
-              supplier_id: po.supplier_id,
-              supplier_sync_key: po.supplier&.display_name,
+              supplier_id: template_supplier_id,
+              supplier_sync_key: template_supplier_name,
+              profit_centre_id: most_common_pc_id,
               position: idx,
               budget: po.budget,
               notes: po.description,
@@ -161,7 +303,9 @@ module Api
       private
 
       def set_pack
-        @pack = PoTemplatePack.find(params[:id])
+        @pack = PoTemplatePack
+          .includes(:sm_schedule_master_template, po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre, :supplier])
+          .find(params[:id])
       end
 
       # SSoT: Trades lookup (ID => name) from Foundation SM Trades
@@ -193,6 +337,12 @@ module Api
         @cost_centres_map ||= CostCentre.pluck(:id, :name).to_h
       end
 
+      # Cache template row IDs per request to avoid N+1 on inTemplate checks
+      def template_row_ids(template)
+        @template_row_ids_cache ||= {}
+        @template_row_ids_cache[template.id] ||= template.sm_schedule_master_rows.active.pluck(:id).to_set
+      end
+
       # SSoT: Stage ordering from Job Stages (user-configured position)
       # Maps stage_name => position, used to sort BOQ cascade sections
       def stage_order_map
@@ -207,10 +357,10 @@ module Api
 
       def pack_params
         params.require(:po_template_pack).permit(
-          :name, :description, :is_active, :position,
+          :name, :description, :is_active, :position, :sm_schedule_master_template_id,
           po_template_items_attributes: [
             :id, :name, :sm_schedule_master_id, :supplier_id, :supplier_sync_key,
-            :position, :budget, :notes, :status_on_create, :_destroy,
+            :profit_centre_id, :position, :budget, :notes, :status_on_create, :_destroy,
             po_template_line_items_attributes: [
               :id, :description, :quantity, :unit_price, :gst_code,
               :pricebook_item_id, :pricebook_item_code, :line_number, :_destroy
@@ -220,6 +370,7 @@ module Api
       end
 
       def pack_json(pack, include_line_items: false)
+        template = pack.sm_schedule_master_template
         json = {
           id: pack.id,
           name: pack.name,
@@ -228,16 +379,19 @@ module Api
           position: pack.position,
           itemCount: pack.po_template_items.size,
           estimatedTotal: pack.estimated_total,
+          smScheduleMasterTemplateId: template&.id,
+          smScheduleMasterTemplateName: template&.name,
+          smScheduleMasterTemplateRowCount: template&.row_count,
           createdAt: pack.created_at&.iso8601,
           updatedAt: pack.updated_at&.iso8601,
           items: pack.po_template_items
             .sort_by { |item| item.sm_schedule_master&.sequence_order || Float::INFINITY }
-            .map { |item| item_json(item, include_line_items: include_line_items) }
+            .map { |item| item_json(item, include_line_items: include_line_items, template: template) }
         }
         json
       end
 
-      def item_json(item, include_line_items: false)
+      def item_json(item, include_line_items: false, template: nil)
         sm = item.sm_schedule_master
         json = {
           id: item.id,
@@ -247,6 +401,8 @@ module Api
           tradeName: sm&.trade.present? ? trades_map[sm.trade.to_i] : nil,
           stageName: sm&.stage.present? ? stages_map[sm.stage.to_i] : nil,
           stagePosition: sm&.stage.present? ? stage_order_map[sm.stage.to_i] : nil,
+          profitCentreId: item.profit_centre_id,
+          profitCentreName: item.profit_centre&.code,
           costCentreName: sm&.cost_centre.present? ? cost_centres_map[sm.cost_centre] : nil,
           supplierId: item.supplier_id,
           supplierName: item.supplier&.display_name,
@@ -256,7 +412,8 @@ module Api
           notes: item.notes,
           statusOnCreate: item.status_on_create,
           lineItemCount: item.po_template_line_items.size,
-          lineItemTotal: item.line_item_total
+          lineItemTotal: item.line_item_total,
+          inTemplate: template.present? ? template_row_ids(template).include?(item.sm_schedule_master_id) : nil
         }
 
         if include_line_items

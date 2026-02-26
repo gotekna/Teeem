@@ -1,6 +1,7 @@
 class SetDefaultSuppliersByCategory < ActiveRecord::Migration[8.0]
-  # Maps pricebook item categories to their default supplier contact IDs.
-  # Using raw SQL to bypass acts_as_tenant scoping (affects ALL tenants correctly).
+  # ⚠️ TENANT LEAKAGE BUG - This migration applied tenant-2 contact IDs to ALL tenants.
+  # Fixed by migration 20260219200004_fix_cross_tenant_supplier_leakage.rb
+  # NEVER use raw SQL to set foreign keys without tenant_id matching.
   #
   # Suppliers confirmed:
   #   Harvey Norman Commercial (ID=1552) - currently default for 211 plumbing items

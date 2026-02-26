@@ -45,6 +45,8 @@ export interface ViewerFile {
   name: string;
   downloadUrl: string;
   openUrl: string;
+  /** Optional content type for preview detection (e.g., "image/jpeg") */
+  contentType?: string;
 }
 
 export interface QAPair {
@@ -107,6 +109,8 @@ export interface DocumentViewerProps {
   onOpenChange?: (open: boolean) => void;
   /** PDF annotation save handler - when provided, PDFs open in PDFEditor */
   onSave?: (pdfBytes: Uint8Array, fileName: string) => Promise<void>;
+  /** Content type for preview detection when filename has no extension */
+  contentType?: string;
 }
 
 // =============================================================================
@@ -114,23 +118,35 @@ export interface DocumentViewerProps {
 // =============================================================================
 
 /**
- * Detect file type from filename extension
+ * Detect file type from filename extension, with contentType fallback.
+ * Files without extensions (e.g., "Supervisor Photo 18-02-2026 01") need
+ * contentType to be identified correctly.
  */
-export function getFileType(filename: string): FileType {
+export function getFileType(filename: string, contentType?: string): FileType {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   if (ext === "pdf") return "pdf";
   if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) return "image";
   if (ext === "eml") return "eml";
   if (["xlsx", "xls", "xlsm", "xlsb"].includes(ext)) return "excel";
   if (["docx", "doc"].includes(ext)) return "word";
+
+  // Fallback: use contentType when extension is missing or unrecognized
+  if (contentType) {
+    if (contentType === "application/pdf") return "pdf";
+    if (contentType.startsWith("image/")) return "image";
+    if (contentType === "message/rfc822") return "eml";
+    if (contentType.includes("spreadsheet") || contentType.includes("excel")) return "excel";
+    if (contentType.includes("wordprocessing") || contentType === "application/msword") return "word";
+  }
+
   return "other";
 }
 
 /**
  * Get icon component for file type
  */
-export function getFileIcon(filename: string, className?: string) {
-  const type = getFileType(filename);
+export function getFileIcon(filename: string, className?: string, contentType?: string) {
+  const type = getFileType(filename, contentType);
   const iconClass = cn("h-4 w-4 shrink-0", className);
   switch (type) {
     case "pdf":
@@ -476,6 +492,7 @@ export function DocumentViewer({
   open,
   onOpenChange,
   onSave,
+  contentType,
 }: DocumentViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [emlData, setEmlData] = useState<ReturnType<typeof parseEmlContent> | null>(null);
@@ -491,7 +508,9 @@ export function DocumentViewer({
   const [pdfLoadProgress, setPdfLoadProgress] = useState<number>(0);
   const [pdfEditMode, setPdfEditMode] = useState(false);
 
-  const fileType = getFileType(fileName);
+  // Use contentType from props or from the current file in the files array
+  const effectiveContentType = contentType || files?.[currentIndex ?? 0]?.contentType;
+  const fileType = getFileType(fileName, effectiveContentType);
   const hasFiles = files && files.length > 0;
   const hasMultipleFiles = files && files.length > 1;
   const hasQA = qaContext && qaContext.length > 0;
@@ -678,10 +697,10 @@ export function DocumentViewer({
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : null;
     const nextIndex = currentIndex < files.length - 1 ? currentIndex + 1 : null;
 
-    if (prevIndex !== null && getFileType(files[prevIndex].name) === 'pdf') {
+    if (prevIndex !== null && getFileType(files[prevIndex].name, files[prevIndex].contentType) === 'pdf') {
       prefetchPdf(files[prevIndex].openUrl);
     }
-    if (nextIndex !== null && getFileType(files[nextIndex].name) === 'pdf') {
+    if (nextIndex !== null && getFileType(files[nextIndex].name, files[nextIndex].contentType) === 'pdf') {
       prefetchPdf(files[nextIndex].openUrl);
     }
   }, [files, currentIndex]);
@@ -1024,7 +1043,7 @@ export function DocumentViewer({
           isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900 border-b"
         )}>
           <div className="flex items-center gap-3 min-w-0">
-            {getFileIcon(fileName, "h-5 w-5")}
+            {getFileIcon(fileName, "h-5 w-5", effectiveContentType)}
             <h1 className="text-lg font-medium truncate">{emlData?.subject || fileName}</h1>
             {hasMultipleFiles && (
               <span className={cn("text-sm shrink-0", isDark ? "text-gray-400" : "text-gray-500")}>
@@ -1047,14 +1066,12 @@ export function DocumentViewer({
                 <MessageSquareText className="h-4 w-4" />
               </button>
             )}
-            <a
-              href={effectiveDownloadUrl}
-              download={fileName}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Download</span>
-            </a>
+            <Button asChild>
+              <a href={effectiveDownloadUrl} download={fileName}>
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Download</span>
+              </a>
+            </Button>
             {hasMultipleFiles && (
               <button
                 onClick={handleDownloadAll}
@@ -1145,7 +1162,7 @@ export function DocumentViewer({
                                   : isDark ? "text-gray-400 hover:bg-gray-700/50 hover:text-gray-200" : "text-gray-500 hover:bg-gray-100"
                               )}
                             >
-                              {getFileIcon(file.name, "h-3 w-3")}
+                              {getFileIcon(file.name, "h-3 w-3", file.contentType)}
                               <span className="truncate">{file.name}</span>
                             </button>
                           );
@@ -1178,7 +1195,7 @@ export function DocumentViewer({
                           : isDark ? "bg-gray-700/50 text-gray-300 hover:bg-gray-700" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       )}
                     >
-                      {getFileIcon(file.name)}
+                      {getFileIcon(file.name, undefined, file.contentType)}
                       <span className="truncate">{file.name}</span>
                     </button>
                   ))}
@@ -1223,14 +1240,12 @@ export function DocumentViewer({
               <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h2 className={`text-xl font-semibold mb-2 ${isDark ? "text-white" : "text-gray-800"}`}>Unable to Preview</h2>
               <p className={`mb-4 ${isDark ? "text-gray-300" : "text-gray-600"}`}>{error}</p>
-              <a
-                href={effectiveDownloadUrl}
-                download={fileName}
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
-              >
-                <Download className="h-5 w-5" />
-                Download File
-              </a>
+              <Button asChild size="lg">
+                <a href={effectiveDownloadUrl} download={fileName}>
+                  <Download className="h-5 w-5" />
+                  Download File
+                </a>
+              </Button>
             </div>
           ) : fileType === "pdf" ? (
             pdfLoading ? (
@@ -1288,14 +1303,12 @@ export function DocumentViewer({
                 <p className={`mb-4 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
                   This document couldn&apos;t be loaded for preview.
                 </p>
-                <a
-                  href={effectiveDownloadUrl}
-                  download={fileName}
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
-                >
-                  <Download className="h-5 w-5" />
-                  Download File
-                </a>
+                <Button asChild size="lg">
+                  <a href={effectiveDownloadUrl} download={fileName}>
+                    <Download className="h-5 w-5" />
+                    Download File
+                  </a>
+                </Button>
               </div>
             )
           ) : fileType === "image" ? (
@@ -1385,14 +1398,12 @@ export function DocumentViewer({
               <p className="text-gray-600 mb-4">
                 This file type cannot be previewed in the browser.
               </p>
-              <a
-                href={effectiveDownloadUrl}
-                download={fileName}
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
-              >
-                <Download className="h-5 w-5" />
-                Download {fileName}
-              </a>
+              <Button asChild size="lg">
+                <a href={effectiveDownloadUrl} download={fileName}>
+                  <Download className="h-5 w-5" />
+                  Download {fileName}
+                </a>
+              </Button>
             </div>
           )}
         </main>

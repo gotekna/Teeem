@@ -39,7 +39,7 @@ class PriceHistoryExportService
   private
 
   def fetch_items
-    items = PricebookItem.includes(:default_supplier, price_histories: :supplier).active
+    items = PricebookItem.includes(:default_supplier, :pricebook_category, price_histories: :supplier).active
 
     # If specific item IDs are provided, filter by them (takes priority)
     if @item_ids.present?
@@ -82,7 +82,7 @@ class PriceHistoryExportService
           item.id,
           item.item_code.to_s,
           item.item_name.to_s,
-          item.category.to_s,
+          item.pricebook_category&.name.to_s,
           item.unit_of_measure.to_s,
           item.current_price,
           supplier_name.to_s,

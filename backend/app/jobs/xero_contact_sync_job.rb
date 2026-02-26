@@ -13,6 +13,7 @@
 # for real-time responsiveness.
 #
 class XeroContactSyncJob < ApplicationJob
+  include DeduplicatableJob
   include XeroJobBase
   queue_as :xero_sync
 

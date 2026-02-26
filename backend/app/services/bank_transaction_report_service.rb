@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # Generates a PDF bank statement report from Xero bank feed data.
 # Format matches standard bank statement layout with running balance.
 # Bank-specific branding applied based on account name.
@@ -1942,8 +1944,8 @@ class BankTransactionReportService
         items = JSON.parse(items) if items.is_a?(String)
         desc = items.first&.dig("Description")
         return desc if desc.present?
-      rescue StandardError
-        # ignore
+      rescue StandardError => e
+        Rails.logger.warn "[BankTransactionReport] Failed to parse line items for description: #{e.message}"
       end
     end
 
@@ -1971,8 +1973,8 @@ class BankTransactionReportService
         items = txn.line_items
         items = JSON.parse(items) if items.is_a?(String)
         line1 = items.first&.dig("Description")
-      rescue StandardError
-        # ignore
+      rescue StandardError => e
+        Rails.logger.warn "[BankTransactionReport] Failed to parse line items for tooltip: #{e.message}"
       end
     end
     line1 ||= txn.reference.presence

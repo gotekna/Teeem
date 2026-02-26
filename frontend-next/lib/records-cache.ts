@@ -216,12 +216,44 @@ export function clearAllCachedRecords(): void {
   // L1: Clear all memory
   recordsCache.clear();
 
-  // L2: Clear all IndexedDB (async)
+  // L2: Clear all IndexedDB (async, fire-and-forget)
   if (isIndexedDBAvailable()) {
     clearAllIDB().catch(() => {/* ignore */});
   }
 
   dedupedLog('[RecordsCache] ALL CLEARED');
+}
+
+/**
+ * Clear all cached records and WAIT for IndexedDB to finish.
+ * Use this before page reload to guarantee no stale data survives.
+ */
+export async function clearAllCachedRecordsAsync(): Promise<void> {
+  // L1: Clear all memory
+  recordsCache.clear();
+
+  // L2: Clear IndexedDB AND delete the entire database for a clean slate
+  if (isIndexedDBAvailable()) {
+    try {
+      await clearAllIDB();
+    } catch {/* ignore */}
+
+    // Nuclear option: delete the entire database to guarantee no stale data
+    try {
+      if (typeof window !== 'undefined' && window.indexedDB) {
+        await new Promise<void>((resolve) => {
+          const req = window.indexedDB.deleteDatabase('teeem-records-cache');
+          req.onsuccess = () => resolve();
+          req.onerror = () => resolve();
+          req.onblocked = () => resolve();
+          // Safety timeout - don't block forever
+          setTimeout(resolve, 2000);
+        });
+      }
+    } catch {/* ignore */}
+  }
+
+  dedupedLog('[RecordsCache] ALL CLEARED (async, database deleted)');
 }
 
 /**

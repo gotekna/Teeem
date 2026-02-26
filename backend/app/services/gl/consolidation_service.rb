@@ -431,21 +431,24 @@ module Gl
     def entity_profit_loss(entity)
       service = Gl::Reports::ProfitLoss.new(entity, financial_year)
       service.generate
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::Consolidation] Failed to generate profit/loss for entity #{entity&.name}: #{e.message}"
       empty_profit_loss
     end
 
     def entity_balance_sheet(entity)
       service = Gl::Reports::BalanceSheet.new(entity, as_at_date)
       service.generate
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::Consolidation] Failed to generate balance sheet for entity #{entity&.name}: #{e.message}"
       empty_balance_sheet
     end
 
     def entity_trial_balance(entity)
       service = Gl::Reports::TrialBalance.new(entity, financial_year, as_at_date: as_at_date)
       service.generate
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[GL::Consolidation] Failed to generate trial balance for entity #{entity&.name}: #{e.message}"
       { accounts: [], totals: { debit: 0, credit: 0 } }
     end
 

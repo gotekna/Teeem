@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "mini_magick"
+
 module PlanIdentification
   # Layer 3: AI Validation
   #

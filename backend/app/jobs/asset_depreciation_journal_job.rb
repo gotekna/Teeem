@@ -1,6 +1,7 @@
 # World-Class Asset Register - Monthly Depreciation Journal Job
 # Posts depreciation journals to Xero for all connected companies
 class AssetDepreciationJournalJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   def perform

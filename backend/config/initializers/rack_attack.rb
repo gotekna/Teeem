@@ -22,10 +22,11 @@ class Rack::Attack
     req.path == "/up" || req.path == "/version"
   end
 
-  # Staging environment detection
+  # Staging/dev environment detection
   # SECURITY NOTE: Staging still has rate limits (higher thresholds) rather than being fully disabled.
   # This prevents abuse while allowing development/testing flexibility.
-  is_staging = ENV["HEROKU_APP_NAME"]&.include?("rob-dev") || ENV["HEROKU_APP_NAME"]&.include?("sam-dev")
+  app_name = ENV["HEROKU_APP_NAME"] || ""
+  is_staging = app_name.include?("staging") || app_name.include?("rob-dev") || app_name.include?("sam-dev")
 
   # Determine rate limit based on environment
   # Staging: 3000/5min (higher for development/testing)

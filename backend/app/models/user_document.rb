@@ -19,7 +19,7 @@ class UserDocument < ApplicationRecord
   storage_scope :users
 
   # Associations
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :document_type, optional: true
 
   # SSoT: Link to deduplicated file storage (Jan 2026)

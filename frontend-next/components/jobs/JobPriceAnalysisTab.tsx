@@ -190,7 +190,7 @@ export default function JobPriceAnalysisTab({ jobId }: JobPriceAnalysisTabProps)
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">PO Total</p>
+            <p className="text-sm text-muted-foreground">PO Total (Ex GST)</p>
             <p className="mt-1 text-2xl font-semibold">{formatCurrency(summary.current_total)}</p>
             <p className="text-xs text-muted-foreground mt-1">
               {summary.total_pos} POs, {summary.total_line_items} items
@@ -200,7 +200,7 @@ export default function JobPriceAnalysisTab({ jobId }: JobPriceAnalysisTabProps)
 
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Reference Total</p>
+            <p className="text-sm text-muted-foreground">Reference Total (Ex GST)</p>
             <p className="mt-1 text-2xl font-semibold">{formatCurrency(summary.price_only_total)}</p>
             <p className="text-xs text-muted-foreground mt-1">From price-only contacts</p>
           </CardContent>
@@ -313,14 +313,14 @@ function POCard({ po, expanded, onToggle }: { po: POGroup; expanded: boolean; on
         <div className="flex items-center gap-4 shrink-0 ml-4">
           <div className="text-right">
             <p className="text-sm font-medium">{formatCurrency(po.current_total)}</p>
-            <p className="text-xs text-muted-foreground">PO Total</p>
+            <p className="text-xs text-muted-foreground">Ex GST</p>
           </div>
           {hasDiff && (
             <>
               <span className="text-muted-foreground">→</span>
               <div className="text-right">
                 <p className="text-sm font-medium">{formatCurrency(po.price_only_total)}</p>
-                <p className="text-xs text-muted-foreground">Ref Total</p>
+                <p className="text-xs text-muted-foreground">Ref Ex GST</p>
               </div>
               <div className="text-right min-w-[80px]">
                 <p className={`text-sm font-medium ${getDiffColor(po.difference)}`}>
@@ -415,7 +415,7 @@ function POCard({ po, expanded, onToggle }: { po: POGroup; expanded: boolean; on
 
               {/* PO Totals Row */}
               <TableRow className="bg-muted/50 font-semibold border-t-2">
-                <TableCell colSpan={4} className="text-right">PO Total</TableCell>
+                <TableCell colSpan={4} className="text-right">PO Total (Ex GST)</TableCell>
                 <TableCell className="text-right">{formatCurrency(po.current_total)}</TableCell>
                 <TableCell className="text-right">
                   {po.price_only_total !== null ? formatCurrency(po.price_only_total) : "—"}

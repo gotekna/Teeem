@@ -29,6 +29,7 @@ export const ROUTES = {
 
   // ===== Main Navigation =====
   DASHBOARD: "/dashboard",
+  LEARN: "/learn",
   JOBS: "/jobs",
   JOB_DETAIL: (id: string | number) => `/jobs/${id}`,
   JOB_NEW: "/jobs/new",
@@ -75,6 +76,8 @@ export const ROUTES = {
   WORKFLOW_TASK_DETAIL: (id: string | number) => `/workflows/tasks/${id}`,
   WORKFLOW_PROCESSES: "/workflows/processes",
   WORKFLOW_PROCESS_INSTANCES: "/workflows/processes/instances",
+
+  LIBRARY: "/library",
 
   CASES: "/cases",
   CASE_DETAIL: (id: string | number) => `/cases/${id}`,
@@ -133,6 +136,7 @@ export const ROUTES = {
     NOTIFICATIONS: "/settings/notifications",
     SECURITY: "/settings/security",
     PREFERENCES: "/settings/preferences",
+    ASSISTANT: "/settings/assistant",
 
     // Organization
     USERS: "/settings/users",
@@ -150,6 +154,7 @@ export const ROUTES = {
     CONNECTIONS_MIGRATION: "/settings/connections/migration",
     CONNECTIONS_COSTS: "/settings/connections/costs",
     CONNECTIONS_BACKUPS: "/settings/connections/backups",
+    CONNECTIONS_AI_ASSISTANT: "/settings/connections/ai-assistant",
     CONNECTIONS_EMAIL_ACCOUNTS: "/settings/connections/email-accounts/configuration",
 
     // Integrations (legacy redirects)

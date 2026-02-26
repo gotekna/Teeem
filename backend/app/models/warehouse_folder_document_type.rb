@@ -28,9 +28,24 @@ class WarehouseFolderDocumentType < ApplicationRecord
   # Callbacks
   # SSoT: Sync warehouse_document.ui_name when templates change
   after_update :schedule_warehouse_document_sync, if: :template_changed?
+  before_destroy :prevent_system_deletion
 
   # Validations
   validates :warehouse_folder_id, uniqueness: { scope: [:tenant_id, :document_type_id] }
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # SSoT: System Protection (same pattern as WarehouseFolder.is_system)
+  # System WFDTs are required by coded workflows and cannot be deleted by users.
+  # ════════════════════════════════════════════════════════════════════════════════
+
+  def can_delete?
+    !is_system
+  end
+
+  def deletion_blocked_reason
+    return nil if can_delete?
+    "System document type cannot be removed — it is required by automated workflows"
+  end
 
   # ════════════════════════════════════════════════════════════════════════════════
   # SSoT: Template Resolution Methods
@@ -68,6 +83,8 @@ class WarehouseFolderDocumentType < ApplicationRecord
       warehouse_folder_id: warehouse_folder_id,
       document_type_id: document_type_id,
       is_primary: is_primary,
+      is_system: is_system,
+      can_delete: can_delete?,
       # Template fields
       ui_name_template: ui_name_template,
       download_name_template: download_name_template,
@@ -86,6 +103,14 @@ class WarehouseFolderDocumentType < ApplicationRecord
   # Check if either template changed
   def template_changed?
     saved_change_to_ui_name_template? || saved_change_to_download_name_template?
+  end
+
+  # Prevent deletion of system-required WFDTs (same pattern as WarehouseFolder)
+  def prevent_system_deletion
+    if is_system
+      errors.add(:base, "System document type cannot be removed")
+      throw(:abort)
+    end
   end
 
   # Queue background job to update all linked warehouse documents

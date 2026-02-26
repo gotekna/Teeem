@@ -7,6 +7,8 @@
 # Usage:
 #   PdfThumbnailService.new(revision).generate!
 #
+require "mini_magick"
+
 class PdfThumbnailService
   include DocumentProviderAware
   # Micro thumbnail (instant display, large enough for preview panel)

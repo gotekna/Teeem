@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Notification < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :notifiable, polymorphic: true, optional: true
 
   # Allowed polymorphic types for notifiable (security: prevents arbitrary type injection)

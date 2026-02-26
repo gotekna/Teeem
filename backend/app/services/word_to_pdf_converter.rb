@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+require "grover"
+
 # WordToPdfConverter - THE ONE SSoT for Word to PDF conversion
 #
 # Converts DOCX files to PDF without Microsoft dependency.

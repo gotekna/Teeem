@@ -7,7 +7,7 @@
 #
 class SmTaskNote < ApplicationRecord
   belongs_to :sm_task
-  belongs_to :user
+  belongs_to :user, optional: true
 
   validates :content, presence: true
 

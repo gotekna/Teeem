@@ -123,7 +123,11 @@ module Api
               default_task_view: user.default_task_view,
               default_theme_from_role: user.default_theme_from_role,
               # Force password change (Feb 2026) - set when admin sends login invite
-              force_password_change: user.force_password_change || false
+              force_password_change: user.force_password_change || false,
+              # Default tenant preference (Feb 2026) - auto-set on login
+              default_tenant_id: user.default_tenant_id,
+              # Tutorial progress (Feb 2026) - TEEEM Academy onboarding
+              tutorial_progress: user.assistant_preferences&.dig("tutorial_progress")
             }
           }
         else
@@ -264,7 +268,11 @@ module Api
             forced_signature_style: TenantSetting.instance.forced_signature_style,
             # Custom company signature (if exists)
             custom_email_signature_html: TenantSetting.instance.custom_email_signature_html,
-            custom_email_signature_name: TenantSetting.instance.custom_email_signature_name
+            custom_email_signature_name: TenantSetting.instance.custom_email_signature_name,
+            # Default tenant preference (Feb 2026) - auto-set on login
+            default_tenant_id: @current_user.default_tenant_id,
+            # Tutorial progress (Feb 2026) - TEEEM Academy onboarding
+            tutorial_progress: @current_user.assistant_preferences&.dig("tutorial_progress")
           },
           # Environment info for auto-login redirect check
           api_url: env_config[:api_url],

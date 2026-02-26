@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # ESignatureCertificate is the completion certificate that proves
 # the document was signed by all parties. It contains the SHA256
 # hash chain for tamper detection and a summary of all signatures.
@@ -122,7 +124,8 @@ class ESignatureCertificate < ApplicationRecord
 
     # This URL would be configured based on your frontend domain
     "#{Rails.application.config.frontend_url}/verify-signature/#{verification_token}"
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn("[ESignatureCertificate] Failed to generate verification_url: #{e.message}")
     nil
   end
 

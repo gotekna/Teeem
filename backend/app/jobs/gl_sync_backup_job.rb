@@ -6,6 +6,7 @@
 # Schedule: Every 6 hours (configured in recurring.yml)
 #
 class GlSyncBackupJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # Stale threshold - sync if last sync was more than 4 hours ago

@@ -6,8 +6,10 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
+import { clearCachedRecords } from "@/lib/records-cache";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
+import PricebookBulkActions from "./components/PricebookBulkActions";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import type { ViewData } from "@/lib/server/foundation-api";
 
@@ -75,8 +77,9 @@ export default function PricebookPageClient({
     }
   }, []);
 
-  // Handle refresh (e.g., after drawer update)
+  // Handle refresh (e.g., after drawer update or bulk action)
   const handleRefresh = useCallback(() => {
+    clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     setRefreshKey(k => k + 1);
   }, []);
 
@@ -118,6 +121,14 @@ export default function PricebookPageClient({
         initialGroupsCollapsed
         // Link "View all health checks" to pricebook-specific health page
         healthPageHref="/pricebook/health"
+        // Bulk actions: Update Prices, Copy Prices, Set Default, Remove Prices
+        customBulkActions={(selectedIds, clearSelection) => (
+          <PricebookBulkActions
+            selectedIds={selectedIds}
+            clearSelection={clearSelection}
+            onRefresh={handleRefresh}
+          />
+        )}
       />
     </TablePage>
   );

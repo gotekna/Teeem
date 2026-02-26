@@ -10,7 +10,7 @@ import {
   STATUS_COLORS,
 } from "@/lib/expenses-utils";
 import { BudgetProgressBar } from "./BudgetProgressBar";
-import { TrendingUp, TrendingDown, DollarSign, Receipt, CreditCard } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Receipt, CreditCard, FileText } from "lucide-react";
 
 interface ExpensesSummaryBarProps {
   totalBudget: number;
@@ -20,6 +20,7 @@ interface ExpensesSummaryBarProps {
   totalVariance: number;
   poCount: number;
   totalCredits?: number;
+  totalInvoiced?: number;
   className?: string;
 }
 
@@ -28,9 +29,10 @@ interface ExpensesSummaryBarProps {
  *
  * Shows overall budget status at the top of the Expenses tab:
  * - Total Budget
- * - Total Spent
- * - Total Paid
- * - Remaining
+ * - Total PO (sum of PO totals inc GST)
+ * - Total Invoiced (sum of Xero bills received)
+ * - Total Paid (sum of Xero payments)
+ * - Remaining to Pay
  * - Visual progress bar
  */
 export function ExpensesSummaryBar({
@@ -41,6 +43,7 @@ export function ExpensesSummaryBar({
   totalVariance,
   poCount,
   totalCredits = 0,
+  totalInvoiced = 0,
   className,
 }: ExpensesSummaryBarProps) {
   const status = getBudgetStatus(totalSpent, totalBudget);
@@ -67,13 +70,13 @@ export function ExpensesSummaryBar({
           </div>
         </div>
 
-        {/* Spent */}
+        {/* PO Total */}
         <div className="flex items-center gap-2">
           <div className={cn("p-1.5 rounded-md", colors.bg)}>
             <Receipt className={cn("h-4 w-4", colors.icon)} />
           </div>
           <div>
-            <div className="text-xs text-muted-foreground">Total Spent</div>
+            <div className="text-xs text-muted-foreground">Total PO</div>
             <div className={cn("text-lg font-semibold tabular-nums", colors.text)}>
               {formatCurrency(totalSpent)}
             </div>
@@ -94,6 +97,19 @@ export function ExpensesSummaryBar({
             </div>
           </div>
         )}
+
+        {/* Invoiced */}
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-md bg-indigo-100 dark:bg-indigo-900/30">
+            <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Total Invoiced</div>
+            <div className="text-lg font-semibold tabular-nums text-indigo-700 dark:text-indigo-300">
+              {formatCurrency(totalInvoiced)}
+            </div>
+          </div>
+        </div>
 
         {/* Paid */}
         <div className="flex items-center gap-2">

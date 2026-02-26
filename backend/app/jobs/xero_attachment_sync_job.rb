@@ -24,9 +24,70 @@
 # - WarehouseFolder + DocumentType define folder structure (no hardcoding)
 #
 class XeroAttachmentSyncJob < ApplicationJob
+  include DeduplicatableJob
   include XeroConstants  # For XERO_ATTACHMENT_SYNC_DELAY_SEC
   include XeroJobBase
   queue_as :xero_bulk
+
+  # ⚠️ DO NOT SIMPLIFY - Per-variant concurrency keys (Feb 2026)
+  # ════════════════════════════════════════════════════════════════
+  # Why: DeduplicatableJob's default key (self.class.name) creates a GLOBAL lock
+  # so only ONE XeroAttachmentSyncJob can run at a time. But the ULTRA Architecture
+  # above says "each Xero org is INDEPENDENT, process IN PARALLEL". The global key
+  # serialized all orgs → Pilgrim jobs got blocked behind Tekna → stuck at 4,824.
+  # ❌ WRONG: limits_concurrency key: ->(*) { self.class.name }
+  #           → All jobs share ONE slot → serial, not parallel
+  # ✅ CORRECT: Per-variant keys → scheduler, each tenant, and single-invoice
+  #             can all run independently
+  # ════════════════════════════════════════════════════════════════
+  limits_concurrency to: 1, key: ->(external_invoice_id = nil, **options) {
+    if options[:tenant_id].present?
+      "XeroAttachmentSyncJob:tenant:#{options[:tenant_id]}"
+    elsif external_invoice_id.present?
+      "XeroAttachmentSyncJob:invoice:#{external_invoice_id}"
+    else
+      "XeroAttachmentSyncJob:scheduler"
+    end
+  }
+
+  # Override DeduplicatableJob's cleanup to be concurrency-key-aware.
+  # The default cleanup deletes ALL blocked XeroAttachmentSyncJob instances
+  # except the oldest, treating per-tenant jobs as "duplicates" of each other.
+  # With per-variant keys, each tenant's job is independent work, not a duplicate.
+  def self.cleanup_duplicate_copies!(excluding_job_id: nil)
+    # Group blocked executions by concurrency_key, keep 1 per key
+    blocked = SolidQueue::BlockedExecution
+      .joins(:job)
+      .where(solid_queue_jobs: { class_name: name, finished_at: nil })
+
+    blocked.group(:concurrency_key).having("COUNT(*) > 1").count.each do |key, _count|
+      key_blocked_ids = SolidQueue::BlockedExecution
+        .joins(:job)
+        .where(concurrency_key: key)
+        .where(solid_queue_jobs: { class_name: name, finished_at: nil })
+        .order("solid_queue_jobs.id ASC")
+        .pluck(:job_id)
+
+      next if key_blocked_ids.size <= 1
+
+      excess_ids = key_blocked_ids[1..] # Keep oldest per key, remove rest
+      Rails.logger.info "[DeduplicatableJob] Clearing #{excess_ids.count} excess blocked #{name} job(s) for key #{key}"
+      SolidQueue::BlockedExecution.where(job_id: excess_ids).delete_all
+      SolidQueue::Job.where(id: excess_ids).update_all(finished_at: Time.current)
+    end
+
+    # Also clean duplicate ready copies (same as default)
+    duplicates = SolidQueue::Job.where(finished_at: nil, class_name: name)
+    duplicates = duplicates.where.not(id: excluding_job_id) if excluding_job_id
+    ready_ids = SolidQueue::ReadyExecution.where(job_id: duplicates.select(:id)).pluck(:job_id)
+    if ready_ids.count > 1
+      # Keep oldest ready, remove rest
+      excess_ready = ready_ids.sort[1..]
+      Rails.logger.info "[DeduplicatableJob] Clearing #{excess_ready.count} duplicate ready #{name} job(s)"
+      SolidQueue::ReadyExecution.where(job_id: excess_ready).delete_all
+      SolidQueue::Job.where(id: excess_ready).update_all(finished_at: Time.current)
+    end
+  end
 
   # Xero rate limits (per tenant)
   MINUTE_LIMIT = 60
@@ -35,11 +96,17 @@ class XeroAttachmentSyncJob < ApplicationJob
   SAFE_MINUTE_LIMIT = 55
   SAFE_DAILY_LIMIT = 4800
 
-  # FRC (Feb 2026): Xero allows 5 concurrent API calls per org.
-  # Was 2 due to bandwidth contention with 60s timeout, raised to 4 now that
-  # timeout is 120s. 4 of 5 slots leaves 1 for webhooks/other API calls.
-  # Source: https://developer.xero.com/faq/limits
-  CONCURRENT_DOWNLOADS = 4
+  # FRC (Feb 2026): Reduced from 4 to 2 for memory safety.
+  # Each concurrent download creates a Tempfile + S3 upload stream.
+  # With 4 threads × multipart chunk buffers, memory spikes on the 1024MB dyno.
+  # 2 threads still gives good throughput for IO-bound work while keeping
+  # peak memory ~535MB (489MB headroom). 3 remaining Xero slots for webhooks/other.
+  CONCURRENT_DOWNLOADS = 2
+
+  # Memory threshold (MB) — if RSS exceeds this, force GC before next batch
+  MEMORY_WARNING_MB = 800
+  # Hard abort threshold — if RSS exceeds this after GC, stop processing
+  MEMORY_ABORT_MB = 900
 
   # Per-tenant lock TTL (must exceed MAX_RUNTIME to prevent overlap)
   TENANT_LOCK_TTL = 12.minutes
@@ -181,6 +248,20 @@ class XeroAttachmentSyncJob < ApplicationJob
             break
           end
           Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Rate limit cleared, resuming")
+        end
+
+        # ⚠️ MEMORY GUARD (Feb 2026): Check RSS before each batch.
+        # On 1024MB Heroku dyno, R14 triggers at 1024MB. We stop early to prevent crash.
+        rss = current_rss_mb
+        if rss > MEMORY_WARNING_MB
+          Rails.logger.warn("[XeroAttachmentSync] #{tenant_name}: Memory high (#{rss}MB > #{MEMORY_WARNING_MB}MB), forcing GC")
+          GC.start(full_mark: true, immediate_sweep: true)
+          rss = current_rss_mb
+          if rss > MEMORY_ABORT_MB
+            Rails.logger.error("[XeroAttachmentSync] #{tenant_name}: Memory still high after GC (#{rss}MB > #{MEMORY_ABORT_MB}MB), aborting")
+            break
+          end
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: GC freed memory to #{rss}MB, continuing")
         end
 
         batch_results = process_tenant_batch(tenant_id, options)
@@ -368,8 +449,20 @@ class XeroAttachmentSyncJob < ApplicationJob
         end
       end
 
+      # ⚠️ MEMORY-SAFE (Feb 2026): Nil out references and GC between thread batches.
+      # Without this, completed thread objects and their closures (holding Tempfile refs,
+      # service instances, API response data) accumulate across all 13+ batches.
+      # GC.start is ~10-50ms — negligible compared to 0.3s sleep below.
+      threads = nil
+      thread_results = nil
+
       # Brief pause between batches to avoid burst-hammering Xero
       sleep(0.3)
+
+      # Periodic GC every 3 batches to prevent memory creep
+      if results[:processed] > 0 && results[:processed] % (CONCURRENT_DOWNLOADS * 3) == 0
+        GC.start
+      end
     end
 
     results
@@ -444,7 +537,10 @@ class XeroAttachmentSyncJob < ApplicationJob
       .where.not(tenant_id: nil)
       .where.not(contact_id: nil)
       .where("external_invoices.id NOT IN (?)", already_synced_subquery)
-      .order(Arel.sql("CASE WHEN invoice_type = 'bill' THEN 1 ELSE 0 END, id"))
+      # FRC (Feb 2026): Randomize within each type priority so different invoices are
+      # attempted each run. Previously .order(..., id) meant the same failing invoices
+      # sat at the front of the queue even after cooldown expired.
+      .order(Arel.sql("CASE WHEN invoice_type = 'bill' THEN 1 ELSE 0 END, RANDOM()"))
       .limit(limit)
 
     if xero_tenant_id.present?
@@ -620,5 +716,27 @@ class XeroAttachmentSyncJob < ApplicationJob
     end
 
     active
+  end
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # MEMORY MONITORING
+  # ════════════════════════════════════════════════════════════════════════════
+
+  # Get current RSS (Resident Set Size) in MB.
+  # Linux (Heroku): reads /proc/self/status (instant, no subprocess).
+  # macOS (dev): falls back to `ps` command.
+  # Returns 0 on error (fail-open: never block processing due to monitoring failure).
+  def current_rss_mb
+    if File.exist?("/proc/self/status")
+      # Linux (Heroku): Parse VmRSS from /proc/self/status — no subprocess needed
+      status = File.read("/proc/self/status")
+      match = status.match(/VmRSS:\s+(\d+)\s+kB/)
+      return match[1].to_i / 1024 if match
+    end
+
+    # macOS fallback: use ps command
+    `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+  rescue StandardError
+    0
   end
 end

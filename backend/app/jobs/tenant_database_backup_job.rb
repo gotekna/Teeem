@@ -9,13 +9,16 @@
 # Uses secondary_credential (B2) for upload and retention_count for cleanup.
 #
 class TenantDatabaseBackupJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Heroku app name for production database
   HEROKU_APP = HerokuPlatformService::PRODUCTION_APP
 
   def perform(tenant_id)
-    @tenant = Tenant.find(tenant_id)
+    # FRC (Feb 2026): Tenant.find inside acts_as_tenant scope adds WHERE "tenants"."true"
+    # because Tenant model itself is scoped. Use without_tenant to avoid the bogus column.
+    @tenant = ActsAsTenant.without_tenant { Tenant.find(tenant_id) }
     @tenant_slug = @tenant.slug
 
     ActsAsTenant.with_tenant(@tenant) do

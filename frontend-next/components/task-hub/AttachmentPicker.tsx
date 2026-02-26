@@ -178,7 +178,7 @@ function EmailSearchPanel({
           className="text-sm pr-8"
         />
         {loading ? (
-          <Spinner size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"><Spinner size={16} /></span>
         ) : (
           <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         )}
@@ -291,7 +291,7 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
           className="text-sm pr-8"
         />
         {loading ? (
-          <Spinner size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"><Spinner size={16} /></span>
         ) : (
           <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         )}

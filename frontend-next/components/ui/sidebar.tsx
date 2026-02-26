@@ -23,7 +23,7 @@ import {
   PinOff,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { clearAllCachedRecords } from "@/lib/records-cache";
+import { clearAllCachedRecordsAsync } from "@/lib/records-cache";
 import {
   Persona,
   getStoredPersona,
@@ -35,7 +35,8 @@ import { ComboboxDropdown, type ComboboxItem } from "./combobox-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
-import { UI_COPY_FEEDBACK_MS, DEMO_LOADING_MS } from "@/lib/constants/timeout-constants";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
+import { useBadgeCountsWebSocket } from "@/hooks/useBadgeCountsWebSocket";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Popover,
@@ -46,7 +47,7 @@ import { Badge } from "./badge";
 import { api, getCurrentEnvironment } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { useTenantOptional } from "@/contexts/TenantContext";
-import { Building2 } from "lucide-react";
+import { Building2, GraduationCap } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -189,18 +190,26 @@ function SidebarContent({
     }
   };
 
-  // Clear ALL app caches - use this after hotfixes
+  // Clear ALL app caches - like opening incognito mode
+  // Awaits IndexedDB deletion before reload to guarantee clean slate
   const handleClearCache = async () => {
     setClearing(true);
+    // Save current URL so we stay on the same page after clearing
+    const returnUrl = window.location.pathname + window.location.search;
+    // Safety: reset after 5s if reload doesn't happen (prevents stuck green button)
+    const safetyTimeout = setTimeout(() => setClearing(false), 5000);
     try {
-      // 1. Clear React Query cache
+      // 1. Clear React Query cache (sync, instant)
       queryClient.clear();
 
-      // 2. Clear records cache (L1 + L2)
-      clearAllCachedRecords();
+      // 2. Clear records cache L1 (memory) + L2 (IndexedDB) + delete database
+      // Race with timeout to prevent hanging on broken IndexedDB
+      await Promise.race([
+        clearAllCachedRecordsAsync(),
+        new Promise(resolve => setTimeout(resolve, 3000)),
+      ]);
 
-      // 3. Clear app localStorage (but not auth, API config, or sidebar preferences)
-      // Keys to preserve: token, auth, session, sidebar, api_url, api_environment
+      // 3. Clear app localStorage (but not auth, API config, sidebar, or user preferences)
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -218,31 +227,13 @@ function SidebarContent({
       }
       keysToRemove.forEach((key) => localStorage.removeItem(key));
 
-      // 4. Clear sessionStorage (but not auth or API config)
-      const sessionKeysToRemove: string[] = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (
-          key &&
-          !key.includes("token") &&
-          !key.includes("auth") &&
-          !key.includes("session") &&
-          !key.includes("api_url") &&
-          !key.includes("api_environment")
-        ) {
-          sessionKeysToRemove.push(key);
-        }
-      }
-      sessionKeysToRemove.forEach((key) => sessionStorage.removeItem(key));
-
-
-      // Brief feedback then reload
-      setTimeout(() => {
-        window.location.reload();
-      }, 300);
+      // Navigate back to the same page (forces full reload with fresh state)
+      clearTimeout(safetyTimeout);
+      window.location.href = returnUrl;
     } catch (err) {
       console.error("[ClearCache] Error:", err);
-      setClearing(false);
+      clearTimeout(safetyTimeout);
+      window.location.href = returnUrl;
     }
   };
 
@@ -286,8 +277,36 @@ function SidebarContent({
             Failed to load navigation
           </div>
         ) : apiNavigation?.items ? (
-          /* API-driven navigation with nested items */
-          apiNavigation.items.map((item) => renderNavItem(item, mobile))
+          <>
+            {/* API-driven navigation with nested items */}
+            {apiNavigation.items.map((item) => renderNavItem(item, mobile))}
+            {/* Learn link (TEEEM Academy) - always visible */}
+            <div className="mt-1 pt-1 border-t border-border/50">
+              <Link
+                href="/learn"
+                prefetch={false}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
+                  "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                )}
+              >
+                <GraduationCap size={16} />
+                <span
+                  className={cn(
+                    "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm",
+                    isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0"
+                  )}
+                >
+                  Learn
+                </span>
+                {!isExpanded && !mobile && (
+                  <div className={`absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ${Z_TOOLTIP_CLASS} border shadow-sm whitespace-nowrap`}>
+                    Learn
+                  </div>
+                )}
+              </Link>
+            </div>
+          </>
         ) : null}
       </nav>
 
@@ -407,7 +426,7 @@ function SidebarContent({
                   )}
                   title="Clear cache + hard refresh"
                 >
-                  <RefreshCw className="h-3 w-3" />
+                  <RefreshCw className={cn("h-3 w-3", clearing && "animate-spin")} />
                 </button>
               </div>
             )}
@@ -457,7 +476,7 @@ function SidebarContent({
                   )}
                   title="Clear cache + hard refresh"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" />
+                  <RefreshCw className={cn("h-3.5 w-3.5", clearing && "animate-spin")} />
                 </button>
               </div>
             )}
@@ -471,8 +490,6 @@ function SidebarContent({
 export function Sidebar() {
   const { isExpanded, setIsExpanded, isPinned, setIsPinned } = useSidebar();
   const [persona, setPersona] = useState<Persona>('manager');
-  const [badges, setBadges] = useState<Record<string, number>>({});
-  const [emailAccountBadges, setEmailAccountBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
   const [apiEnvironment, setApiEnvironment] = useState<string | null>(null);
@@ -487,6 +504,28 @@ export function Sidebar() {
   const router = useRouter();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
+
+  // Badge counts via WebSocket (replaces 5 HTTP polling endpoints)
+  // FRC (Feb 2026): 5 polls every 60s caused R14 memory on Basic web dyno
+  const { counts: wsBadgeCounts } = useBadgeCountsWebSocket({ enabled: isAuthenticated });
+
+  // Map WS counts to badge_key format used by navigation items
+  const badges: Record<string, number> = wsBadgeCounts ? {
+    pendingProposals: wsBadgeCounts.pending_job_proposals,
+    pendingCaseProposals: wsBadgeCounts.pending_case_proposals,
+    pendingBills: wsBadgeCounts.pending_bills,
+    plans_pending: wsBadgeCounts.pending_plan_scans,
+    unreadEmails: wsBadgeCounts.unread_emails,
+  } : {};
+
+  // Map per-account email counts
+  const emailAccountBadges: Record<string, number> = wsBadgeCounts
+    ? Object.fromEntries(
+        (wsBadgeCounts.email_by_account || [])
+          .filter(a => a.email)
+          .map(a => [a.email.toLowerCase(), a.count])
+      )
+    : {};
 
   // Tenant context for company/environment display
   const tenantContext = useTenantOptional();
@@ -514,8 +553,7 @@ export function Sidebar() {
     }
   }, [tenantContext?.currentTenant?.environment]);
 
-  // Prevent duplicate fetches (React StrictMode double-mount)
-  const badgeFetchingRef = useRef(false);
+  // badgeFetchingRef removed - badge counts now pushed via WebSocket
 
   // Ref for the nav element - stable now that SidebarContent is outside the component
   const navRef = useRef<HTMLElement | null>(null);
@@ -595,101 +633,9 @@ export function Sidebar() {
     loadVersion();
   }, []);
 
-  // Load badge counts (pending proposals, etc.)
-  useEffect(() => {
-    // Helper to safely fetch with retry on auth errors
-    const safeFetch = async <T,>(
-      endpoint: string,
-      retries = 2,
-      delay = 500
-    ): Promise<T | null> => {
-      for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-          return await api.get<T>(endpoint);
-        } catch (error: unknown) {
-          const isAuthError = error instanceof Error &&
-            (error.message.includes('401') ||
-             error.message.includes('Unauthorized') ||
-             error.message.includes('Session expired'));
-
-          // Don't retry auth errors - user needs to re-login
-          if (isAuthError) {
-            return null;
-          }
-
-          // Retry transient errors with delay
-          if (attempt < retries) {
-            await new Promise(resolve => setTimeout(resolve, delay * (attempt + 1)));
-          }
-        }
-      }
-      return null;
-    };
-
-    // FRC (Feb 2026): Badge counts were fetching full proposal objects sequentially,
-    // adding 3-8 seconds to every page load. Now uses lightweight count endpoints
-    // and runs all fetches in parallel with Promise.allSettled.
-    const loadBadgeCounts = async () => {
-      const [jobResult, caseResult, billResult, plansResult, emailResult] = await Promise.allSettled([
-        safeFetch<{ count: number }>("/api/v1/email_job_proposals/pending_count"),
-        safeFetch<{ count: number }>("/api/v1/email_case_proposals/pending_count"),
-        safeFetch<{ pending: number; errors: number; awaiting_approval: number }>("/api/v1/bill_inbox/stats"),
-        safeFetch<{ pending_count: number }>("/api/v1/plan_folder_scans/pending_count"),
-        safeFetch<{ total: number; by_account: Array<{ email: string; count: number }> }>("/api/v1/synced_emails/unread_counts"),
-      ]);
-
-      setBadges(prev => {
-        const updated = { ...prev };
-        if (jobResult.status === "fulfilled" && jobResult.value) {
-          updated.pendingProposals = jobResult.value.count || 0;
-        }
-        if (caseResult.status === "fulfilled" && caseResult.value) {
-          updated.pendingCaseProposals = caseResult.value.count || 0;
-        }
-        if (billResult.status === "fulfilled" && billResult.value) {
-          const bill = billResult.value;
-          updated.pendingBills = (bill.pending || 0) + (bill.errors || 0) + (bill.awaiting_approval || 0);
-        }
-        if (plansResult.status === "fulfilled" && plansResult.value) {
-          updated.plans_pending = plansResult.value.pending_count || 0;
-        }
-        if (emailResult.status === "fulfilled" && emailResult.value) {
-          updated.unreadEmails = emailResult.value.total || 0;
-        }
-        return updated;
-      });
-
-      // Update email account badges separately (outside the main setBadges)
-      if (emailResult.status === "fulfilled" && emailResult.value) {
-        const accountBadges: Record<string, number> = {};
-        (emailResult.value.by_account || []).forEach(({ email, count }) => {
-          if (email) {
-            accountBadges[email.toLowerCase()] = count;
-          }
-        });
-        setEmailAccountBadges(accountBadges);
-      }
-    };
-
-    if (isAuthenticated) {
-      // Prevent duplicate fetches on React StrictMode double-mount
-      if (badgeFetchingRef.current) return;
-      badgeFetchingRef.current = true;
-
-      // Defer badge counts to let page content load first (FRC: was 100ms, blocking page paint)
-      const initialDelay = setTimeout(() => {
-        loadBadgeCounts();
-      }, DEMO_LOADING_MS);
-
-      // Refresh every 60 seconds
-      const interval = setInterval(loadBadgeCounts, 60000);
-      return () => {
-        clearTimeout(initialDelay);
-        clearInterval(interval);
-        badgeFetchingRef.current = false;
-      };
-    }
-  }, [isAuthenticated]);
+  // Badge counts now pushed via WebSocket (BadgeCountsChannel)
+  // FRC (Feb 2026): Removed 5 HTTP polling endpoints that caused R14 memory on Basic web dyno.
+  // useBadgeCountsWebSocket hook (above) receives counts from server every 30s.
 
   const handlePersonaChange = (newPersona: Persona) => {
     setPersona(newPersona);

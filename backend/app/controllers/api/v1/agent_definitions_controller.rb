@@ -310,7 +310,8 @@ module Api
         parts = content.split("---", 3)
         return {} if parts.length < 3
         YAML.safe_load(parts[1]) || {}
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("[AgentDefinitions] Failed to extract frontmatter: #{e.message}")
         {}
       end
 

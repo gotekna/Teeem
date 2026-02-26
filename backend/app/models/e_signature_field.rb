@@ -10,7 +10,7 @@
 #
 class ESignatureField < ApplicationRecord
   # Field types that can be placed on a document
-  FIELD_TYPES = %w[signature initials date text].freeze
+  FIELD_TYPES = %w[signature initials date text comment yes_no signer_name signer_initials].freeze
 
   # Default date format for date fields
   DEFAULT_DATE_FORMAT = "%d/%m/%Y".freeze
@@ -45,6 +45,10 @@ class ESignatureField < ApplicationRecord
   scope :initials, -> { where(field_type: "initials") }
   scope :dates, -> { where(field_type: "date") }
   scope :texts, -> { where(field_type: "text") }
+  scope :comments, -> { where(field_type: "comment") }
+  scope :yes_nos, -> { where(field_type: "yes_no") }
+  scope :signer_names, -> { where(field_type: "signer_name") }
+  scope :signer_initials_fields, -> { where(field_type: "signer_initials") }
 
   # ==========================================================================
   # Instance Methods
@@ -70,11 +74,9 @@ class ESignatureField < ApplicationRecord
 
     # Log the field completion event
     e_signature_request.log_event(
-      event_type: "field_completed",
-      actor_type: "signer",
-      actor_name: e_signature_signer.name || e_signature_signer.email,
-      actor_email: e_signature_signer.email,
-      metadata: {
+      "field_completed",
+      signer: e_signature_signer,
+      event_data: {
         field_id: id,
         field_type: field_type,
         page_number: page_number,

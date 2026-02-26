@@ -36,7 +36,7 @@ class CostCentre < ApplicationRecord
   # Validations
   validates :code, presence: true, uniqueness: { scope: :tenant_id }, length: { maximum: 20 }
   validates :name, presence: true, length: { maximum: 100 }
-  validates :centre_type, inclusion: { in: CENTRE_TYPES }, allow_nil: true
+  validates :centre_type, inclusion: { in: CENTRE_TYPES }, allow_blank: true
   validates :overhead_allocation_percent,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 },
             allow_nil: true
@@ -121,6 +121,14 @@ class CostCentre < ApplicationRecord
       billable_amount: entries.where(billable: true).sum(:billable_amount),
       margin: entries.where(billable: true).sum(:billable_amount) - entries.sum(:total_cost)
     }
+  end
+
+  # Virtual attribute: count of POs linked via SmTask/SmScheduleMaster
+  def purchase_orders_count
+    task_ids = SmTask.where(cost_centre: id).pluck(:id)
+    sm_ids = sm_schedule_masters.pluck(:id)
+    inherited_task_ids = SmTask.where(sm_schedule_master_id: sm_ids, cost_centre: nil).pluck(:id)
+    PurchaseOrder.where(sm_task_id: (task_ids + inherited_task_ids).uniq).count
   end
 
   # Class methods

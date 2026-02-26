@@ -36,7 +36,9 @@ import {
   Warehouse,
   ShieldCheck,
   Mail,
-  Map
+  Map,
+  Tag,
+  Package
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -70,7 +72,9 @@ const GROUP_ICONS: Record<string, React.ReactNode> = {
   documents: <FileText className="h-4 w-4" />,
   contacts: <Users className="h-4 w-4" />,
   schedule: <Calendar className="h-4 w-4" />,
+  pricebook: <Tag className="h-4 w-4" />,
   operations: <Settings className="h-4 w-4" />,
+  po_templates: <Package className="h-4 w-4" />,
   estimating: <Calculator className="h-4 w-4" />,
   finance: <DollarSign className="h-4 w-4" />,
   warehouse: <Warehouse className="h-4 w-4" />,

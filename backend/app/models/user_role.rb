@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class UserRole < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :role
 
   validates :user_id, uniqueness: { scope: :role_id, message: "already has this role" }

@@ -105,6 +105,11 @@ class XeroInvoiceSyncJob < ApplicationJob
         combined_result[:tenants_processed] += 1
         combined_result[:total_created] += result[:stats][:created].to_i rescue 0
         combined_result[:total_updated] += result[:stats][:updated].to_i rescue 0
+
+        # ⚠️ Memory fix (Feb 2026): Release all tenant data before processing next tenant.
+        # Without this, Ruby holds references to the previous tenant's invoice/credit/quote
+        # data across the full multi-tenant loop, accumulating to R14 on Standard-2X dynos.
+        GC.start
       rescue XeroApiClient::RateLimitError => e
         handle_rate_limit_error(credential.tenant_id, e, options)
         combined_result[:success] = false

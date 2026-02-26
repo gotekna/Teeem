@@ -8,7 +8,7 @@ import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { WarehouseTablesTab } from "./WarehouseTablesTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncSection } from "./ConfigSyncSection";
-import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database } from "lucide-react";
+import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database, BookOpen, Minimize2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useSidebar } from "@/contexts/SidebarContext";
@@ -95,6 +95,16 @@ const scopes = [
     isEntityTab: true,
     showTabGroups: false,
   },
+  {
+    id: "library",
+    label: "Library",
+    icon: BookOpen,
+    showEntityFilters: false,
+    showSharePointPaths: true,
+    showDocumentTypes: true,
+    isEntityTab: true,
+    showTabGroups: false,
+  },
   // SSoT: Email, Warehouse, Task scopes are configured in Storage Config, not here
   {
     id: "email_config",
@@ -126,6 +136,7 @@ const SCOPE_LABELS: Record<string, string> = {
   document_types: "Document Types",
   warehouse_folders: "Warehouse Folders",
   warehouse_tables: "Warehouse Tables",
+  library: "Library",
   email_config: "Email Config",
   sync: "Sync",
 };
@@ -177,6 +188,18 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
   }, [router, basePath]);
   const [scopeCounts, setScopeCounts] = React.useState<Record<string, number>>({});
 
+  // Escape key navigates back to parent (exit fullscreen)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        router.push(basePath.replace(/\/warehouse-config.*/, ""), { scroll: false });
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [router, basePath]);
+
   // Fetch document type counts per scope
   React.useEffect(() => {
     const fetchCounts = async () => {
@@ -205,22 +228,31 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
       <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full flex-1 min-h-0">
         {/* Scope tabs */}
         <div className="px-4 pt-3 pb-2 shrink-0">
-          <TabsList className="flex-wrap h-auto gap-1">
-              {scopes.map((s) => (
-                  <TabsTrigger
-                    key={s.id}
-                    value={s.id}
-                    className="text-xs sm:text-sm whitespace-nowrap"
-                  >
-                    {s.label}
-                    {scopeCounts[s.id] > 0 && (
-                      <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-medium bg-muted-foreground/10 rounded">
-                        {scopeCounts[s.id]}
-                      </span>
-                    )}
-                  </TabsTrigger>
-              ))}
-          </TabsList>
+          <div className="flex items-start gap-2">
+            <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
+                {scopes.map((s) => (
+                    <TabsTrigger
+                      key={s.id}
+                      value={s.id}
+                      className="text-xs sm:text-sm whitespace-nowrap"
+                    >
+                      {s.label}
+                      {scopeCounts[s.id] > 0 && (
+                        <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-medium bg-muted-foreground/10 rounded">
+                          {scopeCounts[s.id]}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+            <button
+              onClick={() => router.push(basePath.replace(/\/warehouse-config.*/, ""), { scroll: false })}
+              className="inline-flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground shrink-0"
+              title="Exit fullscreen (Esc)"
+            >
+              <Minimize2 className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Scope Content */}
@@ -229,7 +261,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
                 <WarehouseFoldersConfig
-                  scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task"}
+                  scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task" | "library"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}
                   showDocumentTypes={scope.showDocumentTypes}

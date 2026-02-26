@@ -190,38 +190,46 @@ class CorporateXeroSyncService
     invoices = result[:data]["Invoices"] || []
     saved_count = 0
 
-    invoices.each do |invoice_data|
-      external_invoice = ExternalInvoice.find_or_initialize_by(
-        source: "xero",
-        external_id: invoice_data["InvoiceID"],
-        tenant_id: @connection.xero_tenant_id
-      )
+    # FRC (Feb 2026): Use TEEEM tenant_id (integer FK), not Xero tenant_id (UUID string).
+    # The unique index is (source, tenant_id, external_id) where tenant_id = TEEEM FK.
+    # xero_org_id stores the Xero UUID for API/org filtering.
+    teeem_tenant_id = @company.tenant_id
+    tenant = teeem_tenant_id ? Tenant.find_by(id: teeem_tenant_id) : nil
 
-      external_invoice.assign_attributes(
-        invoice_number: invoice_data["InvoiceNumber"],
-        invoice_type: invoice_data["Type"],
-        status: invoice_data["Status"],
-        reference: invoice_data["Reference"],
-        invoice_date: parse_xero_date(invoice_data["Date"]),
-        due_date: parse_xero_date(invoice_data["DueDate"]),
-        fully_paid_date: parse_xero_date(invoice_data["FullyPaidOnDate"]),
-        subtotal: invoice_data["SubTotal"],
-        total_tax: invoice_data["TotalTax"],
-        total: invoice_data["Total"],
-        amount_due: invoice_data["AmountDue"],
-        amount_paid: invoice_data["AmountPaid"],
-        currency_code: invoice_data["CurrencyCode"],
-        external_contact_id: invoice_data.dig("Contact", "ContactID"),
-        contact_name: invoice_data.dig("Contact", "Name"),
-        line_items: invoice_data["LineItems"] || [],
-        raw_data: invoice_data,
-        external_updated_at: parse_xero_date(invoice_data["UpdatedDateUTC"])
-      )
+    ActsAsTenant.with_tenant(tenant) do
+      invoices.each do |invoice_data|
+        external_invoice = ExternalInvoice.find_or_initialize_by(
+          source: "xero",
+          external_id: invoice_data["InvoiceID"]
+        )
 
-      external_invoice.save!
-      saved_count += 1
-    rescue StandardError => e
-      Rails.logger.warn("[CorporateXeroSync] Failed to save invoice #{invoice_data["InvoiceNumber"]}: #{e.message}")
+        external_invoice.assign_attributes(
+          xero_org_id: @connection.xero_tenant_id,
+          invoice_number: invoice_data["InvoiceNumber"],
+          invoice_type: ExternalInvoice.normalize_xero_type(invoice_data["Type"]),
+          status: ExternalInvoice.normalize_xero_status(invoice_data["Status"]),
+          reference: invoice_data["Reference"],
+          invoice_date: parse_xero_date(invoice_data["Date"]),
+          due_date: parse_xero_date(invoice_data["DueDate"]),
+          fully_paid_date: parse_xero_date(invoice_data["FullyPaidOnDate"]),
+          subtotal: invoice_data["SubTotal"],
+          total_tax: invoice_data["TotalTax"],
+          total: invoice_data["Total"],
+          amount_due: invoice_data["AmountDue"],
+          amount_paid: invoice_data["AmountPaid"],
+          currency_code: invoice_data["CurrencyCode"],
+          external_contact_id: invoice_data.dig("Contact", "ContactID"),
+          contact_name: invoice_data.dig("Contact", "Name"),
+          line_items: invoice_data["LineItems"] || [],
+          raw_data: invoice_data,
+          external_updated_at: parse_xero_date(invoice_data["UpdatedDateUTC"])
+        )
+
+        external_invoice.save!
+        saved_count += 1
+      rescue StandardError => e
+        Rails.logger.warn("[CorporateXeroSync] Failed to save invoice #{invoice_data["InvoiceNumber"]}: #{e.message}")
+      end
     end
 
     @connection.update(invoices_synced_at: Time.current)
@@ -229,7 +237,7 @@ class CorporateXeroSyncService
     {
       success: true,
       invoices_synced: saved_count,
-      total_invoices: ExternalInvoice.where(source: "xero", tenant_id: @connection.xero_tenant_id).count
+      total_invoices: ExternalInvoice.where(source: "xero", xero_org_id: @connection.xero_tenant_id).count
     }
   rescue StandardError => e
     Rails.logger.error("[CorporateXeroSync] sync_invoices failed: #{e.message}")

@@ -89,7 +89,18 @@ module Api
       # NOTE: foundation_id is explicitly excluded from updates - it's IMMUTABLE after creation
       # This prevents the bug where views become invisible (foundation_id accidentally cleared to 0)
       def update
-        if @foundation_view.update(foundation_view_update_params)
+        update_params = foundation_view_update_params
+
+        # Handle is_global toggle: global views have user_id=nil, personal views need user_id
+        if update_params.key?(:is_global)
+          if ActiveModel::Type::Boolean.new.cast(update_params[:is_global])
+            update_params[:user_id] = nil
+          else
+            update_params[:user_id] = current_user.id
+          end
+        end
+
+        if @foundation_view.update(update_params)
           render json: {
             success: true,
             view: @foundation_view,
@@ -278,6 +289,7 @@ module Api
           :name,
           :view_type,
           :view_display_type,
+          :is_global,
           :is_default,
           :display_order,
           :group_by_column,

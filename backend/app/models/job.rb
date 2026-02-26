@@ -27,6 +27,7 @@ class Job < ApplicationRecord
   has_many :purchase_orders, dependent: :destroy
   has_many :job_claims, dependent: :destroy
   has_many :job_claim_stages, dependent: :destroy
+  has_many :tender_documents, dependent: :destroy
   # Note: schedule_tasks association removed in Phase 6 - SmTask is THE ONE task system (see sm_tasks)
   # REMOVED: has_one :one_drive_credential - legacy per-job SharePoint system (cleaned up Jan 2026)
   belongs_to :job_design, optional: true
@@ -135,8 +136,9 @@ class Job < ApplicationRecord
 
   # Validations
   validates :name, presence: true
-  # SSoT: Supervisor is now stored via job_contacts (role: "supervisor"), not site_supervisor_name column
-  # The column is kept for legacy compatibility but validation removed
+  # SSoT: Supervisor is stored via job_contacts (role: "supervisor")
+  # Note: site_supervisor_name/phone columns removed from jobs table (Jan 2026 migration)
+  # Use job.site_supervisor_info to get supervisor name/phone
   validates :suburb, presence: true, if: :has_address_components?
   validates :state, presence: true, if: :has_address_components?
   validates :postcode, length: { is: 4 }, allow_blank: true, if: -> { postcode.present? }

@@ -156,6 +156,20 @@ class HerokuPlatformService
       { success: true, data: { source: DEV_DB_SOURCE, targets: results } }
     end
 
+    def restart_dyno(app_name)
+      return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key?
+      return { success: false, error: "Unknown app" } unless app_name.in?(APPS)
+
+      result = heroku_delete(api_key, "/apps/#{app_name}/dynos")
+
+      if result
+        Rails.cache.delete(CACHE_KEY)
+        { success: true, data: { app: app_name, restarted: true } }
+      else
+        { success: false, error: "Heroku API call failed" }
+      end
+    end
+
     def scale_dyno(app_name, dyno_type, quantity)
       return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key?
       return { success: false, error: "Only dev apps can be scaled from the dashboard" } unless app_name.in?(DEV_APPS)
@@ -225,15 +239,18 @@ class HerokuPlatformService
         Thread.new(app_name) do |app|
           formation = fetch_formation(key, app)
           addons = fetch_addons(key, app)
-          [app, formation, addons]
+          dynos = fetch_dyno_instances(key, app)
+          [app, formation, addons, nil, dynos]
         rescue => e
           Rails.logger.error("[HerokuPlatformService] Failed to fetch #{app}: #{e.message}")
-          [app, nil, nil, e.message]
+          [app, nil, nil, e.message, nil]
         end
       end
 
+      all_boot_times = {}
+
       threads.each do |t|
-        app, formation, addons, error = t.value
+        app, formation, addons, error, dynos = t.value
         meta = APP_METADATA[app] || { environment: app, description: "" }
 
         if error
@@ -280,11 +297,18 @@ class HerokuPlatformService
             }
           end
         end
+
+        # Extract latest boot time from dyno instances
+        if dynos.is_a?(Array) && dynos.any?
+          latest = dynos.map { |d| d["created_at"] }.compact.max
+          all_boot_times[app] = latest if latest
+        end
       end
 
       result = {
         dynos: all_dynos.sort_by { |d| [d[:environment], d[:dyno]] },
         addons: all_addons.sort_by { |a| [a[:addonServiceName], a[:app]] },
+        bootTimes: all_boot_times,
         externalServices: EXTERNAL_SERVICES,
         savingsHistory: SAVINGS_HISTORY,
         apiKeyStatus: fetch_api_key_status,
@@ -300,6 +324,10 @@ class HerokuPlatformService
 
     def fetch_addons(api_key, app_name)
       heroku_get(api_key, "/apps/#{app_name}/addons")
+    end
+
+    def fetch_dyno_instances(api_key, app_name)
+      heroku_get(api_key, "/apps/#{app_name}/dynos")
     end
 
     def heroku_get(api_key, path)
@@ -346,6 +374,26 @@ class HerokuPlatformService
         JSON.parse(response.body)
       else
         Rails.logger.error("[HerokuPlatformService] PATCH #{path} failed (HTTP #{response.code}): #{response.body}")
+        nil
+      end
+    end
+
+    def heroku_delete(api_key, path)
+      uri = URI("https://api.heroku.com#{path}")
+      request = Net::HTTP::Delete.new(uri)
+      request["Authorization"] = "Bearer #{api_key}"
+      request["Accept"] = "application/vnd.heroku+json; version=3"
+
+      response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+        http.open_timeout = 10
+        http.read_timeout = 30
+        http.request(request)
+      end
+
+      if response.code.to_i < 300
+        true
+      else
+        Rails.logger.error("[HerokuPlatformService] DELETE #{path} failed (HTTP #{response.code}): #{response.body}")
         nil
       end
     end

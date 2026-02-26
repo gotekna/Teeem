@@ -41,6 +41,7 @@ class JobClaimStage < ApplicationRecord
 
   # Callbacks
   before_validation :set_defaults, on: :create
+  before_validation :set_default_profit_centre, on: :create
   before_validation :apply_default_retainage, on: :create
   before_save :calculate_retainage_amount
   after_save :sync_payment_from_invoice, if: :saved_change_to_external_invoice_id?
@@ -183,6 +184,11 @@ class JobClaimStage < ApplicationRecord
   end
 
   private
+
+  def set_default_profit_centre
+    return if profit_centre_id.present?
+    self.profit_centre_id = ProfitCentre.default_for_tenant&.id
+  end
 
   def apply_default_retainage
     return if retainage_percentage.present?

@@ -3,31 +3,39 @@
 class EnrichContactsFromEmailsJob < ApplicationJob
   queue_as :default
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: Contact and SyncedEmail have acts_as_tenant. Without tenant context,
+  # queries return ALL tenants' contacts, enriching cross-tenant data.
   def perform(options = {})
     limit = options[:limit] || 100
-    contact_ids = options[:contact_ids]  # Optional: specific contacts to enrich
+    contact_ids = options[:contact_ids]
 
     enriched_count = 0
     skipped_count = 0
     error_count = 0
 
-    contacts_to_enrich = find_contacts_to_enrich(contact_ids, limit)
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        contacts_to_enrich = find_contacts_to_enrich(contact_ids, limit)
+        next if contacts_to_enrich.empty?
 
-    Rails.logger.info "[ContactEnrichment] Starting enrichment for #{contacts_to_enrich.count} contacts"
+        Rails.logger.info "[ContactEnrichment] #{tenant.name}: enriching #{contacts_to_enrich.count} contacts"
 
-    contacts_to_enrich.each do |contact|
-      result = enrich_contact(contact)
-      case result
-      when :enriched
-        enriched_count += 1
-      when :skipped
-        skipped_count += 1
-      when :error
-        error_count += 1
+        contacts_to_enrich.each do |contact|
+          result = enrich_contact(contact)
+          case result
+          when :enriched
+            enriched_count += 1
+          when :skipped
+            skipped_count += 1
+          when :error
+            error_count += 1
+          end
+        rescue StandardError => e
+          Rails.logger.error "[ContactEnrichment] Error enriching contact #{contact.id}: #{e.message}"
+          error_count += 1
+        end
       end
-    rescue StandardError => e
-      Rails.logger.error "[ContactEnrichment] Error enriching contact #{contact.id}: #{e.message}"
-      error_count += 1
     end
 
     Rails.logger.info "[ContactEnrichment] Completed: #{enriched_count} enriched, #{skipped_count} skipped, #{error_count} errors"

@@ -1,4 +1,6 @@
 require "anthropic"
+require "pdf-reader"
+require "mini_magick"
 
 # SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 class DocumentVerificationService

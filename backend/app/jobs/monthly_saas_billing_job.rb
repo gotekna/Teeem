@@ -7,6 +7,7 @@
 # See config/recurring.yml
 #
 class MonthlySaasBillingJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   def perform(billing_month = nil)

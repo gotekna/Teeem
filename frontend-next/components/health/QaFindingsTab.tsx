@@ -12,22 +12,45 @@ import {
   AlertTriangle,
   Info,
   Ban,
+  FileCode,
+  Lightbulb,
+  Terminal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Severity = "critical" | "major" | "minor" | "info";
-type FindingStatus = "open" | "fixed" | "wont_fix" | "in_progress";
+type Severity = "critical" | "major" | "minor" | "info" | "false_positive";
+type FindingStatus = "open" | "fixed" | "wont_fix" | "in_progress" | "false_positive";
+type FindingCategory =
+  | "render-error"
+  | "console-error"
+  | "breadcrumb-missing"
+  | "url-state-lost"
+  | "scroll-blocked"
+  | "dark-mode-broken"
+  | "responsive-broken"
+  | "modal-broken"
+  | "performance"
+  | "data-integrity";
 
 interface QaFinding {
   id: string;
   severity: Severity;
+  category: FindingCategory;
   user_story_id: string;
-  criteria_id: string;
-  description: string;
   page: string;
-  element: string;
+  description: string;
+  console_errors?: string[];
+  probable_file?: string;
+  breadcrumb_expected?: string;
+  breadcrumb_actual?: string | null;
+  fix_hint?: string;
+  resolution?: string;
+  resolved_at?: string;
   status: FindingStatus;
   found_at: string;
+  found_iteration?: number;
+  snapshot_file?: string;
+  screenshot_file?: string;
 }
 
 interface QaPrdJson {
@@ -64,12 +87,34 @@ function getSeverityColor(severity: Severity) {
   }
 }
 
+function getCategoryBadge(category: FindingCategory) {
+  const colors: Record<string, string> = {
+    "render-error": "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400",
+    "console-error": "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400",
+    "breadcrumb-missing": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400",
+    "url-state-lost": "bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400",
+    "scroll-blocked": "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400",
+    "dark-mode-broken": "bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400",
+    "responsive-broken": "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400",
+    "modal-broken": "bg-pink-100 text-pink-700 dark:bg-pink-900/20 dark:text-pink-400",
+    "performance": "bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400",
+    "data-integrity": "bg-teal-100 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400",
+  };
+  return (
+    <Badge variant="secondary" className={cn("text-[10px]", colors[category] || "")}>
+      {category}
+    </Badge>
+  );
+}
+
 function getStatusBadge(status: FindingStatus) {
   switch (status) {
     case "fixed":
       return <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px]">Fixed</Badge>;
     case "in_progress":
       return <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 text-[10px]">In Progress</Badge>;
+    case "false_positive":
+      return <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[10px]">False Positive</Badge>;
     case "wont_fix":
       return <Badge variant="secondary" className="text-[10px]">Won&apos;t Fix</Badge>;
     default:
@@ -92,6 +137,17 @@ function formatTimeAgo(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** Days after which resolved findings auto-hide from the Fixed tab */
+const RESOLVED_EXPIRY_DAYS = 7;
+
 export function QaFindingsTab() {
   const [findings, setFindings] = React.useState<QaFinding[]>([]);
   const [meta, setMeta] = React.useState<QaPrdJson["meta"] | null>(null);
@@ -99,11 +155,11 @@ export function QaFindingsTab() {
   const [error, setError] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<"all" | Severity | "fixed">("all");
   const [refreshing, setRefreshing] = React.useState(false);
+  const [expandedFinding, setExpandedFinding] = React.useState<string | null>(null);
 
   const fetchData = React.useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      // Try static JSON file (same SSoT as QaPrdTab)
       let data: QaPrdJson | null = null;
 
       try {
@@ -159,17 +215,28 @@ export function QaFindingsTab() {
     );
   }
 
-  const criticalCount = findings.filter((f) => f.severity === "critical" && f.status !== "fixed").length;
-  const majorCount = findings.filter((f) => f.severity === "major" && f.status !== "fixed").length;
-  const minorCount = findings.filter((f) => f.severity === "minor" && f.status !== "fixed").length;
-  const infoCount = findings.filter((f) => f.severity === "info" && f.status !== "fixed").length;
-  const fixedCount = findings.filter((f) => f.status === "fixed").length;
-  const openFindings = findings.filter((f) => f.status === "open" || f.status === "in_progress");
+  const isResolved = (f: QaFinding) => f.status === "fixed" || f.status === "false_positive";
+  const now = Date.now();
+  const expiryMs = RESOLVED_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+  // Auto-clear resolved findings older than RESOLVED_EXPIRY_DAYS
+  const isExpired = (f: QaFinding) => {
+    if (!isResolved(f)) return false;
+    const resolvedDate = f.resolved_at || f.found_at;
+    return (now - new Date(resolvedDate).getTime()) > expiryMs;
+  };
+  // Active findings = not expired
+  const activeFindings = findings.filter((f) => !isExpired(f));
+  const criticalCount = activeFindings.filter((f) => f.severity === "critical" && !isResolved(f)).length;
+  const majorCount = activeFindings.filter((f) => f.severity === "major" && !isResolved(f)).length;
+  const minorCount = activeFindings.filter((f) => f.severity === "minor" && !isResolved(f)).length;
+  const fixedCount = activeFindings.filter((f) => isResolved(f)).length;
+  const openFindings = activeFindings.filter((f) => f.status === "open" || f.status === "in_progress");
+  const expiredCount = findings.filter((f) => isExpired(f)).length;
 
-  const filteredFindings = findings.filter((f) => {
-    if (filter === "all") return f.status !== "fixed";
-    if (filter === "fixed") return f.status === "fixed";
-    return f.severity === filter && f.status !== "fixed";
+  const filteredFindings = activeFindings.filter((f) => {
+    if (filter === "all") return !isResolved(f);
+    if (filter === "fixed") return isResolved(f);
+    return f.severity === filter && !isResolved(f);
   });
 
   return (
@@ -183,7 +250,7 @@ export function QaFindingsTab() {
                 <AlertCircle className="h-5 w-5 text-muted-foreground" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Open Findings</p>
+                <p className="text-sm text-muted-foreground">Open</p>
                 <p className="text-2xl font-bold font-mono">{openFindings.length}</p>
               </div>
             </div>
@@ -282,7 +349,14 @@ export function QaFindingsTab() {
         </div>
       </div>
 
-      {/* Findings Table */}
+      {/* Expired findings hint */}
+      {expiredCount > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {expiredCount} resolved {expiredCount === 1 ? "finding" : "findings"} auto-cleared (older than {RESOLVED_EXPIRY_DAYS} days)
+        </p>
+      )}
+
+      {/* Findings List */}
       {filteredFindings.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
@@ -292,74 +366,138 @@ export function QaFindingsTab() {
             </p>
             <p className="text-sm text-muted-foreground">
               {filter === "all"
-                ? "QA agents haven't found any issues yet. Run the Ralph loop to start testing."
+                ? meta && meta.iteration > 0
+                  ? `QA completed ${meta.iteration} iterations with zero issues found. Check the QA PRD tab for full page coverage.`
+                  : "QA agents haven't found any issues yet. Run /rqar to start testing."
                 : "No findings match this filter."}
             </p>
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Severity</th>
-                  <th className="px-4 py-3 font-medium">Story</th>
-                  <th className="px-4 py-3 font-medium">Finding</th>
-                  <th className="px-4 py-3 font-medium">Page</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Found</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredFindings.map((finding) => (
-                  <tr
-                    key={finding.id}
-                    className="border-b last:border-b-0 hover:bg-muted/50 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <Badge
-                        variant="secondary"
-                        className={cn("gap-1 text-xs", getSeverityColor(finding.severity))}
-                      >
-                        {getSeverityIcon(finding.severity)}
-                        {finding.severity}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
-                        {finding.user_story_id}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="max-w-md">
-                        <p className="font-medium text-sm truncate" title={finding.description}>
-                          {finding.description}
-                        </p>
-                        {finding.element && (
-                          <p className="text-xs text-muted-foreground truncate" title={finding.element}>
-                            Element: {finding.element}
-                          </p>
+        <div className="space-y-3">
+          {filteredFindings.map((finding) => {
+            const isExpanded = expandedFinding === finding.id;
+
+            return (
+              <Card key={finding.id}>
+                <div
+                  className={cn(
+                    "px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors",
+                    finding.severity === "critical" && finding.status === "open" && "border-l-4 border-l-red-500"
+                  )}
+                  onClick={() => setExpandedFinding(isExpanded ? null : finding.id)}
+                >
+                  {/* Header row */}
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant="secondary"
+                      className={cn("gap-1 text-xs shrink-0", getSeverityColor(finding.severity))}
+                    >
+                      {getSeverityIcon(finding.severity)}
+                      {finding.severity}
+                    </Badge>
+                    {getCategoryBadge(finding.category)}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate" title={finding.description}>
+                        {finding.description}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground" title={new Date(finding.found_at).toLocaleString()}>
+                        {formatDate(finding.found_at)}
+                      </span>
+                      <span className="text-xs font-mono text-muted-foreground">{finding.page}</span>
+                      {getStatusBadge(finding.status)}
+                    </div>
+                  </div>
+
+                  {/* Expanded details */}
+                  {isExpanded && (
+                    <div className="mt-3 space-y-3 border-t pt-3">
+                      {/* Probable File */}
+                      {finding.probable_file && (
+                        <div className="flex items-start gap-2">
+                          <FileCode className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Probable File</p>
+                            <p className="text-sm font-mono">{finding.probable_file}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fix Hint */}
+                      {finding.fix_hint && (
+                        <div className="flex items-start gap-2">
+                          <Lightbulb className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Fix Hint</p>
+                            <p className="text-sm">{finding.fix_hint}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Resolution (for fixed/false_positive findings) */}
+                      {finding.resolution && (
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Resolution</p>
+                            <p className="text-sm">{finding.resolution}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Console Errors */}
+                      {finding.console_errors && finding.console_errors.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <Terminal className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-muted-foreground">Console Errors</p>
+                            <div className="mt-1 space-y-1">
+                              {finding.console_errors.map((err, i) => (
+                                <p key={i} className="text-xs font-mono text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 rounded px-2 py-1 truncate" title={err}>
+                                  {err}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Breadcrumb mismatch */}
+                      {finding.breadcrumb_expected && (
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="text-muted-foreground shrink-0">Breadcrumb:</span>
+                          <span className="text-green-600 dark:text-green-400">Expected: {finding.breadcrumb_expected}</span>
+                          <span className="text-muted-foreground">|</span>
+                          <span className="text-red-600 dark:text-red-400">
+                            Actual: {finding.breadcrumb_actual || "null"}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Meta row */}
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>Story: {finding.user_story_id}</span>
+                        {finding.found_iteration && <span>Iteration: {finding.found_iteration}</span>}
+                        {finding.found_at && (
+                          <span title={new Date(finding.found_at).toLocaleString()}>
+                            Found: {formatTimeAgo(finding.found_at)}
+                          </span>
+                        )}
+                        {finding.snapshot_file && (
+                          <span className="font-mono truncate max-w-xs" title={finding.snapshot_file}>
+                            Snapshot: {finding.snapshot_file.split("/").pop()}
+                          </span>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-mono text-muted-foreground">{finding.page}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {getStatusBadge(finding.status)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-muted-foreground" title={new Date(finding.found_at).toLocaleString()}>
-                        {formatTimeAgo(finding.found_at)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       )}
     </div>
   );

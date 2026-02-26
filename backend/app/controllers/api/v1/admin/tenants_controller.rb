@@ -4,7 +4,7 @@ module Api
   module V1
     module Admin
       class TenantsController < ApplicationController
-        before_action :require_teeem_staff!, except: [:index, :current, :update_environment]
+        before_action :require_teeem_staff!, except: [:index, :current, :update_environment, :set_default, :clear_default]
 
         # GET /api/v1/admin/tenants
         # Returns all tenants (for TEEEM staff), multi-tenant user's tenants, or just user's tenant
@@ -26,7 +26,8 @@ module Api
               email: current_user.email,
               name: current_user.name,
               isTeeemStaff: current_user.teeem_staff?,
-              canSwitchTenants: current_user.teeem_staff? || current_user.multi_tenant?
+              canSwitchTenants: current_user.teeem_staff? || current_user.multi_tenant?,
+              defaultTenantId: current_user.default_tenant_id
             }
           }
         end
@@ -189,6 +190,36 @@ module Api
               error: tenant.errors.full_messages.join(", ")
             }, status: :unprocessable_entity
           end
+        end
+
+        # POST /api/v1/admin/tenants/:id/set_default
+        # Set a preferred tenant for login (any multi-tenant user)
+        def set_default
+          tenant = Tenant.find(params[:id])
+
+          unless current_user.can_access_tenant?(tenant)
+            return render_error("Access denied to this tenant", status: :forbidden)
+          end
+
+          current_user.update_column(:default_tenant_id, tenant.id)
+          Rails.logger.info "[TenantDefault] User #{current_user.id} (#{current_user.email}) set default tenant to #{tenant.id} (#{tenant.name})"
+          render json: {
+            success: true,
+            message: "Default tenant set to #{tenant.name}",
+            default_tenant_id: tenant.id
+          }
+        end
+
+        # DELETE /api/v1/admin/tenants/default
+        # Clear default tenant preference (revert to assigned tenant on login)
+        def clear_default
+          current_user.update_column(:default_tenant_id, nil)
+          Rails.logger.info "[TenantDefault] User #{current_user.id} (#{current_user.email}) cleared default tenant preference"
+
+          render json: {
+            success: true,
+            message: "Default tenant preference cleared"
+          }
         end
 
         private

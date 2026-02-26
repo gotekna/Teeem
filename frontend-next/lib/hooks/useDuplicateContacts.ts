@@ -93,7 +93,8 @@ export function useMergeDuplicateGroup() {
     }) => {
       const response = await api.post<MergeResponse>(
         `/api/v1/duplicate_contacts/groups/${groupId}/merge`,
-        { target_contact_id: targetId }
+        { target_contact_id: targetId },
+        { timeout: 90000 }
       );
       return response as MergeResponse;
     },

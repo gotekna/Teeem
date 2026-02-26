@@ -253,29 +253,55 @@ module DocumentProviders
 
     def upload_file(folder_path, content, filename, options = {})
       key = "#{build_key(folder_path)}/#{filename}".gsub(%r{/+}, "/")
-      content = content.read if content.respond_to?(:read)
       content_type = options[:content_type] || detect_content_type(filename)
 
-      if content.bytesize > MULTIPART_THRESHOLD
-        # Use multipart upload for large files
-        upload_multipart(key, content, content_type)
-      else
-        # Simple upload for small files
-        @client.put_object(
-          bucket: @bucket,
-          key: key,
-          body: content,
-          content_type: content_type
-        )
-      end
+      # ⚠️ MEMORY-SAFE (Feb 2026): Handle IO objects without loading into memory.
+      # When content is an IO (File, Tempfile), we stream it to S3 in chunks.
+      # When content is a String, existing behavior is preserved.
+      if content.respond_to?(:read)
+        total_size = content.respond_to?(:size) ? content.size : nil
+        content.rewind if content.respond_to?(:rewind)
 
-      {
-        id: key,
-        name: filename,
-        path: "/#{strip_root_path(key)}",
-        size: content.bytesize,
-        mime_type: content_type
-      }
+        if total_size && total_size > MULTIPART_THRESHOLD
+          upload_multipart_from_io(key, content, total_size, content_type)
+        else
+          # Small IO: put_object accepts IO body directly — AWS SDK reads it
+          @client.put_object(
+            bucket: @bucket,
+            key: key,
+            body: content,
+            content_type: content_type
+          )
+        end
+
+        {
+          id: key,
+          name: filename,
+          path: "/#{strip_root_path(key)}",
+          size: total_size || 0,
+          mime_type: content_type
+        }
+      else
+        # String content — existing behavior
+        if content.bytesize > MULTIPART_THRESHOLD
+          upload_multipart(key, content, content_type)
+        else
+          @client.put_object(
+            bucket: @bucket,
+            key: key,
+            body: content,
+            content_type: content_type
+          )
+        end
+
+        {
+          id: key,
+          name: filename,
+          path: "/#{strip_root_path(key)}",
+          size: content.bytesize,
+          mime_type: content_type
+        }
+      end
     end
 
     def download_file(path_or_id)
@@ -286,6 +312,28 @@ module DocumentProviders
       content.force_encoding(Encoding::ASCII_8BIT)
     rescue Aws::S3::Errors::NoSuchKey
       raise NotFoundError, "File not found: #{path_or_id}"
+    end
+
+    # Memory-safe: streams S3 object to Tempfile instead of loading into heap.
+    # Returns Tempfile. Caller must close! the Tempfile when done.
+    def download_to_tempfile(path_or_id)
+      key = resolve_key(path_or_id)
+      ext = File.extname(key)
+      tempfile = Tempfile.new(["s3_download", ext], binmode: true)
+
+      @client.get_object(bucket: @bucket, key: key) do |chunk|
+        tempfile.write(chunk)
+      end
+
+      tempfile.flush
+      tempfile.rewind
+      tempfile
+    rescue Aws::S3::Errors::NoSuchKey
+      tempfile&.close! rescue nil
+      raise NotFoundError, "File not found: #{path_or_id}"
+    rescue => e
+      tempfile&.close! rescue nil
+      raise e
     end
 
     # Generate presigned download URL
@@ -845,9 +893,8 @@ module DocumentProviders
       ContentTypeDetector.detect(filename)
     end
 
-    # Multipart upload for large files
+    # Multipart upload for large String content
     def upload_multipart(key, content, content_type)
-      # Create multipart upload
       response = @client.create_multipart_upload(
         bucket: @bucket,
         key: key,
@@ -876,7 +923,6 @@ module DocumentProviders
           offset += MULTIPART_CHUNK_SIZE
         end
 
-        # Complete multipart upload
         @client.complete_multipart_upload(
           bucket: @bucket,
           key: key,
@@ -884,7 +930,50 @@ module DocumentProviders
           multipart_upload: { parts: parts }
         )
       rescue StandardError => e
-        # Abort on error
+        @client.abort_multipart_upload(
+          bucket: @bucket,
+          key: key,
+          upload_id: upload_id
+        )
+        raise e
+      end
+    end
+
+    # ⚠️ MEMORY-SAFE (Feb 2026): Multipart upload from IO — reads in MULTIPART_CHUNK_SIZE chunks.
+    # Never loads entire file into memory. Used for Tempfile uploads from Xero API downloads.
+    def upload_multipart_from_io(key, io, total_size, content_type)
+      response = @client.create_multipart_upload(
+        bucket: @bucket,
+        key: key,
+        content_type: content_type
+      )
+      upload_id = response.upload_id
+
+      begin
+        parts = []
+        part_number = 1
+        io.rewind if io.respond_to?(:rewind)
+
+        while (chunk = io.read(MULTIPART_CHUNK_SIZE))
+          part_response = @client.upload_part(
+            bucket: @bucket,
+            key: key,
+            upload_id: upload_id,
+            part_number: part_number,
+            body: chunk
+          )
+
+          parts << { part_number: part_number, etag: part_response.etag }
+          part_number += 1
+        end
+
+        @client.complete_multipart_upload(
+          bucket: @bucket,
+          key: key,
+          upload_id: upload_id,
+          multipart_upload: { parts: parts }
+        )
+      rescue StandardError => e
         @client.abort_multipart_upload(
           bucket: @bucket,
           key: key,

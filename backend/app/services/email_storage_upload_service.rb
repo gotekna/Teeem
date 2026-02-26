@@ -52,14 +52,16 @@ class EmailStorageUploadService
     # Must have outlook_id (to fetch from Graph API) and mailbox_owner_email (to know which mailbox)
     # Check both storage_path (new) and storage_email_path (legacy) columns
     # Exclude emails marked as content_unavailable (content cannot be retrieved from Microsoft)
-    # Order by ID to ensure consistent ordering across batches
+    # FRC (Feb 2026): Randomize order so each run attempts different emails.
+    # Previously .order(:id) meant the same failing emails blocked every batch.
+    # With RANDOM(), even if some emails consistently fail, others get a chance.
     emails = SyncedEmail
       .where(storage_path: [nil, ""])
       .where(storage_email_path: [nil, ""])
       .where.not(outlook_id: [nil, ""])
       .where.not(mailbox_owner_email: [nil, ""])
       .where(content_unavailable: false)  # SSoT: Skip permanently unavailable emails
-      .order(:id)
+      .order(Arel.sql("RANDOM()"))
 
     emails = emails.limit(batch_size) if batch_size.present?
 
@@ -248,12 +250,22 @@ class EmailStorageUploadService
     # Attachments are already stored as separate StorageBlobs
     stripped_content = EmailContentStripper.strip_attachments(mime_content)
 
-    # Upload to StorageBlob (content-addressed)
-    blob = StorageBlob.find_or_create_for_content!(
-      stripped_content,
-      filename: "#{email.id}.eml",
-      content_type: "message/rfc822"
-    )
+    # Memory-safe: write to Tempfile, use disk-backed hash+upload
+    tempfile = Tempfile.new(["email_#{email.id}", ".eml"], binmode: true)
+    begin
+      tempfile.write(stripped_content)
+      tempfile.flush
+      tempfile.rewind
+      stripped_content = nil # Release String from heap
+
+      blob = StorageBlob.find_or_create_from_file!(
+        tempfile.path,
+        filename: "#{email.id}.eml",
+        content_type: "message/rfc822"
+      )
+    ensure
+      tempfile.close! rescue nil
+    end
 
     email.update_columns(
       storage_path: blob.storage_path,
@@ -275,7 +287,9 @@ class EmailStorageUploadService
   def handle_fetch_error(email, error_msg, status)
     permanent_error_patterns = [
       /ErrorItemNotFound/i, /ErrorInvalidUser/i, /MailboxNotEnabledForRESTAPI/i,
-      /ErrorMailboxNotFound/i, /ResourceNotFound/i, /ErrorAccessDenied/i
+      /ErrorMailboxNotFound/i, /ResourceNotFound/i, /ErrorAccessDenied/i,
+      /MailboxMoveInProgress/i,       # FRC (Feb 2026): Was missing from batch mode - existed in sequential mode
+      /ErrorMailboxStoreUnavailable/i  # FRC (Feb 2026): Mailbox temporarily offline
     ]
 
     if permanent_error_patterns.any? { |p| error_msg.match?(p) } || status == 404
@@ -343,15 +357,25 @@ class EmailStorageUploadService
     # Attachments are already stored as separate StorageBlobs
     stripped_content = EmailContentStripper.strip_attachments(mime_content)
 
+    # Memory-safe: write to Tempfile, use disk-backed hash+upload
     # SSoT: Use StorageBlob for content-addressed storage (Jan 2026 fix)
-    # Files stored at Blobs/{hash-prefix}/{hash}.eml for deduplication
-    # Virtual folders in WarehouseDocument.folder_path enable UI organization
-    blob = ActsAsTenant.with_tenant(@tenant) do
-      StorageBlob.find_or_create_for_content!(
-        stripped_content,
-        filename: "#{email.id}.eml",
-        content_type: "message/rfc822"
-      )
+    tempfile = Tempfile.new(["email_#{email.id}", ".eml"], binmode: true)
+    begin
+      tempfile.write(stripped_content)
+      tempfile.flush
+      tempfile.rewind
+      stripped_content = nil # Release String from heap
+      mime_content = nil     # Release original content from heap
+
+      blob = ActsAsTenant.with_tenant(@tenant) do
+        StorageBlob.find_or_create_from_file!(
+          tempfile.path,
+          filename: "#{email.id}.eml",
+          content_type: "message/rfc822"
+        )
+      end
+    ensure
+      tempfile.close! rescue nil
     end
 
     # Update email record with content-addressed path
@@ -409,7 +433,7 @@ class EmailStorageUploadService
     return unless email
 
     # Extract the error code from the message (e.g., "ErrorItemNotFound" from "...ErrorItemNotFound...")
-    error_code = reason.match(/(Error\w+|MailboxNotEnabledForRESTAPI|ResourceNotFound)/i)&.[](1) || "Unknown"
+    error_code = reason.match(/(Error\w+|MailboxNotEnabledForRESTAPI|MailboxMoveInProgress|ResourceNotFound)/i)&.[](1) || "Unknown"
 
     email.update_columns(
       content_unavailable: true,

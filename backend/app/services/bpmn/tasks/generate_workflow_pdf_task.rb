@@ -1,3 +1,5 @@
+require "hexapdf"
+
 module Bpmn
   module Tasks
     # GenerateWorkflowPdfTask - Generate a PDF summary of the workflow

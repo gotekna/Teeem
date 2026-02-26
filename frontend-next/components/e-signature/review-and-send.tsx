@@ -13,6 +13,10 @@ import {
   AtSign,
   Calendar,
   TextCursor,
+  MessageSquare,
+  ToggleLeft,
+  User,
+  CaseSensitive,
   CheckCircle2,
   AlertCircle,
   Send,
@@ -37,6 +41,10 @@ const FIELD_ICONS: Record<SignatureFieldType, React.ReactNode> = {
   initials: <AtSign className="h-4 w-4" />,
   date: <Calendar className="h-4 w-4" />,
   text: <TextCursor className="h-4 w-4" />,
+  comment: <MessageSquare className="h-4 w-4" />,
+  yes_no: <ToggleLeft className="h-4 w-4" />,
+  signer_name: <User className="h-4 w-4" />,
+  signer_initials: <CaseSensitive className="h-4 w-4" />,
 };
 
 export function ReviewAndSend({
@@ -66,6 +74,10 @@ export function ReviewAndSend({
       initials: 0,
       date: 0,
       text: 0,
+      comment: 0,
+      yes_no: 0,
+      signer_name: 0,
+      signer_initials: 0,
     };
     for (const field of fields) {
       result[field.type]++;

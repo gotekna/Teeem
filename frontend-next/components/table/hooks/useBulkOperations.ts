@@ -27,6 +27,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { clearCachedRecords } from '@/lib/records-cache';
+import { invalidateLookupCache } from '../utils/lookup-cache';
 import { isLookupColumn, isBooleanColumn } from '@/lib/constants/column-types';
 import type { TableColumn, TableRow } from '../types';
 
@@ -304,6 +305,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
       // Clear cache
       if (foundationId) {
         clearCachedRecords(foundationId);
+        invalidateLookupCache();
       }
 
       // Optimistic update
@@ -354,6 +356,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
     // Clear cache
     if (foundationId) {
       clearCachedRecords(foundationId);
+      invalidateLookupCache();
     }
 
     // Close modal

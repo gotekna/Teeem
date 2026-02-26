@@ -51,7 +51,7 @@ export function SignerPanel({
     async function loadContacts() {
       try {
         setLoadingContacts(true);
-        const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts");
+        const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts?with_email=true");
         if (cancelled) return;
         const data = Array.isArray(response) ? response : response?.contacts || [];
         setContacts(data);
@@ -70,11 +70,20 @@ export function SignerPanel({
     const existingEmails = new Set(signers.map((s) => s.email.toLowerCase()));
     return contacts
       .filter((c) => c.email && !existingEmails.has(c.email.toLowerCase()))
-      .map((c) => ({
-        id: c.id.toString(),
-        label: formatContactLabel(c, true),
-        searchText: c.email || undefined,
-      }));
+      .map((c) => {
+        const name = formatContactLabel(c, true);
+        // Show email alongside name so contacts are distinguishable
+        // For "Draft" or generic names, lead with email
+        const isDraft = name === "Draft" || name.startsWith("Contact #");
+        const label = isDraft
+          ? `${c.email}${c.first_name || c.last_name ? ` (${[c.first_name, c.last_name].filter(Boolean).join(" ")})` : ""}`
+          : `${name} <${c.email}>`;
+        return {
+          id: c.id.toString(),
+          label,
+          searchText: `${c.email} ${name}`,
+        };
+      });
   }, [contacts, signers]);
 
   const handleContactSelect = (item: ComboboxItem) => {

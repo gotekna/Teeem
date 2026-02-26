@@ -5,6 +5,7 @@
  *
  * Extracted from corporate page for unified tab system.
  * Contains TFN, business names, ASIC credentials.
+ * Sensitive fields (TFN, password, recovery answer) require password to reveal.
  */
 
 import * as React from "react";
@@ -13,9 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
-import { Edit, Save } from "lucide-react";
+import { Edit, Save, Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Corporate } from "@/lib/types/corporate";
+import { PasswordRevealDialog } from "@/components/corporate/PasswordRevealDialog";
 
 interface CorporateTabProps {
   company: Corporate;
@@ -27,8 +29,22 @@ interface CorporateTabProps {
 export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = React.useState(false);
+
+  // Sensitive data fetched after password verification
+  const [sensitiveData, setSensitiveData] = React.useState<{
+    tfn?: string;
+    encrypted_asic_password?: string;
+    encrypted_recovery_answer?: string;
+  } | null>(null);
+
+  // Which fields are currently revealed
+  const [showTfn, setShowTfn] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showAnswer, setShowAnswer] = React.useState(false);
+
   const [formData, setFormData] = React.useState({
-    tfn: company.tfn || "",
+    tfn: "",
     business_names: company.business_names || "",
     previous_names: company.previous_names || "",
     registered_office_address: company.registered_office_address || "",
@@ -45,6 +61,7 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
       const dataToSend: Record<string, unknown> = { ...formData };
       if (!dataToSend.asic_password) delete dataToSend.asic_password;
       if (!dataToSend.recovery_answer) delete dataToSend.recovery_answer;
+      if (!dataToSend.tfn) delete dataToSend.tfn;
       // Convert previous_names string to array (comma-separated)
       if (typeof dataToSend.previous_names === "string") {
         const names = (dataToSend.previous_names as string)
@@ -70,6 +87,37 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
       return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
     }
     return tfn;
+  };
+
+  // Request password verification to unlock sensitive fields
+  const handleRevealClick = () => {
+    if (sensitiveData) {
+      // Already verified - just toggle visibility
+      return;
+    }
+    setShowPasswordDialog(true);
+  };
+
+  const handleRevealed = (data: { tfn?: string; encrypted_asic_password?: string; encrypted_recovery_answer?: string }) => {
+    setSensitiveData(data);
+    // Pre-fill edit form with TFN if entering edit mode later
+    if (data.tfn) {
+      setFormData(prev => ({ ...prev, tfn: data.tfn || "" }));
+    }
+  };
+
+  // Toggle individual field visibility (only works after password verification)
+  const toggleTfn = () => {
+    if (!sensitiveData) { handleRevealClick(); return; }
+    setShowTfn(!showTfn);
+  };
+  const togglePassword = () => {
+    if (!sensitiveData) { handleRevealClick(); return; }
+    setShowPassword(!showPassword);
+  };
+  const toggleAnswer = () => {
+    if (!sensitiveData) { handleRevealClick(); return; }
+    setShowAnswer(!showAnswer);
   };
 
   return (
@@ -114,7 +162,16 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
                 className="mt-1"
               />
             ) : (
-              <p className="text-sm font-mono mt-1">{formatTFN(company.tfn)}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <p className="text-sm font-mono">
+                  {!company.has_tfn ? "-" : showTfn && sensitiveData?.tfn ? formatTFN(sensitiveData.tfn) : "••• ••• •••"}
+                </p>
+                {company.has_tfn && (
+                  <button type="button" onClick={toggleTfn} className="text-muted-foreground hover:text-foreground p-0.5">
+                    {showTfn && sensitiveData ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+              </div>
             )}
           </div>
           <div>
@@ -198,7 +255,16 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
                 className="mt-1"
               />
             ) : (
-              <p className="text-sm mt-1">{company.has_asic_password ? "••••••••" : "-"}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <p className="text-sm">
+                  {!company.has_asic_password ? "-" : showPassword && sensitiveData?.encrypted_asic_password ? sensitiveData.encrypted_asic_password : "••••••••"}
+                </p>
+                {company.has_asic_password && (
+                  <button type="button" onClick={togglePassword} className="text-muted-foreground hover:text-foreground p-0.5">
+                    {showPassword && sensitiveData ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+              </div>
             )}
           </div>
           <div>
@@ -223,11 +289,27 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
                 className="mt-1"
               />
             ) : (
-              <p className="text-sm mt-1">{company.has_recovery_answer ? "••••••••" : "-"}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <p className="text-sm">
+                  {!company.has_recovery_answer ? "-" : showAnswer && sensitiveData?.encrypted_recovery_answer ? sensitiveData.encrypted_recovery_answer : "••••••••"}
+                </p>
+                {company.has_recovery_answer && (
+                  <button type="button" onClick={toggleAnswer} className="text-muted-foreground hover:text-foreground p-0.5">
+                    {showAnswer && sensitiveData ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      <PasswordRevealDialog
+        open={showPasswordDialog}
+        onOpenChange={setShowPasswordDialog}
+        companyId={company.id}
+        onRevealed={handleRevealed}
+      />
     </div>
   );
 }

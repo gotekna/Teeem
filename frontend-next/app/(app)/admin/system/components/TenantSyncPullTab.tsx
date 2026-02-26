@@ -91,6 +91,10 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
   const [skippedTables, setSkippedTables] = useState<Set<string>>(new Set());
   // Contacts: price_only filter (checked by default, matching backend scope)
   const [contactsPriceOnly, setContactsPriceOnly] = useState(true);
+  // Table dependency map: { table_key: [required_table_keys] }
+  const [dependencies, setDependencies] = useState<Record<string, string[]>>({});
+  // Dependency warnings returned from backend during sync
+  const [tableDependencyWarnings, setTableDependencyWarnings] = useState<Record<string, string[]>>({});
   // Last config sync audit trail
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [lastSyncBy, setLastSyncBy] = useState<string | null>(null);
@@ -105,6 +109,7 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
           tables: ConfigTable[];
           tenant: TenantInfo | null;
           counts?: Record<string, { master: number; tenant: number }>;
+          dependencies?: Record<string, string[]>;
           is_master_tenant?: boolean;
           all_tenant_counts?: Record<string, Record<string, number>>;
           all_tenants?: TenantCount[];
@@ -116,6 +121,9 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
           setTables(response.tables);
           if (response.tenant) {
             setTenantInfo(response.tenant);
+          }
+          if (response.dependencies) {
+            setDependencies(response.dependencies);
           }
           setLastSyncAt(response.last_config_sync_at || null);
           setLastSyncBy(response.last_config_sync_by || null);
@@ -172,7 +180,7 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
     imported: number; updated: number; skipped: number;
     total: number; source?: string; error?: string;
     errors?: string[]; skipped_reasons?: string[];
-    message?: string;
+    message?: string; dependency_warnings?: string[];
   }> => {
     type PullResponse = {
       success: boolean; table: string;
@@ -181,6 +189,7 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
       has_more: boolean; next_offset?: number;
       source?: string; error?: string; message?: string;
       errors?: string[]; skipped_reasons?: string[];
+      dependency_warnings?: string[];
     };
 
     let totalImported = 0, totalUpdated = 0, totalSkipped = 0, totalProcessed = 0;
@@ -189,6 +198,7 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
     let lastMessage: string | undefined;
     let allErrors: string[] = [];
     let allSkippedReasons: string[] = [];
+    let depWarnings: string[] = [];
     let offset = 0;
     let hasMore = true;
 
@@ -222,6 +232,7 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
       offset = response.next_offset || 0;
       if (response.errors?.length) allErrors = [...allErrors, ...response.errors];
       if (response.skipped_reasons?.length) allSkippedReasons = [...allSkippedReasons, ...response.skipped_reasons];
+      if (response.dependency_warnings?.length) depWarnings = [...depWarnings, ...response.dependency_warnings];
 
       // Update progress for large tables
       if (hasMore || totalRecords > BATCH_SIZE) {
@@ -238,7 +249,12 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
       setTableSyncErrors((prev) => ({ ...prev, [tableKey]: [...allErrors, ...allSkippedReasons].slice(0, 5) }));
     }
 
-    return { imported: totalImported, updated: totalUpdated, skipped: totalSkipped, total: totalRecords, source, errors: allErrors, skipped_reasons: allSkippedReasons, message: lastMessage };
+    // Track dependency warnings for display
+    if (depWarnings.length > 0) {
+      setTableDependencyWarnings((prev) => ({ ...prev, [tableKey]: depWarnings }));
+    }
+
+    return { imported: totalImported, updated: totalUpdated, skipped: totalSkipped, total: totalRecords, source, errors: allErrors, skipped_reasons: allSkippedReasons, message: lastMessage, dependency_warnings: depWarnings };
   };
 
   // Handle pull ALL tables one-by-one with live progress + auto-batching
@@ -248,6 +264,7 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
       setError(null);
       setPullAllResult(null);
       setTableSyncErrors({});
+      setTableDependencyWarnings({});
 
       // Initialize all tables as pending (or pre-skipped)
       const initialStatus: Record<string, TableSyncStatus> = {};
@@ -451,6 +468,32 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
             </div>
           )}
 
+          {/* Dependency warnings: show when user skips tables that others depend on */}
+          {!pullingAll && !pullAllResult && (() => {
+            const warnings: string[] = [];
+            for (const [tableKey, deps] of Object.entries(dependencies)) {
+              if (skippedTables.has(tableKey)) continue; // This table is skipped anyway
+              const missingDeps = deps.filter((dep) => skippedTables.has(dep));
+              if (missingDeps.length > 0) {
+                const tableName = tables.find((t) => t.key === tableKey)?.model.replace(/([A-Z])/g, " $1").trim() || tableKey;
+                const depNames = missingDeps.map((d) => tables.find((t) => t.key === d)?.model.replace(/([A-Z])/g, " $1").trim() || d);
+                warnings.push(`${tableName} requires ${depNames.join(", ")} to be synced first`);
+              }
+            }
+            if (warnings.length === 0) return null;
+            return (
+              <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-2.5">
+                <div className="flex gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-800 dark:text-amber-200 space-y-0.5">
+                    <p className="font-medium">Sync order warning</p>
+                    {warnings.map((w, i) => <p key={i}>{w}</p>)}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Counts table */}
           <Table>
             <TableHeader>
@@ -480,6 +523,12 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
                 const isSkipped = skippedTables.has(table.key);
                 const isContacts = table.key === "contacts";
                 const isPriceHistories = table.key === "price_histories";
+                const depWarnings = tableDependencyWarnings[table.key];
+                // Pre-sync: check if any required deps are skipped
+                const tableDeps = dependencies[table.key] || [];
+                const skippedDeps = !pullingAll && !pullAllResult
+                  ? tableDeps.filter((d) => skippedTables.has(d))
+                  : [];
 
                 return (
                   <TableRow
@@ -494,6 +543,24 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
                     <TableCell className="font-medium py-1.5 text-sm">
                       <div className="flex items-center gap-2">
                         <span>{table.model.replace(/([A-Z])/g, " $1").trim()}</span>
+                        {/* Pre-sync: warn if required deps are skipped */}
+                        {skippedDeps.length > 0 && (
+                          <span
+                            className="inline-flex items-center"
+                            title={`Requires: ${skippedDeps.map((d) => tables.find((t) => t.key === d)?.model.replace(/([A-Z])/g, " $1").trim() || d).join(", ")}`}
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                          </span>
+                        )}
+                        {/* Post-sync: show backend dependency warnings */}
+                        {depWarnings && depWarnings.length > 0 && (
+                          <span
+                            className="inline-flex items-center"
+                            title={depWarnings.join("\n")}
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                          </span>
+                        )}
                         {/* Price only checkbox for contacts */}
                         {isContacts && !pullAllResult && (
                           <label className="inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer ml-1">

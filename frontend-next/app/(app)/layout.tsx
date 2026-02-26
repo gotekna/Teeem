@@ -20,9 +20,12 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import consoleCapture from "@/utils/consoleCapture";
 import { POInvoiceModal } from "@/components/purchase-orders/POInvoiceModal";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
+import { TutorialGate } from "@/components/tutorial/TutorialGate";
 import { ScreenSharePrompt } from "@/components/screen-share/ScreenSharePrompt";
+import { AssistantChat } from "@/components/chat/AssistantChat";
 import { ROUTES } from "@/lib/constants/route-paths";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { AppProviders } from "@/components/providers/app-providers";
 
 // Initialize console capture immediately to catch ALL errors from the start
 // This ensures the error count badge in the sidebar matches DevTools
@@ -140,30 +143,38 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Global Screen Share Prompt - handles incoming requests from any page */}
       <ScreenSharePrompt />
 
+      {/* AI Assistant - floating chat with voice input, tool use, and action approval */}
+      <AssistantChat />
+
       {/* Force Password Change Dialog (Feb 2026) - shown when admin sends login invite */}
       <ChangePasswordDialog
         open={forcePasswordChange}
         currentPassword={tempPassword}
         onSuccess={onPasswordChanged}
       />
+
+      {/* Tutorial Welcome Dialog (Feb 2026) - shown to first-time users */}
+      {!forcePasswordChange && <TutorialGate />}
     </div>
   );
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
-      <ViewModeProvider>
-        <LayoutModeProvider>
-          <ConfirmationProvider>
-            <Suspense fallback={null}>
-              <BreadcrumbProvider>
-                <AppLayoutContent>{children}</AppLayoutContent>
-              </BreadcrumbProvider>
-            </Suspense>
-          </ConfirmationProvider>
-        </LayoutModeProvider>
-      </ViewModeProvider>
-    </SidebarProvider>
+    <AppProviders>
+      <SidebarProvider>
+        <ViewModeProvider>
+          <LayoutModeProvider>
+            <ConfirmationProvider>
+              <Suspense fallback={null}>
+                <BreadcrumbProvider>
+                  <AppLayoutContent>{children}</AppLayoutContent>
+                </BreadcrumbProvider>
+              </Suspense>
+            </ConfirmationProvider>
+          </LayoutModeProvider>
+        </ViewModeProvider>
+      </SidebarProvider>
+    </AppProviders>
   );
 }

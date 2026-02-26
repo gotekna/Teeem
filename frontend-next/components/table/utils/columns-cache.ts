@@ -12,6 +12,7 @@
 import { CACHE_TTL_COLUMNS } from '@/lib/constants/cache-constants';
 import { api } from '@/lib/api';
 import type { TableColumn } from '../types';
+import type { EditModalConfig } from '@/lib/types/foundation';
 
 // Re-export for convenience
 export { CACHE_TTL_COLUMNS };
@@ -19,6 +20,7 @@ export { CACHE_TTL_COLUMNS };
 interface CachedColumns {
   columns: TableColumn[];
   foundationInfo: { id: number; slug: string };
+  editModalConfig?: EditModalConfig;
   timestamp: number;
 }
 
@@ -45,6 +47,17 @@ export function getCachedColumns(foundationId: string | number): CachedColumns |
   }
 
   return null;
+}
+
+/**
+ * Update the edit modal config in the cache without invalidating columns
+ */
+export function updateCachedEditModalConfig(foundationId: string | number, config: EditModalConfig): void {
+  const key = String(foundationId);
+  const cached = columnsCache[key];
+  if (cached) {
+    cached.editModalConfig = config;
+  }
 }
 
 /**
@@ -148,7 +161,8 @@ export async function fetchColumnsForFoundation(
         foundation: {
           id: number;
           slug: string;
-          columns: ApiColumn[]
+          columns: ApiColumn[];
+          edit_modal_config?: EditModalConfig;
         }
       }>(`/api/v1/foundations/${foundationId}`);
 
@@ -158,7 +172,7 @@ export async function fetchColumnsForFoundation(
 
       const columns = convertColumnsToTEEEMFormat(
         response.foundation.columns || [],
-        foundationId
+        response.foundation.id
       );
 
       const result: CachedColumns = {
@@ -167,6 +181,7 @@ export async function fetchColumnsForFoundation(
           id: response.foundation.id,
           slug: response.foundation.slug,
         },
+        editModalConfig: response.foundation.edit_modal_config,
         timestamp: Date.now(),
       };
 

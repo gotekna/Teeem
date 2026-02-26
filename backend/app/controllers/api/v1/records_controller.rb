@@ -92,28 +92,77 @@ module Api
             if @foundation.table_type == "system"
               model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name)
             else
+              # FRC (Feb 2026): Use Ruby select on eager-loaded columns to avoid N+1.
+              # @foundation.columns is already includes()-loaded in set_foundation.
               text_types = %w[single_line_text multiple_lines_text email phone url]
-              @foundation.columns.where(column_type: text_types).pluck(:column_name)
+              @foundation.columns.select { |c| text_types.include?(c.column_type) }.map(&:column_name)
             end
           else
             # SSoT: Use foundation's searchable column definitions (works for ALL tables)
-            foundation_searchable = @foundation.columns.where(searchable: true).pluck(:column_name)
+            # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL query)
+            foundation_searchable = @foundation.columns.select(&:searchable).map(&:column_name)
 
             if foundation_searchable.any?
               # Filter out columns that can't be searched with ILIKE:
+              # - virtual columns: Ruby methods not backed by real DB columns (e.g. net_total)
               # - array columns: PostgreSQL ILIKE doesn't work on arrays
               # - tsvector columns: full-text search columns, not for ILIKE
               # - lookup columns: store integer IDs, not searchable text
+              real_db_columns = model.column_names
               array_columns = model.columns.select(&:array).map(&:name)
               tsvector_columns = model.columns.select { |c| c.type == :tsvector }.map(&:name)
-              lookup_columns = @foundation.columns.where(column_type: Column::LOOKUP_COLUMN_TYPES).pluck(:column_name)
+              # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL query)
+              lookup_columns = @foundation.columns.select { |c| Column::LOOKUP_COLUMN_TYPES.include?(c.column_type) }.map(&:column_name)
               excluded_columns = array_columns + tsvector_columns + lookup_columns
-              foundation_searchable.reject { |col| excluded_columns.include?(col) }
+              foundation_searchable
+                .select { |col| real_db_columns.include?(col) }
+                .reject { |col| excluded_columns.include?(col) }
             elsif @foundation.table_type == "system"
               # Fallback for system tables without column definitions: auto-detect text columns
               model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name).first(5)
             else
               []
+            end
+          end
+
+          # Generic: Include lookup column display values in search (Feb 2026)
+          # For each single-lookup column, LEFT JOIN the target table and search its display column.
+          # This allows searching by contact name, supplier name, etc. on ANY foundation.
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL queries)
+          lookup_cols_for_search = @foundation.columns.select { |c|
+            c.column_type == "lookup" &&
+            c.lookup_foundation_id.present? &&
+            c.lookup_display_column.present?
+          }
+
+          if lookup_cols_for_search.any?
+            main_table = model.table_name
+            conn = ActiveRecord::Base.connection
+
+            lookup_cols_for_search.each do |lookup_col|
+              target_foundation = Foundation.find_by(id: lookup_col.lookup_foundation_id)
+              next unless target_foundation
+
+              # Skip JOIN if the DB column isn't an integer FK (e.g., category stores text not IDs)
+              db_col = model.columns.find { |c| c.name == lookup_col.column_name }
+              next unless db_col && [:integer, :bigint].include?(db_col.type)
+
+              target_table = target_foundation.database_table_name
+              display_col = lookup_col.lookup_display_column
+              # Unique alias prevents conflicts when multiple lookups target the same table
+              join_alias = "lookup__#{lookup_col.column_name}"
+
+              query = query.joins(
+                "LEFT JOIN #{conn.quote_table_name(target_table)} AS #{join_alias} " \
+                "ON #{join_alias}.id = #{main_table}.#{conn.quote_column_name(lookup_col.column_name)}"
+              )
+
+              searchable_columns << "#{join_alias}.#{display_col}"
+            end
+
+            # Qualify unqualified main table columns to avoid ambiguity from JOINs
+            searchable_columns = searchable_columns.map do |col|
+              col.include?(".") ? col : "#{main_table}.#{col}"
             end
           end
 
@@ -129,10 +178,10 @@ module Api
           if @foundation.slug == "jobs"
             # Join jobs to job_contacts to contacts for client search
             query = query.joins("LEFT JOIN job_contacts ON job_contacts.job_id = jobs.id AND job_contacts.role = 'client'")
-                         .joins("LEFT JOIN contacts ON contacts.id = job_contacts.contact_id")
-            # Qualify all column references with table name to avoid ambiguity
+                         .joins("LEFT JOIN contacts AS job_client ON job_client.id = job_contacts.contact_id")
+            # Qualify unqualified column references with table name to avoid ambiguity
             # (jobs and contacts both have columns like 'postcode', 'state', etc.)
-            searchable_columns = searchable_columns.map { |col| "jobs.#{col}" } + ["contacts.display_name"]
+            searchable_columns = searchable_columns.map { |col| col.include?(".") ? col : "jobs.#{col}" } + ["job_client.display_name"]
           end
 
           if searchable_columns.any?
@@ -350,9 +399,25 @@ module Api
 
                 next nil unless valid_columns.include?(column)
 
+                # Also validate against actual DB columns to prevent PG::UndefinedColumn
+                # when Foundation column config diverges from the real DB schema
+                # (e.g., after a column rename/removal without updating Foundation config)
+                #
+                # FRC (Feb 2026): Virtual column filter handling for purchase_orders
+                # When grouping by virtual columns (stage_from_task, etc.), the frontend
+                # sends filters on these virtual column names. Translate to real DB queries.
+                unless model.column_names.include?(column)
+                  if model.table_name == "purchase_orders"
+                    virtual_condition = resolve_po_virtual_filter(column, operator, value)
+                    next virtual_condition if virtual_condition
+                  end
+                  next nil
+                end
+
                 # Build SQL condition based on operator
+                # Table-qualify to avoid PG::AmbiguousColumn when search JOINs lookup tables
                 conn = ActiveRecord::Base.connection
-                quoted_column = conn.quote_column_name(column)
+                quoted_column = "#{model.table_name}.#{conn.quote_column_name(column)}"
 
                 # Get actual database column type for type-safe operations
                 db_column = model.columns.find { |c| c.name == column }
@@ -446,16 +511,18 @@ module Api
                     ["#{quoted_column} ILIKE ?", "%#{value}"]
                   end
                 when "is_empty"
-                  # Handle JSONB arrays specially - empty array is '[]', not ''
                   if [:jsonb, :json].include?(db_column_type)
                     ["#{quoted_column} IS NULL OR #{quoted_column} = '[]'::jsonb"]
+                  elsif %i[integer bigint decimal float boolean].include?(db_column_type)
+                    ["#{quoted_column} IS NULL"]
                   else
                     ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
                   end
                 when "is_not_empty"
-                  # Handle JSONB arrays specially - non-empty means has at least one element
                   if [:jsonb, :json].include?(db_column_type)
                     ["#{quoted_column} IS NOT NULL AND #{quoted_column} != '[]'::jsonb"]
+                  elsif %i[integer bigint decimal float boolean].include?(db_column_type)
+                    ["#{quoted_column} IS NOT NULL"]
                   else
                     ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
                   end
@@ -513,9 +580,20 @@ module Api
             @foundation.columns.pluck(:column_name)
           end
 
-          if valid_columns.include?(sort_by)
-            # Use Arel to safely build the order clause
-            query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(sort_by)} #{sort_direction}"))
+          # Also validate against actual DB columns to prevent PG::UndefinedColumn
+          # when Foundation column config diverges from the real DB schema
+          if valid_columns.include?(sort_by) && model.column_names.include?(sort_by)
+            quoted_col = ActiveRecord::Base.connection.quote_column_name(sort_by)
+            col_type = model.columns_hash[sort_by]&.type
+            if col_type == :string || col_type == :text
+              # Natural sort for text columns: numeric prefix sorted numerically, then alphabetically
+              # e.g. "100", "101", "1000" instead of "100", "1000", "101"
+              query = query.order(
+                Arel.sql("(CASE WHEN #{quoted_col} ~ '^[0-9]+' THEN LPAD(regexp_replace(#{quoted_col}, '[^0-9].*', '', 'g'), 20, '0') ELSE #{quoted_col} END) #{sort_direction}, #{quoted_col} #{sort_direction}")
+              )
+            else
+              query = query.order(Arel.sql("#{quoted_col} #{sort_direction}"))
+            end
           else
             query = query.order(created_at: :desc)
           end
@@ -579,6 +657,40 @@ module Api
           build_employer_ids_cache(records)
         else
           {}
+        end
+
+        # Pre-fetch PO virtual column lookup tables to avoid N+1
+        # These are small reference tables (typically <100 records each)
+        if @foundation.slug == "purchase-orders"
+          @sm_stages_cache = SmStage.all.index_by(&:id)
+          @sm_trades_cache = SmTrade.all.index_by(&:id)
+          @cost_centres_cache = CostCentre.all.index_by(&:id)
+        end
+
+        # Pre-fetch SM task template counts per cost centre per schedule template
+        # Shows how many PO task templates are assigned to each cost centre, per template
+        # Chain: SmScheduleMaster (po_required + cost_centre) → sm_template_ids → template name
+        if @foundation.slug == "cost_centres"
+          @po_counts_by_template_cache = {}
+
+          template_names = SmScheduleMasterTemplate.active.pluck(:id, :name).to_h
+
+          SmScheduleMaster.where(po_required: true).where.not(cost_centre: nil)
+            .pluck(:cost_centre, :sm_template_ids).each do |cc_id, tids_raw|
+            tids = if tids_raw.is_a?(String)
+              begin; JSON.parse(tids_raw); rescue; []; end
+            else
+              tids_raw || []
+            end
+            tids.each do |tid|
+              tname = template_names[tid.to_i]
+              next unless tname
+              @po_counts_by_template_cache[cc_id] ||= {}
+              @po_counts_by_template_cache[cc_id][tname] = (@po_counts_by_template_cache[cc_id][tname] || 0) + 1
+            end
+          end
+
+          @po_template_names = template_names.values.uniq.sort
         end
 
         # Serialize records to JSON
@@ -743,11 +855,19 @@ module Api
         end
 
         # Get valid column names for this foundation
-        valid_columns = if @foundation.table_type == "system"
+        # FRC (Feb 2026): Always intersect Foundation column config with actual model column names
+        # + defined setter methods. Prevents ActiveModel::UnknownAttributeError when Foundation
+        # columns in admin UI diverge from DB schema (e.g., "status" column configured but
+        # not present in the contacts table). Sentry error: TEEEM-BACKEND-19.
+        foundation_columns = if @foundation.table_type == "system"
           model.column_names
         else
           @foundation.columns.pluck(:column_name)
         end
+        model_column_names = model.column_names.to_set
+        valid_columns = foundation_columns.select { |col|
+          model_column_names.include?(col.to_s) || model.method_defined?("#{col}=")
+        }
 
         # Filter updates to only valid columns
         filtered_updates = updates.select { |k, _| valid_columns.include?(k.to_s) }
@@ -818,6 +938,79 @@ module Api
           success: errors.empty?,
           updated_count: updated_count,
           total_requested: record_ids.size,
+          errors: errors
+        }
+      rescue => e
+        render_error(e.message, status: :internal_server_error)
+      end
+
+      # POST /api/v1/foundations/:foundation_id/records/batch_update
+      # Update multiple records with per-record changes in a single request.
+      # Used by inline editing to avoid N individual PATCH requests.
+      # Params:
+      #   - updates: Array of { id: <record_id>, changes: { column: value, ... } }
+      def batch_update
+        model = @foundation.dynamic_model
+        batch = params[:updates]
+
+        if batch.blank? || !batch.is_a?(Array)
+          return render_error("Expected 'updates' array of {id, changes}")
+        end
+
+        # Get valid column names for this foundation
+        foundation_columns = if @foundation.table_type == "system"
+          model.column_names
+        else
+          @foundation.columns.pluck(:column_name)
+        end
+        model_column_names = model.column_names.to_set
+        valid_columns = foundation_columns.select { |col|
+          model_column_names.include?(col.to_s) || model.method_defined?("#{col}=")
+        }.to_set
+
+        updated_count = 0
+        errors = []
+
+        ActiveRecord::Base.transaction do
+          batch.each do |entry|
+            id = entry[:id] || entry["id"]
+            changes = (entry[:changes] || entry["changes"])&.to_unsafe_h || {}
+            next if id.blank? || changes.blank?
+
+            # Filter to valid columns
+            filtered = changes.select { |k, _| valid_columns.include?(k.to_s) }
+            next if filtered.blank?
+
+            # Auto-convert lookup IDs to string values where needed
+            filtered = convert_lookup_ids_to_strings(model, filtered)
+
+            record = model.find_by(id: id)
+            if record
+              # Handle belongs_to lookup columns
+              filtered.each do |col_name, val|
+                if model.reflect_on_association(col_name.to_sym)&.macro == :belongs_to
+                  record.write_attribute(col_name, val)
+                  filtered = filtered.except(col_name)
+                end
+              end
+
+              record.assign_attributes(filtered) if filtered.any?
+
+              if record.save
+                updated_count += 1
+              else
+                errors << { id: id, errors: record.errors.full_messages }
+              end
+            else
+              errors << { id: id, errors: ["Record not found"] }
+            end
+          end
+        end
+
+        render json: {
+          success: errors.empty?,
+          updated_count: updated_count,
+          total_requested: batch.size,
           errors: errors
         }
       rescue => e
@@ -961,12 +1154,13 @@ module Api
         records = query.limit(50_000).to_a
 
         # Get column definitions for headers
+        # FRC (Feb 2026): Ruby select/sort on eager-loaded columns (avoids N+1)
         columns = if @foundation.table_type == "system"
-          @foundation.columns.where(visible: true).order(:position).map do |col|
+          @foundation.columns.select(&:visible).sort_by(&:position).map do |col|
             { name: col.column_name, label: col.display_name || col.column_name.titleize }
           end
         else
-          @foundation.columns.order(:position).map do |col|
+          @foundation.columns.sort_by(&:position).map do |col|
             { name: col.column_name, label: col.display_name || col.column_name.titleize }
           end
         end
@@ -984,6 +1178,44 @@ module Api
       end
 
       private
+
+      # FRC (Feb 2026): Resolve virtual column filters for purchase_orders
+      # Virtual columns (stage_from_task, etc.) are Ruby methods, not DB columns.
+      # Translate filters on these to subqueries on sm_task_id.
+      def resolve_po_virtual_filter(column, operator, value)
+        case column
+        when "po_task_name"
+          # FK substitution: filter on sm_task_id directly
+          quoted = "purchase_orders.sm_task_id"
+          case operator
+          when "=", "equals" then ["#{quoted} = ?", value]
+          when "is_null" then ["#{quoted} IS NULL"]
+          end
+        when "stage_from_task"
+          resolve_sm_task_join_filter("stage", operator, value)
+        when "trade_from_task"
+          resolve_sm_task_join_filter("trade", operator, value)
+        when "cost_centre_from_task"
+          resolve_sm_task_join_filter("cost_centre", operator, value)
+        end
+      end
+
+      # Translate a virtual column filter that goes through sm_tasks
+      # Uses SQL subquery (not array binding) to avoid flat_map breaking bind variables
+      # when the records controller combines filter conditions via string join.
+      def resolve_sm_task_join_filter(sm_task_column, operator, value)
+        conn = ActiveRecord::Base.connection
+        quoted_col = conn.quote_column_name(sm_task_column)
+        subquery = "SELECT id FROM sm_tasks WHERE #{quoted_col} = ?"
+
+        case operator
+        when "=", "equals"
+          ["purchase_orders.sm_task_id IN (#{subquery})", value]
+        when "is_null"
+          not_null_subquery = "SELECT id FROM sm_tasks WHERE #{quoted_col} IS NOT NULL"
+          ["purchase_orders.sm_task_id IS NULL OR purchase_orders.sm_task_id NOT IN (#{not_null_subquery})"]
+        end
+      end
 
       # Check if a contact has any related records that would require soft delete
       def contact_has_records?(contact)
@@ -1051,6 +1283,17 @@ module Api
         model = @foundation.dynamic_model
         permitted = convert_lookup_ids_to_strings(model, permitted.to_h).with_indifferent_access
 
+        # FRC (Feb 2026): Filter to only include attributes the model can accept.
+        # Prevents ActiveModel::UnknownAttributeError when a Foundation column name (e.g., "status")
+        # does not exist as a DB column or virtual attribute setter on the underlying model.
+        # Root cause: Foundation column config in admin UI can diverge from the actual DB schema.
+        # Fix: Intersect permitted params with model.column_names + defined setter methods.
+        # Sentry error: TEEEM-BACKEND-19 "unknown attribute 'status' for Contact."
+        model_column_names = model.column_names.to_set
+        permitted = permitted.select { |k, _|
+          model_column_names.include?(k.to_s) || model.method_defined?("#{k}=")
+        }
+
         permitted
       end
 
@@ -1062,8 +1305,8 @@ module Api
 
         result = updates.dup
 
-        # Get lookup columns for this foundation
-        lookup_columns = @foundation.columns.where(column_type: "lookup")
+        # Get lookup columns for this foundation (Ruby select on eager-loaded columns)
+        lookup_columns = @foundation.columns.select { |c| c.column_type == "lookup" }
 
         lookup_columns.each do |col|
           col_name = col.column_name
@@ -1159,7 +1402,10 @@ module Api
           # e.g., job_type_id => { id: 1, display: "Residential" }
           # IMPORTANT: Only expand _id columns that were actually loaded
           # Build column config lookup for _id columns that have lookup_display_column configured
-          foundation_columns_by_name = @foundation.columns.where(column_type: %w[lookup multiple_lookups]).index_by(&:column_name)
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL query)
+          foundation_columns_by_name = @foundation.columns
+            .select { |c| %w[lookup multiple_lookups].include?(c.column_type) }
+            .index_by(&:column_name)
           loaded_id_columns = loaded_columns.select { |k| k.to_s.end_with?("_id") && k != "id" }
           loaded_id_columns.each do |id_column|
             # Skip if the _id column wasn't loaded or has no value
@@ -1207,7 +1453,8 @@ module Api
           end
 
           # Expand multiple_lookups columns for system tables (e.g., roles)
-          @foundation.columns.where(column_type: "multiple_lookups").each do |column|
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1)
+          @foundation.columns.select { |c| c.column_type == "multiple_lookups" }.each do |column|
             value = json[column.column_name]
             next if value.blank?
 
@@ -1247,7 +1494,8 @@ module Api
 
           # Expand lookup columns for system tables (e.g., header in sm_schedule_master)
           # This handles lookup columns that don't follow the _id naming convention
-          @foundation.columns.where(column_type: "lookup").each do |column|
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1)
+          @foundation.columns.select { |c| c.column_type == "lookup" }.each do |column|
             value = json[column.column_name]
             next if value.blank?
             # Skip if already expanded (e.g., _id columns handled by association lookup above)
@@ -1318,11 +1566,25 @@ module Api
           # - po_task_name: task name (PurchaseOrder.sm_task_id is THE link)
           # - stage_from_task: stage name from task->schedule_master->sm_stages
           # - trade_from_task: trade name from task->schedule_master->sm_trades
+          # SSoT: PurchaseOrder virtual columns returned as lookup-like objects { id:, display: }
+          # This ensures client-side grouping uses FK IDs as keys (matching server group keys)
+          # Without this, server groups by FK ID but client groups by text → key mismatch → duplicate groups
           if record.class.name == "PurchaseOrder"
             json[:required_date] = record.effective_required_date
-            json[:po_task_name] = record.po_task_name
-            json[:stage_from_task] = record.stage_from_task
-            json[:trade_from_task] = record.trade_from_task
+            task = record.sm_task
+            json[:po_task_name] = task ? { id: task.id, display: task.name } : nil
+            if task
+              stage_id = task.stage
+              trade_id = task.trade
+              cc_id = task.cost_centre
+              # Use pre-fetched caches to avoid N+1 (set in index action)
+              stage = stage_id ? @sm_stages_cache&.dig(stage_id) : nil
+              trade = trade_id ? @sm_trades_cache&.dig(trade_id) : nil
+              cc = cc_id ? @cost_centres_cache&.dig(cc_id) : nil
+              json[:stage_from_task] = stage ? { id: stage.id, display: stage.name } : nil
+              json[:trade_from_task] = trade ? { id: trade.id, display: trade.name } : nil
+              json[:cost_centre_from_task] = cc ? { id: cc.id, display: "#{cc.code} - #{cc.name}" } : nil
+            end
           end
 
           # SSoT: Job client_name comes from job_contacts where role='client'
@@ -1428,12 +1690,25 @@ module Api
           end
         end
 
+        # SSoT: CostCentre PO counts per template from pre-fetched cache
+        if record.class.name == "CostCentre" && @po_counts_by_template_cache
+          template_counts = @po_counts_by_template_cache.dig(record.id) || {}
+          (@po_template_names || []).each do |tname|
+            col_key = "po_count_#{tname.parameterize(separator: '_')}"
+            json[col_key] = template_counts[tname] || 0
+          end
+        end
+
         json
       end
 
       def build_lookup_cache(records)
         # Preload all lookup data to prevent N+1 queries
-        lookup_columns = @foundation.columns.where(column_type: "lookup").includes(:lookup_foundation)
+        # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1).
+        # Note: lookup_foundation is accessed below but not eager-loaded via includes(:columns)
+        # in set_foundation. The .includes(:lookup_foundation) would fire a query anyway,
+        # so we pre-filter in Ruby and let Rails lazy-load only the lookup_foundation association.
+        lookup_columns = @foundation.columns.select { |c| c.column_type == "lookup" }
         lookup_cache = {}
 
         lookup_columns.each do |column|
@@ -1538,7 +1813,7 @@ module Api
         # Associations to skip globally (heavy or problematic)
         skip_associations = [
           :po_supplier,       # Contact model with 81+ associations - load lazily
-          :photo_entity_tab   # WarehouseFolder has recursive parent/children
+          :warehouse_folder   # WarehouseFolder has recursive parent/children
         ]
 
         model.reflect_on_all_associations(:belongs_to).each do |reflection|
@@ -1555,6 +1830,17 @@ module Api
         # Job: Need job_contacts with contact for client_name
         if model == Job
           associations << { job_contacts: :contact }
+        end
+
+        # PurchaseOrder: Eager load associations for as_json virtual methods
+        # FRC (Feb 2026): Without this, sm_task.sm_schedule_master and lookup refs
+        # (stage, trade, cost_centre, tender) trigger N+1 queries per PO row
+        if model == PurchaseOrder
+          associations << { line_items: :profit_centre }
+          associations << { sm_task: [
+            { sm_schedule_master: [:sm_stage_ref, :sm_trade_ref, :cost_centre_ref, :tender] },
+            :sm_stage_ref, :sm_trade_ref, :cost_centre_ref, :tender
+          ] }
         end
 
         # Apply eager loading if we found associations
@@ -1585,7 +1871,8 @@ module Api
         # Apply search
         search = params[:search]
         if search.present?
-          searchable_columns = @foundation.columns.where(searchable: true).pluck(:column_name)
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL query)
+          searchable_columns = @foundation.columns.select(&:searchable).map(&:column_name)
           searchable_columns = model.column_names.select { |c| [:string, :text].include?(model.columns_hash[c]&.type) } if searchable_columns.empty?
 
           if searchable_columns.any?
@@ -1632,9 +1919,19 @@ module Api
                 when "contains"
                   ["#{quoted_column} ILIKE ?", "%#{value}%"]
                 when "is_empty"
-                  ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
+                  db_col_type = model.columns_hash[column]&.type
+                  if %i[integer bigint decimal float boolean].include?(db_col_type)
+                    ["#{quoted_column} IS NULL"]
+                  else
+                    ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
+                  end
                 when "is_not_empty"
-                  ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                  db_col_type = model.columns_hash[column]&.type
+                  if %i[integer bigint decimal float boolean].include?(db_col_type)
+                    ["#{quoted_column} IS NOT NULL"]
+                  else
+                    ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                  end
                 else
                   nil
                 end
@@ -1670,8 +1967,16 @@ module Api
           else
             @foundation.columns.pluck(:column_name)
           end
-          if valid_columns.include?(sort_by)
-            query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(sort_by)} #{sort_direction}"))
+          if valid_columns.include?(sort_by) && model.column_names.include?(sort_by)
+            quoted_col = ActiveRecord::Base.connection.quote_column_name(sort_by)
+            col_type = model.columns_hash[sort_by]&.type
+            if col_type == :string || col_type == :text
+              query = query.order(
+                Arel.sql("(CASE WHEN #{quoted_col} ~ '^[0-9]+' THEN LPAD(regexp_replace(#{quoted_col}, '[^0-9].*', '', 'g'), 20, '0') ELSE #{quoted_col} END) #{sort_direction}, #{quoted_col} #{sort_direction}")
+              )
+            else
+              query = query.order(Arel.sql("#{quoted_col} #{sort_direction}"))
+            end
           else
             query = query.order(created_at: :desc)
           end

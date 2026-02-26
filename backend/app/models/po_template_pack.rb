@@ -8,6 +8,7 @@ class PoTemplatePack < ApplicationRecord
   # Associations
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
+  belongs_to :sm_schedule_master_template, optional: true
   has_many :po_template_items, -> { order(:position) }, dependent: :destroy
 
   accepts_nested_attributes_for :po_template_items, allow_destroy: true

@@ -19,7 +19,10 @@ module Bpmn
         request = find_request
 
         unless request
-          raise "E-signature request not found"
+          # PermanentError: missing request won't reappear on retry.
+          # Common cause: request was deleted or table was cleared.
+          raise PermanentError, "E-signature request not found (may have been deleted). " \
+            "Check e_signature_requests table for request referenced in process variables."
         end
 
         log_info("Checking e-signature status for #{request.request_number}: #{request.status}")
@@ -33,7 +36,7 @@ module Bpmn
           handle_expired(request)
         when "cancelled"
           handle_cancelled(request)
-        when "sent", "in_progress"
+        when "draft", "sent", "in_progress"
           handle_waiting(request)
         else
           raise "Unknown request status: #{request.status}"

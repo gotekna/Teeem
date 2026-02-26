@@ -16,9 +16,22 @@ class ProcessNewTaskEmailsJob < ApplicationJob
   # Processes newtask@ mailbox every 5 min - not latency-critical
   queue_as :low
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: SyncedEmail has acts_as_tenant. Without tenant context,
+  # TenantSetting.monitored_mailbox_newtask returns nil and SyncedEmail
+  # queries return nothing. Job silently did nothing for multi-tenant setups.
   def perform
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        process_tenant_emails
+      end
+    end
+  end
+
+  def process_tenant_emails
     # SSoT: Get the monitored mailbox from configuration
     newtask_address = TenantSetting.monitored_mailbox_newtask
+    return if newtask_address.blank?
 
     # Find emails sent to the monitored mailbox that haven't been processed
     # A processed email has an SmTaskAttachment with the "Source email" notes
@@ -30,7 +43,7 @@ class ProcessNewTaskEmailsJob < ApplicationJob
 
     return if new_task_emails.empty?
 
-    Rails.logger.info "[ProcessNewTaskEmails] Found #{new_task_emails.count} emails to process"
+    Rails.logger.info "[ProcessNewTaskEmails] Found #{new_task_emails.count} emails to process for #{ActsAsTenant.current_tenant.name}"
 
     new_task_emails.each do |email|
       process_email(email)

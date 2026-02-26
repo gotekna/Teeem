@@ -905,6 +905,47 @@ module Api
         render_error("Failed to send email: #{e.message}", status: :internal_server_error)
       end
 
+      # GET /api/v1/purchase_orders/template_export?variant=classic
+      # Export a PO template variant as a rendered A4 HTML file for Figma workflow
+      # Renders with sample data at A4 proportions so designer sees the actual PDF layout,
+      # with a merge fields reference comment for re-adding dynamic tags after redesign
+      def template_export
+        variant = params[:variant] || TenantSetting.po_template_variant
+        valid_variants = %w[classic modern bold compact professional construction custom]
+        unless valid_variants.include?(variant)
+          return render json: { error: "Invalid variant: #{variant}" }, status: :bad_request
+        end
+
+        settings = TenantSetting.instance
+        sample_context = build_sample_context_for_export(settings, variant)
+        renderer = TeknaTemplateRenderer.new
+
+        # Render the template content with sample data (no layout yet)
+        if variant == "custom"
+          custom_html = TenantSetting.po_custom_template
+          unless custom_html.present?
+            return render json: { error: "No custom template saved" }, status: :not_found
+          end
+          template_content = renderer.render_from_string(
+            template_string: custom_html,
+            locals: sample_context
+          )
+        else
+          template_content = renderer.render(
+            template_path: "templates/purchase_order",
+            locals: sample_context
+          )
+        end
+
+        # Wrap in A4 export layout with merge fields comment
+        merge_fields_comment = build_merge_fields_comment(variant)
+        html = build_a4_export_html(template_content, merge_fields_comment, variant)
+
+        filename = "po-template-#{variant}.html"
+        response.headers["Content-Disposition"] = "attachment; filename=\"#{filename}\""
+        render html: html.html_safe, content_type: "text/html"
+      end
+
       # GET /api/v1/purchase_orders/template_variants
       # List all available PO template variants with names/descriptions
       def template_variants
@@ -921,13 +962,107 @@ module Api
       end
 
       # GET /api/v1/purchase_orders/template_preview?variant=modern
-      # HTML preview using rich sample data to showcase the template design
+      # HTML preview using rich sample data or real PO data to showcase the template design
+      # Optional params:
+      #   purchase_order_id - use a real PO for preview (with variant override)
+      #   job_id - pick first PO from this job for preview
       def template_preview
         variant = params[:variant] || "classic"
         valid_variants = %w[classic modern bold compact professional construction]
         variant = "classic" unless valid_variants.include?(variant)
 
-        render html: build_sample_po_preview(variant).html_safe
+        # Try to find a real PO for live preview
+        po = nil
+        if params[:purchase_order_id].present?
+          po = PurchaseOrder.includes(:line_items, :supplier, :job, :sm_task).find_by(id: params[:purchase_order_id])
+        elsif params[:job_id].present?
+          po = PurchaseOrder.includes(:line_items, :supplier, :job, :sm_task)
+                            .where(job_id: params[:job_id])
+                            .where.not(status: "cancelled")
+                            .order(created_at: :desc)
+                            .first
+        end
+
+        if po
+          # Render real PO with preview layout (lightweight, no A4 sizing or branded header/footer)
+          generator = TeknaDocumentGenerator.new(:purchase_order)
+          html = generator.preview_html(
+            purchase_order: po,
+            extra_data: { po_template_variant: variant }
+          )
+          render html: html.html_safe
+        else
+          render html: build_sample_po_preview(variant).html_safe
+        end
+      end
+
+      # GET /api/v1/purchase_orders/for_job?job_id=123
+      # Returns POs for a job (for template preview selector)
+      def for_job
+        return render json: { success: true, data: [] } unless params[:job_id].present?
+
+        pos = PurchaseOrder.where(job_id: params[:job_id])
+                           .where.not(status: "cancelled")
+                           .order(created_at: :desc)
+                           .limit(50)
+                           .select(:id, :purchase_order_number, :description, :status, :created_at)
+
+        render json: {
+          success: true,
+          data: pos.map { |po| {
+            id: po.id,
+            purchase_order_number: po.purchase_order_number,
+            description: po.description,
+            status: po.status
+          }}
+        }
+      end
+
+      # GET /api/v1/purchase_orders/supplier_coverage_gaps?job_id=123
+      # Returns which POs have items not supplied by their selected supplier
+      # Efficient batch query: 3 queries total regardless of PO count
+      def supplier_coverage_gaps
+        job_id = params[:job_id]
+        return render json: { success: false, error: "job_id required" }, status: :unprocessable_entity unless job_id.present?
+
+        today = TenantSetting.today
+
+        # 1. Get all POs for this job that have a supplier, with their line items
+        pos = PurchaseOrder.where(job_id: job_id)
+          .where.not(supplier_id: nil)
+          .includes(line_items: :pricebook_item)
+
+        # 2. Collect all (supplier_id, pricebook_item_id) pairs we need to check
+        supplier_item_pairs = {}
+        pos.each do |po|
+          pb_ids = po.line_items.filter_map(&:pricebook_item_id)
+          next if pb_ids.empty?
+          supplier_item_pairs[po.id] = { supplier_id: po.supplier_id, pricebook_item_ids: pb_ids }
+        end
+
+        # 3. Batch-fetch all relevant price histories in one query
+        all_supplier_ids = supplier_item_pairs.values.map { |v| v[:supplier_id] }.uniq
+        all_pb_item_ids = supplier_item_pairs.values.flat_map { |v| v[:pricebook_item_ids] }.uniq
+
+        # Get which (supplier_id, pricebook_item_id) combinations have active prices
+        supplied_pairs = PriceHistory
+          .where(supplier_id: all_supplier_ids, pricebook_item_id: all_pb_item_ids)
+          .where("date_effective IS NULL OR date_effective <= ?", today)
+          .where("new_price IS NOT NULL AND new_price > 0")
+          .distinct
+          .pluck(:supplier_id, :pricebook_item_id)
+          .to_set
+
+        # 4. Compute coverage for each PO
+        gaps = {}
+        supplier_item_pairs.each do |po_id, data|
+          total = data[:pricebook_item_ids].length
+          covered = data[:pricebook_item_ids].count { |pb_id| supplied_pairs.include?([data[:supplier_id], pb_id]) }
+          next if covered >= total  # No gap - skip
+          gaps[po_id] = { covered: covered, total: total }
+        end
+
+        render json: { success: true, gaps: gaps }
       end
 
       private
@@ -1053,6 +1188,227 @@ module Api
         }
       end
 
+      # Build context with {{placeholder}} labels instead of sample data.
+      # Each placeholder shows the exact TEEEM field path so the designer/developer
+      # knows what dynamic content goes where and what ERB tag to use.
+      def build_sample_context_for_export(settings, variant)
+        {
+          purchase_order: {
+            purchase_order_number: "{{purchase_order.purchase_order_number}}",
+            status: "{{purchase_order.status}}",
+            description: "{{purchase_order.description}}",
+            required_date: "{{purchase_order.required_date}}",
+            required_on_site_date: "{{purchase_order.required_on_site_date}}",
+            ordered_date: "{{purchase_order.ordered_date}}",
+            expected_delivery_date: "{{purchase_order.expected_delivery_date}}",
+            created_at: "{{purchase_order.created_at}}",
+            delivery_address: "{{purchase_order.delivery_address}}",
+            special_instructions: "{{purchase_order.special_instructions}}",
+            subtotal: "{{purchase_order.subtotal}}",
+            subtotal_raw: 0,
+            gst: "{{purchase_order.gst}}",
+            gst_raw: 0,
+            total: "{{purchase_order.total}}",
+            total_raw: 0,
+            budget: "{{purchase_order.budget}}",
+            supplier: {
+              name: "{{supplier.name}}",
+              email: "{{supplier.email}}",
+              phone: "{{supplier.phone}}",
+              address: "{{supplier.address}}",
+              payment_terms_days: 7
+            },
+            site_supervisor: {
+              name: "{{supervisor.name}}",
+              phone: "{{supervisor.phone}}",
+              email: "{{supervisor.email}}"
+            },
+            line_items: [
+              { description: "{{item.description}}", quantity: "{{item.qty}}", unit_price: 0, total: 0, total_formatted: "{{item.total}}", unit_price_formatted: "{{item.rate}}", gst_code: "{{item.tax}}", colour: "{{item.colour}}", colour_code: "{{item.colour_code}}", colour_brand: nil, pricebook_code: "{{item.code}}" },
+              { description: "{{item.description}}", quantity: "{{item.qty}}", unit_price: 0, total: 0, total_formatted: "{{item.total}}", unit_price_formatted: "{{item.rate}}", gst_code: "{{item.tax}}", colour: "{{item.colour}}", colour_code: "{{item.colour_code}}", colour_brand: nil, pricebook_code: "{{item.code}}" },
+              { description: "{{item.description}}", quantity: "{{item.qty}}", unit_price: 0, total: 0, total_formatted: "{{item.total}}", unit_price_formatted: "{{item.rate}}", gst_code: "{{item.tax}}", colour: "{{item.colour}}", colour_code: "{{item.colour_code}}", colour_brand: nil, pricebook_code: "{{item.code}}" },
+            ],
+            line_items_count: 3,
+            ted_task: "{{purchase_order.task_name}}"
+          },
+          job: {
+            name: "{{job.name}}",
+            full_address: "{{job.full_address}}",
+            job_code: "{{job.job_code}}",
+            suburb: "{{job.suburb}}",
+            state: "{{job.state}}",
+            postcode: "{{job.postcode}}",
+            contract_value: "{{job.contract_value}}",
+            contract_value_raw: 0,
+            lot_number: "{{job.lot_number}}",
+            plan_number: "{{job.plan_number}}"
+          },
+          company: {
+            name: "{{company.name}}",
+            company_name: "{{company.name}}",
+            abn: "{{company.abn}}",
+            abn_formatted: "{{company.abn}}",
+            qbcc: "{{company.qbcc}}",
+            qbcc_license: "{{company.qbcc}}",
+            email: "{{company.email}}",
+            phone: "{{company.phone}}",
+            phone_formatted: "{{company.phone}}",
+            address: "{{company.address}}",
+            address_line_1: "{{company.address}}",
+            suburb: "",
+            state: "",
+            postcode: "",
+            full_address: "{{company.full_address}}",
+            logo_url: settings.logo_url,
+            header_line: "{{company.name}} | ABN {{company.abn}} | QBCC {{company.qbcc}}",
+            footer_line: "{{company.phone}} | {{company.email}}"
+          },
+          colour_selections: {
+            grouped: {},
+            flat_list: [
+              { item: "walls", colour: "{{colour.name}}", brand: "{{colour.brand}}" },
+              { item: "roof", colour: "{{colour.name}}", brand: "{{colour.brand}}" },
+            ],
+            formatted_string: "",
+            has_selections: true
+          },
+          po_template_variant: variant,
+          generated_date: "{{generated_date}}",
+          generated_date_long: "{{generated_date_long}}",
+          current_year: Date.current.year.to_s,
+          document_title: "Purchase Order",
+          is_qbcc_document: false
+        }
+      end
+
+      def build_a4_export_html(template_content, merge_fields_comment, variant)
+        # The PDF renderer (Grover/Puppeteer) sets viewport to exactly 210mm.
+        # Template CSS uses width:100% which resolves against the viewport.
+        # To replicate: set BODY itself to 210mm (not a wrapper div).
+        # This way all child width:100% resolves to 210mm — identical to PDF.
+        <<~HTML
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>PO Template: #{variant.titleize} (A4 Export)</title>
+            <style>
+              *, *::before, *::after { box-sizing: border-box; }
+              html { background: #e5e5e5; margin: 0; padding: 0; }
+              body {
+                width: 210mm;
+                min-height: 297mm;
+                margin: 40px auto;
+                padding: 10px;
+                background: white;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                font-family: Arial, sans-serif;
+                overflow: hidden;
+              }
+              img { max-width: 100%; height: auto; }
+              @media print {
+                html { background: white; }
+                body { margin: 0; box-shadow: none; width: 100%; }
+              }
+            </style>
+          </head>
+          <body>
+          #{merge_fields_comment}
+          #{template_content}
+          </body>
+          </html>
+        HTML
+      end
+
+      def build_merge_fields_comment(variant)
+        <<~COMMENT
+        <!--
+        ═══════════════════════════════════════════════════════════════════
+        TEEEM Purchase Order Template — #{variant.titleize} variant
+        Exported #{Date.current.strftime("%d %B %Y")}
+        ═══════════════════════════════════════════════════════════════════
+
+        HOW TO USE THIS FILE:
+        1. Open in browser — {{placeholders}} show where dynamic data goes
+        2. Redesign in Figma using this as your visual reference
+        3. Export your Figma design as HTML
+        4. Replace each {{placeholder}} with the ERB tag from the table below
+        5. Import back into TEEEM: Settings > Documents > PO Templates > Import
+
+        PLACEHOLDER → ERB TAG MAPPING
+        ──────────────────────────────
+        In your final HTML, replace each {{placeholder}} with the ERB tag.
+
+        PURCHASE ORDER:
+          {{purchase_order.purchase_order_number}}  →  <%%= purchase_order[:purchase_order_number] %>
+          {{purchase_order.status}}                 →  <%%= purchase_order[:status] %>
+          {{purchase_order.description}}            →  <%%= purchase_order[:description] %>
+          {{purchase_order.required_date}}          →  <%%= purchase_order[:required_date] %>
+          {{purchase_order.ordered_date}}           →  <%%= purchase_order[:ordered_date] %>
+          {{purchase_order.expected_delivery_date}} →  <%%= purchase_order[:expected_delivery_date] %>
+          {{purchase_order.delivery_address}}       →  <%%= purchase_order[:delivery_address] %>
+          {{purchase_order.special_instructions}}   →  <%%= purchase_order[:special_instructions] %>
+          {{purchase_order.subtotal}}               →  <%%= purchase_order[:subtotal] %>
+          {{purchase_order.gst}}                    →  <%%= purchase_order[:gst] %>
+          {{purchase_order.total}}                  →  <%%= purchase_order[:total] %>
+          {{purchase_order.budget}}                 →  <%%= purchase_order[:budget] %>
+          {{purchase_order.task_name}}              →  <%%= purchase_order[:ted_task] %>
+
+        SUPPLIER:
+          {{supplier.name}}     →  <%%= purchase_order[:supplier][:name] %>
+          {{supplier.email}}    →  <%%= purchase_order[:supplier][:email] %>
+          {{supplier.phone}}    →  <%%= purchase_order[:supplier][:phone] %>
+          {{supplier.address}}  →  <%%= purchase_order[:supplier][:address] %>
+
+        SITE SUPERVISOR:
+          {{supervisor.name}}   →  <%%= purchase_order[:site_supervisor][:name] %>
+          {{supervisor.email}}  →  <%%= purchase_order[:site_supervisor][:email] %>
+          {{supervisor.phone}}  →  <%%= purchase_order[:site_supervisor][:phone] %>
+
+        LINE ITEMS (repeating rows — wrap in loop):
+          Start loop:  <%%  purchase_order[:line_items].each do |item| %>
+          {{item.description}}  →  <%%= item[:description] %>
+          {{item.qty}}          →  <%%= item[:quantity] %>
+          {{item.rate}}         →  <%%= item[:unit_price_formatted] %>
+          {{item.total}}        →  <%%= item[:total_formatted] %>
+          {{item.tax}}          →  <%%= item[:gst_code] %>
+          {{item.code}}         →  <%%= item[:pricebook_code] %>
+          {{item.colour}}       →  <%%= item[:colour] %>
+          {{item.colour_code}}  →  <%%= item[:colour_code] %>
+          End loop:    <%%  end %>
+
+        COMPANY:
+          {{company.name}}          →  <%%= company[:company_name] %>
+          {{company.abn}}           →  <%%= company[:abn_formatted] %>
+          {{company.qbcc}}          →  <%%= company[:qbcc_license] %>
+          {{company.email}}         →  <%%= company[:email] %>
+          {{company.phone}}         →  <%%= company[:phone] %>
+          {{company.full_address}}  →  <%%= company[:full_address] %>
+          {{company.logo_url}}      →  <%%= company[:logo_url] %>  (use in <img src="...">)
+
+        JOB:
+          {{job.name}}          →  <%%= job[:name] %>
+          {{job.job_code}}      →  <%%= job[:job_code] %>
+          {{job.full_address}}  →  <%%= job[:full_address] %>
+          {{job.suburb}}        →  <%%= job[:suburb] %>
+          {{job.state}}         →  <%%= job[:state] %>
+          {{job.postcode}}      →  <%%= job[:postcode] %>
+          {{job.lot_number}}    →  <%%= job[:lot_number] %>
+          {{job.plan_number}}   →  <%%= job[:plan_number] %>
+
+        COLOUR SELECTIONS (repeating — wrap in loop):
+          Start:  <%%  if defined?(colour_selections) && colour_selections[:has_selections] %>
+                  <%%  colour_selections[:flat_list].each do |selection| %>
+          {{colour.name}}   →  <%%= selection[:colour] %>
+          {{colour.brand}}  →  <%%= selection[:brand] %>
+          End:    <%%  end %>
+                  <%%  end %>
+
+        ═══════════════════════════════════════════════════════════════════
+        -->
+        COMMENT
+      end
+
       def build_po_filename(job_name, po_number, task_name)
         safe_job = (job_name || "Job").gsub(/[^a-zA-Z0-9\s\-]/, "").strip[0..40]
         safe_po = (po_number || "PO").gsub(/[^a-zA-Z0-9\-]/, "")
@@ -1063,9 +1419,11 @@ module Api
 
       def set_purchase_order
         @purchase_order = PurchaseOrder.includes(
-          { line_items: { pricebook_item: :default_supplier } },
+          { line_items: [:profit_centre, { pricebook_item: :default_supplier }] },
           :supplier,
-          :job
+          { job: { job_contacts: :user } },
+          :document_tasks,
+          { sm_task: :sm_schedule_master }
         ).find_by_slug(params[:id])
         raise ActiveRecord::RecordNotFound unless @purchase_order
       end

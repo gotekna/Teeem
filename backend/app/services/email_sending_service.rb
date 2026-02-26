@@ -300,6 +300,8 @@ class EmailSendingService
       message_id: mail.message_id,
       data: { to: mail.to, subject: mail.subject }
     )
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    raise AuthenticationError, "Cannot decrypt IMAP credentials - encryption keys may not match this database"
   end
 
   # DEPRECATED: Personal Outlook sending has been removed

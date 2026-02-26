@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "anthropic"
+
 # Configure Anthropic client globally
 # This ensures the API key is always available and validates it at boot time
 #

@@ -11,13 +11,16 @@
 #   - Preserves folder structure in backup storage
 #
 class TenantDocumentBackupJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Maximum files per batch to avoid timeout
   BATCH_SIZE = 100
 
   def perform(tenant_id, options = {})
-    @tenant = Tenant.find(tenant_id)
+    # FRC (Feb 2026): Tenant.find inside acts_as_tenant scope adds WHERE "tenants"."true"
+    # because Tenant model itself is scoped. Use without_tenant to avoid the bogus column.
+    @tenant = ActsAsTenant.without_tenant { Tenant.find(tenant_id) }
     @tenant_slug = @tenant.slug
     @incremental = options.fetch(:incremental, true)
     @since = options[:since]

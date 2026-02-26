@@ -189,7 +189,9 @@ module Api
           :start_workflow,
           :complete_workflow,
           :sm_task_group,
+          :completion_document_type,
           :related_po_tasks,
+          :created_by,
           { sm_schedule_master_document_types: :document_type }
         ]
       end
@@ -253,7 +255,7 @@ module Api
         params.require(:row).permit(
           :name, :description, :task_number, :sequence_order,
           :duration_days,
-          :trade, :stage, :header_gantt, :assigned_role, :cost_centre,
+          :trade, :stage, :header_gantt, :assigned_role, :cost_centre, :tender_id,
           :checklist_id,
           :require_photo, :confirm,
           :po_required, :critical_po, :create_po_on_job_start, :po_supplier_id,
@@ -290,7 +292,10 @@ module Api
           # PO line items with quantities
           po_line_items: [ :pricebook_item_id, :qty ],
           # Document types for GET task spawning
-          sm_schedule_master_document_types_attributes: [ :id, :document_type_id, :lag_days, :assigned_role, :_destroy ]
+          sm_schedule_master_document_types_attributes: [ :id, :document_type_id, :lag_days, :assigned_role, :_destroy ],
+          # Plan and document reference types (JSONB arrays)
+          plan_type_ids: [],
+          document_ref_type_ids: []
         )
       end
 
@@ -298,7 +303,7 @@ module Api
         data.permit(
           :name, :description, :task_number, :sequence_order,
           :duration_days,
-          :trade, :stage, :header_gantt, :assigned_role,
+          :trade, :stage, :header_gantt, :assigned_role, :tender_id,
           :require_photo, :confirm,
           :po_required, :critical_po,
           :has_subtasks, :subtask_count,
@@ -343,6 +348,7 @@ module Api
           header_gantt: header_value,
           allow_header: row.allow_header,  # SSoT: Needed for Gantt V2 header bar rendering
           cost_centre: cost_centre_value,
+          tender_id: row.tender_id,
           assigned_role: role_value,
           checklist_id: row.checklist_id,
           require_photo: row.require_photo,
@@ -389,6 +395,11 @@ module Api
           },
           tags: row.tags,
           color: row.color,
+          # Plan and document reference types (JSONB arrays of document_type IDs)
+          plan_type_ids: row.plan_type_ids || [],
+          plan_type_names: plan_type_names_for(row),
+          document_ref_type_ids: row.document_ref_type_ids || [],
+          document_ref_type_names: document_ref_type_names_for(row),
           is_active: row.is_active,
           # Task group for PO/non-PO grouping
           sm_task_group_id: row.sm_task_group_id,
@@ -419,7 +430,7 @@ module Api
           # Broken dependency tracking - for restore in dependency editor
           predecessor_ids_backup: row.predecessor_ids_backup || [],
           dependency_broken_at: row.dependency_broken_at,
-          dependency_broken_by: row.dependency_broken_by_id.present? ? User.find_by(id: row.dependency_broken_by_id)&.name : nil,
+          dependency_broken_by: row.dependency_broken_by_id.present? ? users_map[row.dependency_broken_by_id] : nil,
           created_at: row.created_at,
           updated_at: row.updated_at
         }
@@ -488,6 +499,12 @@ module Api
         end
       end
 
+      # SSoT: Load users lookup map (ID => name)
+      # Memoized per request to avoid N+1 queries (e.g., dependency_broken_by)
+      def users_map
+        @users_map ||= User.pluck(:id, :name).to_h
+      end
+
       # SSoT: Load header lookup map (ID => name) - self-reference to sm_schedule_master
       # Headers are tasks that act as group parents for other tasks
       # PERFORMANCE: Only load rows from this template, not ALL schedule master rows
@@ -495,6 +512,26 @@ module Api
       # Memoized per request to avoid N+1 queries
       def header_map
         @header_map ||= @template.sm_schedule_master_rows.pluck(:id, :name).to_h
+      end
+
+      # SSoT: Resolve plan type IDs to names via DocumentType
+      # Memoized per request to avoid N+1 (batch all IDs across rows)
+      def plan_type_names_for(row)
+        ids = row.plan_type_ids || []
+        return [] if ids.empty?
+        ids.map { |id| document_type_names_map[id] }.compact
+      end
+
+      # SSoT: Resolve document reference type IDs to names via DocumentType
+      def document_ref_type_names_for(row)
+        ids = row.document_ref_type_ids || []
+        return [] if ids.empty?
+        ids.map { |id| document_type_names_map[id] }.compact
+      end
+
+      # SSoT: DocumentType ID → name map (memoized per request)
+      def document_type_names_map
+        @document_type_names_map ||= DocumentType.pluck(:id, :name).to_h
       end
     end
   end

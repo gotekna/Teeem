@@ -34,6 +34,10 @@ import {
   FileStack,
   ChevronRight,
   ClipboardList,
+  CheckCircle2,
+  AlertTriangle,
+  Minus,
+  Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -43,7 +47,25 @@ import {
   type BOQGroup,
   type BOQSavePayload,
 } from "@/components/ui/bill-of-quantities";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { formatCurrency } from "@/utils/formatters";
+
+// Lookup types for inline editing
+interface SmMasterRow {
+  id: number;
+  name: string;
+}
+
+interface SupplierOption {
+  id: number;
+  displayName: string;
+}
+
+interface ProfitCentreOption {
+  id: number;
+  code: string;
+  name: string;
+}
 
 // Types matching backend JSON response
 interface TemplateLineItem {
@@ -66,6 +88,8 @@ interface TemplateItem {
   tradeName: string | null;
   stageName: string | null;
   stagePosition: number | null;
+  profitCentreId: number | null;
+  profitCentreName: string | null;
   costCentreName: string | null;
   supplierId: number | null;
   supplierName: string | null;
@@ -77,6 +101,13 @@ interface TemplateItem {
   lineItemCount: number;
   lineItemTotal: number;
   lineItems?: TemplateLineItem[];
+  inTemplate: boolean | null;
+}
+
+interface SmTemplate {
+  id: number;
+  name: string;
+  rowCount: number;
 }
 
 interface TemplatePack {
@@ -87,6 +118,9 @@ interface TemplatePack {
   position: number;
   itemCount: number;
   estimatedTotal: number;
+  smScheduleMasterTemplateId: number | null;
+  smScheduleMasterTemplateName: string | null;
+  smScheduleMasterTemplateRowCount: number | null;
   createdAt: string;
   updatedAt: string;
   items: TemplateItem[];
@@ -104,7 +138,60 @@ export function PoTemplatesTab() {
   const [editingPack, setEditingPack] = useState<TemplatePack | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editTemplateId, setEditTemplateId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [smTemplates, setSmTemplates] = useState<SmTemplate[]>([]);
+
+  // Lookup data for inline editing of template items
+  const [smMasterRows, setSmMasterRows] = useState<SmMasterRow[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const [profitCentres, setProfitCentres] = useState<ProfitCentreOption[]>([]);
+  const [lookupsLoaded, setLookupsLoaded] = useState(false);
+
+  // Load SM templates for the pack edit dialog
+  const loadSmTemplates = useCallback(async () => {
+    if (smTemplates.length > 0) return;
+    try {
+      const res = await api.get<{ success: boolean; sm_schedule_master_templates: Array<{ id: number; name: string; row_count?: number }> }>(
+        "/api/v1/sm_schedule_master_templates"
+      );
+      setSmTemplates(
+        (res?.sm_schedule_master_templates || []).map((t) => ({ id: t.id, name: t.name, rowCount: t.row_count || 0 }))
+      );
+    } catch (err) {
+      console.error("Failed to load SM templates:", err);
+    }
+  }, [smTemplates.length]);
+
+  // Load lookup data once (on first pack expand)
+  const loadLookups = useCallback(async () => {
+    if (lookupsLoaded) return;
+    try {
+      const [smRes, contactsRes, pcRes] = await Promise.all([
+        api.get<{ success: boolean; data: { records: Array<{ id: number; name: string }> } }>(
+          "/api/v1/foundations/sm-schedule-master/records?per_page=500"
+        ),
+        api.get<{ success: boolean; data: Array<{ id: number; display_name: string }> }>(
+          "/api/v1/contacts?per_page=500&type=suppliers"
+        ),
+        api.get<{ success: boolean; data: Array<{ id: number; code: string; name: string }> }>(
+          "/api/v1/profit_centres"
+        ),
+      ]);
+      setSmMasterRows(
+        (smRes?.data?.records || []).map((r) => ({ id: r.id, name: r.name }))
+      );
+      setSuppliers(
+        (contactsRes?.data || []).map((c) => ({ id: c.id, displayName: c.display_name }))
+      );
+      setProfitCentres(
+        (pcRes?.data || []).map((pc: { id: number; code: string; name: string }) => ({ id: pc.id, code: pc.code, name: pc.name }))
+      );
+      setLookupsLoaded(true);
+    } catch (err) {
+      console.error("Failed to load lookups:", err);
+    }
+  }, [lookupsLoaded]);
 
   const loadPacks = useCallback(async () => {
     try {
@@ -142,6 +229,26 @@ export function PoTemplatesTab() {
     }
   }, []);
 
+  // Update a single template item field via PATCH
+  const handleUpdateItem = useCallback(
+    async (packId: number, itemId: number, field: string, value: number | null) => {
+      try {
+        await api.patch(`/api/v1/po_template_packs/${packId}`, {
+          po_template_pack: {
+            po_template_items_attributes: [{ id: itemId, [field]: value }],
+          },
+        });
+        // Reload to get fresh data with resolved names
+        await loadPackDetails(packId);
+        toast.success("Template item updated");
+      } catch (err) {
+        console.error("Failed to update item:", err);
+        toast.error("Failed to update template item");
+      }
+    },
+    [loadPackDetails]
+  );
+
   // Load details when switching to BOQ tab or selecting a pack
   useEffect(() => {
     if (subTab === "boq" && selectedPackId) {
@@ -161,6 +268,7 @@ export function PoTemplatesTab() {
       setExpandedPack(packId);
       setExpandedItem(null);
       loadPackDetails(packId);
+      loadLookups();
     }
   };
 
@@ -168,21 +276,28 @@ export function PoTemplatesTab() {
     setEditingPack(pack);
     setEditName(pack.name);
     setEditDescription(pack.description || "");
+    setEditTemplateId(pack.smScheduleMasterTemplateId);
     setShowEditDialog(true);
+    loadSmTemplates();
   };
 
   const handleSavePack = async () => {
     if (!editName.trim()) return;
     try {
       setSaving(true);
+      const packData = {
+        name: editName,
+        description: editDescription,
+        sm_schedule_master_template_id: editTemplateId,
+      };
       if (editingPack) {
         await api.patch(`/api/v1/po_template_packs/${editingPack.id}`, {
-          po_template_pack: { name: editName, description: editDescription },
+          po_template_pack: packData,
         });
         toast.success("Template pack updated");
       } else {
         await api.post("/api/v1/po_template_packs", {
-          po_template_pack: { name: editName, description: editDescription },
+          po_template_pack: packData,
         });
         toast.success("Template pack created");
       }
@@ -324,7 +439,7 @@ export function PoTemplatesTab() {
   const boqGroups: BOQGroup[] = React.useMemo(() => {
     if (!selectedPack) return [];
     return selectedPack.items
-      .filter((item) => item.lineItems && item.lineItems.length > 0)
+      .filter((item) => item.lineItems !== undefined)
       .map((item) => ({
         id: item.id,
         name: item.name,
@@ -335,6 +450,7 @@ export function PoTemplatesTab() {
         stageName: item.stageName,
         stagePosition: item.stagePosition,
         costCentreName: item.costCentreName,
+        profitCentreName: item.profitCentreName,
         items: (item.lineItems || []).map((li) => ({
           id: li.id,
           description: li.description,
@@ -425,8 +541,14 @@ export function PoTemplatesTab() {
               setEditingPack(null);
               setEditName("");
               setEditDescription("");
+              setEditTemplateId(null);
               setShowEditDialog(true);
+              loadSmTemplates();
             }}
+            smMasterRows={smMasterRows}
+            suppliers={suppliers}
+            profitCentres={profitCentres}
+            onUpdateItem={handleUpdateItem}
           />
         </TabsContent>
 
@@ -459,7 +581,7 @@ export function PoTemplatesTab() {
 
       {/* Edit/Create Pack Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
               {editingPack ? "Edit Template Pack" : "New Template Pack"}
@@ -485,6 +607,28 @@ export function PoTemplatesTab() {
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 placeholder="Optional description..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Schedule Master Template</Label>
+              <p className="text-xs text-muted-foreground">
+                Link a schedule template to copy the full schedule (with dependencies) when applying this pack.
+              </p>
+              <ComboboxDropdown
+                items={smTemplates.map((t) => ({
+                  id: String(t.id),
+                  label: `${t.name} (${t.rowCount} tasks)`,
+                }))}
+                selectedItem={editTemplateId ? {
+                  id: String(editTemplateId),
+                  label: smTemplates.find(t => t.id === editTemplateId)?.name || "",
+                } : undefined}
+                onSelect={(item) => setEditTemplateId(Number(item.id))}
+                onClear={() => setEditTemplateId(null)}
+                placeholder="None (individual task creation)"
+                searchPlaceholder="Search templates..."
+                emptyResults="No schedule templates found"
+                clearable
               />
             </div>
           </div>
@@ -519,6 +663,10 @@ function TemplatesView({
   onDelete,
   onOpenBoq,
   onNewPack,
+  smMasterRows,
+  suppliers,
+  profitCentres,
+  onUpdateItem,
 }: {
   packs: TemplatePack[];
   expandedPack: number | null;
@@ -530,7 +678,12 @@ function TemplatesView({
   onDelete: (id: number) => void;
   onOpenBoq: (id: number) => void;
   onNewPack: () => void;
+  smMasterRows: SmMasterRow[];
+  suppliers: SupplierOption[];
+  profitCentres: ProfitCentreOption[];
+  onUpdateItem: (packId: number, itemId: number, field: string, value: number | null) => Promise<void>;
 }) {
+  const [editingCell, setEditingCell] = useState<string | null>(null);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -583,6 +736,12 @@ function TemplatesView({
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    {pack.smScheduleMasterTemplateName && (
+                      <Badge variant="secondary" className="text-xs gap-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30">
+                        <Calendar className="h-3 w-3" />
+                        {pack.smScheduleMasterTemplateName} ({pack.smScheduleMasterTemplateRowCount} tasks)
+                      </Badge>
+                    )}
                     <Badge variant="secondary" className="text-xs">
                       {pack.itemCount} POs
                     </Badge>
@@ -641,9 +800,13 @@ function TemplatesView({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-8">#</TableHead>
+                          {pack.smScheduleMasterTemplateId && (
+                            <TableHead className="w-8" title="In linked schedule template" />
+                          )}
                           <TableHead>PO Name</TableHead>
                           <TableHead>SM Task</TableHead>
                           <TableHead>Supplier</TableHead>
+                          <TableHead>PC</TableHead>
                           <TableHead className="text-right">Lines</TableHead>
                           <TableHead className="text-right">Total</TableHead>
                         </TableRow>
@@ -653,43 +816,158 @@ function TemplatesView({
                           <React.Fragment key={item.id}>
                             <TableRow
                               className="cursor-pointer hover:bg-muted/50"
-                              onClick={() => onExpandItem(item.id)}
                             >
-                              <TableCell className="text-muted-foreground text-xs">
+                              <TableCell className="text-muted-foreground text-xs" onClick={() => onExpandItem(item.id)}>
                                 {idx + 1}
                               </TableCell>
-                              <TableCell className="font-medium text-sm">
+                              {pack.smScheduleMasterTemplateId && (
+                                <TableCell className="px-1" title={
+                                  item.inTemplate === true ? "SM row exists in linked template"
+                                    : item.inTemplate === false ? "SM row NOT in linked template (mismatch)"
+                                    : "No SM row linked"
+                                }>
+                                  {item.inTemplate === true ? (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                  ) : item.inTemplate === false ? (
+                                    <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                                  ) : (
+                                    <Minus className="h-4 w-4 text-muted-foreground/40" />
+                                  )}
+                                </TableCell>
+                              )}
+                              <TableCell className="font-medium text-sm" onClick={() => onExpandItem(item.id)}>
                                 {item.name}
                               </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                {item.smScheduleMasterName || (
-                                  <span className="italic">No task link</span>
+                              <TableCell className="text-sm p-1" onClick={(e) => e.stopPropagation()}>
+                                {editingCell === `task-${item.id}` ? (
+                                  <ComboboxDropdown
+                                    items={smMasterRows.map((r) => ({
+                                      id: String(r.id),
+                                      label: r.name,
+                                    }))}
+                                    selectedItem={item.smScheduleMasterId ? {
+                                      id: String(item.smScheduleMasterId),
+                                      label: item.smScheduleMasterName || "",
+                                    } : undefined}
+                                    onSelect={async (selected) => {
+                                      await onUpdateItem(pack.id, item.id, "sm_schedule_master_id", Number(selected.id));
+                                      setEditingCell(null);
+                                    }}
+                                    onClear={async () => {
+                                      await onUpdateItem(pack.id, item.id, "sm_schedule_master_id", null);
+                                      setEditingCell(null);
+                                    }}
+                                    placeholder="Select SM task..."
+                                    searchPlaceholder="Search tasks..."
+                                    emptyResults="No tasks found"
+                                    className="w-[200px]"
+                                    clearable
+                                  />
+                                ) : (
+                                  <button
+                                    className="text-left w-full px-2 py-1 rounded hover:bg-muted/80 transition-colors"
+                                    onClick={() => setEditingCell(`task-${item.id}`)}
+                                  >
+                                    {item.smScheduleMasterName || (
+                                      <span className="italic text-muted-foreground">Click to link task</span>
+                                    )}
+                                  </button>
                                 )}
                               </TableCell>
-                              <TableCell className="text-sm">
-                                {item.supplierName ||
-                                  item.supplierSyncKey || (
-                                    <span className="text-muted-foreground italic">
-                                      No supplier
-                                    </span>
-                                  )}
+                              <TableCell className="text-sm p-1" onClick={(e) => e.stopPropagation()}>
+                                {editingCell === `supplier-${item.id}` ? (
+                                  <ComboboxDropdown
+                                    items={suppliers.map((s) => ({
+                                      id: String(s.id),
+                                      label: s.displayName,
+                                    }))}
+                                    selectedItem={item.supplierId ? {
+                                      id: String(item.supplierId),
+                                      label: item.supplierName || item.supplierSyncKey || "",
+                                    } : undefined}
+                                    onSelect={async (selected) => {
+                                      await onUpdateItem(pack.id, item.id, "supplier_id", Number(selected.id));
+                                      setEditingCell(null);
+                                    }}
+                                    onClear={async () => {
+                                      await onUpdateItem(pack.id, item.id, "supplier_id", null);
+                                      setEditingCell(null);
+                                    }}
+                                    placeholder="Select supplier..."
+                                    searchPlaceholder="Search suppliers..."
+                                    emptyResults="No suppliers found"
+                                    className="w-[200px]"
+                                    clearable
+                                  />
+                                ) : (
+                                  <button
+                                    className="text-left w-full px-2 py-1 rounded hover:bg-muted/80 transition-colors"
+                                    onClick={() => setEditingCell(`supplier-${item.id}`)}
+                                  >
+                                    {item.supplierName || item.supplierSyncKey || (
+                                      <span className="italic text-muted-foreground">Click to set</span>
+                                    )}
+                                  </button>
+                                )}
                               </TableCell>
-                              <TableCell className="text-right text-sm">
+                              <TableCell className="text-sm p-1" onClick={(e) => e.stopPropagation()}>
+                                {editingCell === `pc-${item.id}` ? (
+                                  <ComboboxDropdown
+                                    items={profitCentres.map((pc) => ({
+                                      id: String(pc.id),
+                                      label: pc.code || pc.name,
+                                    }))}
+                                    selectedItem={item.profitCentreId ? {
+                                      id: String(item.profitCentreId),
+                                      label: item.profitCentreName || "",
+                                    } : undefined}
+                                    onSelect={async (selected) => {
+                                      await onUpdateItem(pack.id, item.id, "profit_centre_id", Number(selected.id));
+                                      setEditingCell(null);
+                                    }}
+                                    onClear={async () => {
+                                      await onUpdateItem(pack.id, item.id, "profit_centre_id", null);
+                                      setEditingCell(null);
+                                    }}
+                                    placeholder="Select PC..."
+                                    searchPlaceholder="Search..."
+                                    emptyResults="No profit centres"
+                                    className="w-[140px]"
+                                    clearable
+                                  />
+                                ) : (
+                                  <button
+                                    className="text-left w-full px-2 py-1 rounded hover:bg-muted/80 transition-colors"
+                                    onClick={() => setEditingCell(`pc-${item.id}`)}
+                                  >
+                                    {item.profitCentreName || (
+                                      <span className="italic text-muted-foreground">—</span>
+                                    )}
+                                  </button>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right text-sm" onClick={() => onExpandItem(item.id)}>
                                 {item.lineItemCount}
                               </TableCell>
-                              <TableCell className="text-right text-sm font-mono">
+                              <TableCell className="text-right text-sm font-mono" onClick={() => onExpandItem(item.id)}>
                                 {formatCurrency(item.lineItemTotal)}
                               </TableCell>
                             </TableRow>
                             {expandedItem === item.id && item.lineItems && (
                               <TableRow>
-                                <TableCell colSpan={6} className="bg-muted/30 p-0">
+                                <TableCell colSpan={pack.smScheduleMasterTemplateId ? 8 : 7} className="bg-muted/30 p-0">
                                   <div className="px-8 py-2">
                                     <table className="w-full text-xs">
                                       <thead>
                                         <tr className="text-muted-foreground">
                                           <th className="text-left py-1 font-medium">
                                             Description
+                                          </th>
+                                          <th className="text-left py-1 font-medium w-28">
+                                            PB Code
+                                          </th>
+                                          <th className="text-left py-1 font-medium w-20">
+                                            PC
                                           </th>
                                           <th className="text-right py-1 font-medium w-20">
                                             Qty
@@ -712,6 +990,12 @@ function TemplatesView({
                                             className="border-t border-border/50"
                                           >
                                             <td className="py-1">{li.description}</td>
+                                            <td className="py-1 text-muted-foreground">
+                                              {li.pricebookItemCode || "—"}
+                                            </td>
+                                            <td className="py-1 text-muted-foreground">
+                                              {item.profitCentreName || "—"}
+                                            </td>
                                             <td className="text-right py-1 font-mono">
                                               {li.quantity}
                                             </td>

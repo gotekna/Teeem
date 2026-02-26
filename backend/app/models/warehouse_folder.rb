@@ -191,10 +191,10 @@ class WarehouseFolder < ApplicationRecord
     ids = Array(ids).map(&:to_i).reject(&:zero?)
     existing_ids = warehouse_folder_document_types.pluck(:document_type_id)
 
-    # Remove old assignments (only secondary ones)
+    # Remove old assignments (only secondary, non-system ones)
     warehouse_folder_document_types
       .where.not(document_type_id: ids)
-      .where(is_primary: false)
+      .where(is_primary: false, is_system: false)
       .destroy_all
 
     # Add new assignments as secondary
@@ -218,6 +218,8 @@ class WarehouseFolder < ApplicationRecord
         name: dt.name,
         abbreviation: dt.abbreviation,
         is_primary: join.is_primary,
+        is_system: join.is_system,
+        can_delete: join.can_delete?,
         ui_name_template: join.ui_name_template,
         download_name_template: join.download_name_template,
         effective_ui_name_template: join.effective_ui_name_template,

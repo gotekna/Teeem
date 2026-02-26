@@ -11,7 +11,7 @@
 #   EmailFolderPreference.save_order(user_id, account_id, folder_ids)
 #
 class EmailFolderPreference < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
 
   validates :account_id, presence: true
   validates :folder_id, presence: true

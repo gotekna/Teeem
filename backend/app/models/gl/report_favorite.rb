@@ -5,7 +5,7 @@ module Gl
   class ReportFavorite < ApplicationRecord
     self.table_name = "gl_report_favorites"
 
-    belongs_to :user
+    belongs_to :user, optional: true
     belongs_to :custom_report, class_name: "Gl::CustomReport"
 
     validates :user_id, uniqueness: { scope: :custom_report_id }

@@ -124,24 +124,14 @@
     <p>There being no further business, the Chairperson declared the meeting closed.</p>
   </div>
 
-  <!-- Signature Block - keep together on one page -->
-  <div style="margin-top: 15px; page-break-inside: avoid;">
+  <!-- Signature Block - pushed to bottom of page for fixed badge positioning -->
+  <div style="margin-top: auto; page-break-inside: avoid;">
     <table style="width: 100%; border: none; margin-bottom: 0;">
       <tr>
         <td style="width: 50%; border: none; padding: 0;">
           <div class="field-label">Signed as a correct record:</div>
-          <div class="signature-box" style="margin-top: 4px;">
-            <div class="signature-badge">
-              <span class="badge-icon">&#9998;</span>
-              <span class="badge-name">Chairperson</span>
-              <span class="badge-label">Signed at meeting</span>
-              <% if chairperson_name.present? %>
-                <span class="badge-label" style="font-weight: 600; margin-top: 2px;"><%= chairperson_name %></span>
-              <% end %>
-              <% if chairperson_email.present? %>
-                <span class="badge-label" style="font-size: 7pt; margin-top: 1px;"><%= chairperson_email %></span>
-              <% end %>
-            </div>
+          <div class="signature-box" style="margin-top: 4px; min-height: 60px;">
+            <!-- Signature placed here by e-signature field overlay system -->
           </div>
         </td>
         <td style="width: 50%; border: none; padding: 0;">

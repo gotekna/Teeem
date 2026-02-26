@@ -96,7 +96,8 @@ module Bpmn
       def evaluate_expression(expression)
         # Simple expression evaluation for things like "amount * 1.1"
         Bpmn::ConditionEvaluator.new(@variables).evaluate(expression)
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("[BPMN::UpdateRecordTask] Failed to evaluate expression '#{expression}': #{e.message}")
         nil
       end
     end

@@ -517,7 +517,8 @@ module Gl
             }
           }
         }
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[EofyPackage] Failed to generate comparative analysis: #{e.message}"
         { note: 'Prior year data not available for comparison' }
       end
 

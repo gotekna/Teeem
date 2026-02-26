@@ -9,6 +9,7 @@
 #
 # Run daily via Solid Queue recurring job
 class CleanupEphemeralEmailsJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   def perform(options = {})

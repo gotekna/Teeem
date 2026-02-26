@@ -33,20 +33,45 @@ class SmRolloverJob < ApplicationJob
   include DeduplicatableJob
   queue_as :default
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: SmTask has acts_as_tenant. Without tenant context (require_tenant=false),
+  # queries return ALL tenants' tasks. SmSetting.instance and TenantSetting.instance
+  # also need tenant context for correct calendar/holiday settings per tenant.
   def perform(options = {})
     @options = options.with_indifferent_access
     @batch_id = SecureRandom.uuid
     @timestamp = Time.current
+
+    all_results = { success: true, rolled_over: 0, extended: 0, cascaded: 0, dependencies_broken: 0 }
+
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        result = perform_for_tenant
+        all_results[:rolled_over] += result[:rolled_over]
+        all_results[:extended] += result[:extended]
+        all_results[:cascaded] += result[:cascaded]
+        all_results[:dependencies_broken] += result[:dependencies_broken]
+      end
+    end
+
+    all_results.merge(batch_id: @batch_id)
+  rescue StandardError => e
+    Rails.logger.error "[SmRolloverJob] Error: #{e.message}"
+    Rails.logger.error e.backtrace.first(10).join("\n")
+    { success: false, error: e.message }
+  end
+
+  def perform_for_tenant
     @settings = SmSetting.instance
     @calendar = WorkingDaysCalculator.new(TenantSetting.instance)
 
     unless @settings.rollover_enabled?
-      Rails.logger.info "[SmRolloverJob] Rollover disabled in settings, skipping"
-      return { success: true, skipped: true, reason: "rollover_disabled" }
+      Rails.logger.info "[SmRolloverJob] Rollover disabled for #{ActsAsTenant.current_tenant.name}, skipping"
+      return { rolled_over: 0, extended: 0, cascaded: 0, dependencies_broken: 0 }
     end
 
     today = @settings.today
-    Rails.logger.info "[SmRolloverJob] Starting rollover batch #{@batch_id} for date #{today}"
+    Rails.logger.info "[SmRolloverJob] Starting rollover batch #{@batch_id} for #{ActsAsTenant.current_tenant.name} date #{today}"
 
     rolled_over = 0
     extended = 0
@@ -78,20 +103,14 @@ class SmRolloverJob < ApplicationJob
       end
     end
 
-    Rails.logger.info "[SmRolloverJob] Completed. Rolled over: #{rolled_over}, Extended: #{extended}, Cascaded: #{cascaded}"
+    Rails.logger.info "[SmRolloverJob] Completed for #{ActsAsTenant.current_tenant.name}. Rolled over: #{rolled_over}, Extended: #{extended}, Cascaded: #{cascaded}"
 
     {
-      success: true,
-      batch_id: @batch_id,
       rolled_over: rolled_over,
       extended: extended,
       cascaded: cascaded,
       dependencies_broken: dependencies_broken
     }
-  rescue StandardError => e
-    Rails.logger.error "[SmRolloverJob] Error: #{e.message}"
-    Rails.logger.error e.backtrace.first(10).join("\n")
-    { success: false, error: e.message }
   end
 
   private

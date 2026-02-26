@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "pdf-reader"
+require "docx"
+
 # SSoT: Universal Document Reader
 # One service to read Excel, Word, and PDF files anywhere in TEEEM.
 # No Office 365 dependency - uses local gems for parsing.

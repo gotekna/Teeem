@@ -28,7 +28,7 @@ class SmScheduleMaster < ApplicationRecord
   # Excludes self-referential (spawn_scan_task) and heavy (po_supplier) associations
   # Used by Foundation API's apply_eager_loading method
   def self.safe_eager_load_associations
-    [:checklist, :created_by, :updated_by]
+    [:checklist, :created_by, :updated_by, :sm_stage_ref, :sm_trade_ref, :cost_centre_ref, :tender]
   end
 
   # Associations
@@ -43,11 +43,20 @@ class SmScheduleMaster < ApplicationRecord
   # SmTasks created from this template - nullify on delete so tasks remain but lose template link
   has_many :sm_tasks, dependent: :nullify
 
-  # Photo storage WarehouseFolder (SSoT - Feb 2026)
-  belongs_to :photo_entity_tab, class_name: "WarehouseFolder", optional: true
+  # Photo storage WarehouseFolder
+  # NOTE: photo_entity_tab_id column was removed (migration 20251227010022).
+  # SmTask now uses warehouse_folder_id instead.
 
   # Auto-PO supplier - for create_po_on_job_start feature
   belongs_to :po_supplier, class_name: "Contact", optional: true
+
+  # Lookup associations for stage/trade/cost_centre/tender integer FK columns
+  # FRC (Feb 2026): These columns store IDs but lack _id suffix. Without associations,
+  # PurchaseOrder.as_json virtual methods did find_by per row (N+1).
+  belongs_to :sm_stage_ref, class_name: "SmStage", foreign_key: :stage, optional: true
+  belongs_to :sm_trade_ref, class_name: "SmTrade", foreign_key: :trade, optional: true
+  belongs_to :cost_centre_ref, class_name: "CostCentre", foreign_key: :cost_centre, optional: true
+  belongs_to :tender, optional: true
 
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
@@ -112,8 +121,8 @@ class SmScheduleMaster < ApplicationRecord
 
   validates :subtask_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }, if: :has_subtasks?
   validate :subtask_names_match_count
-  validate :predecessor_ids_valid
-  validate :no_circular_dependencies
+  validate :predecessor_ids_valid, if: :predecessor_ids_changed?
+  validate :no_circular_dependencies, if: :predecessor_ids_changed?
   validate :completion_linked_task_ids_valid
 
   # Claim task validations
@@ -143,6 +152,8 @@ class SmScheduleMaster < ApplicationRecord
   before_validation :default_claim_percentage
   before_save :clear_spawn_tasks_if_not_po
   after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
+  after_save :propagate_cost_centre_to_tasks, if: :saved_change_to_cost_centre?
+  after_save :propagate_po_required_to_tasks, if: :saved_change_to_po_required?
 
   # Helper methods
   def predecessor_task_ids
@@ -174,6 +185,11 @@ class SmScheduleMaster < ApplicationRecord
   # Plan types to attach to this task
   def plan_type_list
     plan_type_ids || []
+  end
+
+  # Document reference types to attach to this task
+  def document_ref_type_list
+    document_ref_type_ids || []
   end
 
   # WarehouseFolders for documents sent on START
@@ -291,6 +307,16 @@ class SmScheduleMaster < ApplicationRecord
       self.order_time_days = nil
       self.call_time_days = nil
     end
+  end
+
+  # When cost_centre changes on the template, push to all child SmTask records
+  def propagate_cost_centre_to_tasks
+    sm_tasks.update_all(cost_centre: cost_centre)
+  end
+
+  # When po_required changes on the template, push to all child SmTask records
+  def propagate_po_required_to_tasks
+    sm_tasks.update_all(po_required: po_required)
   end
 
   def subtask_names_match_count

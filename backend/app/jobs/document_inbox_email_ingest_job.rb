@@ -137,10 +137,11 @@ class DocumentInboxEmailIngestJob < ApplicationJob
     internet_message_id = email_data['internetMessageId'] || email_data['id']
 
     # Skip if we've already processed this email
-    existing = DocumentInbox.find_by(
-      source: 'email',
-      'metadata->internet_message_id': internet_message_id
-    )
+    # FRC (Feb 2026): Must use SQL fragment for JSONB key lookup, NOT a hash key.
+    # Using 'metadata->internet_message_id': as a hash key causes Rails to quote
+    # it as a column identifier ("metadata->internet_message_id"), which fails.
+    existing = DocumentInbox.where(source: 'email')
+                            .find_by("metadata->>'internet_message_id' = ?", internet_message_id)
     return 0 if existing
 
     # Set tenant context

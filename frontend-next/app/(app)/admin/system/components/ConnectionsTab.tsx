@@ -61,11 +61,13 @@ import { StorageCostTab } from "./StorageCostTab";
 import { BackupSettingsTab } from "./BackupSettingsTab";
 import { ConfigSyncSection } from "./ConfigSyncSection";
 import { EmailAccountsTab } from "./EmailAccountsTab";
+import { AIAssistantSetupTab } from "./AIAssistantSetupTab";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { API } from "@/lib/constants/api-endpoints";
 import { COUNTDOWN_TICK_MS, POLLING_FAST_MS } from "@/lib/constants/timeout-constants";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 
 // SharePoint Connection Component
 function SharePointConnection() {
@@ -2428,6 +2430,7 @@ function IntegrationsSubTab() {
 const CONNECTIONS_SUB_TABS = [
   { id: "provider", label: "Storage Provider" },
   { id: "integrations", label: "Integrations" },
+  { id: "ai-assistant", label: "AI Assistant" },
   { id: "email-accounts", label: "Email Accounts" },
   { id: "migration", label: "Migration" },
   { id: "costs", label: "Cost Comparison" },
@@ -2447,6 +2450,7 @@ interface ConnectionsTabProps {
 // Main Connections Tab
 export function ConnectionsTab({ subTab, deepTab, basePath = DEFAULT_CONNECTIONS_BASE_PATH }: ConnectionsTabProps) {
   const router = useRouter();
+  const [expanded, toggleExpanded] = useExpandedState("connections");
 
   // Validate and default the sub-tab
   const activeSubTab = CONNECTIONS_SUB_TABS.some((t) => t.id === subTab) ? subTab : "provider";
@@ -2471,20 +2475,30 @@ export function ConnectionsTab({ subTab, deepTab, basePath = DEFAULT_CONNECTIONS
   };
 
   return (
-    <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className="space-y-4">
-      <TabsList className="flex-wrap h-auto gap-1">
-        {CONNECTIONS_SUB_TABS.map((tab) => (
-          <TabsTrigger key={tab.id} value={tab.id} className="text-sm">
-            {tab.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+    <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
+    <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : "space-y-4"}>
+      <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
+        <div className="flex items-start gap-2">
+          <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
+            {CONNECTIONS_SUB_TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id} className="text-sm">
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+        </div>
+      </div>
 
+      <div className={expanded ? "flex-1 overflow-auto p-4" : ""}>
       <TabsContent value="provider" forceMount className={activeSubTab !== "provider" ? "hidden" : ""}>
         {visitedTabs.has("provider") && <DocumentStorageProvider />}
       </TabsContent>
       <TabsContent value="integrations" forceMount className={activeSubTab !== "integrations" ? "hidden" : ""}>
         {visitedTabs.has("integrations") && <IntegrationsSubTab />}
+      </TabsContent>
+      <TabsContent value="ai-assistant" forceMount className={activeSubTab !== "ai-assistant" ? "hidden" : ""}>
+        {visitedTabs.has("ai-assistant") && <AIAssistantSetupTab />}
       </TabsContent>
       <TabsContent value="email-accounts" forceMount className={activeSubTab !== "email-accounts" ? "hidden" : ""}>
         {visitedTabs.has("email-accounts") && <EmailAccountsTab subTab={deepTab} basePath={`${basePath}/email-accounts`} />}
@@ -2507,6 +2521,8 @@ export function ConnectionsTab({ subTab, deepTab, basePath = DEFAULT_CONNECTIONS
       <TabsContent value="sync" forceMount className={activeSubTab !== "sync" ? "hidden" : ""}>
         {visitedTabs.has("sync") && <ConfigSyncSection />}
       </TabsContent>
+      </div>
     </Tabs>
+    </ExpandableSection>
   );
 }

@@ -189,7 +189,8 @@ module Api
 
         times = [ row["last_vacuum"], row["last_autovacuum"], row["last_analyze"], row["last_autoanalyze"] ].compact
         times.max&.to_s
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[WarehouseMetadata] Failed to get maintenance info for table: #{e.message}"
         nil
       end
 

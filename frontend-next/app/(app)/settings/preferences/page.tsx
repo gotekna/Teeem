@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Moon,
   Sun,
   Monitor,
@@ -13,6 +20,7 @@ import {
   List,
   Sparkles,
   HelpCircle,
+  Building2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { HelpIcon } from "@/components/help/HelpTooltip";
@@ -21,6 +29,7 @@ import {
   setHelpButtonHoverOnly,
 } from "@/components/help/FloatingHelpButton";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTenantOptional } from "@/contexts/TenantContext";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -41,6 +50,13 @@ export default function PreferencesPage() {
   const [enableAiWritingAssistant, setEnableAiWritingAssistant] = React.useState(false);
   const [savingAi, setSavingAi] = React.useState(false);
   const [helpButtonHoverOnly, setHelpButtonHoverOnlyState] = React.useState(false);
+  const [defaultTenantId, setDefaultTenantId] = React.useState<string>("none");
+  const [savingTenant, setSavingTenant] = React.useState(false);
+
+  // Tenant context for multi-tenant users
+  const tenantCtx = useTenantOptional();
+  const canSwitchTenants = tenantCtx?.canSwitchTenants ?? false;
+  const tenants = tenantCtx?.tenants ?? [];
 
   // Initialize preferences from localStorage/user data
   React.useEffect(() => {
@@ -48,10 +64,11 @@ export default function PreferencesPage() {
     setHelpButtonHoverOnlyState(getHelpButtonHoverOnly());
   }, []);
 
-  // Initialize AI Writing Assistant from user data
+  // Initialize AI Writing Assistant and default tenant from user data
   React.useEffect(() => {
     if (user) {
       setEnableAiWritingAssistant(user.enable_ai_writing_assistant ?? false);
+      setDefaultTenantId(user.default_tenant_id ? String(user.default_tenant_id) : "none");
     }
   }, [user]);
 
@@ -107,6 +124,46 @@ export default function PreferencesPage() {
       });
     } finally {
       setSavingAi(false);
+    }
+  };
+
+  // Handle default tenant change
+  const handleDefaultTenantChange = async (value: string) => {
+    const previousValue = defaultTenantId;
+    setDefaultTenantId(value);
+    setSavingTenant(true);
+
+    try {
+      if (value === "none") {
+        // Clear default
+        const response = await api.delete<{ success: boolean; error?: string }>('/api/v1/admin/tenants/default');
+        if (response?.success) {
+          if (refreshUser) await refreshUser();
+          toast({ title: "Default tenant cleared", description: "You'll log in to your assigned tenant." });
+        } else {
+          setDefaultTenantId(previousValue);
+          toast({ title: "Error", description: response?.error || "Failed to update", variant: "destructive" });
+        }
+      } else {
+        // Set default
+        const response = await api.post<{ success: boolean; message?: string; error?: string }>(
+          `/api/v1/admin/tenants/${value}/set_default`
+        );
+        if (response?.success) {
+          if (refreshUser) await refreshUser();
+          const tenantName = tenants.find(t => String(t.id) === value)?.name || "Selected tenant";
+          toast({ title: "Default tenant set", description: `You'll auto-switch to ${tenantName} on login.` });
+        } else {
+          setDefaultTenantId(previousValue);
+          toast({ title: "Error", description: response?.error || "Failed to update", variant: "destructive" });
+        }
+      }
+    } catch (err) {
+      console.error("[Preferences] failed to save default tenant:", err);
+      setDefaultTenantId(previousValue);
+      toast({ title: "Error", description: "Failed to update setting", variant: "destructive" });
+    } finally {
+      setSavingTenant(false);
     }
   };
 
@@ -257,6 +314,54 @@ export default function PreferencesPage() {
           </CardContent>
         </Card>
       </section>
+
+      {/* Default Tenant Section - only for multi-tenant users */}
+      {canSwitchTenants && tenants.length > 1 && (
+        <section>
+          <h2 className="text-lg font-semibold mb-4">Multi-Tenant</h2>
+          <Card>
+            <CardContent className="pt-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <Label>Default Tenant</Label>
+                    <Building2 className="h-4 w-4 text-blue-500" />
+                    <HelpIcon
+                      content="Choose which tenant to auto-select when you log in. You can still switch tenants manually at any time."
+                      tips={[
+                        "Only applies on fresh login",
+                        "Manual tenant switches are preserved until you log out",
+                        "Set to 'None' to use your assigned tenant"
+                      ]}
+                      size="sm"
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Auto-select a tenant when you log in
+                  </p>
+                </div>
+                <Select
+                  value={defaultTenantId}
+                  onValueChange={handleDefaultTenantChange}
+                  disabled={savingTenant}
+                >
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue placeholder="Select tenant..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None (use assigned)</SelectItem>
+                    {tenants.map((tenant) => (
+                      <SelectItem key={tenant.id} value={String(tenant.id)}>
+                        {tenant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
     </div>
   );

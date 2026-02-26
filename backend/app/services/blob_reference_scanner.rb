@@ -122,7 +122,8 @@ class BlobReferenceScanner
   # const_defined? passes but querying crashes with PG::UndefinedTable.
   def self.table_exists?(klass)
     klass.connection.table_exists?(klass.table_name)
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[BlobReferenceScanner] Failed to check table existence for #{klass.name}: #{e.message}"
     false
   end
 end

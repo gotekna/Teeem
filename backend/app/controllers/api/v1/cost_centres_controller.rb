@@ -135,22 +135,37 @@ class Api::V1::CostCentresController < ApplicationController
 
   # GET /api/v1/cost_centres/po_tasks
   # Returns all SmScheduleMaster records where po_required=true, with current cost centre assignment
+  # Optional param: template_id - filter to tasks belonging to a specific schedule template
   def po_tasks
     tasks = SmScheduleMaster.where(po_required: true).order(:task_number, :name)
 
-    # Build a lookup of cost centre names for display
+    # Build a lookup of cost centre names and codes for display
     cost_centre_ids = tasks.pluck(:cost_centre).compact.uniq
-    cost_centre_names = CostCentre.where(id: cost_centre_ids).pluck(:id, :name).to_h
+    cost_centre_data = CostCentre.where(id: cost_centre_ids).pluck(:id, :name, :code)
+    cost_centre_names = cost_centre_data.to_h { |id, name, _| [id, name] }
+    cost_centre_codes = cost_centre_data.to_h { |id, _, code| [id, code] }
+
+    # Build a lookup of tender names + headers for cross-reference display
+    tender_ids = tasks.pluck(:tender_id).compact.uniq
+    tenders_data = Tender.where(id: tender_ids).includes(:tender_header).index_by(&:id)
 
     render json: {
       success: true,
       data: tasks.map { |t|
+        tender = t.tender_id.present? ? tenders_data[t.tender_id] : nil
         {
           id: t.id,
           name: t.name,
+          taskCode: t.task_code,
           taskNumber: t.task_number,
           costCentreId: t.cost_centre,
-          costCentreName: t.cost_centre.present? ? cost_centre_names[t.cost_centre] : nil
+          costCentreName: t.cost_centre.present? ? cost_centre_names[t.cost_centre] : nil,
+          costCentreCode: t.cost_centre.present? ? cost_centre_codes[t.cost_centre] : nil,
+          tenderId: t.tender_id,
+          tenderName: tender&.name,
+          tenderHeaderId: tender&.tender_header_id,
+          tenderHeaderName: tender&.tender_header&.name,
+          templateIds: t.sm_template_ids || []
         }
       }
     }
@@ -158,19 +173,51 @@ class Api::V1::CostCentresController < ApplicationController
 
   # POST /api/v1/cost_centres/:id/assign_po_tasks
   # Accepts { po_task_ids: [1, 2, 3] } and updates SmScheduleMaster.cost_centre
+  #
+  # Also propagates to SmScheduleMaster records with matching names across
+  # template versions (same tenant, po_required: true).
+  # Uses update_all (bypasses callbacks), so propagates to SmTask explicitly.
   def assign_po_tasks
     po_task_ids = params[:po_task_ids] || []
 
     ActiveRecord::Base.transaction do
-      # Clear tasks previously assigned to this cost centre but no longer in the list
-      SmScheduleMaster.where(cost_centre: @cost_centre.id)
-                      .where.not(id: po_task_ids)
-                      .update_all(cost_centre: nil)
+      # Collect all template IDs being unassigned
+      removed_ids = SmScheduleMaster.where(cost_centre: @cost_centre.id)
+                                    .where.not(id: po_task_ids)
+                                    .pluck(:id)
+      removed_names = SmScheduleMaster.where(id: removed_ids).pluck(:name).uniq
 
-      # Assign the specified tasks to this cost centre
+      # Clear cost_centre from unassigned templates
+      SmScheduleMaster.where(id: removed_ids).update_all(cost_centre: nil)
+
+      # Clear name-matched siblings (other template versions)
+      if removed_names.any?
+        sibling_ids = SmScheduleMaster.where(name: removed_names, cost_centre: @cost_centre.id).pluck(:id)
+        SmScheduleMaster.where(id: sibling_ids).update_all(cost_centre: nil)
+        removed_ids += sibling_ids
+      end
+
+      # Push to child SmTask records
+      SmTask.where(sm_schedule_master_id: removed_ids.uniq).update_all(cost_centre: nil) if removed_ids.any?
+
+      # Assign the specified templates
       if po_task_ids.present?
-        SmScheduleMaster.where(id: po_task_ids)
-                        .update_all(cost_centre: @cost_centre.id)
+        assigned = SmScheduleMaster.where(id: po_task_ids)
+        assigned.update_all(cost_centre: @cost_centre.id)
+        all_assigned_ids = po_task_ids.map(&:to_i)
+
+        # Propagate to matching names across template versions
+        assigned_names = assigned.pluck(:name).uniq
+        if assigned_names.any?
+          sibling_ids = SmScheduleMaster.where(name: assigned_names, po_required: true)
+                                        .where.not(cost_centre: @cost_centre.id)
+                                        .pluck(:id)
+          SmScheduleMaster.where(id: sibling_ids).update_all(cost_centre: @cost_centre.id)
+          all_assigned_ids += sibling_ids
+        end
+
+        # Push to child SmTask records
+        SmTask.where(sm_schedule_master_id: all_assigned_ids.uniq).update_all(cost_centre: @cost_centre.id)
       end
     end
 

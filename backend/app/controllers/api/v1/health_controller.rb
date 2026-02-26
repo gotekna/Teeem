@@ -203,12 +203,13 @@ module Api
       # DEPRECATED: Use GET /api/v1/foundations/pricebook-items/health instead
       def pricebook
         Rails.logger.warn "[DEPRECATED] GET /api/v1/health/pricebook - use /api/v1/foundations/pricebook-items/health instead"
-        # Get pricebook items without default supplier
+        # Get pricebook items without default supplier (SSoT: category via category_id FK)
         items_without_default_supplier_query = PricebookItem.active
           .where(default_supplier_id: nil)
 
         items_without_default_supplier_count = items_without_default_supplier_query.count
         items_without_default_supplier = items_without_default_supplier_query
+          .includes(:pricebook_category)
           .order(:item_code)
           .limit(100)
 
@@ -220,13 +221,14 @@ module Api
         # Find items with default supplier but no price history
         items_with_missing_price_history = find_items_with_missing_price_history
 
-        # Find items that require photo but have no image
+        # Find items that require photo but have no image (SSoT: category via category_id FK)
         items_requiring_photo_query = PricebookItem.active
           .where(requires_photo: true)
           .where("image_url IS NULL OR image_url = ''")
 
         items_requiring_photo_count = items_requiring_photo_query.count
         items_requiring_photo_without_image = items_requiring_photo_query
+          .includes(:pricebook_category)
           .order(:item_code)
           .limit(100)
 
@@ -234,7 +236,7 @@ module Api
           totalPricebookItems: PricebookItem.active.count,
           itemsWithoutDefaultSupplier: {
             count: items_without_default_supplier_count,
-            items: items_without_default_supplier
+            items: serialize_items_with_category(items_without_default_supplier)
           },
           suppliersWithIncompleteCategoryPricing: {
             count: incomplete_suppliers_data[:results].length,
@@ -248,30 +250,33 @@ module Api
           },
           itemsRequiringPhotoWithoutImage: {
             count: items_requiring_photo_count,
-            items: items_requiring_photo_without_image
+            items: serialize_items_with_category(items_requiring_photo_without_image)
           }
         }
       end
 
       def missing_items
         supplier_id = params[:supplier_id]
-        category = params[:category]
+        category_name = params[:category]
 
-        if supplier_id.blank? || category.blank?
+        if supplier_id.blank? || category_name.blank?
           render json: { error: "supplier_id and category are required" }, status: :bad_request
           return
         end
 
+        # Look up category_id from name (SSoT: category_id FK to pricebook_categories)
+        category_ids = PricebookCategory.where(name: category_name).pluck(:id)
+
         # Get all active items in this category
         all_items_in_category = PricebookItem.active
-          .where(category: category)
+          .where(category_id: category_ids)
           .pluck(:id)
 
         # Get items this supplier has price history for
         items_with_price_history = PriceHistory
           .where(supplier_id: supplier_id)
           .joins(:pricebook_item)
-          .where(pricebooks: { category: category, is_active: true })
+          .where(pricebooks: { category_id: category_ids, is_active: true })
           .pluck(:pricebook_item_id)
           .uniq
 
@@ -280,15 +285,24 @@ module Api
 
         # Get the missing items with details
         missing_items = PricebookItem.active
+          .includes(:pricebook_category)
           .where(id: missing_item_ids)
           .order(:item_code)
 
         render json: {
-          items: missing_items
+          items: serialize_items_with_category(missing_items)
         }
       end
 
       private
+
+      # SSoT: Serialize pricebook items with category name from category_id FK
+      # (category varchar column was dropped - use pricebook_category association)
+      def serialize_items_with_category(items)
+        items.map do |item|
+          item.as_json.merge("category" => item.pricebook_category&.name)
+        end
+      end
 
       def find_suppliers_with_incomplete_categories
         results = []
@@ -302,24 +316,23 @@ module Api
           supplier = Contact.find_by(id: supplier_id)
           next unless supplier
 
-          # Get categories this supplier has price history for
-          categories = PriceHistory
-            .joins(:pricebook_item)
+          # Get categories this supplier has price history for (SSoT: category_id FK)
+          category_data = PriceHistory
+            .joins(pricebook_item: :pricebook_category)
             .where(supplier_id: supplier_id)
             .where(pricebooks: { is_active: true })
             .distinct
-            .pluck("pricebooks.category")
-            .compact
+            .pluck("pricebook_categories.id", "pricebook_categories.name")
 
-          categories.each do |category|
+          category_data.each do |cat_id, category_name|
             # Count total active items in this category
-            total_items = PricebookItem.active.where(category: category).count
+            total_items = PricebookItem.active.where(category_id: cat_id).count
 
             # Count items this supplier has price history for in this category
             supplier_items = PriceHistory
               .joins(:pricebook_item)
               .where(supplier_id: supplier_id)
-              .where(pricebooks: { category: category, is_active: true })
+              .where(pricebooks: { category_id: cat_id, is_active: true })
               .distinct
               .count("pricebooks.id")
 
@@ -331,7 +344,7 @@ module Api
                   id: supplier.id,
                   name: supplier.display_name
                 },
-                category: category,
+                category: category_name,
                 items_with_pricing: supplier_items,
                 total_items_in_category: total_items,
                 coverage_percentage: ((supplier_items.to_f / total_items) * 100).round(1),
@@ -356,7 +369,7 @@ module Api
         items_with_issues = []
 
         # Get all active items that have a default supplier set
-        PricebookItem.active.where.not(default_supplier_id: nil).includes(:default_supplier).find_each do |item|
+        PricebookItem.active.where.not(default_supplier_id: nil).includes(:default_supplier, :pricebook_category).find_each do |item|
           # Check if there's a price history entry for this item with the default supplier
           has_price_history = PriceHistory.exists?(
             pricebook_item_id: item.id,
@@ -368,7 +381,7 @@ module Api
               id: item.id,
               item_code: item.item_code,
               item_name: item.item_name,
-              category: item.category,
+              category: item.pricebook_category&.name,
               current_price: item.current_price,
               default_supplier: {
                 id: item.default_supplier&.id,
@@ -996,7 +1009,8 @@ module Api
 
       def check_database_status
         ActiveRecord::Base.connection.active? ? "healthy" : "critical"
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Database status check failed: #{e.message}"
         "critical"
       end
 
@@ -1009,13 +1023,15 @@ module Api
 
       def get_pending_jobs_count
         SolidQueue::ReadyExecution.count
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Failed to get pending jobs count: #{e.message}"
         0
       end
 
       def get_failed_jobs_count
         SolidQueue::FailedExecution.count
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Failed to get failed jobs count: #{e.message}"
         0
       end
 
@@ -1025,13 +1041,15 @@ module Api
         else
           `ps -o rss= -p #{Process.pid}`.to_i / 1024
         end
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Failed to get memory usage: #{e.message}"
         0
       end
 
       def get_active_workers
         SolidQueue::Process.where("last_heartbeat_at > ?", 5.minutes.ago).count
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Failed to get active workers count: #{e.message}"
         0
       end
 

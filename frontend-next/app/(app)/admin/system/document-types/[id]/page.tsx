@@ -77,7 +77,7 @@ import {
   getShortToLongMap,
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
-import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS, getScopeLabel } from "@/lib/constants/document-types";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { getInitials as getInitialsSSoT } from "@/utils/formatters";
 
@@ -271,7 +271,7 @@ export default function DocumentTypeDetailPage() {
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [placeholderCategory, setPlaceholderCategory] = React.useState<TokenCategory>("all"); // SSoT: Category filter for placeholders
   const [tabSearch, setTabSearch] = React.useState(""); // Search filter for Primary/Secondary tab dropdowns
-  const [scopeFilter, setScopeFilter] = React.useState<'all' | 'corporate' | 'job' | 'contact'>('all'); // Filter tabs by scope
+  const [scopeFilter, setScopeFilter] = React.useState<'all' | 'corporate' | 'job' | 'contact' | 'library'>('all'); // Filter tabs by scope
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
   const [folderHierarchy, setFolderHierarchy] = React.useState<ScopeNode[]>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
@@ -354,13 +354,14 @@ export default function DocumentTypeDetailPage() {
             .map(mapTabRecursive)
         });
 
-        // SSoT: Fetch ALL tabs from the THREE valid scopes for document types
-        // Document types can ONLY be linked to: corporate, job, or contact tabs
+        // SSoT: Fetch ALL tabs from the valid scopes for document types
+        // Document types can be linked to: corporate, job, contact, or library tabs
         // The "document" warehouse_type is for storage folders, not document type assignment
         const scopeConfig = [
           { apiScope: 'corporate', displayName: 'Corporate', icon: '🏢' },
           { apiScope: 'job', displayName: 'Job', icon: '📋' },
-          { apiScope: 'contact', displayName: 'Contact', icon: '👤' }
+          { apiScope: 'contact', displayName: 'Contact', icon: '👤' },
+          { apiScope: 'library', displayName: 'Library', icon: '📚' },
         ];
 
         const scopeGroupedHierarchy: ScopeNode[] = [];
@@ -1434,7 +1435,7 @@ export default function DocumentTypeDetailPage() {
               )}
               {!isNew && scopeFilteredTypes.length > 0 && (
                 <span className="text-xs text-muted-foreground">
-                  {currentIndex + 1} of {scopeFilteredTypes.length} {currentScope}
+                  {currentIndex + 1} of {scopeFilteredTypes.length} {getScopeLabel(currentScope)}
                 </span>
               )}
             </div>
@@ -1517,7 +1518,7 @@ export default function DocumentTypeDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
-                <p className="text-xs text-muted-foreground">Auto-set by Primary Tab</p>
+                <p className="text-xs text-muted-foreground">Auto-set by Primary Tab / Folder</p>
               </div>
             </div>
 
@@ -1533,9 +1534,9 @@ export default function DocumentTypeDetailPage() {
               />
             </div>
 
-            {/* Tab View - Primary Tab */}
+            {/* Tab View - Primary Tab / Folder */}
             <div className="space-y-2">
-              <Label>Primary Tab</Label>
+              <Label>Primary Tab / Folder</Label>
               {/* Scope filter buttons */}
               <div className="flex gap-1 mb-1">
                 {[
@@ -1543,6 +1544,7 @@ export default function DocumentTypeDetailPage() {
                   { key: 'corporate', label: 'Corporate', icon: '🏢' },
                   { key: 'job', label: 'Job', icon: '📋' },
                   { key: 'contact', label: 'Contact', icon: '👤' },
+                  { key: 'library', label: 'Library', icon: '📚' },
                 ].map((scope) => (
                   <button
                     key={scope.key}
@@ -1642,7 +1644,7 @@ export default function DocumentTypeDetailPage() {
                               {scopeIdx > 0 && <SelectSeparator />}
                               {/* Scope header */}
                               <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
-                                {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                                {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : scopeGroup.tab_key === 'library' ? '📚' : '👤'} {scopeGroup.name}
                               </SelectLabel>
                               {/* Tabs within this scope */}
                               {filteredTabs.map((tab: any, tabIdx: number) => {
@@ -1785,6 +1787,7 @@ export default function DocumentTypeDetailPage() {
                         { key: 'corporate', label: 'Corporate', icon: '🏢' },
                         { key: 'job', label: 'Job', icon: '📋' },
                         { key: 'contact', label: 'Contact', icon: '👤' },
+                        { key: 'library', label: 'Library', icon: '📚' },
                       ].map((scope) => (
                         <button
                           key={scope.key}
@@ -1859,7 +1862,7 @@ export default function DocumentTypeDetailPage() {
                                 {scopeIdx > 0 && <SelectSeparator />}
                                 {/* Scope header */}
                                 <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
-                                  {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                                  {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : scopeGroup.tab_key === 'library' ? '📚' : '👤'} {scopeGroup.name}
                                 </SelectLabel>
                                 {/* Tabs within this scope */}
                                 {availableTabs.map((tab: any, tabIdx: number) => {

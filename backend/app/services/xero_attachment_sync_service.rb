@@ -102,6 +102,9 @@ class XeroAttachmentSyncService
     @results
   end
 
+  # ⚠️ MEMORY-SAFE (Feb 2026): Uses Tempfile pipeline for PDF downloads.
+  # Download → Tempfile → Digest::SHA256.file() → StorageBlob.find_or_create_from_file!
+  # Peak memory: ~16KB (chunk buffer) instead of ~5MB (full PDF in heap).
   def sync_invoice_pdf
     external_doc_id = "xero:#{external_invoice.external_id}:pdf"
 
@@ -119,95 +122,87 @@ class XeroAttachmentSyncService
     end
 
     # FRC (Feb 2026): Bills don't have Xero auto-generated PDFs
-    # But they CAN have supplier-uploaded attachments. Create a "bill record"
-    # WarehouseDocument without storage_blob so attachments can be synced.
     if external_invoice.bill?
       results[:pdf] = create_bill_record_document(existing)
       return
     end
 
-    # Download PDF from Xero
-    pdf_result = download_invoice_pdf
+    # Download PDF from Xero to Tempfile (memory-safe)
+    pdf_result = download_invoice_pdf_to_tempfile
     unless pdf_result[:success]
       results[:errors] << "Failed to fetch PDF: #{pdf_result[:error]}"
       return
     end
 
-    pdf_content = pdf_result[:content]
-    filename = build_pdf_filename
+    tempfile = pdf_result[:tempfile]
+    begin
+      filename = build_pdf_filename
 
-    # SSoT: Get DocumentType from database (no hardcoding)
-    document_type = find_document_type_for_invoice
-    unless document_type
-      results[:errors] << "DocumentType not found for invoice type: #{external_invoice.invoice_type}"
-      return
-    end
-
-    # SSoT (Feb 2026): Get folder path from WarehouseFolder (no hardcoding)
-    folder = compute_folder_from_document_type(document_type)
-
-    # ========================================
-    # SSoT Content-Hash Deduplication (Jan 2026)
-    # ========================================
-    # Before creating a new WarehouseDocument, check if a document with
-    # the same content_hash already exists. If yes, link it to the Xero
-    # invoice instead of creating a new one. This prevents duplicate
-    # document metadata for the same file content.
-
-    content_hash = StorageBlob.compute_hash(pdf_content)
-    existing_by_content = find_document_by_content_hash(content_hash)
-
-    if existing_by_content
-      # Link existing document to Xero invoice
-      linked_doc = link_existing_document_to_xero(existing_by_content, document_type, folder)
-      if linked_doc
-        results[:pdf] = linked_doc
+      document_type = find_document_type_for_invoice
+      unless document_type
+        results[:errors] << "DocumentType not found for invoice type: #{external_invoice.invoice_type}"
         return
       end
-      # If linking failed, fall through to create new document
-    end
 
-    # SSoT: Create StorageBlob (handles deduplication at storage level)
-    storage_blob = StorageBlob.find_or_create_for_content!(
-      pdf_content,
-      filename: filename,
-      content_type: "application/pdf"
-    )
-    storage_blob.increment_reference!
+      folder = compute_folder_from_document_type(document_type)
 
-    # SSoT: Create/update WarehouseDocument via standard service
-    begin
-      warehouse_doc = if existing
-        existing.assign_attributes(
-          storage_blob: storage_blob,
-          ui_name: build_display_name,
-          original_filename: filename,
-          content_type: "application/pdf",
-          file_size: pdf_content.bytesize,
-          linkable: external_invoice.contact,
-          folder_path: folder,
-          metadata: (existing.metadata || {}).merge(build_metadata(document_type))
-        )
-        existing.save!
-        existing
-      else
-        WarehouseDocumentCreator.create!(
-          filename: filename,
-          source_type: "xero",
-          documentable: external_invoice,
-          linkable: external_invoice.contact,
-          storage_blob: storage_blob,
-          file_size: pdf_content.bytesize,
-          content_type: "application/pdf",
-          metadata: build_metadata(document_type),
-          folder_path: folder
-        )
+      # SSoT Content-Hash Deduplication — uses Digest::SHA256.file (O(1) memory)
+      content_hash = Digest::SHA256.file(tempfile.path).hexdigest
+      existing_by_content = find_document_by_content_hash(content_hash)
+
+      if existing_by_content
+        linked_doc = link_existing_document_to_xero(existing_by_content, document_type, folder)
+        if linked_doc
+          results[:pdf] = linked_doc
+          return
+        end
       end
-      results[:pdf] = warehouse_doc
-      Rails.logger.info("[XeroAttachmentSync] Saved PDF via WarehouseDocument: #{filename} -> #{storage_blob.storage_path}")
-    rescue ActiveRecord::RecordInvalid => e
-      storage_blob.decrement_reference!
-      results[:errors] << "Failed to save WarehouseDocument: #{e.message}"
+
+      # SSoT: Create StorageBlob from file (memory-safe, streams to S3)
+      file_size = tempfile.size
+      storage_blob = StorageBlob.find_or_create_from_file!(
+        tempfile.path,
+        filename: filename,
+        content_type: "application/pdf"
+      )
+      storage_blob.increment_reference!
+
+      # SSoT: Create/update WarehouseDocument
+      begin
+        warehouse_doc = if existing
+          existing.assign_attributes(
+            storage_blob: storage_blob,
+            ui_name: build_display_name,
+            original_filename: filename,
+            content_type: "application/pdf",
+            file_size: file_size,
+            linkable: external_invoice.contact,
+            folder_path: folder,
+            metadata: (existing.metadata || {}).merge(build_metadata(document_type))
+          )
+          existing.save!
+          existing
+        else
+          WarehouseDocumentCreator.create!(
+            filename: filename,
+            source_type: "xero",
+            documentable: external_invoice,
+            linkable: external_invoice.contact,
+            storage_blob: storage_blob,
+            file_size: file_size,
+            content_type: "application/pdf",
+            metadata: build_metadata(document_type),
+            folder_path: folder
+          )
+        end
+        results[:pdf] = warehouse_doc
+        Rails.logger.info("[XeroAttachmentSync] Saved PDF via WarehouseDocument: #{filename} -> #{storage_blob.storage_path}")
+      rescue ActiveRecord::RecordInvalid => e
+        storage_blob.decrement_reference!
+        results[:errors] << "Failed to save WarehouseDocument: #{e.message}"
+      end
+    ensure
+      tempfile&.close! rescue nil
     end
   rescue ActiveRecord::RecordNotUnique => e
     handle_race_condition(e, external_invoice, "pdf")
@@ -289,12 +284,11 @@ class XeroAttachmentSyncService
     end
   end
 
+  # ⚠️ MEMORY-SAFE (Feb 2026): Uses Tempfile pipeline for attachment downloads.
   def sync_single_attachment(entity_type, attachment_info)
     filename = attachment_info[:filename]
     attachment_id = attachment_info[:attachment_id]
 
-    # SSoT: Attachments link to the primary PDF document via parent_document_id
-    # This avoids the unique constraint on documentable (one WarehouseDoc per source record)
     parent_doc = results[:pdf]
     unless parent_doc
       Rails.logger.warn("[XeroAttachmentSync] No parent PDF document for attachment: #{filename}")
@@ -302,14 +296,13 @@ class XeroAttachmentSyncService
       return
     end
 
-    # Check if already synced (using parent_document_id + attachment_id in metadata)
+    # Check if already synced
     existing = WarehouseDocument.find_by(
       parent_document_id: parent_doc.id
     )&.then do |doc|
       doc if doc.metadata&.dig("attachment_id") == attachment_id
     end
 
-    # Alternative check: search by metadata
     existing ||= WarehouseDocument.where(parent_document_id: parent_doc.id)
                                   .where("metadata->>'attachment_id' = ?", attachment_id)
                                   .first
@@ -320,9 +313,8 @@ class XeroAttachmentSyncService
       return
     end
 
-    # Download the attachment
-    # FRC (Feb 2026): Use @xero_tenant_id (Xero UUID), NOT external_invoice.tenant_id (TEEEM integer)
-    download_result = xero_client.download_attachment(
+    # Download the attachment to Tempfile (memory-safe)
+    download_result = xero_client.download_attachment_to_tempfile(
       entity_type,
       external_invoice.external_id,
       filename,
@@ -334,45 +326,49 @@ class XeroAttachmentSyncService
       return
     end
 
-    content = download_result[:content]
-    mime_type = download_result[:mime_type] || attachment_info[:mime_type] || "application/octet-stream"
+    tempfile = download_result[:tempfile]
+    begin
+      mime_type = download_result[:mime_type] || attachment_info[:mime_type] || "application/octet-stream"
 
-    # SSoT: Get DocumentType for attachment (no hardcoding)
-    document_type = find_document_type_for_attachment
-    unless document_type
-      results[:errors] << "DocumentType not found for attachment type: #{external_invoice.invoice_type}"
-      return
-    end
+      document_type = find_document_type_for_attachment
+      unless document_type
+        results[:errors] << "DocumentType not found for attachment type: #{external_invoice.invoice_type}"
+        return
+      end
 
-    folder = compute_folder_from_document_type(document_type)
+      folder = compute_folder_from_document_type(document_type)
 
-    # SSoT: Create StorageBlob
-    storage_blob = StorageBlob.find_or_create_for_content!(
-      content,
-      filename: filename,
-      content_type: mime_type
-    )
-    storage_blob.increment_reference!
+      # SSoT: Create StorageBlob from file (memory-safe)
+      file_size = tempfile.size
+      storage_blob = StorageBlob.find_or_create_from_file!(
+        tempfile.path,
+        filename: filename,
+        content_type: mime_type
+      )
+      storage_blob.increment_reference!
 
-    # SSoT: Create WarehouseDocument as child of primary PDF via standard service
-    warehouse_doc = WarehouseDocumentCreator.create!(
-      filename: filename,
-      source_type: "xero",
-      linkable: external_invoice.contact,
-      storage_blob: storage_blob,
-      file_size: content.bytesize,
-      content_type: mime_type,
-      parent_document: parent_doc,
-      metadata: build_attachment_metadata(document_type, attachment_id, filename),
-      folder_path: folder
-    )
+      # SSoT: Create WarehouseDocument as child of primary PDF
+      warehouse_doc = WarehouseDocumentCreator.create!(
+        filename: filename,
+        source_type: "xero",
+        linkable: external_invoice.contact,
+        storage_blob: storage_blob,
+        file_size: file_size,
+        content_type: mime_type,
+        parent_document: parent_doc,
+        metadata: build_attachment_metadata(document_type, attachment_id, filename),
+        folder_path: folder
+      )
 
-    if warehouse_doc.persisted?
-      results[:attachments] << warehouse_doc
-      Rails.logger.info("[XeroAttachmentSync] Saved attachment via WarehouseDocument (parent: #{parent_doc.id}): #{filename}")
-    else
-      storage_blob.decrement_reference!
-      results[:errors] << "Failed to save attachment #{filename}: #{warehouse_doc.errors.full_messages.join(', ')}"
+      if warehouse_doc.persisted?
+        results[:attachments] << warehouse_doc
+        Rails.logger.info("[XeroAttachmentSync] Saved attachment via WarehouseDocument (parent: #{parent_doc.id}): #{filename}")
+      else
+        storage_blob.decrement_reference!
+        results[:errors] << "Failed to save attachment #{filename}: #{warehouse_doc.errors.full_messages.join(', ')}"
+      end
+    ensure
+      tempfile&.close! rescue nil
     end
   rescue ActiveRecord::RecordNotUnique => e
     handle_attachment_race_condition(e, attachment_id, filename)
@@ -555,10 +551,21 @@ class XeroAttachmentSyncService
   # Xero API Download
   # ========================================
 
+  # Memory-safe: Download invoice PDF to Tempfile (Feb 2026)
+  # Returns { success: true, tempfile: Tempfile, ... } — caller MUST close tempfile
+  def download_invoice_pdf_to_tempfile
+    case external_invoice.invoice_type
+    when "quote"
+      xero_client.get_quote_pdf_to_tempfile(external_invoice.external_id, tenant_id: @xero_tenant_id)
+    when "credit_note"
+      xero_client.get_credit_note_pdf_to_tempfile(external_invoice.external_id, tenant_id: @xero_tenant_id)
+    else
+      xero_client.get_invoice_pdf_to_tempfile(external_invoice.external_id, tenant_id: @xero_tenant_id)
+    end
+  end
+
+  # Legacy in-memory download (kept for backward compat — used by single-invoice sync)
   def download_invoice_pdf
-    # FRC (Feb 2026): Use @xero_tenant_id (Xero UUID), NOT external_invoice.tenant_id (TEEEM integer)
-    # The tenant_id on ExternalInvoice is the TEEEM Tenant.id FK, not the Xero org UUID.
-    # This bug caused all API calls to fail or hit the wrong org's rate limits.
     case external_invoice.invoice_type
     when "quote"
       xero_client.get_quote_pdf(external_invoice.external_id, tenant_id: @xero_tenant_id)

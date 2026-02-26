@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import MultipleSelector from "@/components/ui/multiple-selector";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
@@ -22,6 +23,7 @@ import { UI_AUTOSAVE_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/
 export interface EditRowData {
   id: number;
   task_number: number;
+  task_code?: string | null;
   name: string;
   description?: string;
   duration_days: number;
@@ -33,6 +35,7 @@ export interface EditRowData {
   stage_name?: string;
   assigned_role?: string | null;
   cost_centre?: string;
+  tender_id?: string;
   header_gantt?: string | { id: number; display: string } | null;
   allow_header?: boolean;
   is_active?: boolean;
@@ -87,6 +90,11 @@ export interface EditRowData {
   // Task group - for grouping PO and non-PO tasks
   sm_task_group_id?: number | null;
   sm_task_group_name?: string | null;
+  // Plan and document reference types (JSONB arrays of document_type IDs)
+  plan_type_ids?: number[];
+  plan_type_names?: string[];
+  document_ref_type_ids?: number[];
+  document_ref_type_names?: string[];
 }
 
 export type EditRowFormData = Partial<EditRowData>;
@@ -146,8 +154,9 @@ export interface EditRowDialogProps {
   roles: Array<{ id: number; name: string; display_name: string }>;
   stages: Array<{ id: number; name: string }>;
   costCentres: Array<{ id: number; name: string }>;
+  tenderSections?: Array<{ id: number; name: string }>;
   checklists: Array<{ id: number; name: string }>;
-  documentTypes: Array<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }>;
+  documentTypes: Array<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string>; folder?: string; primary_folder_name?: string }>;
   tradingNames: Array<{ id: number; name: string }>;
   invoiceTemplates: ClaimInvoiceTemplate[];
   workflows?: Array<{ id: number; name: string }>;
@@ -180,6 +189,7 @@ export function EditRowDialog({
   roles,
   stages,
   costCentres,
+  tenderSections = [],
   checklists,
   documentTypes,
   tradingNames,
@@ -208,6 +218,16 @@ export function EditRowDialog({
   const [loadingTemplatePreview, setLoadingTemplatePreview] = React.useState(false);
   const [showFullPreview, setShowFullPreview] = React.useState(false);
 
+  // Filter document types: "Plans" folder vs everything else
+  const planDocTypes = React.useMemo(
+    () => documentTypes.filter(dt => dt.folder === "Plans" || dt.primary_folder_name === "Plans"),
+    [documentTypes]
+  );
+  const nonPlanDocTypes = React.useMemo(
+    () => documentTypes.filter(dt => dt.folder !== "Plans" && dt.primary_folder_name !== "Plans"),
+    [documentTypes]
+  );
+
   // Initialize form when row changes
   React.useEffect(() => {
     if (row) {
@@ -222,6 +242,7 @@ export function EditRowDialog({
         stage: row.stage,
         assigned_role: row.assigned_role,
         cost_centre: row.cost_centre,
+        tender_id: row.tender_id,
         header_gantt: row.header_gantt as string | null,
         po_required: row.po_required,
         critical_po: row.critical_po,
@@ -260,6 +281,9 @@ export function EditRowDialog({
         requires_document_to_complete: row.requires_document_to_complete || false,
         completion_document_type_id: row.completion_document_type_id || null,
         completion_document_type_name: row.completion_document_type_name || null,
+        // Plan and document reference types
+        plan_type_ids: row.plan_type_ids || [],
+        document_ref_type_ids: row.document_ref_type_ids || [],
       });
 
       // Load template preview if claim task with template
@@ -374,7 +398,11 @@ export function EditRowDialog({
               Edit Row
               <span className="text-muted-foreground font-normal">•</span>
               <span className="font-normal">{row.name}</span>
-              <span className="text-muted-foreground text-sm font-normal">(#{row.task_number})</span>
+              {row.task_code ? (
+                <span className="text-muted-foreground text-sm font-normal">({row.task_code})</span>
+              ) : (
+                <span className="text-muted-foreground text-sm font-normal">(#{row.task_number})</span>
+              )}
               {/* Show parent header badge if this task is part of one */}
               {row.header_gantt && (() => {
                 const parentTaskNumber = extractLookupId(row.header_gantt);
@@ -433,8 +461,19 @@ export function EditRowDialog({
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
-            {/* Row 1: Name + Duration + Sequence - full width */}
-            <div className="grid grid-cols-[1fr_80px_80px] gap-3">
+            {/* Row 1: Code + Name + Duration + Sequence - always visible above tabs */}
+            <div className="grid grid-cols-[100px_1fr_80px_80px] gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="row-task-code" className="text-xs">Code</Label>
+                <Input
+                  id="row-task-code"
+                  value={editRowForm.task_code || ""}
+                  onChange={(e) => setEditRowForm({ ...editRowForm, task_code: e.target.value })}
+                  className="h-8"
+                  placeholder="Optional"
+                  maxLength={50}
+                />
+              </div>
               <div className="space-y-1">
                 <Label htmlFor="row-name" className="text-xs">Name</Label>
                 <Input
@@ -467,7 +506,7 @@ export function EditRowDialog({
               </div>
             </div>
 
-            {/* Description - full width */}
+            {/* Description - full width, always visible above tabs */}
             <div className="space-y-1">
               <Label htmlFor="row-description" className="text-xs">Description</Label>
               <Input
@@ -479,931 +518,1061 @@ export function EditRowDialog({
               />
             </div>
 
-            {/* Three-column layout for wider modal */}
-            <div className="grid grid-cols-3 gap-6">
-              {/* Column 1: Basic Settings */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Basic Settings</h4>
-                <div className="space-y-1">
-                  <Label className="text-xs">Trade</Label>
-                  <ComboboxDropdown
-                    items={trades.map(t => ({ id: String(t.id), label: t.name }))}
-                    selectedItem={editRowForm.trade ? { id: editRowForm.trade, label: trades.find(t => String(t.id) === editRowForm.trade)?.name || row.trade_name || editRowForm.trade } : undefined}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, trade: item.id })}
-                    placeholder="Select trade..."
-                    emptyResults="No trades found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, trade: "" })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Assigned Role</Label>
-                  <ComboboxDropdown
-                    items={roles.map(r => ({ id: String(r.id), label: r.display_name }))}
-                    selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: roles.find(r => String(r.id) === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, assigned_role: item.id })}
-                    placeholder="Select role..."
-                    emptyResults="No roles found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, assigned_role: null })}
-                  />
-                </div>
-                <div className="pt-2 border-t">
-                  <h4 className="font-medium text-sm mb-2">PO Settings</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-po-required"
-                        checked={editRowForm.po_required || false}
-                        onCheckedChange={(checked) => {
-                          if (!checked && !editRowForm.create_po_on_job_start) {
-                            setEditRowForm({
-                              ...editRowForm,
-                              po_required: checked,
-                              spawn_order_task: false,
-                              spawn_call_task: false,
-                              order_time_days: undefined,
-                              call_time_days: undefined,
-                            });
-                          } else {
-                            setEditRowForm({ ...editRowForm, po_required: checked });
-                          }
-                        }}
+            {/* ================================================================
+                4-TAB LAYOUT: Task | PO & Claims | Documents | Relationships
+               ================================================================ */}
+            <Tabs defaultValue="task" className="w-full">
+              <TabsList className="w-full justify-start">
+                <TabsTrigger value="task">Task</TabsTrigger>
+                <TabsTrigger value="po-claims">PO & Claims</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
+                <TabsTrigger value="relationships">Relationships</TabsTrigger>
+              </TabsList>
+
+              {/* ============================================================
+                  TAB 1: TASK - Basic settings, classification, toggles
+                 ============================================================ */}
+              <TabsContent value="task" className="mt-3">
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Left column: Trade, Role, Stage, Cost Centre, Tender */}
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Trade</Label>
+                      <ComboboxDropdown
+                        items={trades.map(t => ({ id: String(t.id), label: t.name }))}
+                        selectedItem={editRowForm.trade ? { id: editRowForm.trade, label: trades.find(t => String(t.id) === editRowForm.trade)?.name || row.trade_name || editRowForm.trade } : undefined}
+                        onSelect={(item) => setEditRowForm({ ...editRowForm, trade: item.id })}
+                        placeholder="Select trade..."
+                        emptyResults="No trades found"
+                        clearable
+                        onClear={() => setEditRowForm({ ...editRowForm, trade: "" })}
                       />
-                      <Label htmlFor="row-po-required" className="text-xs">PO Required</Label>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-critical-po"
-                        checked={editRowForm.critical_po || false}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, critical_po: checked })}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Assigned Role</Label>
+                      <ComboboxDropdown
+                        items={roles.map(r => ({ id: String(r.id), label: r.display_name }))}
+                        selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: roles.find(r => String(r.id) === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
+                        onSelect={(item) => setEditRowForm({ ...editRowForm, assigned_role: item.id })}
+                        placeholder="Select role..."
+                        emptyResults="No roles found"
+                        clearable
+                        onClear={() => setEditRowForm({ ...editRowForm, assigned_role: null })}
                       />
-                      <Label htmlFor="row-critical-po" className="text-xs">Critical PO</Label>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-create-po"
-                        checked={editRowForm.create_po_on_job_start || false}
-                        onCheckedChange={(checked) => {
-                          if (!checked && !editRowForm.po_required) {
-                            setEditRowForm({
-                              ...editRowForm,
-                              create_po_on_job_start: checked,
-                              spawn_order_task: false,
-                              spawn_call_task: false,
-                              order_time_days: undefined,
-                              call_time_days: undefined,
-                            });
-                          } else {
-                            setEditRowForm({ ...editRowForm, create_po_on_job_start: checked });
-                          }
-                          if (checked && onOpenAutoPODialog) {
-                            onOpenAutoPODialog();
-                          }
-                        }}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Stage</Label>
+                      <ComboboxDropdown
+                        items={stages.map(s => ({ id: String(s.id), label: s.name }))}
+                        selectedItem={editRowForm.stage ? { id: editRowForm.stage, label: stages.find(s => String(s.id) === editRowForm.stage)?.name || row.stage_name || editRowForm.stage } : undefined}
+                        onSelect={(item) => setEditRowForm({ ...editRowForm, stage: item.id })}
+                        placeholder="Select stage..."
+                        emptyResults="No stages found"
+                        clearable
+                        onClear={() => setEditRowForm({ ...editRowForm, stage: "" })}
                       />
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="row-create-po" className="text-xs">Auto-PO on Start</Label>
-                        {editRowForm.create_po_on_job_start && onOpenAutoPODialog ? (
-                          <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={onOpenAutoPODialog}>
-                            Edit
-                          </Button>
-                        ) : null}
-                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-spawn-order"
-                        checked={editRowForm.spawn_order_task || false}
-                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_order_task: checked })}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Cost Centre</Label>
+                      <ComboboxDropdown
+                        items={costCentres.map(c => ({ id: String(c.id), label: c.name }))}
+                        selectedItem={editRowForm.cost_centre ? { id: editRowForm.cost_centre, label: costCentres.find(c => String(c.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre } : undefined}
+                        onSelect={(item) => setEditRowForm({ ...editRowForm, cost_centre: item.id })}
+                        placeholder="Cost centre..."
+                        emptyResults="No cost centres found"
+                        clearable
+                        onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
                       />
-                      <Label htmlFor="row-spawn-order" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
-                        Spawn Order Task
-                      </Label>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-spawn-call"
-                        checked={editRowForm.spawn_call_task || false}
-                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_call_task: checked })}
-                      />
-                      <Label htmlFor="row-spawn-call" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
-                        Spawn Call Task
-                      </Label>
-                    </div>
-                    {/* Related PO Tasks - for supplier coordination info */}
-                    {(editRowForm.po_required || editRowForm.create_po_on_job_start) && (
-                      <div className="pt-2 border-t">
-                        <Label className="text-xs">Related PO Tasks (for supplier coordination)</Label>
-                        <MultipleSelector
-                          value={(editRowForm.related_po_task_ids || []).map(id => {
-                            const relatedRow = allRows.find(r => r.id === id && r.po_required);
-                            return { value: String(id), label: relatedRow?.name || `Task ${id}` };
-                          })}
-                          options={allRows
-                            .filter(r => r.po_required && r.id !== row?.id)
-                            .map(r => ({ value: String(r.id), label: r.name }))
-                          }
-                          onChange={(selected) => {
-                            setEditRowForm({
-                              ...editRowForm,
-                              related_po_task_ids: selected.map(s => Number(s.value))
-                            });
-                          }}
-                          placeholder="Select related PO tasks..."
-                          emptyIndicator="No PO tasks available"
+                    {tenderSections.length > 0 && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Tender Section</Label>
+                        <ComboboxDropdown
+                          items={tenderSections.map(t => ({ id: String(t.id), label: t.name }))}
+                          selectedItem={editRowForm.tender_id ? { id: editRowForm.tender_id, label: tenderSections.find(t => String(t.id) === editRowForm.tender_id)?.name || editRowForm.tender_id } : undefined}
+                          onSelect={(item) => setEditRowForm({ ...editRowForm, tender_id: item.id })}
+                          placeholder="Tender section..."
+                          emptyResults="No tender sections found"
+                          clearable
+                          onClear={() => setEditRowForm({ ...editRowForm, tender_id: "" })}
                         />
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          When this PO is created, supplier contact info for these tasks will be included in the description.
-                        </p>
                       </div>
                     )}
                   </div>
-                </div>
-                <div className="pt-2 border-t">
-                  <h4 className="font-medium text-sm mb-2">Completion</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-require-photo"
-                        checked={editRowForm.require_photo || false}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_photo: checked })}
-                      />
-                      <Label htmlFor="row-require-photo" className="text-xs">Require Photo</Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-pass-fail"
-                        checked={editRowForm.pass_fail_enabled || false}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, pass_fail_enabled: checked })}
-                      />
-                      <div>
-                        <Label htmlFor="row-pass-fail" className="text-xs">Pass/Fail</Label>
-                        <p className="text-[10px] text-muted-foreground">Spawns re-inspect if failed</p>
+
+                  {/* Right column: Toggles */}
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-require-photo"
+                          checked={editRowForm.require_photo || false}
+                          onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_photo: checked })}
+                        />
+                        <Label htmlFor="row-require-photo" className="text-xs">Require Photo</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-pass-fail"
+                          checked={editRowForm.pass_fail_enabled || false}
+                          onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, pass_fail_enabled: checked })}
+                        />
+                        <div>
+                          <Label htmlFor="row-pass-fail" className="text-xs">Pass/Fail</Label>
+                          <p className="text-[10px] text-muted-foreground">Spawns re-inspect if failed</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-                {/* Claim Settings - SSoT: Schedule Master defines job claims */}
-                <div className="pt-2 border-t">
-                  <h4 className="font-medium text-sm mb-2">Claim Settings</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
+
+                    {/* Allow Header */}
+                    <div className="flex items-center gap-2 pt-2 border-t">
                       <Switch
-                        id="row-is-claim-task"
-                        checked={editRowForm.is_claim_task || false}
+                        id="row-allow-header"
+                        checked={editRowForm.allow_header || false}
+                        disabled={editRowForm.po_required || editRowForm.create_po_on_job_start}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            const defaultTemplate = invoiceTemplates.find(t => t.is_default);
-                            const templateId = editRowForm.claim_invoice_template_id || defaultTemplate?.id || null;
-                            setEditRowForm({
-                              ...editRowForm,
-                              is_claim_task: checked,
-                              claim_invoice_template_id: templateId,
-                            });
-                            if (templateId) {
-                              loadTemplatePreview(templateId, { taskName: editRowForm.name });
-                            }
+                            setEditRowForm({ ...editRowForm, allow_header: checked, header_gantt: null });
                           } else {
-                            setEditRowForm({
-                              ...editRowForm,
-                              is_claim_task: false,
-                              is_variation: false,
-                              claim_percentage: null,
-                              claim_sequence_number: null,
-                              claim_invoice_pattern: null,
-                              claim_invoice_template_id: null,
-                              claim_trading_name_id: null,
-                            });
-                            setTemplatePreviewHtml(null);
+                            setEditRowForm({ ...editRowForm, allow_header: checked });
                           }
                         }}
                       />
                       <div>
-                        <Label htmlFor="row-is-claim-task" className="text-xs">Is Claim Task</Label>
-                        <p className="text-[10px] text-muted-foreground">Creates JobClaimStage on job</p>
+                        <Label htmlFor="row-allow-header" className={`text-xs ${(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                          Allow Header
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground">Can be selected as parent for other tasks</p>
                       </div>
-                    </div>
-                    {editRowForm.is_claim_task ? (
-                      <div className="space-y-3 pl-6 border-l-2 border-muted">
-                        {/* Variation checkbox - skips percentage requirement */}
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="row-is-variation"
-                            checked={editRowForm.is_variation || false}
-                            onCheckedChange={(checked) => {
-                              setEditRowForm({
-                                ...editRowForm,
-                                is_variation: checked === true,
-                                claim_percentage: checked === true ? null : editRowForm.claim_percentage,
-                              });
-                            }}
-                          />
-                          <div>
-                            <Label htmlFor="row-is-variation" className="text-xs">Variation</Label>
-                            <p className="text-[10px] text-muted-foreground">Amount entered later (no % needed)</p>
-                          </div>
-                        </div>
-
-                        {/* Percentage - only shown if not a variation */}
-                        {!editRowForm.is_variation ? (
-                        <div className="space-y-1">
-                          <Label htmlFor="row-claim-percentage" className="text-xs">Claim Percentage *</Label>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              id="row-claim-percentage"
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={0.01}
-                              value={editRowForm.claim_percentage || ""}
-                              onChange={(e) => setEditRowForm({ ...editRowForm, claim_percentage: e.target.value ? parseFloat(e.target.value) : null })}
-                              className="h-8 w-24"
-                              placeholder="15.00"
-                            />
-                            <span className="text-xs text-muted-foreground">%</span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">Percentage of contract price</p>
-                        </div>
-                        ) : null}
-
-                        {/* Trading Name Selector */}
-                        <div className="space-y-1">
-                          <Label className="text-xs">Trading Name</Label>
-                          <ComboboxDropdown
-                            items={tradingNames.map(tn => ({ id: String(tn.id), label: tn.name }))}
-                            selectedItem={editRowForm.claim_trading_name_id ? {
-                              id: String(editRowForm.claim_trading_name_id),
-                              label: tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name || `ID ${editRowForm.claim_trading_name_id}`
-                            } : undefined}
-                            onSelect={(item) => setEditRowForm({ ...editRowForm, claim_trading_name_id: parseInt(item.id) })}
-                            placeholder="Select trading name..."
-                            emptyResults="No trading names found"
-                            clearable
-                            onClear={() => setEditRowForm({ ...editRowForm, claim_trading_name_id: null })}
-                          />
-                          <p className="text-[10px] text-muted-foreground">Company name shown on claim invoice</p>
-                        </div>
-
-                        {/* Claim Sequence Number - SSoT: Used for J{job}-{seq} matching */}
-                        <div className="space-y-1">
-                          <Label htmlFor="row-claim-sequence-number" className="text-xs">Claim Sequence Number</Label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              id="row-claim-sequence-number"
-                              type="number"
-                              min={1}
-                              step={1}
-                              value={editRowForm.claim_sequence_number || ""}
-                              onChange={(e) => setEditRowForm({ ...editRowForm, claim_sequence_number: e.target.value ? parseInt(e.target.value) : null })}
-                              className="h-8 w-20"
-                              placeholder="1"
-                            />
-                            <span className="text-xs text-muted-foreground">→ J{"{job}"}-{editRowForm.claim_sequence_number || "?"}</span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">Matches invoices with reference J{"{job_number}"}-{"{sequence}"} (e.g., J201-1)</p>
-                        </div>
-
-                        {/* Invoice Match Pattern */}
-                        <div className="space-y-1">
-                          <Label htmlFor="row-claim-invoice-pattern" className="text-xs">Invoice Match Pattern</Label>
-                          <Input
-                            id="row-claim-invoice-pattern"
-                            type="text"
-                            value={editRowForm.claim_invoice_pattern || ""}
-                            onChange={(e) => setEditRowForm({ ...editRowForm, claim_invoice_pattern: e.target.value || null })}
-                            className="h-8"
-                            placeholder="e.g., Deposit, Slab, Frame..."
-                          />
-                          <p className="text-[10px] text-muted-foreground">Fallback: Pattern to match Xero invoice descriptions</p>
-                        </div>
-
-                        {/* Invoice Template Selector */}
-                        <div className="space-y-2">
-                          <Label className="text-xs">Invoice Template</Label>
-                          <div className="grid grid-cols-1 gap-2">
-                            {invoiceTemplates.map((template) => (
-                              <div
-                                key={template.id}
-                                onClick={() => {
-                                  setEditRowForm({ ...editRowForm, claim_invoice_template_id: template.id });
-                                  const tradingName = editRowForm.claim_trading_name_id
-                                    ? tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name
-                                    : undefined;
-                                  loadTemplatePreview(template.id, {
-                                    tradingName,
-                                    claimPercentage: editRowForm.claim_percentage || undefined,
-                                    taskName: editRowForm.name,
-                                  });
-                                }}
-                                className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                                  editRowForm.claim_invoice_template_id === template.id
-                                    ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                    : "border-border hover:border-primary/50"
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  {/* Color swatch preview */}
-                                  <div
-                                    className="w-8 h-8 rounded flex-shrink-0"
-                                    style={{
-                                      background: `linear-gradient(135deg, ${template.primary_color} 0%, ${template.primary_color} 60%, ${template.secondary_color} 100%)`
-                                    }}
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{template.name}</p>
-                                    <p className="text-[10px] text-muted-foreground truncate">{template.description}</p>
-                                  </div>
-                                  {template.is_default ? (
-                                    <Badge variant="secondary" className="text-[10px] flex-shrink-0">Default</Badge>
-                                  ) : null}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          {invoiceTemplates.length === 0 ? (
-                            <p className="text-[10px] text-muted-foreground">No templates available</p>
-                          ) : null}
-                        </div>
-
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              {/* Column 2: Classification + Invoice Preview */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Classification</h4>
-                <div className="space-y-1">
-                  <Label className="text-xs">Stage</Label>
-                  <ComboboxDropdown
-                    items={stages.map(s => ({ id: String(s.id), label: s.name }))}
-                    selectedItem={editRowForm.stage ? { id: editRowForm.stage, label: stages.find(s => String(s.id) === editRowForm.stage)?.name || row.stage_name || editRowForm.stage } : undefined}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, stage: item.id })}
-                    placeholder="Select stage..."
-                    emptyResults="No stages found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, stage: "" })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Cost Centre</Label>
-                  <ComboboxDropdown
-                    items={costCentres.map(c => ({ id: String(c.id), label: c.name }))}
-                    selectedItem={editRowForm.cost_centre ? { id: editRowForm.cost_centre, label: costCentres.find(c => String(c.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre } : undefined}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, cost_centre: item.id })}
-                    placeholder="Cost centre..."
-                    emptyResults="No cost centres found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
-                  />
-                </div>
-
-                {/* Invoice Template Preview - shown when claim task has template selected */}
-                {editRowForm.is_claim_task && editRowForm.claim_invoice_template_id ? (
-                  <div className="pt-3 border-t space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs">Invoice Preview</Label>
-                      {loadingTemplatePreview ? <Spinner size={14} /> : null}
-                    </div>
-                    {templatePreviewHtml && !loadingTemplatePreview ? (
-                      <div
-                        className="border rounded-lg bg-white overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
-                        style={{ height: "280px", overflow: "hidden" }}
-                        onDoubleClick={() => setShowFullPreview(true)}
-                        title="Double-click for full size"
-                      >
-                        <div
-                          style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "286%", pointerEvents: "none" }}
-                          dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
-                        />
-                      </div>
-                    ) : null}
-                    {templatePreviewHtml && !loadingTemplatePreview ? (
-                      <p className="text-[10px] text-muted-foreground text-center">Double-click to enlarge</p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Column 3: Relationships & Header */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Relationships</h4>
-                <div className="space-y-1">
-                  <Label className="text-xs">Header Gantt</Label>
-                  <ComboboxDropdown
-                    items={headerRows.map(h => ({ id: String(h.task_number), label: h.name }))}
-                    selectedItem={(() => {
-                      const headerTaskNum = extractLookupId(editRowForm.header_gantt);
-                      if (!headerTaskNum || headerTaskNum === 'Header') return undefined;
-                      const headerName = headerRows.find(h => String(h.task_number) === headerTaskNum)?.name
-                        || extractLookupDisplay(row.header_gantt)
-                        || headerTaskNum;
-                      return { id: headerTaskNum, label: headerName };
-                    })()}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, header_gantt: item.id })}
-                    placeholder="Select header..."
-                    emptyResults="No header rows found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, header_gantt: null })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Checklist</Label>
-                  <ComboboxDropdown
-                    items={checklists.map(c => ({ id: String(c.id), label: c.name }))}
-                    selectedItem={(() => {
-                      const checklistId = extractLookupId(editRowForm.checklist_id);
-                      if (!checklistId) return undefined;
-                      const checklistName = checklists.find(c => String(c.id) === checklistId)?.name
-                        || extractLookupDisplay(row.checklist_id)
-                        || checklistId;
-                      return { id: checklistId, label: checklistName };
-                    })()}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, checklist_id: Number(item.id) })}
-                    placeholder="Select checklist..."
-                    emptyResults="No checklists found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, checklist_id: null })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Spawn Scan Task</Label>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <ComboboxDropdown
-                        items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.name }))}
-                        selectedItem={(() => {
-                          const firstDocType = editRowForm.document_types?.[0];
-                          if (!firstDocType) return undefined;
-                          const docType = documentTypes.find(dt => dt.id === firstDocType.document_type_id);
-                          return {
-                            id: String(firstDocType.document_type_id),
-                            label: docType?.name || firstDocType.document_type_name
-                          };
-                        })()}
-                        onSelect={(item) => setEditRowForm({
-                          ...editRowForm,
-                          document_types: [{
-                            id: editRowForm.document_types?.[0]?.id || 0,
-                            document_type_id: Number(item.id),
-                            document_type_name: item.label,
-                            lag_days: editRowForm.document_types?.[0]?.lag_days || 0
-                          }]
-                        })}
-                        placeholder="Select document type..."
-                        emptyResults="No document types found"
-                        clearable
-                        onClear={() => setEditRowForm({ ...editRowForm, document_types: [] })}
-                      />
-                    </div>
-                    <div className="w-16">
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="0"
-                        title="Days after task completion before spawning document task"
-                        value={editRowForm.document_types?.[0]?.lag_days || 0}
-                        onChange={(e) => {
-                          const lagDays = parseInt(e.target.value) || 0;
-                          const currentDocType = editRowForm.document_types?.[0];
-                          if (currentDocType) {
-                            setEditRowForm({
-                              ...editRowForm,
-                              document_types: [{
-                                ...currentDocType,
-                                lag_days: lagDays
-                              }]
-                            });
-                          }
-                        }}
-                        disabled={!editRowForm.document_types?.[0]}
-                      />
-                    </div>
-                  </div>
-                  {/* Preview of spawn behavior */}
-                  {editRowForm.document_types?.[0]?.document_type_id ? (() => {
-                    const docType = documentTypes.find(dt => dt.id === editRowForm.document_types![0].document_type_id);
-                    const formNumbers = docType?.form_number_mapping ? Object.values(docType.form_number_mapping) : [];
-                    const uniqueFormNumbers = [...new Set(formNumbers)].filter(Boolean);
-                    const formNumberDisplay = uniqueFormNumbers.length > 0
-                      ? ` ${uniqueFormNumbers.join('/')}`
-                      : '';
-
-                    return (
-                      <div className="text-xs bg-muted/50 rounded px-2 py-1.5 border border-dashed">
-                        <span className="text-muted-foreground">When completed → </span>
-                        <span className="font-medium text-foreground">
-                          GET - {(editRowForm.document_types![0].document_type_name || 'Scan task')
-                            .replace(/\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\s*/g, '')
-                            .replace(/\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\s*/g, '')
-                            .replace(/\s*\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{2,4}\s*/gi, '')
-                            .trim()}{formNumberDisplay}
-                        </span>
-                        {(editRowForm.document_types![0].lag_days || 0) > 0 ? (
-                          <span className="text-muted-foreground">
-                            {' '}spawns in {editRowForm.document_types![0].lag_days} day{editRowForm.document_types![0].lag_days !== 1 ? 's' : ''}
-                          </span>
-                        ) : null}
-                        {(editRowForm.document_types![0].lag_days || 0) === 0 ? (
-                          <span className="text-muted-foreground"> spawns immediately</span>
-                        ) : null}
-                      </div>
-                    );
-                  })() : (
-                    <p className="text-xs text-muted-foreground">Select a document type to spawn a scan task on completion</p>
-                  )}
-                </div>
-
-                {/* Workflow Triggers */}
-                {workflows.length > 0 && (
-                  <>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id="row-start-workflow-enabled"
-                          checked={editRowForm.start_workflow_enabled || false}
-                          onCheckedChange={(checked) => setEditRowForm({
-                            ...editRowForm,
-                            start_workflow_enabled: checked,
-                            start_workflow_id: checked ? editRowForm.start_workflow_id : null
-                          })}
-                        />
-                        <Label htmlFor="row-start-workflow-enabled" className="text-xs">Start Workflow</Label>
-                      </div>
-                      {editRowForm.start_workflow_enabled && (
-                        <ComboboxDropdown
-                          items={workflows.map(w => ({ id: String(w.id), label: w.name }))}
-                          selectedItem={editRowForm.start_workflow_id ? {
-                            id: String(editRowForm.start_workflow_id),
-                            label: editRowForm.start_workflow_name || workflows.find(w => w.id === editRowForm.start_workflow_id)?.name || ''
-                          } : undefined}
-                          onSelect={(item) => setEditRowForm({
-                            ...editRowForm,
-                            start_workflow_id: Number(item.id),
-                            start_workflow_name: item.label
-                          })}
-                          placeholder="Select workflow to run on task start..."
-                          emptyResults="No workflows found"
-                          clearable
-                          onClear={() => setEditRowForm({ ...editRowForm, start_workflow_id: null, start_workflow_name: null })}
-                        />
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id="row-complete-workflow-enabled"
-                          checked={editRowForm.complete_workflow_enabled || false}
-                          onCheckedChange={(checked) => setEditRowForm({
-                            ...editRowForm,
-                            complete_workflow_enabled: checked,
-                            complete_workflow_id: checked ? editRowForm.complete_workflow_id : null
-                          })}
-                        />
-                        <Label htmlFor="row-complete-workflow-enabled" className="text-xs">Complete Workflow</Label>
-                      </div>
-                      {editRowForm.complete_workflow_enabled && (
-                        <ComboboxDropdown
-                          items={workflows.map(w => ({ id: String(w.id), label: w.name }))}
-                          selectedItem={editRowForm.complete_workflow_id ? {
-                            id: String(editRowForm.complete_workflow_id),
-                            label: editRowForm.complete_workflow_name || workflows.find(w => w.id === editRowForm.complete_workflow_id)?.name || ''
-                          } : undefined}
-                          onSelect={(item) => setEditRowForm({
-                            ...editRowForm,
-                            complete_workflow_id: Number(item.id),
-                            complete_workflow_name: item.label
-                          })}
-                          placeholder="Select workflow to run on task completion..."
-                          emptyResults="No workflows found"
-                          clearable
-                          onClear={() => setEditRowForm({ ...editRowForm, complete_workflow_id: null, complete_workflow_name: null })}
-                        />
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* Completion Document Requirement */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="row-requires-document"
-                      checked={editRowForm.requires_document_to_complete || false}
-                      onCheckedChange={(checked) => setEditRowForm({
-                        ...editRowForm,
-                        requires_document_to_complete: checked,
-                        completion_document_type_id: checked ? editRowForm.completion_document_type_id : null
-                      })}
-                    />
-                    <Label htmlFor="row-requires-document" className="text-xs">Requires Document to Complete</Label>
-                  </div>
-                  {editRowForm.requires_document_to_complete && (
-                    <>
-                      <ComboboxDropdown
-                        items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.display_name || dt.name }))}
-                        selectedItem={editRowForm.completion_document_type_id ? {
-                          id: String(editRowForm.completion_document_type_id),
-                          label: editRowForm.completion_document_type_name || documentTypes.find(dt => dt.id === editRowForm.completion_document_type_id)?.name || ''
-                        } : undefined}
-                        onSelect={(item) => setEditRowForm({
-                          ...editRowForm,
-                          completion_document_type_id: Number(item.id),
-                          completion_document_type_name: item.label
-                        })}
-                        placeholder="Select required document type..."
-                        emptyResults="No document types found"
-                        clearable
-                        onClear={() => setEditRowForm({ ...editRowForm, completion_document_type_id: null, completion_document_type_name: null })}
-                      />
-                      <p className="text-xs text-muted-foreground">Task cannot be completed until a document of this type is attached</p>
-                    </>
-                  )}
-                </div>
-
-                {/* Allow Header */}
-                <div className="flex items-center gap-2 pt-2 border-t">
-                  <Switch
-                    id="row-allow-header"
-                    checked={editRowForm.allow_header || false}
-                    disabled={editRowForm.po_required || editRowForm.create_po_on_job_start}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setEditRowForm({ ...editRowForm, allow_header: checked, header_gantt: null });
-                      } else {
-                        setEditRowForm({ ...editRowForm, allow_header: checked });
-                      }
-                    }}
-                  />
-                  <div>
-                    <Label htmlFor="row-allow-header" className={`text-xs ${(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
-                      Allow Header
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground">Can be selected as parent for other tasks</p>
-                  </div>
-                  {editRowForm.allow_header && row ? (() => {
-                    const children = allRows.filter(r => {
-                      const parentId = extractLookupId(r.header_gantt);
-                      return parentId && String(parentId) === String(row.task_number);
-                    });
-                    const childCount = children.length;
-                    const subHeaderCount = children.filter(c => c.allow_header).length;
-
-                    return (
-                      <div className="flex items-center gap-1">
-                        <Badge className="text-[10px] bg-blue-500">Header</Badge>
-                        <Badge variant="outline" className="text-[10px]">
-                          {childCount} {childCount === 1 ? 'child' : 'children'}
-                        </Badge>
-                        {subHeaderCount > 0 ? (
-                          <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-500 dark:text-blue-400">
-                            {subHeaderCount} sub-header{subHeaderCount !== 1 ? 's' : ''}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    );
-                  })() : null}
-                </div>
-                {/* Child Tasks - shown when Allow Header is enabled */}
-                {editRowForm.allow_header && row && onChildTaskUpdate ? (
-                  <div className="pt-2 border-t">
-                    <Label className="text-xs">Child Tasks ({allRows.filter(r => {
-                      const parentId = extractLookupId(r.header_gantt);
-                      return parentId && String(parentId) === String(row.task_number);
-                    }).length} grouped under this header)</Label>
-                    <MultipleSelector
-                      value={allRows
-                        .filter(r => {
+                      {editRowForm.allow_header && row ? (() => {
+                        const children = allRows.filter(r => {
                           const parentId = extractLookupId(r.header_gantt);
                           return parentId && String(parentId) === String(row.task_number);
-                        })
-                        .map(r => ({ value: String(r.id), label: r.name }))}
-                      onChange={async (options) => {
-                        const currentChildIds = allRows
-                          .filter(r => {
-                            const parentId = extractLookupId(r.header_gantt);
-                            return parentId && String(parentId) === String(row.task_number);
-                          })
-                          .map(r => r.id);
-                        const newChildIds = options.map(o => parseInt(o.value));
+                        });
+                        const childCount = children.length;
+                        const subHeaderCount = children.filter(c => c.allow_header).length;
 
-                        const addedIds = newChildIds.filter(id => !currentChildIds.includes(id));
-                        const removedIds = currentChildIds.filter(id => !newChildIds.includes(id));
+                        return (
+                          <div className="flex items-center gap-1">
+                            <Badge className="text-[10px] bg-blue-500">Header</Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              {childCount} {childCount === 1 ? 'child' : 'children'}
+                            </Badge>
+                            {subHeaderCount > 0 ? (
+                              <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-500 dark:text-blue-400">
+                                {subHeaderCount} sub-header{subHeaderCount !== 1 ? 's' : ''}
+                              </Badge>
+                            ) : null}
+                          </div>
+                        );
+                      })() : null}
+                    </div>
 
-                        try {
-                          for (const childId of addedIds) {
-                            await onChildTaskUpdate(childId, row.task_number);
-                          }
-                          for (const childId of removedIds) {
-                            await onChildTaskUpdate(childId, null);
-                          }
-                          onRefresh?.();
-                        } catch (error) {
-                          console.error("Failed to update child tasks:", error);
-                        }
-                      }}
-                      defaultOptions={allRows
-                        .filter(r => {
-                          if (r.id === row.id) return false;
-                          const parentId = extractLookupId(r.header_gantt);
-                          return !parentId || String(parentId) === String(row.task_number);
-                        })
-                        .map(r => ({
-                          value: String(r.id),
-                          label: r.name
-                        }))}
-                      placeholder="Select child tasks..."
-                      emptyIndicator={
-                        <p className="text-center text-xs text-muted-foreground">
-                          No available tasks to add as children
-                        </p>
-                      }
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      These tasks will be grouped under this header in the Gantt chart
-                    </p>
+                    {/* Active Status */}
+                    <div className="flex items-center gap-2 pt-2 border-t">
+                      <Switch
+                        id="row-is-active"
+                        checked={editRowForm.is_active !== false}
+                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, is_active: checked })}
+                      />
+                      <div>
+                        <Label htmlFor="row-is-active" className="text-xs">
+                          Active
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground">Inactive tasks won&apos;t appear in new jobs</p>
+                      </div>
+                      {editRowForm.is_active === false ? (
+                        <Badge variant="destructive" className="text-[10px]">Inactive</Badge>
+                      ) : null}
+                    </div>
                   </div>
-                ) : null}
-                {/* Active Status */}
-                <div className="flex items-center gap-2 pt-2 border-t">
-                  <Switch
-                    id="row-is-active"
-                    checked={editRowForm.is_active !== false}
-                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, is_active: checked })}
-                  />
-                  <div>
-                    <Label htmlFor="row-is-active" className="text-xs">
-                      Active
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground">Inactive tasks won&apos;t appear in new jobs</p>
-                  </div>
-                  {editRowForm.is_active === false ? (
-                    <Badge variant="destructive" className="text-[10px]">Inactive</Badge>
-                  ) : null}
                 </div>
-              </div>
-            </div>
+              </TabsContent>
 
-            {/* Template Membership - Multi-template support (Schedule Master only) */}
-            {showTemplateSection && templates.length > 0 ? (
-              <div className="border-t pt-3">
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-xs">Template Membership</Label>
-                  {/* Copy to Template dropdown */}
-                  {onCopyToTemplate ? (
-                    <div className="flex items-center gap-2">
-                      <ComboboxDropdown
-                        items={templates
-                          .filter(t => !(editRowForm.sm_template_ids || []).includes(t.id))
-                          .map(t => ({ id: String(t.id), label: t.name }))}
-                        onSelect={async (item) => {
-                          if (row && onCopyToTemplate) {
-                            await onCopyToTemplate(parseInt(item.id), row.id);
-                          }
+              {/* ============================================================
+                  TAB 2: PO & CLAIMS
+                 ============================================================ */}
+              <TabsContent value="po-claims" className="mt-3">
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Left: PO Settings */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">PO Settings</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-po-required"
+                          checked={editRowForm.po_required || false}
+                          onCheckedChange={(checked) => {
+                            if (!checked && !editRowForm.create_po_on_job_start) {
+                              setEditRowForm({
+                                ...editRowForm,
+                                po_required: checked,
+                                spawn_order_task: false,
+                                spawn_call_task: false,
+                                order_time_days: undefined,
+                                call_time_days: undefined,
+                              });
+                            } else {
+                              setEditRowForm({ ...editRowForm, po_required: checked });
+                            }
+                          }}
+                        />
+                        <Label htmlFor="row-po-required" className="text-xs">PO Required</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-critical-po"
+                          checked={editRowForm.critical_po || false}
+                          onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, critical_po: checked })}
+                        />
+                        <Label htmlFor="row-critical-po" className="text-xs">Critical PO</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-create-po"
+                          checked={editRowForm.create_po_on_job_start || false}
+                          onCheckedChange={(checked) => {
+                            if (!checked && !editRowForm.po_required) {
+                              setEditRowForm({
+                                ...editRowForm,
+                                create_po_on_job_start: checked,
+                                spawn_order_task: false,
+                                spawn_call_task: false,
+                                order_time_days: undefined,
+                                call_time_days: undefined,
+                              });
+                            } else {
+                              setEditRowForm({ ...editRowForm, create_po_on_job_start: checked });
+                            }
+                            if (checked && onOpenAutoPODialog) {
+                              onOpenAutoPODialog();
+                            }
+                          }}
+                        />
+                        <div className="flex items-center gap-1">
+                          <Label htmlFor="row-create-po" className="text-xs">Auto-PO on Start</Label>
+                          {editRowForm.create_po_on_job_start && onOpenAutoPODialog ? (
+                            <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={onOpenAutoPODialog}>
+                              Edit
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-spawn-order"
+                          checked={editRowForm.spawn_order_task || false}
+                          disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
+                          onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_order_task: checked })}
+                        />
+                        <Label htmlFor="row-spawn-order" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                          Spawn Order Task
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-spawn-call"
+                          checked={editRowForm.spawn_call_task || false}
+                          disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
+                          onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_call_task: checked })}
+                        />
+                        <Label htmlFor="row-spawn-call" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                          Spawn Call Task
+                        </Label>
+                      </div>
+                      {/* Related PO Tasks - for supplier coordination info */}
+                      {(editRowForm.po_required || editRowForm.create_po_on_job_start) && (
+                        <div className="pt-2 border-t">
+                          <Label className="text-xs">Related PO Tasks (for supplier coordination)</Label>
+                          <MultipleSelector
+                            value={(editRowForm.related_po_task_ids || []).map(id => {
+                              const relatedRow = allRows.find(r => r.id === id && r.po_required);
+                              return { value: String(id), label: relatedRow?.name || `Task ${id}` };
+                            })}
+                            options={allRows
+                              .filter(r => r.po_required && r.id !== row?.id)
+                              .map(r => ({ value: String(r.id), label: r.name }))
+                            }
+                            onChange={(selected) => {
+                              setEditRowForm({
+                                ...editRowForm,
+                                related_po_task_ids: selected.map(s => Number(s.value))
+                              });
+                            }}
+                            placeholder="Select related PO tasks..."
+                            emptyIndicator="No PO tasks available"
+                          />
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            When this PO is created, supplier contact info for these tasks will be included in the description.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Claim Settings + Invoice Preview */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Claim Settings</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-is-claim-task"
+                          checked={editRowForm.is_claim_task || false}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              const defaultTemplate = invoiceTemplates.find(t => t.is_default);
+                              const templateId = editRowForm.claim_invoice_template_id || defaultTemplate?.id || null;
+                              setEditRowForm({
+                                ...editRowForm,
+                                is_claim_task: checked,
+                                claim_invoice_template_id: templateId,
+                              });
+                              if (templateId) {
+                                loadTemplatePreview(templateId, { taskName: editRowForm.name });
+                              }
+                            } else {
+                              setEditRowForm({
+                                ...editRowForm,
+                                is_claim_task: false,
+                                is_variation: false,
+                                claim_percentage: null,
+                                claim_sequence_number: null,
+                                claim_invoice_pattern: null,
+                                claim_invoice_template_id: null,
+                                claim_trading_name_id: null,
+                              });
+                              setTemplatePreviewHtml(null);
+                            }
+                          }}
+                        />
+                        <div>
+                          <Label htmlFor="row-is-claim-task" className="text-xs">Is Claim Task</Label>
+                          <p className="text-[10px] text-muted-foreground">Creates JobClaimStage on job</p>
+                        </div>
+                      </div>
+                      {editRowForm.is_claim_task ? (
+                        <div className="space-y-3 pl-6 border-l-2 border-muted">
+                          {/* Variation checkbox */}
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="row-is-variation"
+                              checked={editRowForm.is_variation || false}
+                              onCheckedChange={(checked) => {
+                                setEditRowForm({
+                                  ...editRowForm,
+                                  is_variation: checked === true,
+                                  claim_percentage: checked === true ? null : editRowForm.claim_percentage,
+                                });
+                              }}
+                            />
+                            <div>
+                              <Label htmlFor="row-is-variation" className="text-xs">Variation</Label>
+                              <p className="text-[10px] text-muted-foreground">Amount entered later (no % needed)</p>
+                            </div>
+                          </div>
+
+                          {/* Percentage */}
+                          {!editRowForm.is_variation ? (
+                          <div className="space-y-1">
+                            <Label htmlFor="row-claim-percentage" className="text-xs">Claim Percentage *</Label>
+                            <div className="flex items-center gap-1">
+                              <Input
+                                id="row-claim-percentage"
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.01}
+                                value={editRowForm.claim_percentage || ""}
+                                onChange={(e) => setEditRowForm({ ...editRowForm, claim_percentage: e.target.value ? parseFloat(e.target.value) : null })}
+                                className="h-8 w-24"
+                                placeholder="15.00"
+                              />
+                              <span className="text-xs text-muted-foreground">%</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">Percentage of contract price</p>
+                          </div>
+                          ) : null}
+
+                          {/* Trading Name */}
+                          <div className="space-y-1">
+                            <Label className="text-xs">Trading Name</Label>
+                            <ComboboxDropdown
+                              items={tradingNames.map(tn => ({ id: String(tn.id), label: tn.name }))}
+                              selectedItem={editRowForm.claim_trading_name_id ? {
+                                id: String(editRowForm.claim_trading_name_id),
+                                label: tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name || `ID ${editRowForm.claim_trading_name_id}`
+                              } : undefined}
+                              onSelect={(item) => setEditRowForm({ ...editRowForm, claim_trading_name_id: parseInt(item.id) })}
+                              placeholder="Select trading name..."
+                              emptyResults="No trading names found"
+                              clearable
+                              onClear={() => setEditRowForm({ ...editRowForm, claim_trading_name_id: null })}
+                            />
+                            <p className="text-[10px] text-muted-foreground">Company name shown on claim invoice</p>
+                          </div>
+
+                          {/* Claim Sequence Number */}
+                          <div className="space-y-1">
+                            <Label htmlFor="row-claim-sequence-number" className="text-xs">Claim Sequence Number</Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                id="row-claim-sequence-number"
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={editRowForm.claim_sequence_number || ""}
+                                onChange={(e) => setEditRowForm({ ...editRowForm, claim_sequence_number: e.target.value ? parseInt(e.target.value) : null })}
+                                className="h-8 w-20"
+                                placeholder="1"
+                              />
+                              <span className="text-xs text-muted-foreground">→ J{"{job}"}-{editRowForm.claim_sequence_number || "?"}</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">Matches invoices with reference J{"{job_number}"}-{"{sequence}"} (e.g., J201-1)</p>
+                          </div>
+
+                          {/* Invoice Match Pattern */}
+                          <div className="space-y-1">
+                            <Label htmlFor="row-claim-invoice-pattern" className="text-xs">Invoice Match Pattern</Label>
+                            <Input
+                              id="row-claim-invoice-pattern"
+                              type="text"
+                              value={editRowForm.claim_invoice_pattern || ""}
+                              onChange={(e) => setEditRowForm({ ...editRowForm, claim_invoice_pattern: e.target.value || null })}
+                              className="h-8"
+                              placeholder="e.g., Deposit, Slab, Frame..."
+                            />
+                            <p className="text-[10px] text-muted-foreground">Fallback: Pattern to match Xero invoice descriptions</p>
+                          </div>
+
+                          {/* Invoice Template Selector */}
+                          <div className="space-y-2">
+                            <Label className="text-xs">Invoice Template</Label>
+                            <div className="grid grid-cols-1 gap-2">
+                              {invoiceTemplates.map((template) => (
+                                <div
+                                  key={template.id}
+                                  onClick={() => {
+                                    setEditRowForm({ ...editRowForm, claim_invoice_template_id: template.id });
+                                    const tradingName = editRowForm.claim_trading_name_id
+                                      ? tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name
+                                      : undefined;
+                                    loadTemplatePreview(template.id, {
+                                      tradingName,
+                                      claimPercentage: editRowForm.claim_percentage || undefined,
+                                      taskName: editRowForm.name,
+                                    });
+                                  }}
+                                  className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                                    editRowForm.claim_invoice_template_id === template.id
+                                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                      : "border-border hover:border-primary/50"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div
+                                      className="w-8 h-8 rounded flex-shrink-0"
+                                      style={{
+                                        background: `linear-gradient(135deg, ${template.primary_color} 0%, ${template.primary_color} 60%, ${template.secondary_color} 100%)`
+                                      }}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{template.name}</p>
+                                      <p className="text-[10px] text-muted-foreground truncate">{template.description}</p>
+                                    </div>
+                                    {template.is_default ? (
+                                      <Badge variant="secondary" className="text-[10px] flex-shrink-0">Default</Badge>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            {invoiceTemplates.length === 0 ? (
+                              <p className="text-[10px] text-muted-foreground">No templates available</p>
+                            ) : null}
+                          </div>
+
+                          {/* Invoice Preview */}
+                          {editRowForm.claim_invoice_template_id ? (
+                            <div className="pt-3 border-t space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs">Invoice Preview</Label>
+                                {loadingTemplatePreview ? <Spinner size={14} /> : null}
+                              </div>
+                              {templatePreviewHtml && !loadingTemplatePreview ? (
+                                <div
+                                  className="border rounded-lg bg-white overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                                  style={{ height: "280px", overflow: "hidden" }}
+                                  onDoubleClick={() => setShowFullPreview(true)}
+                                  title="Double-click for full size"
+                                >
+                                  <div
+                                    style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "286%", pointerEvents: "none" }}
+                                    dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
+                                  />
+                                </div>
+                              ) : null}
+                              {templatePreviewHtml && !loadingTemplatePreview ? (
+                                <p className="text-[10px] text-muted-foreground text-center">Double-click to enlarge</p>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* ============================================================
+                  TAB 3: DOCUMENTS - Plans, Doc Refs, Spawn Scan, Completion Doc
+                 ============================================================ */}
+              <TabsContent value="documents" className="mt-3">
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Left: Attached Plans + Spawn Scan Task */}
+                  <div className="space-y-4">
+                    {/* Attached Plans */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Attached Plans</Label>
+                      <MultipleSelector
+                        value={(editRowForm.plan_type_ids || []).map(id => {
+                          const dt = planDocTypes.find(d => d.id === id);
+                          return { value: String(id), label: dt?.display_name || dt?.name || `Type ${id}` };
+                        })}
+                        onChange={(options) => {
+                          setEditRowForm({
+                            ...editRowForm,
+                            plan_type_ids: options.map(o => parseInt(o.value))
+                          });
                         }}
-                        placeholder="Copy to template..."
-                        emptyResults="No other templates"
-                        className="w-48 h-7 text-xs"
+                        defaultOptions={planDocTypes.map(dt => ({
+                          value: String(dt.id),
+                          label: dt.display_name || dt.name
+                        }))}
+                        onSearchSync={(search) => {
+                          const lower = search.toLowerCase();
+                          return planDocTypes
+                            .filter(dt => (dt.display_name || dt.name).toLowerCase().includes(lower))
+                            .map(dt => ({ value: String(dt.id), label: dt.display_name || dt.name }));
+                        }}
+                        placeholder="Select plan types..."
+                        emptyIndicator={
+                          <p className="text-center text-xs text-muted-foreground">
+                            No plan document types available
+                          </p>
+                        }
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        Plan types associated with this task for reference when working on jobs
+                      </p>
+                    </div>
+
+                    {/* Spawn Scan Task */}
+                    <div className="space-y-1 pt-3 border-t">
+                      <Label className="text-xs font-medium">Spawn Scan Task</Label>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <ComboboxDropdown
+                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.name }))}
+                            selectedItem={(() => {
+                              const firstDocType = editRowForm.document_types?.[0];
+                              if (!firstDocType) return undefined;
+                              const docType = documentTypes.find(dt => dt.id === firstDocType.document_type_id);
+                              return {
+                                id: String(firstDocType.document_type_id),
+                                label: docType?.name || firstDocType.document_type_name
+                              };
+                            })()}
+                            onSelect={(item) => setEditRowForm({
+                              ...editRowForm,
+                              document_types: [{
+                                id: editRowForm.document_types?.[0]?.id || 0,
+                                document_type_id: Number(item.id),
+                                document_type_name: item.label,
+                                lag_days: editRowForm.document_types?.[0]?.lag_days || 0
+                              }]
+                            })}
+                            placeholder="Select document type..."
+                            emptyResults="No document types found"
+                            clearable
+                            onClear={() => setEditRowForm({ ...editRowForm, document_types: [] })}
+                          />
+                        </div>
+                        <div className="w-16">
+                          <Input
+                            type="number"
+                            min={0}
+                            placeholder="0"
+                            title="Days after task completion before spawning document task"
+                            value={editRowForm.document_types?.[0]?.lag_days || 0}
+                            onChange={(e) => {
+                              const lagDays = parseInt(e.target.value) || 0;
+                              const currentDocType = editRowForm.document_types?.[0];
+                              if (currentDocType) {
+                                setEditRowForm({
+                                  ...editRowForm,
+                                  document_types: [{
+                                    ...currentDocType,
+                                    lag_days: lagDays
+                                  }]
+                                });
+                              }
+                            }}
+                            disabled={!editRowForm.document_types?.[0]}
+                          />
+                        </div>
+                      </div>
+                      {/* Preview of spawn behavior */}
+                      {editRowForm.document_types?.[0]?.document_type_id ? (() => {
+                        const docType = documentTypes.find(dt => dt.id === editRowForm.document_types![0].document_type_id);
+                        const formNumbers = docType?.form_number_mapping ? Object.values(docType.form_number_mapping) : [];
+                        const uniqueFormNumbers = [...new Set(formNumbers)].filter(Boolean);
+                        const formNumberDisplay = uniqueFormNumbers.length > 0
+                          ? ` ${uniqueFormNumbers.join('/')}`
+                          : '';
+
+                        return (
+                          <div className="text-xs bg-muted/50 rounded px-2 py-1.5 border border-dashed">
+                            <span className="text-muted-foreground">When completed → </span>
+                            <span className="font-medium text-foreground">
+                              GET - {(editRowForm.document_types![0].document_type_name || 'Scan task')
+                                .replace(/\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\s*/g, '')
+                                .replace(/\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\s*/g, '')
+                                .replace(/\s*\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{2,4}\s*/gi, '')
+                                .trim()}{formNumberDisplay}
+                            </span>
+                            {(editRowForm.document_types![0].lag_days || 0) > 0 ? (
+                              <span className="text-muted-foreground">
+                                {' '}spawns in {editRowForm.document_types![0].lag_days} day{editRowForm.document_types![0].lag_days !== 1 ? 's' : ''}
+                              </span>
+                            ) : null}
+                            {(editRowForm.document_types![0].lag_days || 0) === 0 ? (
+                              <span className="text-muted-foreground"> spawns immediately</span>
+                            ) : null}
+                          </div>
+                        );
+                      })() : (
+                        <p className="text-xs text-muted-foreground">Select a document type to spawn a scan task on completion</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Attached Documents + Completion Doc Requirement */}
+                  <div className="space-y-4">
+                    {/* Attached Documents */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Attached Documents</Label>
+                      <MultipleSelector
+                        value={(editRowForm.document_ref_type_ids || []).map(id => {
+                          const dt = nonPlanDocTypes.find(d => d.id === id) || documentTypes.find(d => d.id === id);
+                          return { value: String(id), label: dt?.display_name || dt?.name || `Type ${id}` };
+                        })}
+                        onChange={(options) => {
+                          setEditRowForm({
+                            ...editRowForm,
+                            document_ref_type_ids: options.map(o => parseInt(o.value))
+                          });
+                        }}
+                        defaultOptions={nonPlanDocTypes.map(dt => ({
+                          value: String(dt.id),
+                          label: dt.display_name || dt.name
+                        }))}
+                        onSearchSync={(search) => {
+                          const lower = search.toLowerCase();
+                          return nonPlanDocTypes
+                            .filter(dt => (dt.display_name || dt.name).toLowerCase().includes(lower))
+                            .map(dt => ({ value: String(dt.id), label: dt.display_name || dt.name }));
+                        }}
+                        placeholder="Select document types..."
+                        emptyIndicator={
+                          <p className="text-center text-xs text-muted-foreground">
+                            No document types available
+                          </p>
+                        }
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        Document types associated with this task for reference when working on jobs
+                      </p>
+                    </div>
+
+                    {/* Completion Document Requirement */}
+                    <div className="space-y-1 pt-3 border-t">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-requires-document"
+                          checked={editRowForm.requires_document_to_complete || false}
+                          onCheckedChange={(checked) => setEditRowForm({
+                            ...editRowForm,
+                            requires_document_to_complete: checked,
+                            completion_document_type_id: checked ? editRowForm.completion_document_type_id : null
+                          })}
+                        />
+                        <Label htmlFor="row-requires-document" className="text-xs">Requires Document to Complete</Label>
+                      </div>
+                      {editRowForm.requires_document_to_complete && (
+                        <>
+                          <ComboboxDropdown
+                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.display_name || dt.name }))}
+                            selectedItem={editRowForm.completion_document_type_id ? {
+                              id: String(editRowForm.completion_document_type_id),
+                              label: editRowForm.completion_document_type_name || documentTypes.find(dt => dt.id === editRowForm.completion_document_type_id)?.name || ''
+                            } : undefined}
+                            onSelect={(item) => setEditRowForm({
+                              ...editRowForm,
+                              completion_document_type_id: Number(item.id),
+                              completion_document_type_name: item.label
+                            })}
+                            placeholder="Select required document type..."
+                            emptyResults="No document types found"
+                            clearable
+                            onClear={() => setEditRowForm({ ...editRowForm, completion_document_type_id: null, completion_document_type_name: null })}
+                          />
+                          <p className="text-xs text-muted-foreground">Task cannot be completed until a document of this type is attached</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* ============================================================
+                  TAB 4: RELATIONSHIPS
+                 ============================================================ */}
+              <TabsContent value="relationships" className="mt-3">
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Left: Header, Checklist, Child Tasks, Workflows */}
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Header Gantt</Label>
+                      <ComboboxDropdown
+                        items={headerRows.map(h => ({ id: String(h.task_number), label: h.name }))}
+                        selectedItem={(() => {
+                          const headerTaskNum = extractLookupId(editRowForm.header_gantt);
+                          if (!headerTaskNum || headerTaskNum === 'Header') return undefined;
+                          const headerName = headerRows.find(h => String(h.task_number) === headerTaskNum)?.name
+                            || extractLookupDisplay(row.header_gantt)
+                            || headerTaskNum;
+                          return { id: headerTaskNum, label: headerName };
+                        })()}
+                        onSelect={(item) => setEditRowForm({ ...editRowForm, header_gantt: item.id })}
+                        placeholder="Select header..."
+                        emptyResults="No header rows found"
+                        clearable
+                        onClear={() => setEditRowForm({ ...editRowForm, header_gantt: null })}
                       />
                     </div>
-                  ) : null}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Checklist</Label>
+                      <ComboboxDropdown
+                        items={checklists.map(c => ({ id: String(c.id), label: c.name }))}
+                        selectedItem={(() => {
+                          const checklistId = extractLookupId(editRowForm.checklist_id);
+                          if (!checklistId) return undefined;
+                          const checklistName = checklists.find(c => String(c.id) === checklistId)?.name
+                            || extractLookupDisplay(row.checklist_id)
+                            || checklistId;
+                          return { id: checklistId, label: checklistName };
+                        })()}
+                        onSelect={(item) => setEditRowForm({ ...editRowForm, checklist_id: Number(item.id) })}
+                        placeholder="Select checklist..."
+                        emptyResults="No checklists found"
+                        clearable
+                        onClear={() => setEditRowForm({ ...editRowForm, checklist_id: null })}
+                      />
+                    </div>
+
+                    {/* Child Tasks - shown when Allow Header is enabled */}
+                    {editRowForm.allow_header && row && onChildTaskUpdate ? (
+                      <div className="pt-2 border-t">
+                        <Label className="text-xs">Child Tasks ({allRows.filter(r => {
+                          const parentId = extractLookupId(r.header_gantt);
+                          return parentId && String(parentId) === String(row.task_number);
+                        }).length} grouped under this header)</Label>
+                        <MultipleSelector
+                          value={allRows
+                            .filter(r => {
+                              const parentId = extractLookupId(r.header_gantt);
+                              return parentId && String(parentId) === String(row.task_number);
+                            })
+                            .map(r => ({ value: String(r.id), label: r.name }))}
+                          onChange={async (options) => {
+                            const currentChildIds = allRows
+                              .filter(r => {
+                                const parentId = extractLookupId(r.header_gantt);
+                                return parentId && String(parentId) === String(row.task_number);
+                              })
+                              .map(r => r.id);
+                            const newChildIds = options.map(o => parseInt(o.value));
+
+                            const addedIds = newChildIds.filter(id => !currentChildIds.includes(id));
+                            const removedIds = currentChildIds.filter(id => !newChildIds.includes(id));
+
+                            try {
+                              for (const childId of addedIds) {
+                                await onChildTaskUpdate(childId, row.task_number);
+                              }
+                              for (const childId of removedIds) {
+                                await onChildTaskUpdate(childId, null);
+                              }
+                              onRefresh?.();
+                            } catch (error) {
+                              console.error("Failed to update child tasks:", error);
+                            }
+                          }}
+                          defaultOptions={allRows
+                            .filter(r => {
+                              if (r.id === row.id) return false;
+                              const parentId = extractLookupId(r.header_gantt);
+                              return !parentId || String(parentId) === String(row.task_number);
+                            })
+                            .map(r => ({
+                              value: String(r.id),
+                              label: r.name
+                            }))}
+                          placeholder="Select child tasks..."
+                          emptyIndicator={
+                            <p className="text-center text-xs text-muted-foreground">
+                              No available tasks to add as children
+                            </p>
+                          }
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          These tasks will be grouped under this header in the Gantt chart
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {/* Workflow Triggers */}
+                    {workflows.length > 0 && (
+                      <div className="pt-2 border-t space-y-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              id="row-start-workflow-enabled"
+                              checked={editRowForm.start_workflow_enabled || false}
+                              onCheckedChange={(checked) => setEditRowForm({
+                                ...editRowForm,
+                                start_workflow_enabled: checked,
+                                start_workflow_id: checked ? editRowForm.start_workflow_id : null
+                              })}
+                            />
+                            <Label htmlFor="row-start-workflow-enabled" className="text-xs">Start Workflow</Label>
+                          </div>
+                          {editRowForm.start_workflow_enabled && (
+                            <ComboboxDropdown
+                              items={workflows.map(w => ({ id: String(w.id), label: w.name }))}
+                              selectedItem={editRowForm.start_workflow_id ? {
+                                id: String(editRowForm.start_workflow_id),
+                                label: editRowForm.start_workflow_name || workflows.find(w => w.id === editRowForm.start_workflow_id)?.name || ''
+                              } : undefined}
+                              onSelect={(item) => setEditRowForm({
+                                ...editRowForm,
+                                start_workflow_id: Number(item.id),
+                                start_workflow_name: item.label
+                              })}
+                              placeholder="Select workflow to run on task start..."
+                              emptyResults="No workflows found"
+                              clearable
+                              onClear={() => setEditRowForm({ ...editRowForm, start_workflow_id: null, start_workflow_name: null })}
+                            />
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              id="row-complete-workflow-enabled"
+                              checked={editRowForm.complete_workflow_enabled || false}
+                              onCheckedChange={(checked) => setEditRowForm({
+                                ...editRowForm,
+                                complete_workflow_enabled: checked,
+                                complete_workflow_id: checked ? editRowForm.complete_workflow_id : null
+                              })}
+                            />
+                            <Label htmlFor="row-complete-workflow-enabled" className="text-xs">Complete Workflow</Label>
+                          </div>
+                          {editRowForm.complete_workflow_enabled && (
+                            <ComboboxDropdown
+                              items={workflows.map(w => ({ id: String(w.id), label: w.name }))}
+                              selectedItem={editRowForm.complete_workflow_id ? {
+                                id: String(editRowForm.complete_workflow_id),
+                                label: editRowForm.complete_workflow_name || workflows.find(w => w.id === editRowForm.complete_workflow_id)?.name || ''
+                              } : undefined}
+                              onSelect={(item) => setEditRowForm({
+                                ...editRowForm,
+                                complete_workflow_id: Number(item.id),
+                                complete_workflow_name: item.label
+                              })}
+                              placeholder="Select workflow to run on task completion..."
+                              emptyResults="No workflows found"
+                              clearable
+                              onClear={() => setEditRowForm({ ...editRowForm, complete_workflow_id: null, complete_workflow_name: null })}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Linked Tasks, Complete Together, Templates, Task Group */}
+                  <div className="space-y-3">
+                    {/* Linked Tasks (Visibility) */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Linked Tasks (Visibility)</Label>
+                      <MultipleSelector
+                        value={(editRowForm.linked_task_ids || []).map(id => {
+                          const linkedRow = allRows.find(r => r.id === id);
+                          return { value: String(id), label: linkedRow?.name || `Task ${id}` };
+                        })}
+                        onChange={(options) => {
+                          setEditRowForm({
+                            ...editRowForm,
+                            linked_task_ids: options.map(o => parseInt(o.value))
+                          });
+                        }}
+                        defaultOptions={allRows
+                          .filter(r => r.id !== row?.id)
+                          .map(r => ({
+                            value: String(r.id),
+                            label: r.name
+                          }))}
+                        onSearchSync={(search) => {
+                          const lower = search.toLowerCase();
+                          return allRows
+                            .filter(r => r.id !== row?.id && r.name.toLowerCase().includes(lower))
+                            .map(r => ({ value: String(r.id), label: r.name }));
+                        }}
+                        placeholder="Search and select tasks..."
+                        emptyIndicator={
+                          <p className="text-center text-xs text-muted-foreground">
+                            No tasks available
+                          </p>
+                        }
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        These tasks appear/disappear together with this task on a job
+                      </p>
+                    </div>
+
+                    {/* Completion Linked Tasks (Cascade) */}
+                    <div className="pt-2 border-t space-y-1">
+                      <Label className="text-xs">Complete Together (Cascade)</Label>
+                      <MultipleSelector
+                        value={(editRowForm.completion_linked_task_ids || []).map(id => {
+                          const linkedRow = allRows.find(r => r.id === id);
+                          return { value: String(id), label: linkedRow?.name || `Task ${id}` };
+                        })}
+                        onChange={(options) => {
+                          setEditRowForm({
+                            ...editRowForm,
+                            completion_linked_task_ids: options.map(o => parseInt(o.value))
+                          });
+                        }}
+                        defaultOptions={allRows
+                          .filter(r => r.id !== row?.id)
+                          .map(r => ({
+                            value: String(r.id),
+                            label: r.name
+                          }))}
+                        onSearchSync={(search) => {
+                          const lower = search.toLowerCase();
+                          return allRows
+                            .filter(r => r.id !== row?.id && r.name.toLowerCase().includes(lower))
+                            .map(r => ({ value: String(r.id), label: r.name }));
+                        }}
+                        placeholder="Search and select tasks..."
+                        emptyIndicator={
+                          <p className="text-center text-xs text-muted-foreground">
+                            No tasks available
+                          </p>
+                        }
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        When completing this task, user can choose to also complete these tasks
+                      </p>
+                    </div>
+
+                    {/* Template Membership */}
+                    {showTemplateSection && templates.length > 0 ? (
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="text-xs">Template Membership</Label>
+                          {onCopyToTemplate ? (
+                            <div className="flex items-center gap-2">
+                              <ComboboxDropdown
+                                items={templates
+                                  .filter(t => !(editRowForm.sm_template_ids || []).includes(t.id))
+                                  .map(t => ({ id: String(t.id), label: t.name }))}
+                                onSelect={async (item) => {
+                                  if (row && onCopyToTemplate) {
+                                    await onCopyToTemplate(parseInt(item.id), row.id);
+                                  }
+                                }}
+                                placeholder="Copy to template..."
+                                emptyResults="No other templates"
+                                className="w-48 h-7 text-xs"
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                        <MultipleSelector
+                          value={(editRowForm.sm_template_ids || []).map(id => {
+                            const template = templates.find(t => t.id === id);
+                            return { value: String(id), label: template?.name || `Template ${id}` };
+                          })}
+                          onChange={(options) => {
+                            setEditRowForm({
+                              ...editRowForm,
+                              sm_template_ids: options.map(o => parseInt(o.value))
+                            });
+                          }}
+                          defaultOptions={templates.map(t => ({
+                            value: String(t.id),
+                            label: t.name
+                          }))}
+                          placeholder="Select templates this task belongs to..."
+                          emptyIndicator={
+                            <p className="text-center text-xs text-muted-foreground">
+                              No templates available
+                            </p>
+                          }
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          This task will appear in all selected templates. Changes sync across templates.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {/* Task Group */}
+                    <div className="pt-2 border-t">
+                      <Label className="text-xs">Task Group</Label>
+                      <ComboboxDropdown
+                        items={taskGroups.map(g => ({
+                          id: String(g.id),
+                          label: g.name
+                        }))}
+                        selectedItem={editRowForm.sm_task_group_id
+                          ? {
+                              id: String(editRowForm.sm_task_group_id),
+                              label: editRowForm.sm_task_group_name || taskGroups.find(g => g.id === editRowForm.sm_task_group_id)?.name || `Group ${editRowForm.sm_task_group_id}`
+                            }
+                          : undefined}
+                        onSelect={(item) => {
+                          setEditRowForm({
+                            ...editRowForm,
+                            sm_task_group_id: item ? Number(item.id) : null,
+                            sm_task_group_name: item?.label || null
+                          });
+                        }}
+                        placeholder="Select task group..."
+                        clearable
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Tasks in the same group appear together when any PO from the group is on a job
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <MultipleSelector
-                  value={(editRowForm.sm_template_ids || []).map(id => {
-                    const template = templates.find(t => t.id === id);
-                    return { value: String(id), label: template?.name || `Template ${id}` };
-                  })}
-                  onChange={(options) => {
-                    setEditRowForm({
-                      ...editRowForm,
-                      sm_template_ids: options.map(o => parseInt(o.value))
-                    });
-                  }}
-                  defaultOptions={templates.map(t => ({
-                    value: String(t.id),
-                    label: t.name
-                  }))}
-                  placeholder="Select templates this task belongs to..."
-                  emptyIndicator={
-                    <p className="text-center text-xs text-muted-foreground">
-                      No templates available
-                    </p>
-                  }
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  This task will appear in all selected templates. Changes sync across templates.
-                </p>
-              </div>
-            ) : null}
-
-            {/* Task Group */}
-            <div className="border-t pt-3">
-              <Label className="text-xs">Task Group</Label>
-              <ComboboxDropdown
-                items={taskGroups.map(g => ({
-                  id: String(g.id),
-                  label: g.name
-                }))}
-                selectedItem={editRowForm.sm_task_group_id
-                  ? {
-                      id: String(editRowForm.sm_task_group_id),
-                      label: editRowForm.sm_task_group_name || taskGroups.find(g => g.id === editRowForm.sm_task_group_id)?.name || `Group ${editRowForm.sm_task_group_id}`
-                    }
-                  : undefined}
-                onSelect={(item) => {
-                  setEditRowForm({
-                    ...editRowForm,
-                    sm_task_group_id: item ? Number(item.id) : null,
-                    sm_task_group_name: item?.label || null
-                  });
-                }}
-                placeholder="Select task group..."
-                clearable
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Tasks in the same group appear together when any PO from the group is on a job
-              </p>
-            </div>
-
-            {/* Linked Tasks (Visibility) */}
-            <div className="border-t pt-3">
-              <Label className="text-xs">Linked Tasks (Visibility)</Label>
-              <MultipleSelector
-                value={(editRowForm.linked_task_ids || []).map(id => {
-                  const linkedRow = allRows.find(r => r.id === id);
-                  return { value: String(id), label: linkedRow?.name || `Task ${id}` };
-                })}
-                onChange={(options) => {
-                  setEditRowForm({
-                    ...editRowForm,
-                    linked_task_ids: options.map(o => parseInt(o.value))
-                  });
-                }}
-                defaultOptions={allRows
-                  .filter(r => r.id !== row?.id)
-                  .map(r => ({
-                    value: String(r.id),
-                    label: r.name
-                  }))}
-                onSearchSync={(search) => {
-                  const lower = search.toLowerCase();
-                  return allRows
-                    .filter(r => r.id !== row?.id && r.name.toLowerCase().includes(lower))
-                    .map(r => ({ value: String(r.id), label: r.name }));
-                }}
-                placeholder="Search and select tasks..."
-                emptyIndicator={
-                  <p className="text-center text-xs text-muted-foreground">
-                    No tasks available
-                  </p>
-                }
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                These tasks appear/disappear together with this task on a job
-              </p>
-            </div>
-
-            {/* Completion Linked Tasks (Cascade) */}
-            <div className="border-t pt-3">
-              <Label className="text-xs">Complete Together (Cascade)</Label>
-              <MultipleSelector
-                value={(editRowForm.completion_linked_task_ids || []).map(id => {
-                  const linkedRow = allRows.find(r => r.id === id);
-                  return { value: String(id), label: linkedRow?.name || `Task ${id}` };
-                })}
-                onChange={(options) => {
-                  setEditRowForm({
-                    ...editRowForm,
-                    completion_linked_task_ids: options.map(o => parseInt(o.value))
-                  });
-                }}
-                defaultOptions={allRows
-                  .filter(r => r.id !== row?.id)
-                  .map(r => ({
-                    value: String(r.id),
-                    label: r.name
-                  }))}
-                onSearchSync={(search) => {
-                  const lower = search.toLowerCase();
-                  return allRows
-                    .filter(r => r.id !== row?.id && r.name.toLowerCase().includes(lower))
-                    .map(r => ({ value: String(r.id), label: r.name }));
-                }}
-                placeholder="Search and select tasks..."
-                emptyIndicator={
-                  <p className="text-center text-xs text-muted-foreground">
-                    No tasks available
-                  </p>
-                }
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                When completing this task, user can choose to also complete these tasks
-              </p>
-            </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </DialogContent>
       </Dialog>
