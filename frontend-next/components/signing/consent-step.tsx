@@ -73,34 +73,37 @@ export function ConsentStep({
   };
 
   return (
-    <div className="flex flex-col items-center py-8">
-      <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-6">
-        <ShieldCheck className="h-8 w-8 text-primary" />
+    <div className="flex flex-col items-center py-4 px-4">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+          <ShieldCheck className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold">Electronic Record and Signature Disclosure</h2>
+          <p className="text-sm text-muted-foreground">
+            Before signing &ldquo;{documentTitle}&rdquo;, please review and consent to the following.
+          </p>
+        </div>
       </div>
 
-      <h2 className="text-xl font-semibold mb-2">Electronic Record and Signature Disclosure</h2>
-      <p className="text-muted-foreground text-center mb-8 max-w-md">
-        Before signing &ldquo;{documentTitle}&rdquo;, please review and consent to the following disclosures.
-      </p>
-
       {/* Consent checkboxes */}
-      <div className="space-y-6 w-full max-w-md">
+      <div className="space-y-3 w-full max-w-md">
         {/* Consent 1: Electronic delivery */}
-        <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
+        <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
           <Checkbox
             id="consent1"
             checked={consent1}
             onCheckedChange={(checked) => setConsent1(checked === true)}
-            className="mt-1"
+            className="mt-0.5"
           />
-          <div className="space-y-1">
+          <div>
             <Label
               htmlFor="consent1"
-              className="font-medium cursor-pointer"
+              className="font-medium cursor-pointer text-sm"
             >
               I consent to electronic delivery
             </Label>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-0.5">
               I agree to receive this document electronically and understand that I may
               request a paper copy at any time by contacting the sender.
             </p>
@@ -108,69 +111,56 @@ export function ConsentStep({
         </div>
 
         {/* Consent 2: Electronic signature */}
-        <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
+        <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
           <Checkbox
             id="consent2"
             checked={consent2}
             onCheckedChange={(checked) => setConsent2(checked === true)}
-            className="mt-1"
+            className="mt-0.5"
           />
-          <div className="space-y-1">
+          <div>
             <Label
               htmlFor="consent2"
-              className="font-medium cursor-pointer"
+              className="font-medium cursor-pointer text-sm"
             >
               I consent to use electronic signatures
             </Label>
-            <p className="text-sm text-muted-foreground">
-              I agree that my electronic signature on this document is legally binding and
-              has the same legal effect as a handwritten signature under the{" "}
-              <em>Electronic Transactions Act 1999</em> (Cth) s.10 and equivalent
-              State and Territory legislation.
+            <p className="text-xs text-muted-foreground mt-0.5">
+              I agree that my electronic signature on this document is legally binding
+              under the <em>Electronic Transactions Act 1999</em> (Cth) s.10 and
+              equivalent State and Territory legislation.
             </p>
           </div>
         </div>
 
         {/* Consent 3: Intent to sign */}
-        <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
+        <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
           <Checkbox
             id="consent3"
             checked={consent3}
             onCheckedChange={(checked) => setConsent3(checked === true)}
-            className="mt-1"
+            className="mt-0.5"
           />
-          <div className="space-y-1">
+          <div>
             <Label
               htmlFor="consent3"
-              className="font-medium cursor-pointer"
+              className="font-medium cursor-pointer text-sm"
             >
-              I have reviewed and intend to sign this document
+              I intend to sign this document
             </Label>
-            <p className="text-sm text-muted-foreground">
-              I confirm that I have been given the opportunity to review the document,
-              understand its contents, and intend to apply my electronic signature
-              to create a legally binding agreement.
+            <p className="text-xs text-muted-foreground mt-0.5">
+              I understand the contents of this document and intend to apply my
+              electronic signature to create a legally binding agreement.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Legal notice */}
-      <div className="mt-6 p-4 bg-muted dark:bg-slate-800 rounded-lg max-w-md">
-        <p className="text-xs text-muted-foreground text-center">
-          By proceeding, you acknowledge that electronic signatures are legally binding
-          under the <em>Electronic Transactions Act 1999</em> (Cth), the <em>Electronic
-          Signatures in Global and National Commerce Act</em> (E-SIGN), the <em>Uniform
-          Electronic Transactions Act</em> (UETA), and equivalent legislation in your
-          jurisdiction. Your consent, IP address, and timestamp will be recorded for
-          compliance purposes.
-        </p>
-      </div>
-
       {/* Action buttons */}
-      <div className="flex gap-4 mt-8 w-full max-w-md">
+      <div className="flex gap-3 mt-4 w-full max-w-md">
         <Button
           variant="outline"
+          size="sm"
           onClick={() => setShowDeclineDialog(true)}
           className="flex-1"
         >
@@ -179,17 +169,27 @@ export function ConsentStep({
         <Button
           onClick={handleAcceptErsd}
           disabled={!allConsented || submitting}
+          size="sm"
           className="flex-1"
         >
-          {submitting ? "Recording consent..." : "Continue to Sign"}
+          {submitting ? "Recording consent..." : "Accept & Continue to Sign"}
         </Button>
       </div>
 
       {!allConsented && (
-        <p className="text-sm text-muted-foreground mt-4">
+        <p className="text-xs text-muted-foreground mt-2">
           Please check all boxes above to continue
         </p>
       )}
+
+      {/* Legal notice */}
+      <div className="mt-3 p-3 bg-muted dark:bg-slate-800 rounded-lg max-w-md">
+        <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+          Electronic signatures are legally binding under the <em>Electronic Transactions
+          Act 1999</em> (Cth), E-SIGN Act, UETA, and equivalent legislation.
+          Your consent, IP address, and timestamp will be recorded.
+        </p>
+      </div>
 
       {/* Decline dialog */}
       <AlertDialog open={showDeclineDialog} onOpenChange={setShowDeclineDialog}>
