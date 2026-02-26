@@ -37,11 +37,13 @@ class UploadEmailsToStorageJob < ApplicationJob
   # but we want to leave headroom for other jobs on the low queue)
   MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
 
-  # Memory guard: stop processing if total dyno RSS exceeds this (MB)
-  # Shared worker dyno is 1024MB quota. Baseline RSS from SolidQueue + Xero jobs is ~820MB.
-  # R14 = warning at memory_total > 1024MB. R15 = kill at ~1.5x quota.
-  # Setting to 950 allows 1-2 batches before stopping, preventing R15.
-  MEMORY_ABORT_MB = 950
+  # Memory guard: stop processing if THIS PROCESS (Worker) VmRSS exceeds this (MB)
+  # Heroku's container-level metric is inaccessible from within (no cgroup usage files).
+  # ps -eo rss= and /proc/[pid]/statm both double-count COW pages from SolidQueue forks.
+  # Instead, we monitor just the Worker process (where jobs run) via /proc/self/status.
+  # Worker baseline: ~350-400MB. Other processes (Supervisor, Dispatcher, Scheduler): ~300-400MB.
+  # At Worker=550MB, total dyno ≈ 850-950MB (safe, under 1024MB R14 threshold).
+  MEMORY_ABORT_MB = 550
 
   # Hard cap on batch_size regardless of what's passed in job args.
   # FRC (Feb 2026): Stale SolidQueue jobs with batch_size=200 survived deploys,
@@ -69,38 +71,20 @@ class UploadEmailsToStorageJob < ApplicationJob
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
   end
 
-  # ⚠️ DO NOT SIMPLIFY - Must deduplicate shared pages across processes (Feb 2026)
+  # ⚠️ DO NOT SIMPLIFY - Must read Worker process VmRSS only (Feb 2026)
   # ════════════════════════════════════════════
-  # Why: SolidQueue runs 4 processes in one dyno (Supervisor, Worker, Dispatcher, Scheduler).
-  # /proc/self/status VmRSS only shows the Worker process (~400MB) → guard never fires.
-  # `ps -eo rss=` sums ALL processes but DOUBLE-COUNTS shared pages → reports 1276MB
-  # when Heroku metric shows 832MB. Guard fires at baseline, blob jobs can NEVER run.
-  # cgroup memory.usage_in_bytes does NOT exist on Heroku.
-  # ❌ WRONG: /proc/self/status VmRSS → one process only (~400MB)
-  # ❌ WRONG: `ps -eo rss=` → double-counts shared libs (~1276MB vs real 832MB)
-  # ❌ WRONG: cgroup memory.usage_in_bytes → file doesn't exist on Heroku
-  # ✅ CORRECT: /proc/[pid]/statm → sum unique RSS + shared-once ≈ Heroku metric
+  # Why: Heroku exposes NO container-level memory metrics from within the dyno.
+  # - cgroup memory.usage_in_bytes → doesn't exist on Heroku
+  # - `ps -eo rss=` → double-counts COW pages across SolidQueue forks (1261MB vs real 700MB)
+  # - /proc/[pid]/statm → only deduplicates file-backed pages, not COW (1207MB vs 700MB)
+  # ✅ CORRECT: /proc/self/status VmRSS → Worker process only, with per-process threshold
+  # The Worker process is where blob downloads happen. Other SolidQueue processes
+  # (Supervisor, Dispatcher, Scheduler) add ~300-400MB constant overhead.
+  # MEMORY_ABORT_MB is calibrated for the Worker process alone (550MB).
+  # At Worker=550MB, total dyno ≈ 850-950MB, safely under 1024MB R14 threshold.
   # ════════════════════════════════════════════
   def current_rss_mb
-    total_unique_kb = 0
-    max_shared_kb = 0
-
-    Dir["/proc/[0-9]*/statm"].each do |path|
-      fields = File.read(path).strip.split
-      rss_pages = fields[1].to_i
-      shared_pages = fields[2].to_i
-      page_size_kb = 4 # Standard on x86_64
-
-      unique_kb = (rss_pages - shared_pages) * page_size_kb
-      shared_kb = shared_pages * page_size_kb
-
-      total_unique_kb += [unique_kb, 0].max
-      max_shared_kb = shared_kb if shared_kb > max_shared_kb
-    rescue
-      next
-    end
-
-    (total_unique_kb + max_shared_kb) / 1024
+    File.read("/proc/self/status").match(/VmRSS:\s+(\d+)\s+kB/)[1].to_i / 1024
   rescue StandardError
     0
   end
@@ -174,11 +158,6 @@ class UploadEmailsToStorageJob < ApplicationJob
 
         # Pre-batch memory check: don't start a new batch if already high
         rss = current_rss_mb
-        # Temporary: log both metrics for calibration (remove after confirming statm accuracy)
-        ps_rss = begin; `ps -eo rss=`.strip.split("\n").sum { |l| l.strip.to_i } / 1024; rescue; 0; end
-        if batch_number == 1
-          Rails.logger.info "[UploadEmailsToStorageJob] Memory calibration: statm=#{rss}MB, ps_sum=#{ps_rss}MB (expect statm ≈ Heroku metric)"
-        end
         if rss > MEMORY_ABORT_MB
           Rails.logger.warn "[UploadEmailsToStorageJob] Memory already high before batch #{batch_number} (#{rss}MB > #{MEMORY_ABORT_MB}MB), yielding"
           break

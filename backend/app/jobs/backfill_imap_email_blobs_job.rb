@@ -23,10 +23,10 @@ class BackfillImapEmailBlobsJob < ApplicationJob
   # Max runtime before yielding back to the scheduler
   MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
 
-  # Memory guard: stop processing if total dyno RSS exceeds this (MB)
-  # Shared worker dyno is 1024MB quota. Baseline RSS from SolidQueue + Xero is ~820MB.
-  # R14 = warning at memory_total > 1024MB. R15 = kill at ~1.5x quota.
-  MEMORY_ABORT_MB = 950
+  # Memory guard: stop processing if THIS PROCESS (Worker) VmRSS exceeds this (MB)
+  # See UploadEmailsToStorageJob for full explanation of why per-process monitoring.
+  # Worker baseline: ~350-400MB. At 550MB, total dyno ≈ 850-950MB (under 1024MB R14).
+  MEMORY_ABORT_MB = 550
 
   # Hard cap on batch_size regardless of stale queue args
   MAX_BATCH_SIZE = 25
@@ -141,28 +141,10 @@ class BackfillImapEmailBlobsJob < ApplicationJob
     @memory_exceeded
   end
 
-  # ⚠️ DO NOT SIMPLIFY - Must deduplicate shared pages across processes (Feb 2026)
+  # ⚠️ DO NOT SIMPLIFY - Must read Worker process VmRSS only (Feb 2026)
   # See UploadEmailsToStorageJob for full explanation.
   def current_rss_mb
-    total_unique_kb = 0
-    max_shared_kb = 0
-
-    Dir["/proc/[0-9]*/statm"].each do |path|
-      fields = File.read(path).strip.split
-      rss_pages = fields[1].to_i
-      shared_pages = fields[2].to_i
-      page_size_kb = 4
-
-      unique_kb = (rss_pages - shared_pages) * page_size_kb
-      shared_kb = shared_pages * page_size_kb
-
-      total_unique_kb += [unique_kb, 0].max
-      max_shared_kb = shared_kb if shared_kb > max_shared_kb
-    rescue
-      next
-    end
-
-    (total_unique_kb + max_shared_kb) / 1024
+    File.read("/proc/self/status").match(/VmRSS:\s+(\d+)\s+kB/)[1].to_i / 1024
   rescue StandardError
     0
   end
