@@ -227,12 +227,14 @@ export function EmailDocumentsDialog({
     }
 
     // Build attachments list from "attach" and "both" documents
+    // Supports both S3 (storagePath) and SharePoint-only (documentId) files
     const finalAttachDocs = documents.filter((d) => emailOptions[d.id] === "attach" || emailOptions[d.id] === "both");
     const preUploaded: PreUploadedAttachment[] = finalAttachDocs
-      .filter((d) => d.storagePath)
+      .filter((d) => d.storagePath || d.id)
       .map((d) => ({
         filename: d.name,
-        storageKey: d.storagePath!,
+        storageKey: d.storagePath || "",
+        documentId: d.storagePath ? undefined : d.id,
         fileSize: d.fileSize,
         contentType: d.mimeType,
       }));

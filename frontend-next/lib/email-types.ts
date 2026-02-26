@@ -145,6 +145,8 @@ export interface PreUploadedAttachment {
   filename: string;
   /** Storage key to pass directly to backend (no re-upload needed) */
   storageKey: string;
+  /** Optional: WarehouseDocument ID - used when storageKey is empty (SharePoint-only files) */
+  documentId?: number;
   /** Optional: file size for display */
   fileSize?: number;
   /** Optional: content type for icon display */

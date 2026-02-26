@@ -477,7 +477,10 @@ class XeroAttachmentSyncJob < ApplicationJob
       .where.not(tenant_id: nil)
       .where.not(contact_id: nil)
       .where("external_invoices.id NOT IN (?)", already_synced_subquery)
-      .order(Arel.sql("CASE WHEN invoice_type = 'bill' THEN 1 ELSE 0 END, id"))
+      # FRC (Feb 2026): Randomize within each type priority so different invoices are
+      # attempted each run. Previously .order(..., id) meant the same failing invoices
+      # sat at the front of the queue even after cooldown expired.
+      .order(Arel.sql("CASE WHEN invoice_type = 'bill' THEN 1 ELSE 0 END, RANDOM()"))
       .limit(limit)
 
     if xero_tenant_id.present?
