@@ -525,12 +525,20 @@ class DirectorChangeService
   # Fixed badge position matching the flex-pushed signature section in ASIC templates.
   # With margin-top: auto on the signature block and flexbox on .page, the badge
   # always renders at a consistent position regardless of content length.
-  # Values are percentages of the PDF page dimensions.
+  # Values are percentages of the FULL PDF page dimensions (including margins).
+  #
+  # A4 page = 841.89pt tall. Grover margins = 15mm (42.52pt) top/bottom.
+  # Content area: 42.52pt to 799.37pt (5% to 95% of page).
+  # Signature block is flex-pushed to bottom of content area.
+  # Block height ≈ 70pt (label + signature-box + badge).
+  # Block top ≈ 799.37 - 70 = 729pt from page top = 86.6% of page.
+  # Badge is ~28pt below block top = 757pt = 90% of page.
+  # We position the overlay to cover the whole signature block area.
   BADGE_POSITION = {
-    x_percent: 7.5,      # Left margin + table cell padding
-    y_percent: 77.0,     # ~77% from top of page (signature section pushed to bottom)
-    width_percent: 40.0,  # Left 50% column minus padding
-    height_percent: 7.0   # Badge height
+    x_percent: 5.0,       # Left margin area (15mm = 5% of 210mm page width)
+    y_percent: 86.0,      # Signature block top (flex-pushed to bottom of content)
+    width_percent: 42.0,   # Left column (50% of content = ~42% of full page width)
+    height_percent: 8.0    # Covers label + signature box + badge
   }.freeze
 
   def store_signed_document(e_signature_request)
