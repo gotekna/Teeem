@@ -10,7 +10,7 @@ import { SendCQRFQDialog } from "./custom-quotes/SendCQRFQDialog";
 import { RecordResponseDialog } from "./custom-quotes/RecordResponseDialog";
 import { useCustomQuote, useCustomQuoteTemplates } from "./custom-quotes/useCustomQuote";
 import { useSupplierDocumentUpload } from "./custom-quotes/useSupplierDocumentUpload";
-import type { QuoteLevel, CustomQuoteSupplierSummary } from "./custom-quotes/types";
+import type { QuoteLevel, CustomQuoteSupplierSummary, CustomQuoteLineNode } from "./custom-quotes/types";
 import {
   Dialog,
   DialogContent,
@@ -68,6 +68,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     supplierId: number;
     supplierName: string;
     attachedDocument?: { warehouseDocumentId: number; filename: string } | null;
+    parentLine?: CustomQuoteLineNode | null;
   } | null>(null);
 
   // Initial load
@@ -159,12 +160,27 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     return "Supplier";
   }, [activeQuote]);
 
+  // Find the CC parent line that contains a supplier (for allocation context)
+  const findSupplierParentLine = useCallback((supplierId: number): CustomQuoteLineNode | null => {
+    if (!activeQuote) return null;
+    for (const cc of activeQuote.tree) {
+      // Supplier directly on CC line
+      if (cc.suppliers.some((s) => s.id === supplierId)) return cc;
+      // Supplier on a child PO line — parent is still the CC
+      for (const child of cc.children) {
+        if (child.suppliers.some((s) => s.id === supplierId)) return cc;
+      }
+    }
+    return null;
+  }, [activeQuote]);
+
   const handleRecordResponse = useCallback((supplierId: number) => {
     setRecordResponseDialog({
       supplierId,
       supplierName: findSupplierName(supplierId),
+      parentLine: findSupplierParentLine(supplierId),
     });
-  }, [findSupplierName]);
+  }, [findSupplierName, findSupplierParentLine]);
 
   const handleRecordResponseSubmit = useCallback(async (data: {
     price_quoted: number;
@@ -172,12 +188,20 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     valid_to?: string;
     response_notes?: string;
     warehouse_document_id?: number;
+    allocations?: Array<{ lineId: number; amount: number }>;
   }) => {
     if (!recordResponseDialog) return;
-    await recordResponse(recordResponseDialog.supplierId, data);
+    const { allocations: allocs, ...responseData } = data;
+    await recordResponse(recordResponseDialog.supplierId, responseData);
+    // Create allocations if provided (CC-level quotes)
+    if (allocs && allocs.length > 0) {
+      for (const alloc of allocs) {
+        await createAllocation(recordResponseDialog.supplierId, alloc.lineId, alloc.amount);
+      }
+    }
     setRecordResponseDialog(null);
     await refresh();
-  }, [recordResponseDialog, recordResponse, refresh]);
+  }, [recordResponseDialog, recordResponse, createAllocation, refresh]);
 
   // Drag-drop: upload PDF then open Record Response dialog with doc attached
   const handleDropFile = useCallback(async (supplierId: number, file: File) => {
@@ -188,9 +212,10 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
         supplierId,
         supplierName: findSupplierName(supplierId),
         attachedDocument: result,
+        parentLine: findSupplierParentLine(supplierId),
       });
     }
-  }, [uploadForSupplier, findSupplierName]);
+  }, [uploadForSupplier, findSupplierName, findSupplierParentLine]);
 
   const handleAccept = useCallback(async (supplierId: number) => {
     const ok = await acceptQuote(supplierId);
@@ -312,12 +337,14 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
         />
       )}
 
-      {/* Record Response Dialog */}
+      {/* Record Response Sheet */}
       <RecordResponseDialog
         open={!!recordResponseDialog}
         onClose={() => setRecordResponseDialog(null)}
         supplierName={recordResponseDialog?.supplierName || ""}
+        supplierId={recordResponseDialog?.supplierId || 0}
         attachedDocument={recordResponseDialog?.attachedDocument}
+        parentLine={recordResponseDialog?.parentLine}
         onSubmit={handleRecordResponseSubmit}
       />
     </div>

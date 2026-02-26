@@ -8,7 +8,8 @@ module Api
       before_action :set_line, only: [:update_line, :add_supplier, :add_child_line]
       before_action :set_supplier, only: [:send_rfq_single, :mark_sent, :record_response, :accept_quote,
                                           :reject_quote, :supplier_allocations, :create_allocation,
-                                          :presign_upload, :confirm_upload]
+                                          :presign_upload, :confirm_upload,
+                                          :extract_quote_data, :document_preview_url]
 
       # ═══════════════════════════════════════════════════════════════════════════
       # Template endpoints
@@ -379,6 +380,39 @@ module Api
           Rails.logger.error "[CustomQuotesController#presign_upload] Failed: #{e.message}"
           render_error("Failed to generate upload URL", status: :unprocessable_entity)
         end
+      end
+
+      # POST /api/v1/custom_quote_suppliers/:id/extract_quote_data
+      # Runs AI extraction on the supplier's attached quote PDF
+      # Synchronous — quote PDFs are small (1-5 pages), Haiku is fast (~1-2s)
+      def extract_quote_data
+        doc = @supplier.warehouse_document
+        unless doc&.storage_blob
+          return render json: { success: false, error: "No document attached" }, status: :unprocessable_entity
+        end
+
+        result = QuoteParsingService.new.extract!(doc)
+        render json: { success: true, data: result }
+      rescue StandardError => e
+        Rails.logger.error "[CustomQuotes#extract_quote_data] Failed for supplier #{@supplier.id}: #{e.message}"
+        render json: { success: false, error: "Extraction failed: #{e.message}" }, status: :unprocessable_entity
+      end
+
+      # GET /api/v1/custom_quote_suppliers/:id/document_preview_url
+      # Returns a presigned URL for viewing the attached quote document inline
+      def document_preview_url
+        doc = @supplier.warehouse_document
+        unless doc&.storage_blob
+          return render json: { success: false, error: "No document attached" }, status: :not_found
+        end
+
+        url = doc.storage_blob.presigned_url(expires_in: 1.hour.to_i, disposition: :inline)
+        render json: {
+          success: true,
+          url: url,
+          filename: doc.original_filename || doc.ui_name,
+          contentType: doc.storage_blob.content_type
+        }
       end
 
       # POST /api/v1/custom_quote_suppliers/:id/confirm_upload

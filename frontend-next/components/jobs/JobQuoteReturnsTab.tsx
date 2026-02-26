@@ -380,11 +380,12 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
         />
       )}
 
-      {/* Record Response Dialog (from drag-drop upload) */}
+      {/* Record Response Sheet (from drag-drop upload) */}
       <RecordResponseDialog
         open={!!recordResponseDialog}
         onClose={() => setRecordResponseDialog(null)}
         supplierName={recordResponseDialog?.supplierName || ""}
+        supplierId={recordResponseDialog?.sourceId || 0}
         attachedDocument={recordResponseDialog?.attachedDocument}
         onSubmit={handleRecordResponseSubmit}
       />

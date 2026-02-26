@@ -1013,6 +1013,8 @@ Rails.application.routes.draw do
           post :allocations, action: 'create_allocation'
           post :presign_upload
           post :confirm_upload
+          post :extract_quote_data
+          get :document_preview_url
         end
         collection do
           post :bulk_send_rfq
