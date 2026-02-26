@@ -26,7 +26,7 @@ class AllOrgsEmailSyncJob < ApplicationJob
   # between sync (email_sync queue) and uploads (email_enrichment queue).
   # At 14min/15min = 93% utilization, upload jobs were starved (never ran).
   # At 5min/15min = 33%, leaves ~10min for UploadEmailsToStorageJob,
-  # BackfillImapEmailBlobsJob, and other email_enrichment work.
+  # UploadEmailsToStorageJob (IMAP phase), and other email_enrichment work.
   # Unfinished orgs get picked up on the next 15-min cycle.
   MAX_RUNTIME = 5.minutes
 

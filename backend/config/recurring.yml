@@ -169,21 +169,10 @@ gl_sync_backup:
   queue: low
   schedule: every 6 hours at minute 15
 
-# Pre-warm Xero sync stats cache for dashboard performance
-# Part of "Scale Xero Sync to 15k" plan (Phase 3)
-# FRC (Feb 2026): Reduced from 5 to 15 min - cache prewarm, not urgent
-refresh_xero_stats_cache:
-  class: RefreshXeroStatsCacheJob
-  queue: low
-  schedule: every 15 minutes
-
-# Refresh mv_xero_sync_stats materialized view for O(1) queries
-# Part of "Scale Xero Sync to 15k" plan (Phase 4)
-# FRC (Feb 2026): Reduced from 5 to 15 min - MV refresh not urgent
-refresh_xero_stats_mv:
-  class: RefreshXeroStatsMvJob
-  queue: low
-  schedule: every 15 minutes
+# NOTE (Feb 2026): RefreshXeroStatsCacheJob + RefreshXeroStatsMvJob removed.
+# The /api/v1/xero/sync_stats endpoint self-serves via Rails.cache.fetch + XeroSyncStatsService.
+# Pre-warming was redundant — cache miss adds ~200ms, then cached for 5 min.
+# MV had zero consumers after QueueStatusCacheJob switched to direct query.
 
 # ============================================
 # CORPORATE FINANCIAL REPORTS
@@ -366,22 +355,14 @@ bpmn_due_date_reminders:
 # EMAIL MAINTENANCE
 # ============================================
 
-# Clean up expired ephemeral emails daily (GitHub notifications, calendar, etc.)
-cleanup_ephemeral_emails:
-  class: CleanupEphemeralEmailsJob
-  queue: low
-  args: [{ dry_run: false, delete_from_outlook: true }]
-  schedule: at 3am every day
-
-# Clean up emails marked as content_unavailable (deleted from O365/Gmail by user)
-# FRC (Jan 2026): When user deletes email from mailbox, sync marks it unavailable.
-# This job removes the now-useless records from our database.
-# Runs daily at 3:30am (after ephemeral cleanup)
-cleanup_unavailable_emails:
-  class: CleanupUnavailableEmailsJob
-  queue: low
+# Clean up stale emails daily: ephemeral (GitHub, calendar) + content-unavailable
+# FRC (Feb 2026): Merged CleanupEphemeralEmailsJob + CleanupUnavailableEmailsJob.
+# Moved to email_enrichment (email worker) — cleanup is email work.
+email_cleanup:
+  class: EmailCleanupJob
+  queue: email_enrichment
   args: [{ dry_run: false, batch_size: 500 }]
-  schedule: at 3:30am every day
+  schedule: at 3am every day
 
 # Sync IMAP email accounts (unified inbox)
 # FRC (Feb 2026): Must be :email_sync queue, NOT :default.
@@ -401,26 +382,13 @@ email_health_monitor:
   queue: default
   schedule: every 5 minutes
 
-# Upload synced emails to Wasabi storage (self-healing)
-# FRC (Jan 2026): Auto-recovers from queue DB connection failures
-# FRC (Feb 2026): Moved to email_enrichment queue → runs on EMAIL WORKER, not shared worker.
-# Root cause: This job downloads email MIME content from Microsoft Graph API and uploads
-# to Wasabi — that's email work. On the shared worker (1 thread, 1GB) it monopolized
-# the thread for 10 min straight, blocking ALL other jobs (Xero, badges, etc.) and
-# caused R14 from MIME content accumulating in memory. Now runs on email worker
-# which has 2 threads and its own 1GB budget, leaving shared worker free.
+# Upload synced emails to Wasabi storage (MS365 + IMAP in one job)
+# FRC (Feb 2026): Merged BackfillImapEmailBlobsJob into UploadEmailsToStorageJob.
+# Phase 1: MS365 emails via Graph API. Phase 2: IMAP emails via IMAP server.
+# Runs on EMAIL WORKER (email_enrichment queue) — downloads email content = email work.
 # batch_size 25 = ~100MB memory spike per batch (safe on 1GB email worker).
 email_storage_upload:
   class: UploadEmailsToStorageJob
-  queue: email_enrichment
-  args: [{ batch_size: 25 }]
-  schedule: every 10 minutes
-
-# Upload IMAP emails to Wasabi storage (parallel to MS365 upload above)
-# IMAP emails use uid + folder_name to fetch raw .eml from IMAP server
-# FRC (Feb 2026): Moved to email_enrichment → runs on EMAIL WORKER (same reasoning).
-imap_email_storage_upload:
-  class: BackfillImapEmailBlobsJob
   queue: email_enrichment
   args: [{ batch_size: 25 }]
   schedule: every 10 minutes
@@ -439,17 +407,10 @@ retry_pending_attachment_blobs:
 # Note: BackfillEmailAttachmentBlobsJob removed (Jan 2026) - EmailAttachment table dropped
 # Email attachments now stored directly in WarehouseDocument with source_type='email_attachment'
 
-# Wake up snoozed emails that have reached their snooze time
-# FRC (Feb 2026): Reduced from 5 to 15 min - 15-min snooze granularity is fine
-email_snooze_wakeup:
-  class: EmailSnoozeWakeupJob
-  queue: email_sync
-  schedule: every 15 minutes
-
-# Process email reminders that are due
-# FRC (Feb 2026): Reduced from 5 to 15 min - email reminder granularity is fine
-email_reminders:
-  class: EmailReminderJob
+# Snooze wakeups + email reminders (merged into one lightweight job)
+# FRC (Feb 2026): Merged EmailSnoozeWakeupJob + EmailReminderJob.
+email_notifications:
+  class: EmailNotificationsJob
   queue: email_sync
   schedule: every 15 minutes
 
@@ -465,22 +426,14 @@ email_reminders:
 #   schedule: every 15 minutes
 
 # ============================================
-# EMAIL TO JOB / EMAIL TO TASK
+# EMAIL TO ENTITY (Job / Task / Case)
 # ============================================
-# Process emails sent to newjob@tekna.com.au and create job proposals
-# Runs every 5 minutes for responsive job creation
-# FRC (Feb 2026): Moved to :low - not latency-critical, frees :default for sync
-process_new_job_emails:
-  class: ProcessNewJobEmailsJob
-  queue: low
-  schedule: every 5 minutes
-
-# Process emails sent to newtask@tekna.com.au and create tasks
-# Runs every 5 minutes for responsive task creation
-# FRC (Feb 2026): Moved to :low - not latency-critical, frees :default for sync
-process_new_task_emails:
-  class: ProcessNewTaskEmailsJob
-  queue: low
+# Process emails sent to newjob@/newtask@/newcase@ mailboxes
+# FRC (Feb 2026): Merged ProcessNewJobEmailsJob + ProcessNewTaskEmailsJob + ProcessNewCaseEmailsJob.
+# Also fixes: case processing was orphaned (never scheduled). Moved to email worker.
+process_new_entity_emails:
+  class: ProcessNewEntityEmailsJob
+  queue: email_enrichment
   schedule: every 5 minutes
 
 # ============================================

@@ -249,12 +249,8 @@ class QueueStatusCacheJob < ApplicationJob
       end
     end
 
-    # Xero contacts pending review
-    xero_pending = if MvXeroSyncStat.available?
-      MvXeroSyncStat.sum(:pending_review).to_i
-    else
-      0
-    end
+    # Xero contacts pending review (direct indexed query, ~1ms)
+    xero_pending = ContactExternalLink.xero.pending_review.count
     items << { key: "xero_contacts", label: "Xero contacts pending", remaining: xero_pending } if xero_pending > 0
 
     # Xero active sync sessions

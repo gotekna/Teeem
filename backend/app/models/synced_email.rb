@@ -133,7 +133,7 @@ class SyncedEmail < ApplicationRecord
   }
 
   # SSoT: Pending IMAP email uploads — IMAP emails that need .eml files fetched and stored.
-  # Used by: BackfillImapEmailBlobsJob, QueueStatusCacheJob.
+  # Used by: UploadEmailsToStorageJob (Phase 2: IMAP), QueueStatusCacheJob.
   scope :pending_imap_upload, -> {
     where(source_type: "imap")
       .where.not(uid: [nil, ""])

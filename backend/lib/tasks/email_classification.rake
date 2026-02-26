@@ -255,12 +255,12 @@ namespace :cases do
 
   desc "Clean up expired ephemeral emails (database only)"
   task cleanup_ephemeral: :environment do
-    CleanupEphemeralEmailsJob.execute!(delete_from_outlook: false)
+    EmailCleanupJob.execute!(delete_from_outlook: false)
   end
 
   desc "Clean up expired ephemeral emails (database AND Outlook)"
   task cleanup_ephemeral_with_outlook: :environment do
-    CleanupEphemeralEmailsJob.execute!(delete_from_outlook: true)
+    EmailCleanupJob.execute!(delete_from_outlook: true)
   end
 
   desc "Reclassify all emails currently marked as spam (to fix false positives)"
