@@ -149,7 +149,7 @@ export function ConsentStep({
               I intend to sign this document
             </Label>
             <p className="text-xs text-muted-foreground mt-0.5">
-              I understand the contents of this document and intend to apply my
+              I will review the contents of this document before applying my
               electronic signature to create a legally binding agreement.
             </p>
           </div>
