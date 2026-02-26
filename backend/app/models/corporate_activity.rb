@@ -46,7 +46,7 @@ class CorporateActivity < ApplicationRecord
     when 86400..2591999
       "#{(distance / 86400).to_i} days ago"
     else
-      created_at.strftime("%d %b %Y")
+      created_at.strftime("%d %b %Y %l:%M %p")
     end
   end
 end

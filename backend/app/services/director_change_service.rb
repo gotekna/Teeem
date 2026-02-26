@@ -114,22 +114,19 @@ class DirectorChangeService
   def complete_signing!(e_signature_request)
     ActiveRecord::Base.transaction do
       # Set resignation_date on ceasing directors
+      # Note: CorporateDirector model callbacks handle activity logging automatically
       ceasing_directors.each do |cd_data|
         director = cd_data[:corporate_director]
         director.update!(
           resignation_date: cd_data[:cessation_date],
           is_current: false
         )
-
-        log_activity(
-          "director_resigned",
-          "#{director.contact.display_name} resigned as #{cd_data[:positions].join(', ')}"
-        )
       end
 
       # Create new CorporateDirector records for appointments.
       # DB unique constraint (company_id, contact_id) WHERE is_current = true
       # means ONE record per contact with combined position string.
+      # Note: CorporateDirector model callbacks handle activity logging automatically
       new_appointments.each do |appt_data|
         contact = appt_data[:contact]
         combined_position = appt_data[:positions].join("_")
@@ -139,11 +136,6 @@ class DirectorChangeService
           position: combined_position,
           appointment_date: appt_data[:appointment_date],
           is_current: true
-        )
-
-        log_activity(
-          "director_appointed",
-          "#{contact.display_name} appointed as #{appt_data[:positions].join(', ')}"
         )
       end
 
