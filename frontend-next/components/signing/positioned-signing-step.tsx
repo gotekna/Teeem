@@ -476,9 +476,9 @@ export function PositionedSigningStep({
       </div>
 
       {/* PDF Viewer with overlays */}
-      <div className="relative border rounded-lg overflow-hidden bg-muted dark:bg-card" style={{ height: "70vh" }}>
+      <div className="border rounded-lg bg-muted dark:bg-card">
         {/* Controls */}
-        <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between bg-white/90 dark:bg-background/90 rounded-lg p-2 shadow-sm">
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-white/90 dark:bg-background/90 rounded-t-lg p-2 border-b">
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -522,8 +522,8 @@ export function PositionedSigningStep({
           </div>
         </div>
 
-        {/* PDF Document */}
-        <div ref={scrollContainerRef} className="h-full overflow-auto p-4 pt-16">
+        {/* PDF Document - scrollable area */}
+        <div ref={scrollContainerRef} className="overflow-auto p-4" style={{ maxHeight: "65vh", overscrollBehavior: "contain" }}>
           <div className="relative inline-block mx-auto">
             <Document
               file={pdfUrl}

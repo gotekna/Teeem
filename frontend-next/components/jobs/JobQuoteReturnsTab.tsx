@@ -349,12 +349,19 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                         variant="ghost"
                         className="h-7 w-7 p-0"
                         title="View quote document"
-                        onClick={() =>
-                          window.open(
-                            `${getApiBaseUrl()}/api/v1/documents/${qr.warehouseDocumentId}/download`,
-                            "_blank"
-                          )
-                        }
+                        onClick={async () => {
+                          try {
+                            const res = await api.post<{ success: boolean; shareUrl: string }>(
+                              `/api/v1/documents/${qr.warehouseDocumentId}/share_link`,
+                              { open: true }
+                            );
+                            if (res?.shareUrl) {
+                              window.open(res.shareUrl, "_blank");
+                            }
+                          } catch {
+                            toast.error("Failed to open document");
+                          }
+                        }}
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
