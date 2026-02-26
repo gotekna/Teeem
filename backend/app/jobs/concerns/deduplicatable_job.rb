@@ -9,7 +9,7 @@
 #
 # Include this concern in any recurring job that should only have ONE active
 # instance at a time. If a job of the same class is already executing,
-# the new instance exits immediately at perform-time.
+# the new instance waits as a BlockedExecution until the running one finishes.
 #
 # ⚠️ DO NOT SIMPLIFY already_running? to just check finished_at (Feb 2026)
 # ════════════════════════════════════════════
@@ -34,6 +34,18 @@
 # ✅ CORRECT: before_perform check — job enqueues normally, exits early if duplicate
 # ════════════════════════════════════════════
 #
+# ⚠️ DO NOT REPLACE limits_concurrency WITH pg_try_advisory_lock (Feb 2026)
+# ════════════════════════════════════════════
+# Why: Heroku's managed PostgreSQL shares the same backend PID across all
+# connections in a pool (tested: both threads get pg_backend_pid=677616).
+# pg_try_advisory_lock is reentrant within the same session, so BOTH threads
+# successfully acquire the "same" lock — zero dedup effect.
+# SolidQueue's limits_concurrency uses solid_queue_semaphores table with
+# database-level unique constraints — works regardless of connection pooling.
+# ❌ WRONG: pg_try_advisory_lock — reentrant on shared PG sessions (Heroku)
+# ✅ CORRECT: limits_concurrency — uses DB semaphore table, atomic guarantee
+# ════════════════════════════════════════════
+#
 # Usage:
 #   class MyRecurringJob < ApplicationJob
 #     include DeduplicatableJob
@@ -46,59 +58,50 @@
 module DeduplicatableJob
   extend ActiveSupport::Concern
 
-  # ⚠️ DO NOT REPLACE pg_try_advisory_lock WITH ClaimedExecution CHECKS (Feb 2026)
-  # ════════════════════════════════════════════
-  # Why: When 2 threads claim the same job class simultaneously (e.g., after
-  # worker restart), both ClaimedExecution records exist but neither thread's
-  # before_perform can see the other's record due to transaction isolation.
-  # Advisory locks are atomic at the PostgreSQL level - no race possible.
-  # ❌ WRONG: Check ClaimedExecution.exists? — race condition on simultaneous claim
-  # ✅ CORRECT: pg_try_advisory_lock — atomic, one winner guaranteed
-  # ════════════════════════════════════════════
   included do
+    # SolidQueue's built-in concurrency control (uses solid_queue_semaphores table).
+    # Only 1 instance of each job class can execute at a time.
+    # Additional copies wait as BlockedExecution (not consuming threads).
+    # When the running job finishes, SolidQueue auto-unblocks the next one.
+    limits_concurrency to: 1, key: ->(*) { self.name }
+
     before_perform do |job|
-      # Atomic lock: only ONE instance of this job class can hold the lock.
-      # pg_try_advisory_lock is session-scoped (released on connection close/return).
-      lock_key = Zlib.crc32(self.class.name).to_i & 0x7FFFFFFF # Positive int32
-      locked = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{lock_key})")
-
-      unless locked
-        Rails.logger.info "[DeduplicatableJob] Skipping #{job.class.name} (job_id: #{job.provider_job_id}) - another instance holds the lock"
-        throw :abort
-      end
-
-      @_dedup_lock_key = lock_key
-
-      # When this job starts executing, clear all other queued (Ready) copies.
-      # The scheduler enqueues freely (avoiding SolidQueue bug), but when ANY copy
-      # starts, it clears queued siblings. Net effect: at most 1 running + 1 queued.
-      self.class.cleanup_duplicate_ready_copies!(excluding_job_id: job.provider_job_id)
-
-      # Clean up dead predecessors so they don't accumulate
+      # Clean up duplicate queued/blocked copies (housekeeping).
+      self.class.cleanup_duplicate_copies!(excluding_job_id: job.provider_job_id)
       self.class.cleanup_dead_predecessors!
-    end
-
-    after_perform do |_job|
-      if @_dedup_lock_key
-        ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{@_dedup_lock_key})")
-      end
     end
   end
 
   class_methods do
 
-    # Clear all queued (ReadyExecution) copies of this job class except the one running.
-    # Prevents queue bloat when scheduler enqueues faster than worker processes.
-    def cleanup_duplicate_ready_copies!(excluding_job_id: nil)
+    # Clear duplicate Ready and excess Blocked copies of this job class.
+    # With limits_concurrency, excess jobs accumulate as BlockedExecutions.
+    # Keep at most 1 blocked copy (the next one to run when current finishes).
+    def cleanup_duplicate_copies!(excluding_job_id: nil)
       duplicates = SolidQueue::Job.where(finished_at: nil, class_name: name)
       duplicates = duplicates.where.not(id: excluding_job_id) if excluding_job_id
 
+      # Clean ready copies
       ready_ids = SolidQueue::ReadyExecution.where(job_id: duplicates.select(:id)).pluck(:job_id)
-      return if ready_ids.empty?
+      if ready_ids.any?
+        Rails.logger.info "[DeduplicatableJob] Clearing #{ready_ids.count} duplicate ready #{name} job(s)"
+        SolidQueue::ReadyExecution.where(job_id: ready_ids).delete_all
+        SolidQueue::Job.where(id: ready_ids).update_all(finished_at: Time.current)
+      end
 
-      Rails.logger.info "[DeduplicatableJob] Clearing #{ready_ids.count} duplicate queued #{name} job(s)"
-      SolidQueue::ReadyExecution.where(job_id: ready_ids).delete_all
-      SolidQueue::Job.where(id: ready_ids).update_all(finished_at: Time.current)
+      # Clean excess blocked copies (keep 1 for when current finishes)
+      blocked_job_ids = SolidQueue::BlockedExecution
+        .joins(:job)
+        .where(solid_queue_jobs: { class_name: name, finished_at: nil })
+        .order("solid_queue_jobs.id ASC")
+        .pluck(:job_id)
+
+      if blocked_job_ids.size > 1
+        excess_ids = blocked_job_ids[1..] # Keep oldest, remove rest
+        Rails.logger.info "[DeduplicatableJob] Clearing #{excess_ids.count} excess blocked #{name} job(s)"
+        SolidQueue::BlockedExecution.where(job_id: excess_ids).delete_all
+        SolidQueue::Job.where(id: excess_ids).update_all(finished_at: Time.current)
+      end
     end
 
     def cleanup_dead_predecessors!
@@ -107,6 +110,7 @@ module DeduplicatableJob
         .where(class_name: name)
         .where.not(id: SolidQueue::ReadyExecution.select(:job_id))
         .where.not(id: SolidQueue::ClaimedExecution.select(:job_id))
+        .where.not(id: SolidQueue::BlockedExecution.select(:job_id))
         .pluck(:id)
 
       if dead_job_ids.any?
