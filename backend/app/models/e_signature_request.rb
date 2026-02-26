@@ -431,7 +431,10 @@ class ESignatureRequest < ApplicationRecord
         "e_signature_request_id" => id,
         "request_number" => request_number,
         "signed_at" => completed_at&.iso8601,
-        "source" => "e_signature"
+        "source" => "e_signature",
+        # Auto-validate: TEEEM-generated signed documents are pre-validated by the platform
+        "user_validated_at" => Time.current.iso8601,
+        "user_validated_by_name" => "TEEEM Platform"
       }
       metadata["document_type_id"] = document_type_id if document_type_id.present?
       metadata["document_type"] = document_type.name if document_type.present?

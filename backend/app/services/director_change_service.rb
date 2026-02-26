@@ -616,6 +616,12 @@ class DirectorChangeService
       .joins(:document_type)
       .find_by(warehouse_folder: asic_folder, document_types: { abbreviation: abbreviation })
 
+    # Auto-validate: TEEEM-generated documents are pre-validated by the platform
+    metadata = metadata.merge(
+      "user_validated_at" => Time.current.iso8601,
+      "user_validated_by_name" => "TEEEM Platform"
+    )
+
     # Pass specific WFDT so materialize_ui_name uses the correct template.
     # fallback_name used as original_filename if no template resolves.
     WarehouseDocumentCreator.create!(

@@ -258,7 +258,10 @@ class QueueStatusCacheJob < ApplicationJob
           .where("warehouse_documents.metadata->>'is_bill_record' = 'true'")
           .count
         xero_missing = [xero_total - xero_with_file - xero_bills_processed, 0].max
-        items << { key: "xero_invoices", label: "Xero invoices", remaining: xero_missing } if xero_missing > 0
+        # Show row if PDFs remaining OR bills were processed (so user sees progress)
+        if xero_missing > 0 || xero_bills_processed > 0
+          items << { key: "xero_invoices", label: "Xero invoices", remaining: xero_missing, bills_processed: xero_bills_processed }
+        end
       end
     end
 

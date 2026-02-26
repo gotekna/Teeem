@@ -823,12 +823,13 @@ class ESignaturePdfStamper
     y
   end
 
-  # Legal footer at the bottom of the page
+  # Legal footer at the bottom of the page (A4 width = 595pt)
   def draw_legal_footer(canvas, cert)
     y = MARGIN + 40
+    page_right = 595 - MARGIN
 
     canvas.stroke_color("cccccc")
-    canvas.line(MARGIN, y + 5, canvas.context.document.pages[-1].box.width - MARGIN, y + 5)
+    canvas.line(MARGIN, y + 5, page_right, y + 5)
     canvas.stroke
 
     canvas.font("Helvetica", size: 7.5)
