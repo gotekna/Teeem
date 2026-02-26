@@ -35,7 +35,16 @@ module Bpmn
           user: resolve_user
         )
 
-        package = service.generate_package
+        # Progress callback persists to DB so the frontend can poll it
+        progress_callback = ->(current, total, doc_name) {
+          set_variable("generation_progress", {
+            current: current,
+            total: total,
+            document_name: doc_name
+          })
+        }
+
+        package = service.generate_package(on_progress: progress_callback)
 
         # Upload combined PDF for e-signature and process variable reference
         combined_blob = StorageBlob.find_or_create_for_content!(

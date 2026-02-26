@@ -144,6 +144,10 @@ export default function SigningCeremonyPage() {
       } else if (!data.signer.can_sign) {
         setError("It's not your turn to sign yet. Please wait for other signers.");
         setStep("error");
+      } else if (data.request?.has_positioned_fields && data.fields?.length > 0) {
+        // Skip review step for positioned fields - the positioned signing step
+        // already shows the full PDF with field overlays and serves as review + sign
+        setStep("sign_positioned");
       } else {
         setStep("view_document");
       }

@@ -56,6 +56,11 @@ export default function WorkflowTaskDetailPage() {
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [workflowProcessing, setWorkflowProcessing] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{
+    current: number | null;
+    total: number | null;
+    document_name: string | null;
+  } | null>(null);
 
   const fetchTask = useCallback(async () => {
     if (!taskId) return;
@@ -108,6 +113,21 @@ export default function WorkflowTaskDetailPage() {
               );
               if (pollRes?.success) {
                 const vars = pollRes.task.process_variables || {};
+
+                // Update generation progress from process variables
+                const progress = vars.generation_progress as {
+                  current?: number;
+                  total?: number;
+                  document_name?: string;
+                } | undefined;
+                if (progress) {
+                  setGenerationProgress({
+                    current: progress.current ?? null,
+                    total: progress.total ?? null,
+                    document_name: progress.document_name ?? null,
+                  });
+                }
+
                 const esignResult = vars.esign_result as { request_id?: number } | undefined;
                 if (esignResult?.request_id) {
                   esignRequestId = esignResult.request_id;
@@ -175,6 +195,11 @@ export default function WorkflowTaskDetailPage() {
 
   // Processing state - polling while background jobs run
   if (workflowProcessing) {
+    const hasProgress = generationProgress?.current != null && generationProgress?.total != null;
+    const progressPercent = hasProgress
+      ? Math.round(((generationProgress!.current! ) / generationProgress!.total!) * 100)
+      : 0;
+
     return (
       <div className="p-6 space-y-4">
         <BackButton fallbackHref="/workflows" label="Back to Workflows" />
@@ -182,9 +207,31 @@ export default function WorkflowTaskDetailPage() {
           <CardContent className="py-12 text-center">
             <Spinner className="h-10 w-10 mx-auto mb-4" />
             <p className="text-lg font-medium">Processing Workflow...</p>
-            <p className="text-muted-foreground mt-1">
-              Generating documents and preparing for e-signature. This may take up to a minute.
-            </p>
+
+            {hasProgress ? (
+              <>
+                <p className="text-muted-foreground mt-1">
+                  Generating document {generationProgress!.current} of {generationProgress!.total}
+                </p>
+                {generationProgress!.document_name && (
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {generationProgress!.document_name}
+                  </p>
+                )}
+                {/* Progress bar */}
+                <div className="mx-auto mt-4 w-64 h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground mt-1">
+                Preparing documents... This may take up to a minute.
+              </p>
+            )}
+
             <p className="text-xs text-muted-foreground mt-3">
               You&apos;ll be redirected automatically when ready.
             </p>

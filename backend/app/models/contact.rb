@@ -1895,8 +1895,21 @@ class Contact < ApplicationRecord
   # Normalize entity_type to match backend constants
   # Frontend choices: "Person", "Company", "Trust", "Sole Trader", "Price Only"
   # Backend expects:  "person", "company", "trust", "sole_trader", "price_only"
+  #
+  # ⚠️ FRC (Feb 2026): Must default blank entity_type to "company"
+  # ════════════════════════════════════════════════════════════════
+  # Why: Multiple code paths (ExternalInvoiceSyncService, bulk imports, email extraction)
+  # create contacts without setting entity_type. With blank entity_type, contacts bypass
+  # the unique index idx_contacts_unique_company_name (which only covers entity_type='company'),
+  # allowing unlimited duplicates. 850+ "Draft" contacts were created this way.
+  # ❌ WRONG: return if entity_type.blank? — allows null entity_type, bypasses unique index
+  # ✅ CORRECT: Default to "company" — ensures unique index coverage
+  # ════════════════════════════════════════════════════════════════
   def normalize_entity_type
-    return if entity_type.blank?
+    if entity_type.blank?
+      self.entity_type = "company"
+      return
+    end
 
     # Convert to lowercase and replace spaces with underscores
     self.entity_type = entity_type.downcase.gsub(" ", "_")

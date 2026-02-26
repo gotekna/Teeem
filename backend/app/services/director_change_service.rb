@@ -51,8 +51,9 @@ class DirectorChangeService
   end
 
   # Generate combined PDF package without sending
-  def generate_package
-    documents = generate_all_documents
+  def generate_package(on_progress: nil)
+    documents = generate_all_documents(on_progress: on_progress)
+    on_progress&.call(nil, nil, "Combining documents...")
     combined_pdf, page_offsets = combine_pdfs_with_offsets(documents)
 
     # Attach 1-based page offset to each document for frontend navigation.
@@ -206,15 +207,19 @@ class DirectorChangeService
 
   # --- Document Generation ---
 
-  def generate_all_documents
+  def generate_all_documents(on_progress: nil)
     documents = []
+    total = document_count
 
     # Generate minutes of directors' meeting (first - it's the board resolution)
+    on_progress&.call(1, total, "Minutes of Meeting")
     documents << render_minutes
 
     # Generate one resignation letter per position per ceasing director
     ceasing_directors.each do |cd|
       cd[:positions].each do |position|
+        doc_name = "Resignation - #{cd[:corporate_director].contact.display_name}"
+        on_progress&.call(documents.size + 1, total, doc_name)
         documents << render_resignation(cd.merge(positions: [position]))
       end
     end
@@ -222,18 +227,36 @@ class DirectorChangeService
     # Generate one consent form per position per new appointment
     new_appointments.each do |appt|
       appt[:positions].each do |position|
+        doc_name = "Consent - #{appt[:contact].display_name}"
+        on_progress&.call(documents.size + 1, total, doc_name)
         documents << render_consent(appt.merge(positions: [position]))
       end
     end
 
     # Generate Form 484 records (separate documents for cessation and appointment)
-    form_484_cessation = render_form_484_cessation
-    documents << form_484_cessation if form_484_cessation
+    if ceasing_directors.present?
+      on_progress&.call(documents.size + 1, total, "Form 484 - Cessation")
+      form_484_cessation = render_form_484_cessation
+      documents << form_484_cessation if form_484_cessation
+    end
 
-    form_484_appointment = render_form_484_appointment
-    documents << form_484_appointment if form_484_appointment
+    if new_appointments.present?
+      on_progress&.call(documents.size + 1, total, "Form 484 - Appointment")
+      form_484_appointment = render_form_484_appointment
+      documents << form_484_appointment if form_484_appointment
+    end
 
     documents
+  end
+
+  # Pre-calculate total document count for progress tracking
+  def document_count
+    count = 1 # Minutes
+    count += ceasing_directors.sum { |cd| cd[:positions].size } # Resignations
+    count += new_appointments.sum { |appt| appt[:positions].size } # Consents
+    count += 1 if ceasing_directors.present? # Form 484 cessation
+    count += 1 if new_appointments.present? # Form 484 appointment
+    count
   end
 
   def render_resignation(cd_data)

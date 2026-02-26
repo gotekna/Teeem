@@ -25,9 +25,14 @@ class CreateQuoteResponseDocumentType < ActiveRecord::Migration[8.0]
           aliases: ["Supplier Quote Response", "Quote Return PDF"]
         )
 
-        # Link to Quote Returns folder if it exists
+        # Link to Quote Returns folder if it exists (explicit tenant_id)
         if quote_returns_folder
-          dt.warehouse_folder_ids = [quote_returns_folder.id]
+          WarehouseFolderDocumentType.create!(
+            warehouse_folder_id: quote_returns_folder.id,
+            document_type_id: dt.id,
+            tenant_id: tenant.id,
+            is_primary: true
+          )
         end
       end
     end

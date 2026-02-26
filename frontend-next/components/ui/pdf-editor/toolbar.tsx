@@ -37,6 +37,7 @@ import {
   AtSign,
   Calendar,
   TextCursor,
+  MessageSquare,
 } from "lucide-react";
 import type { AnnotationTool, ToolbarProps, Signer } from "./types";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,7 @@ const SIGNATURE_FIELD_TOOLS: { tool: AnnotationTool; icon: React.ReactNode; labe
   { tool: "initials_field", icon: <AtSign className="h-4 w-4" />, label: "Initials" },
   { tool: "date_field", icon: <Calendar className="h-4 w-4" />, label: "Date" },
   { tool: "text_field", icon: <TextCursor className="h-4 w-4" />, label: "Text Input" },
+  { tool: "comment_field", icon: <MessageSquare className="h-4 w-4" />, label: "Comment" },
 ];
 
 const COLORS = [
