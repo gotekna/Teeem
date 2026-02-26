@@ -247,22 +247,17 @@ export function PositionedSigningStep({
             }
           }, 400);
         } else if (field.field_type === "signature" || field.field_type === "initials") {
-          // Open the capture/confirm dialog after scrolling (but never auto-apply)
+          // Reuse saved signature if available, otherwise open capture dialog
           setTimeout(() => {
             if (!field.completed) {
-              setSelectedField(field);
-              if (field.field_type === "signature") {
-                if (savedSignatureRef.current) {
-                  setConfirmMode("signature");
-                } else {
-                  setCaptureMode("signature");
-                }
+              const saved = field.field_type === "signature" ? savedSignatureRef.current : savedInitialsRef.current;
+              if (saved) {
+                // Already drew this signature type — apply it directly
+                completeField(field.id, saved);
               } else {
-                if (savedInitialsRef.current) {
-                  setConfirmMode("initials");
-                } else {
-                  setCaptureMode("initials");
-                }
+                // First time — open capture dialog (draw/type/upload)
+                setSelectedField(field);
+                setCaptureMode(field.field_type === "signature" ? "signature" : "initials");
               }
             }
           }, 400);
@@ -364,9 +359,9 @@ export function PositionedSigningStep({
   const completedRequired = requiredFields.filter((f) => f.completed);
   const allRequiredComplete = completedRequired.length === requiredFields.length;
 
-  // Handle field click - always requires explicit user action.
+  // Handle field click - reuses saved signature or opens capture dialog.
   // First time: opens capture dialog (draw/type/upload).
-  // Subsequent times: shows confirm dialog with saved signature preview.
+  // Subsequent fields: auto-applies saved signature (no confirm needed).
   const handleFieldClick = (field: SignatureField) => {
     if (field.completed) return;
 
@@ -381,20 +376,20 @@ export function PositionedSigningStep({
       return;
     }
 
-    setSelectedField(field);
-
     if (field.field_type === "signature") {
       if (savedSignatureRef.current) {
-        // Show confirm dialog with saved signature preview (user must click Confirm)
-        setConfirmMode("signature");
+        // Already drew signature — apply it directly
+        completeField(field.id, savedSignatureRef.current);
       } else {
+        setSelectedField(field);
         setCaptureMode("signature");
       }
     } else if (field.field_type === "initials") {
       if (savedInitialsRef.current) {
-        // Show confirm dialog with saved initials preview (user must click Confirm)
-        setConfirmMode("initials");
+        // Already drew initials — apply directly
+        completeField(field.id, savedInitialsRef.current);
       } else {
+        setSelectedField(field);
         setCaptureMode("initials");
       }
     }
