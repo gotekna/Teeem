@@ -197,10 +197,14 @@ export function ContactCorporateDetailsSubTab({
           setCanEnable(response.can_enable || false);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("[ContactCorporateDetailsSubTab] Failed to load corporate details:", err);
-      // May fail if corporate not enabled - that's OK
+      // 404 = corporate not enabled. Extract can_enable from the error response
+      // so we show the "Enable" button for company/trust contacts (FRC Feb 2026).
       setCorporateNotEnabled(true);
+      if (err?.data?.can_enable !== undefined) {
+        setCanEnable(err.data.can_enable);
+      }
     } finally {
       setLoadingDetails(false);
     }

@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Plus, Trash2, Workflow, CheckCircle, ChevronRight, X } from "lucide-react";
+import { FileText, Pencil, Plus, Trash2, Workflow, CheckCircle, ChevronRight, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -55,6 +55,53 @@ interface DirectorsTabProps {
   entityId?: string;
   company?: Corporate;
   onUpdate?: () => void;
+}
+
+/** Inline editable date cell — click pencil to edit, blur/Enter to save */
+function EditableDateCell({ value, onSave }: { value?: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = React.useState(false);
+  const [localValue, setLocalValue] = React.useState(value || "");
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => { setLocalValue(value || ""); }, [value]);
+  React.useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const handleSave = () => {
+    setEditing(false);
+    if (localValue !== (value || "")) {
+      onSave(localValue);
+    }
+  };
+
+  if (editing) {
+    return (
+      <Input
+        ref={inputRef}
+        type="date"
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSave();
+          if (e.key === "Escape") { setLocalValue(value || ""); setEditing(false); }
+        }}
+        className="h-7 w-36 text-sm"
+      />
+    );
+  }
+
+  return (
+    <div className="group/date flex items-center gap-1">
+      <span>{value ? format(new Date(value), DATE_DISPLAY) : "-"}</span>
+      <button
+        onClick={() => setEditing(true)}
+        className="opacity-0 group-hover/date:opacity-100 text-muted-foreground hover:text-foreground transition-opacity p-0.5"
+        title="Edit date"
+      >
+        <Pencil className="h-3 w-3" />
+      </button>
+    </div>
+  );
 }
 
 export function DirectorsTab({ companyId, entityId, company, onUpdate }: DirectorsTabProps) {
@@ -161,6 +208,17 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     }
   }, [effectiveCompanyId, loadOfficers]);
 
+  const updateDirectorDate = React.useCallback(async (directorId: number, field: "appointment_date" | "resignation_date", value: string) => {
+    try {
+      await api.put(`/api/v1/companies/${effectiveCompanyId}/directors/${directorId}`, {
+        [field]: value || null,
+      });
+      loadOfficers();
+    } catch (err) {
+      console.error(`Failed to update ${field}:`, err);
+    }
+  }, [effectiveCompanyId, loadOfficers]);
+
   // Group officers by primary role - each officer appears in ONE group only
   // Priority: director/chairman > secretary > public_officer > corporate_officer
   const directors = officers.filter(o => o.position?.includes("director") || o.position === "chairman");
@@ -258,8 +316,18 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
           </div>
         </TableCell>
         <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
-        <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), DATE_DISPLAY) : "-"}</TableCell>
-        <TableCell className="px-4 py-3 text-sm">{isCurrent ? "-" : (officer.resignation_date ? format(new Date(officer.resignation_date), DATE_DISPLAY) : "-")}</TableCell>
+        <TableCell className="px-4 py-3 text-sm">
+          <EditableDateCell
+            value={officer.appointment_date}
+            onSave={(value) => updateDirectorDate(officer.id, "appointment_date", value)}
+          />
+        </TableCell>
+        <TableCell className="px-4 py-3 text-sm">
+          <EditableDateCell
+            value={officer.resignation_date}
+            onSave={(value) => updateDirectorDate(officer.id, "resignation_date", value)}
+          />
+        </TableCell>
         <TableCell className="px-4 py-3">
           {isCurrent ? (
             <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">Current</Badge>
@@ -363,8 +431,18 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                   </div>
                 </TableCell>
                 <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
-                <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), DATE_DISPLAY) : "-"}</TableCell>
-                <TableCell className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), DATE_DISPLAY) : "-"}</TableCell>
+                <TableCell className="px-4 py-3 text-sm">
+                  <EditableDateCell
+                    value={officer.appointment_date}
+                    onSave={(value) => updateDirectorDate(officer.id, "appointment_date", value)}
+                  />
+                </TableCell>
+                <TableCell className="px-4 py-3 text-sm">
+                  <EditableDateCell
+                    value={officer.resignation_date}
+                    onSave={(value) => updateDirectorDate(officer.id, "resignation_date", value)}
+                  />
+                </TableCell>
                 <TableCell className="px-4 py-3 text-sm">{formatDuration(officer.appointment_date, officer.resignation_date)}</TableCell>
                 <TableCell className="px-4 py-3">
                   {officer.is_current ? (

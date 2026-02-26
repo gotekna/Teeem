@@ -82,6 +82,7 @@ interface CeasingDirector {
   position: string;
   positions: string[];
   cessation_date: string;
+  earliest_appointment_date: string;
   has_dob: boolean;
   has_address: boolean;
   dob: string;
@@ -343,9 +344,19 @@ export default function DirectorChangeForm({
       // Filter to only known positions (drops compound strings like "director_secretary_public_officer")
       const normalizedPositions = [...new Set(allPositions)].filter((p) => knownPositionValues.has(p));
 
-      const officerIds = currentOfficers
-        .filter((o) => o.contact?.id === contactId && o.is_current)
-        .map((o) => o.id);
+      const matchingOfficers = currentOfficers
+        .filter((o) => o.contact?.id === contactId && o.is_current);
+      const officerIds = matchingOfficers.map((o) => o.id);
+
+      // Track the latest appointment_date across all positions for this contact.
+      // Cessation date must be on or after this date (CorporateDirector model validates this).
+      const appointmentDates = matchingOfficers
+        .map((o) => o.appointment_date)
+        .filter((d): d is string => !!d)
+        .sort();
+      const earliestAppointmentDate = appointmentDates.length > 0
+        ? appointmentDates[appointmentDates.length - 1]
+        : "";
 
       let dob = "";
       let address = "";
@@ -400,6 +411,7 @@ export default function DirectorChangeForm({
           position: officer.position,
           positions: normalizedPositions.length > 0 ? normalizedPositions : ["director"],
           cessation_date: format(new Date(), DATE_ISO),
+          earliest_appointment_date: earliestAppointmentDate,
           has_dob: hasDob,
           has_address: hasAddress,
           dob,
@@ -547,10 +559,13 @@ export default function DirectorChangeForm({
 
   // --- Submit ---
 
-  // Validation: all people must have DOB, address, and email before proceeding
+  // Validation: all people must have DOB, address, email, and valid dates before proceeding
+  const ceasingDatesValid = ceasingDirectors.every(
+    (cd) => !cd.earliest_appointment_date || cd.cessation_date >= cd.earliest_appointment_date
+  );
   const ceasingValid = ceasingDirectors.every(
     (cd) => cd.has_dob && cd.has_address && !!cd.selected_email
-  );
+  ) && ceasingDatesValid;
   const appointmentsValid = newAppointments.every(
     (a) => a.has_dob && a.has_address && !!a.selected_email
   );
@@ -1111,6 +1126,12 @@ export default function DirectorChangeForm({
                         onChange={(date) => updateCeasingDate(cd.corporate_director_id, date)}
                         placeholder="Select cessation date..."
                       />
+                      {cd.earliest_appointment_date && cd.cessation_date < cd.earliest_appointment_date && (
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                          Cannot be before appointment date ({format(new Date(cd.earliest_appointment_date + "T00:00:00"), DATE_DISPLAY)})
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

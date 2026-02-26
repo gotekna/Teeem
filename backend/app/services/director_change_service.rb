@@ -212,6 +212,15 @@ class DirectorChangeService
       raise GenerationError, "corporate_director is required for ceasing directors" unless cd[:corporate_director]
       raise GenerationError, "positions are required for ceasing directors" if cd[:positions].blank?
       raise GenerationError, "cessation_date is required for ceasing directors" unless cd[:cessation_date]
+
+      # Validate cessation date is not before appointment date (mirrors CorporateDirector model validation)
+      director = cd[:corporate_director]
+      if director.respond_to?(:appointment_date) && director.appointment_date.present?
+        cessation = cd[:cessation_date].is_a?(Date) ? cd[:cessation_date] : Date.parse(cd[:cessation_date].to_s)
+        if cessation < director.appointment_date
+          raise GenerationError, "Cessation date (#{cessation}) cannot be before appointment date (#{director.appointment_date}) for #{director.contact&.display_name || 'director'}"
+        end
+      end
     end
 
     # Validate new appointments have required data
