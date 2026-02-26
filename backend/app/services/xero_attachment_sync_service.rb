@@ -32,23 +32,40 @@ class XeroAttachmentSyncService
   include DocumentProviderAware
   attr_reader :external_invoice, :xero_client, :results
 
-  def initialize(external_invoice, skip_storage_upload: false)
+  # ⚠️ MEMORY-SAFE (Feb 2026): Accept shared resources to avoid re-querying per invoice.
+  # When processing batches, the job creates ONE XeroApiClient, ONE Tenant lookup,
+  # ONE WarehouseProvider, etc. and passes them to each service instance.
+  # Without this, 270 invoices × 10 AR queries each = 2,700 AR objects that
+  # accumulate faster than GC can collect them on a 1024MB dyno.
+  def initialize(external_invoice, skip_storage_upload: false, shared_resources: nil)
     @external_invoice = external_invoice
-    @xero_client = XeroApiClient.new
     @skip_storage_upload = skip_storage_upload
 
-    # FRC (Feb 2026): Fixed tenant_id confusion
-    # ExternalInvoice.tenant_id is NOW the TEEEM Tenant.id (integer FK)
-    # Xero org UUID is stored in raw_data or looked up via XeroCredential
-    @tenant = Tenant.find_by(id: external_invoice.tenant_id)
+    if shared_resources
+      @xero_client = shared_resources[:xero_client]
+      @tenant = shared_resources[:tenant]
+      @xero_tenant_id = shared_resources[:xero_tenant_id]
+      @xero_credential = shared_resources[:xero_credential]
+      @xero_tenant_name = shared_resources[:xero_tenant_name]
+      @organization = shared_resources[:organization]
+      @storage_config = shared_resources[:storage_config]
+    else
+      @xero_client = XeroApiClient.new
 
-    # Get Xero tenant UUID for API calls (from raw_data or credential lookup)
-    @xero_tenant_id = find_xero_tenant_id_for_invoice
-    @xero_credential = XeroCredential.find_by(tenant_id: @xero_tenant_id) if @xero_tenant_id
-    @xero_tenant_name = @xero_credential&.tenant_name
+      # FRC (Feb 2026): Fixed tenant_id confusion
+      # ExternalInvoice.tenant_id is NOW the TEEEM Tenant.id (integer FK)
+      # Xero org UUID is stored in raw_data or looked up via XeroCredential
+      @tenant = Tenant.find_by(id: external_invoice.tenant_id)
 
-    @organization = @tenant&.organizations&.where(is_active: true)&.first
-    @storage_config = @tenant ? WarehouseProvider.for_tenant(@tenant) : nil
+      # Get Xero tenant UUID for API calls (from raw_data or credential lookup)
+      @xero_tenant_id = find_xero_tenant_id_for_invoice
+      @xero_credential = XeroCredential.find_by(tenant_id: @xero_tenant_id) if @xero_tenant_id
+      @xero_tenant_name = @xero_credential&.tenant_name
+
+      @organization = @tenant&.organizations&.where(is_active: true)&.first
+      @storage_config = @tenant ? WarehouseProvider.for_tenant(@tenant) : nil
+    end
+
     @results = { pdf: nil, attachments: [], errors: [], skipped: false }
   end
 

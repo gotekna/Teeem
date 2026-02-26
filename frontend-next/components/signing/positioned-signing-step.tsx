@@ -213,23 +213,22 @@ export function PositionedSigningStep({
     container.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
   }, [pdfDimensions, scale]);
 
-  // Navigate to a field: change page, scroll to badge, then open dialog.
-  // If we already have a saved signature/initials, show the quick-confirm dialog instead.
-  // Uses refs (not state) so the latest saved signature is always available even in stale closures.
+  // Navigate to a field: change page and scroll to the badge.
+  // Does NOT auto-open dialogs — the user must click the "Press to Sign" button on the field.
+  // Auto-fill signer_name/signer_initials fields silently (no user interaction needed).
   const navigateToField = useCallback(
     (field: SignatureField) => {
       setCurrentPage(field.page_number);
       setCaptureError(null);
       setCaptureLoading(false);
 
-      // Delay dialog opening so the page renders and scrolls to the field first
+      // Delay so the page renders first, then scroll to the field
       setTimeout(() => {
         scrollToField(field);
 
-        // Show dialog after scroll animation
-        setTimeout(async () => {
-          // Auto-fill name/initials fields silently (no dialog)
-          if (field.field_type === "signer_name" || field.field_type === "signer_initials") {
+        // Auto-fill name/initials fields silently (no dialog)
+        if (field.field_type === "signer_name" || field.field_type === "signer_initials") {
+          setTimeout(async () => {
             const value = field.field_type === "signer_name"
               ? signerName
               : signerName.split(/\s+/).map((w) => w[0]?.toUpperCase() || "").join("");
@@ -245,22 +244,9 @@ export function PositionedSigningStep({
             } catch {
               // Fall through to manual handling
             }
-            return;
-          }
-
-          setSelectedField(field);
-          if (field.field_type === "signature") {
-            if (!savedSignatureRef.current) {
-              setCaptureMode("signature");
-            }
-            // If saved signature exists, don't auto-open dialog - let user tap "Sign" button on the field
-          } else if (field.field_type === "initials") {
-            if (!savedInitialsRef.current) {
-              setCaptureMode("initials");
-            }
-            // If saved initials exist, don't auto-open dialog - let user tap "Initial" button on the field
-          }
-        }, 400);
+          }, 400);
+        }
+        // For signature/initials/other fields: just scroll, wait for user to click the field button
       }, 200);
     },
     [scrollToField, signerName, apiUrl, token]
@@ -358,7 +344,9 @@ export function PositionedSigningStep({
   const completedRequired = requiredFields.filter((f) => f.completed);
   const allRequiredComplete = completedRequired.length === requiredFields.length;
 
-  // Handle field click - if signature already captured, show confirm; otherwise full capture
+  // Handle field click - always requires explicit user action.
+  // First time: opens capture dialog (draw/type/upload).
+  // Subsequent times: shows confirm dialog with saved signature preview.
   const handleFieldClick = (field: SignatureField) => {
     if (field.completed) return;
 
@@ -377,15 +365,15 @@ export function PositionedSigningStep({
 
     if (field.field_type === "signature") {
       if (savedSignatureRef.current) {
-        // Auto-apply saved signature (no confirm dialog)
-        completeField(field.id, savedSignatureRef.current);
+        // Show confirm dialog with saved signature preview (user must click Confirm)
+        setConfirmMode("signature");
       } else {
         setCaptureMode("signature");
       }
     } else if (field.field_type === "initials") {
       if (savedInitialsRef.current) {
-        // Auto-apply saved initials (no confirm dialog)
-        completeField(field.id, savedInitialsRef.current);
+        // Show confirm dialog with saved initials preview (user must click Confirm)
+        setConfirmMode("initials");
       } else {
         setCaptureMode("initials");
       }
@@ -610,22 +598,31 @@ export function PositionedSigningStep({
       );
     }
 
-    // Incomplete field - clickable button
+    // Incomplete field - prominent clickable button
+    const buttonLabel = field.field_type === "signature"
+      ? "Press to Sign"
+      : field.field_type === "initials"
+        ? "Press to Initial"
+        : field.label || "Click to Fill";
+
     return (
       <button
         key={field.id}
         className={cn(
-          "absolute border-2 rounded transition-all flex items-center justify-center gap-1 overflow-hidden",
+          "absolute border-2 rounded-md transition-all flex flex-col items-center justify-center gap-0.5 overflow-hidden shadow-sm",
           isNext
-            ? "bg-blue-500/30 border-blue-600 border-solid hover:bg-blue-500/40 cursor-pointer animate-pulse ring-2 ring-blue-400 ring-offset-1"
-            : "bg-blue-500/20 border-blue-500 border-dashed hover:bg-blue-500/30 cursor-pointer"
+            ? "bg-yellow-100 border-yellow-500 border-solid hover:bg-yellow-200 cursor-pointer animate-pulse ring-2 ring-yellow-400 ring-offset-1"
+            : "bg-blue-100 border-blue-500 border-solid hover:bg-blue-200 cursor-pointer"
         )}
         style={style}
         onClick={() => handleFieldClick(field)}
       >
-        <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-        <span className="text-xs text-blue-700 dark:text-blue-300 font-semibold truncate max-w-[80%]">
-          {field.field_type === "signature" ? "Sign" : field.field_type === "initials" ? "Initial" : field.label || "Fill"}
+        <Icon className={cn("h-5 w-5", isNext ? "text-yellow-700" : "text-blue-600")} />
+        <span className={cn(
+          "text-xs font-bold truncate max-w-[90%] leading-tight",
+          isNext ? "text-yellow-800" : "text-blue-700"
+        )}>
+          {buttonLabel}
         </span>
       </button>
     );
