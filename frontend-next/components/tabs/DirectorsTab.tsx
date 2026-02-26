@@ -62,15 +62,34 @@ function EditableDateCell({ value, onSave }: { value?: string; onSave: (v: strin
   const [editing, setEditing] = React.useState(false);
   const [localValue, setLocalValue] = React.useState(value || "");
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const pendingValueRef = React.useRef<string | null>(null);
 
   React.useEffect(() => { setLocalValue(value || ""); }, [value]);
   React.useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
 
   const handleSave = () => {
-    setEditing(false);
-    if (localValue !== (value || "")) {
-      onSave(localValue);
-    }
+    // ⚠️ DO NOT SIMPLIFY - Native date picker race condition (Feb 2026)
+    // ════════════════════════════════════════════════════════════════
+    // Why: Native <input type="date"> calendar popup fires onBlur BEFORE
+    //      onChange when user clicks a date. Without the delay, localValue
+    //      still holds the old value and the save is silently skipped.
+    // ❌ WRONG: Immediate check → onBlur fires before onChange → no save
+    // ✅ CORRECT: setTimeout lets onChange flush first, then we save
+    // ════════════════════════════════════════════════════════════════
+    setTimeout(() => {
+      const finalValue = pendingValueRef.current ?? localValue;
+      setEditing(false);
+      pendingValueRef.current = null;
+      if (finalValue !== (value || "")) {
+        onSave(finalValue);
+      }
+    }, 0);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = e.target.value;
+    setLocalValue(newVal);
+    pendingValueRef.current = newVal;
   };
 
   if (editing) {
@@ -79,11 +98,11 @@ function EditableDateCell({ value, onSave }: { value?: string; onSave: (v: strin
         ref={inputRef}
         type="date"
         value={localValue}
-        onChange={(e) => setLocalValue(e.target.value)}
+        onChange={handleChange}
         onBlur={handleSave}
         onKeyDown={(e) => {
           if (e.key === "Enter") handleSave();
-          if (e.key === "Escape") { setLocalValue(value || ""); setEditing(false); }
+          if (e.key === "Escape") { setLocalValue(value || ""); pendingValueRef.current = null; setEditing(false); }
         }}
         className="h-7 w-36 text-sm"
       />
