@@ -25,6 +25,7 @@ import {
   Calendar,
   TextCursor,
   MessageSquare,
+  ToggleLeft,
   Trash2,
   GripVertical,
 } from "lucide-react";
@@ -66,6 +67,7 @@ const FIELD_TOOLS: { type: SignatureFieldType; icon: React.ReactNode; label: str
   { type: "date", icon: <Calendar className="h-4 w-4" />, label: "Date" },
   { type: "text", icon: <TextCursor className="h-4 w-4" />, label: "Text" },
   { type: "comment", icon: <MessageSquare className="h-4 w-4" />, label: "Comment" },
+  { type: "yes_no", icon: <ToggleLeft className="h-4 w-4" />, label: "Yes/No" },
 ];
 
 export function ESignaturePdfEditor({

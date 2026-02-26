@@ -253,6 +253,8 @@ class ESignaturePdfStamper
       stamp_date_field(page, field, x, y, width, height)
     when "text"
       stamp_text_field(page, field, x, y, width, height)
+    when "comment"
+      stamp_comment_field(page, field, x, y, width, height)
     end
   end
 
@@ -359,6 +361,68 @@ class ESignaturePdfStamper
     canvas.fill_color("000000")
     text_y = y + (height / 2) - 3
     canvas.text(field.value || "", at: [ x + 4, text_y ])
+  end
+
+  # Stamp a comment field (multi-line text with word wrapping)
+  def stamp_comment_field(page, field, x, y, width, height)
+    canvas = page.canvas(type: :overlay)
+
+    # Draw field border
+    canvas.stroke_color("cccccc")
+    canvas.line_dash_pattern([ 2, 2 ])
+    canvas.rectangle(x, y, width, height)
+    canvas.stroke
+    canvas.line_dash_pattern(0)
+
+    # Draw the comment text with word wrapping
+    text = field.value || ""
+    return if text.blank?
+
+    font_size = [ height * 0.12, 9 ].min.clamp(6, 9)
+    canvas.font("Helvetica", size: font_size)
+    canvas.fill_color("000000")
+
+    # Simple word-wrap: split into lines that fit within the field width
+    padding = 4
+    usable_width = width - (padding * 2)
+    line_height = font_size * 1.3
+    max_lines = ((height - (padding * 2)) / line_height).floor
+
+    lines = wrap_text(text, font_size, usable_width)
+    lines = lines.first(max_lines)
+
+    text_y = y + height - padding - font_size
+    lines.each do |line|
+      break if text_y < y + padding
+      canvas.text(line, at: [ x + padding, text_y ])
+      text_y -= line_height
+    end
+  end
+
+  # Word-wrap text to fit within a given pixel width
+  def wrap_text(text, font_size, max_width)
+    # Approximate character width (Helvetica is roughly 0.5x font size per char)
+    char_width = font_size * 0.5
+    chars_per_line = (max_width / char_width).floor
+    chars_per_line = [ chars_per_line, 10 ].max
+
+    lines = []
+    text.split("\n").each do |paragraph|
+      words = paragraph.split(/\s+/)
+      current_line = ""
+      words.each do |word|
+        test_line = current_line.empty? ? word : "#{current_line} #{word}"
+        if test_line.length > chars_per_line && !current_line.empty?
+          lines << current_line
+          current_line = word
+        else
+          current_line = test_line
+        end
+      end
+      lines << current_line unless current_line.empty?
+      lines << "" if paragraph.empty?
+    end
+    lines
   end
 
   # Fall back to text if signature image fails

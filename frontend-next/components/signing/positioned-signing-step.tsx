@@ -15,7 +15,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
@@ -25,6 +36,10 @@ import {
   AtSign,
   Calendar,
   TextCursor,
+  MessageSquare,
+  ToggleLeft,
+  ThumbsUp,
+  ThumbsDown,
   ChevronLeft,
   ChevronRight,
   ZoomIn,
@@ -51,7 +66,7 @@ if (typeof window !== "undefined") {
 
 interface SignatureField {
   id: number;
-  field_type: "signature" | "initials" | "date" | "text";
+  field_type: "signature" | "initials" | "date" | "text" | "comment" | "yes_no";
   page_number: number;
   x_percent: number;
   y_percent: number;
@@ -76,11 +91,13 @@ interface PositionedSigningStepProps {
   apiUrl?: string;
 }
 
-const FIELD_ICONS = {
+const FIELD_ICONS: Record<string, typeof PenLine> = {
   signature: PenLine,
   initials: AtSign,
   date: Calendar,
   text: TextCursor,
+  comment: MessageSquare,
+  yes_no: ToggleLeft,
 };
 
 export function PositionedSigningStep({
@@ -107,6 +124,8 @@ export function PositionedSigningStep({
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [captureLoading, setCaptureLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [showDeclineDialog, setShowDeclineDialog] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
   const hasAutoOpened = useRef(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -459,11 +478,20 @@ export function PositionedSigningStep({
           <span className="text-sm font-medium">
             {completedRequired.length} of {requiredFields.length} required fields completed
           </span>
-          {allRequiredComplete && (
-            <Badge variant="default" className="bg-green-500">
-              Ready to submit
-            </Badge>
-          )}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeclineDialog(true)}
+            >
+              Decline
+            </Button>
+            {allRequiredComplete && (
+              <Badge variant="default" className="bg-green-500">
+                Ready to submit
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="w-full bg-muted-foreground/20 rounded-full h-2">
           <div
@@ -777,18 +805,18 @@ export function PositionedSigningStep({
         </DialogContent>
       </Dialog>
 
-      {/* Text/Date field dialog */}
+      {/* Text/Date/Comment field dialog */}
       <Dialog
         open={selectedField !== null && !["signature", "initials"].includes(selectedField?.field_type || "") && confirmMode === null && captureMode === null}
         onOpenChange={() => setSelectedField(null)}
       >
-        <DialogContent>
+        <DialogContent className={selectedField?.field_type === "comment" ? "max-w-lg" : undefined}>
           <DialogHeader>
             <DialogTitle>
-              {selectedField?.field_type === "date" ? "Enter date" : "Enter text"}
+              {selectedField?.field_type === "date" ? "Enter date" : selectedField?.field_type === "comment" ? "Add your comment" : "Enter text"}
             </DialogTitle>
             <DialogDescription>
-              {selectedField?.label || `Please enter ${selectedField?.field_type === "date" ? "the date" : "your response"}`}
+              {selectedField?.label || `Please enter ${selectedField?.field_type === "date" ? "the date" : selectedField?.field_type === "comment" ? "your comment or response" : "your response"}`}
             </DialogDescription>
           </DialogHeader>
           <TextFieldInput
@@ -798,6 +826,40 @@ export function PositionedSigningStep({
           />
         </DialogContent>
       </Dialog>
+
+      {/* Decline dialog */}
+      <AlertDialog open={showDeclineDialog} onOpenChange={setShowDeclineDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Decline to Sign</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please provide a reason for declining to sign this document.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            placeholder="Enter your reason for declining..."
+            value={declineReason}
+            onChange={(e) => setDeclineReason(e.target.value)}
+            className="min-h-[100px]"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (declineReason.trim()) {
+                  onDecline(declineReason);
+                  setShowDeclineDialog(false);
+                }
+              }}
+              disabled={!declineReason.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Decline to Sign
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -827,18 +889,31 @@ function TextFieldInput({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="field-value">
-          {field.field_type === "date" ? "Date" : "Value"}
+          {field.field_type === "date" ? "Date" : field.field_type === "comment" ? "Comment" : "Value"}
           {field.required && <span className="text-destructive ml-1">*</span>}
         </Label>
-        <Input
-          id="field-value"
-          type={field.field_type === "date" ? "date" : "text"}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={field.placeholder || undefined}
-          required={field.required}
-          autoFocus
-        />
+        {field.field_type === "comment" ? (
+          <Textarea
+            id="field-value"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={field.placeholder || "Type your comment here..."}
+            required={field.required}
+            autoFocus
+            rows={4}
+            className="resize-y"
+          />
+        ) : (
+          <Input
+            id="field-value"
+            type={field.field_type === "date" ? "date" : "text"}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={field.placeholder || undefined}
+            required={field.required}
+            autoFocus
+          />
+        )}
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
