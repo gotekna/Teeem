@@ -16,12 +16,17 @@
 class BackfillImapEmailBlobsJob < ApplicationJob
   include DeduplicatableJob
 
-  # FRC (Feb 2026): Moved from :default to :low to reduce queue pressure
-  # Blob backfill is not user-facing; can run on Worker 2's idle threads
-  queue_as :low
+  # FRC (Feb 2026): Moved to :email_enrichment so it runs on the EMAIL WORKER,
+  # not the shared worker. This job downloads raw .eml from IMAP servers —
+  # that's email work. On the shared worker it monopolized the single thread
+  # and caused R14 from .eml content in memory.
+  # CRITICAL: recurring.yml queue setting OVERRIDES this — must match there too.
+  queue_as :email_enrichment
 
-  # Max runtime before yielding back to the scheduler
-  MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
+  # Max runtime before yielding back to the scheduler.
+  # FRC (Feb 2026): Reduced from 10min to 3min (same reasoning as UploadEmailsToStorageJob).
+  # Now on email worker's single thread — must yield for sync + enrichment.
+  MAX_RUNTIME_SECONDS = 3 * 60  # 3 minutes
 
   # Memory guard: stop processing if THIS PROCESS (Worker) VmRSS exceeds this (MB)
   # See UploadEmailsToStorageJob for full explanation of why per-process monitoring.

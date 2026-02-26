@@ -29,13 +29,20 @@
 class UploadEmailsToStorageJob < ApplicationJob
   include DeduplicatableJob
 
-  # FRC (Feb 2026): Moved from :default to :low to reduce queue pressure
-  # Blob uploads are background work, not user-facing. Frees Worker 1 for sync.
-  queue_as :low
+  # FRC (Feb 2026): Moved to :email_enrichment so it runs on the EMAIL WORKER,
+  # not the shared worker. This job downloads email MIME content from Microsoft
+  # Graph API — that's email work. On the shared worker (1 thread, 1GB) it
+  # monopolized the thread for 10 min and caused R14 from MIME content in memory.
+  # Email worker has 2 threads and its own 1GB budget.
+  # CRITICAL: recurring.yml queue setting OVERRIDES this — must match there too.
+  queue_as :email_enrichment
 
-  # Max runtime before yielding back to the scheduler (Heroku dynos have 30min limit,
-  # but we want to leave headroom for other jobs on the low queue)
-  MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
+  # Max runtime before yielding back to the scheduler.
+  # FRC (Feb 2026): Reduced from 10min to 3min. Now runs on email worker (1 thread)
+  # shared with sync + enrichment. 10min monopolized the thread, starving email sync.
+  # 3min × batch_size 25 ≈ 4-5 batches = 100-125 emails per run. Runs every 10min,
+  # so throughput = ~750/hour — enough for backfill without starving other email jobs.
+  MAX_RUNTIME_SECONDS = 3 * 60  # 3 minutes
 
   # Memory guard: stop processing if THIS PROCESS (Worker) VmRSS exceeds this (MB)
   # Heroku's container-level metric is inaccessible from within (no cgroup usage files).
@@ -48,7 +55,9 @@ class UploadEmailsToStorageJob < ApplicationJob
   # Hard cap on batch_size regardless of what's passed in job args.
   # FRC (Feb 2026): Stale SolidQueue jobs with batch_size=200 survived deploys,
   # fetching 200 emails' MIME content into memory at once → R14 on 1024MB dyno.
-  MAX_BATCH_SIZE = 50
+  # Reduced to 25: Worker at 352MB baseline + 50 emails adds ~200MB = 988MB total → R14.
+  # With 25 emails: ~100MB spike → ~860MB total (under 1024MB).
+  MAX_BATCH_SIZE = 25
 
   def perform(batch_size: nil, tenant_id: nil)
     @started_at = Time.current

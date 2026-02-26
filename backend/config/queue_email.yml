@@ -17,12 +17,15 @@
 
 production:
   workers:
-    # Email worker: sync first, enrichment when idle.
-    # FRC (Feb 2026): Reduced from 3 to 2 threads. BatchEmailEnrichmentJob moved to
-    # :email_enrichment (lower priority than :email_sync). SolidQueue polls left-to-right,
-    # so sync always gets a thread before enrichment. 2 threads × ~400MB = fits in 1GB.
+    # Email worker: sync first, enrichment when idle, uploads lowest priority.
+    # FRC (Feb 2026): Reduced from 2 to 1 thread. 2 threads caused R14:
+    # AllOrgsEmailSyncJob + UploadEmailsToStorageJob running simultaneously
+    # both hold large objects (Graph API responses, MIME content) → combined >1GB.
+    # 1 thread serializes work: peak memory = max(single job) ≈ 550-600MB → safe.
+    # When scaling for more customers: upgrade to Performance-M (2.5GB) before
+    # adding threads back, not the other way around.
     - queues: [email_sync, email_enrichment]
-      threads: 2
+      threads: 1
       processes: 1
       polling_interval: 0.1
 
