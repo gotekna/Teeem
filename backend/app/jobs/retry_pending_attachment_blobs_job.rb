@@ -164,10 +164,28 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
     @memory_exceeded
   end
 
-  # ⚠️ DO NOT SIMPLIFY - Must sum ALL process RSS (Feb 2026)
+  # ⚠️ DO NOT SIMPLIFY - Must deduplicate shared pages across processes (Feb 2026)
   # See UploadEmailsToStorageJob for full explanation.
   def current_rss_mb
-    `ps -eo rss=`.strip.split("\n").sum { |l| l.strip.to_i } / 1024
+    total_unique_kb = 0
+    max_shared_kb = 0
+
+    Dir["/proc/[0-9]*/statm"].each do |path|
+      fields = File.read(path).strip.split
+      rss_pages = fields[1].to_i
+      shared_pages = fields[2].to_i
+      page_size_kb = 4
+
+      unique_kb = (rss_pages - shared_pages) * page_size_kb
+      shared_kb = shared_pages * page_size_kb
+
+      total_unique_kb += [unique_kb, 0].max
+      max_shared_kb = shared_kb if shared_kb > max_shared_kb
+    rescue
+      next
+    end
+
+    (total_unique_kb + max_shared_kb) / 1024
   rescue StandardError
     0
   end
