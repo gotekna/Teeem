@@ -156,9 +156,14 @@ export function PositionedSigningStep({
   // Uses functional setState to prevent re-renders when value hasn't changed.
   const calculateFitScale = useCallback(() => {
     const container = pdfContainerRef.current;
+    const scrollContainer = scrollContainerRef.current;
     if (!container || !pdfDimensions) return;
     const containerWidth = container.clientWidth - 32; // 16px padding each side
-    const fitScale = containerWidth / pdfDimensions.width;
+    const fitWidthScale = containerWidth / pdfDimensions.width;
+    // Also consider height so the entire page fits on screen (fit-to-page)
+    const viewportHeight = (scrollContainer?.clientHeight || container.clientHeight) - 32;
+    const fitHeightScale = viewportHeight / pdfDimensions.height;
+    const fitScale = Math.min(fitWidthScale, fitHeightScale);
     // Clamp between 0.4 and 2.0, round to avoid floating-point drift
     const clamped = Math.round(Math.min(2.0, Math.max(0.4, fitScale)) * 1000) / 1000;
     setAutoFitScale(prev => prev === clamped ? prev : clamped);
@@ -339,11 +344,15 @@ export function PositionedSigningStep({
       if (prev && prev.width === w && prev.height === h) return prev;
       return { width: w, height: h };
     });
-    // Immediately calculate fit-to-width using current container width
+    // Immediately calculate fit-to-page using current container size
     const container = pdfContainerRef.current;
-    if (container && w > 0) {
+    const scrollContainer = scrollContainerRef.current;
+    if (container && w > 0 && h > 0) {
       const containerWidth = container.clientWidth - 32;
-      const fitScale = Math.round(Math.min(2.0, Math.max(0.4, containerWidth / w)) * 1000) / 1000;
+      const fitWidthScale = containerWidth / w;
+      const viewportHeight = (scrollContainer?.clientHeight || container.clientHeight) - 32;
+      const fitHeightScale = viewportHeight / h;
+      const fitScale = Math.round(Math.min(2.0, Math.max(0.4, Math.min(fitWidthScale, fitHeightScale))) * 1000) / 1000;
       setAutoFitScale(prev => prev === fitScale ? prev : fitScale);
       setScale(prev => prev === fitScale ? prev : fitScale);
     }
@@ -710,7 +719,7 @@ export function PositionedSigningStep({
             <button
               className="text-xs tabular-nums min-w-[40px] text-center hover:text-blue-600 cursor-pointer"
               onClick={() => { calculateFitScale(); }}
-              title="Fit to width"
+              title="Fit to page"
             >
               {Math.round(scale * 100)}%
             </button>
