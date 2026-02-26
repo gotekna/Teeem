@@ -127,6 +127,39 @@ interface TenantDataSyncStats {
   } | null;
 }
 
+// FRC (Feb 2026): Backend returns stage2_pdf_download / stage1_data_sync with different
+// field names than the frontend TenantPdfSyncStats / TenantDataSyncStats interfaces.
+// This mapper bridges the two. Without it, pdf_sync is always undefined → shows "0/total".
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapPdfSyncResponse(data: any): { pdf_sync?: TenantPdfSyncStats; data_sync?: TenantDataSyncStats } {
+  const stage2 = data?.stage2_pdf_download;
+  const stage1 = data?.stage1_data_sync;
+
+  const pdf_sync: TenantPdfSyncStats | undefined = stage2 ? {
+    total: stage2.total_to_sync ?? 0,
+    synced: stage2.downloaded ?? 0,
+    pending: stage2.pending ?? 0,
+    percentage: stage2.progress_percentage ?? 0,
+    last_synced_at: stage2.last_synced_at ?? null,
+    next_sync_at: stage2.next_sync_at ?? null,
+    schedule: stage2.schedule ?? null,
+    blocker: stage2.blocker ?? null,
+    breakdown: stage2.breakdown ?? null,
+  } : undefined;
+
+  const data_sync: TenantDataSyncStats | undefined = stage1 ? {
+    total_in_database: stage1.total_in_database ?? 0,
+    linked_to_contacts: stage1.linked_to_contacts ?? 0,
+    unlinked_count: stage1.unlinked_count ?? 0,
+    last_synced_at: stage1.last_synced_at ?? null,
+    next_sync_at: stage1.next_sync_at ?? null,
+    schedule: stage1.schedule ?? null,
+    blocker: stage1.blocker ?? null,
+  } : undefined;
+
+  return { pdf_sync, data_sync };
+}
+
 interface TotalsSummary {
   total_all: number;
   active: number;
@@ -459,10 +492,7 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
           response.data.tenants.forEach((tenant, i) => {
             const pdfRes = pdfResponses[i];
             if (pdfRes?.success && pdfRes.data) {
-              perTenantPdfData[tenant.tenant_id] = {
-                pdf_sync: pdfRes.data.pdf_sync,
-                data_sync: pdfRes.data.data_sync,
-              };
+              perTenantPdfData[tenant.tenant_id] = mapPdfSyncResponse(pdfRes.data);
             }
           });
         }
@@ -628,13 +658,14 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
         `/api/v1/xero/pdf_sync_status?tenant_id=${tenantId}`
       );
       if (response.success && response.data) {
+        const mapped = mapPdfSyncResponse(response.data);
         setData((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
             tenants: prev.tenants.map((t) =>
               t.tenant_id === tenantId
-                ? { ...t, pdf_sync: response.data.pdf_sync, data_sync: response.data.data_sync }
+                ? { ...t, pdf_sync: mapped.pdf_sync, data_sync: mapped.data_sync }
                 : t
             ),
           };
