@@ -340,7 +340,7 @@ module Api
           duration_days: row.duration_days,
           predecessor_ids: row.predecessor_ids,
           predecessor_display: row.predecessor_display,
-          predecessor_display_names: row.predecessor_display_names,
+          predecessor_display_names: resolve_predecessor_display_names(row),
           trade: trade_value,
           stage: stage_value,
           trade_name: trades_map[row.trade.to_i] || row.trade,
@@ -512,6 +512,36 @@ module Api
       # Memoized per request to avoid N+1 queries
       def header_map
         @header_map ||= @template.sm_schedule_master_rows.pluck(:id, :name).to_h
+      end
+
+      # FRC (Feb 2026): Sentry TEEEM-BACKEND-8W (373 spans!)
+      # predecessor_display_names called SmScheduleMaster.find_by per predecessor per row.
+      # With 200 rows × ~2 predecessors = ~400 individual DB queries.
+      # Fix: Pre-load task_number → name map (same pattern as trades_map, stages_map).
+      def task_name_map
+        @task_name_map ||= @template.sm_schedule_master_rows.pluck(:task_number, :name).to_h
+      end
+
+      # Resolve predecessor display names using pre-loaded task_name_map (zero DB queries)
+      # Replaces row.predecessor_display_names which did N+1 via find_by per predecessor
+      def resolve_predecessor_display_names(row)
+        return "None" if row.predecessor_task_ids.empty?
+
+        row.predecessor_task_ids.filter_map do |pred_data|
+          next unless pred_data.is_a?(Hash)
+
+          task_id = (pred_data["id"] || pred_data[:id]).to_i
+          dep_type = pred_data["type"] || pred_data[:type] || "FS"
+          lag = (pred_data["lag"] || pred_data[:lag] || 0).to_i
+
+          next if task_id.zero?
+
+          task_name = task_name_map[task_id] || "Task #{task_id}"
+          dep_string = dep_type
+          dep_string += lag >= 0 ? "+#{lag}" : lag.to_s if lag != 0
+
+          "#{task_name} (#{dep_string})"
+        end.join(", ")
       end
 
       # SSoT: Resolve plan type IDs to names via DocumentType
