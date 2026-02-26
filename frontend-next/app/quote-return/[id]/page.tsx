@@ -2,9 +2,10 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { FileText, Sparkles, Loader2, Check, X, Paperclip } from "lucide-react";
+import { FileText, Sparkles, Loader2, Check, X, Paperclip, SplitSquareHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { DocumentViewer } from "@/components/ui/document-viewer";
 import { api } from "@/lib/api";
@@ -109,6 +110,8 @@ function QuoteReturnContent() {
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [actionResult, setActionResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  // PO line allocation state (CC-level only)
+  const [allocations, setAllocations] = useState<Record<number, string>>({});
 
   useEffect(() => {
     const ctx = decodeHash();
@@ -202,14 +205,62 @@ function QuoteReturnContent() {
     }
   }, [qr?.supplierName]);
 
+  // Initialize allocation inputs when parentLine children are available
+  useEffect(() => {
+    if (!qr?.parentLine?.children?.length) return;
+    const isCCLvl = qr.parentLine.quoteLevel === "cost_centre";
+    if (!isCCLvl) return;
+    const initial: Record<number, string> = {};
+    for (const child of qr.parentLine.children) {
+      initial[child.id] = allocations[child.id] || "";
+    }
+    setAllocations(initial);
+  }, [qr?.parentLine?.children?.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Allocation calculations
+  const priceNum = qr?.priceQuoted ?? 0;
+  const totalAllocated = Object.values(allocations).reduce(
+    (sum, val) => sum + (parseFloat(val) || 0),
+    0
+  );
+  const remaining = priceNum - totalAllocated;
+
+  const handleAutoAllocate = useCallback(() => {
+    if (!qr?.parentLine?.children?.length || !priceNum) return;
+    const children = qr.parentLine.children;
+    const perLine = Math.floor((priceNum / children.length) * 100) / 100;
+    const newAllocations: Record<number, string> = {};
+    let allocated = 0;
+    children.forEach((child, i) => {
+      if (i === children.length - 1) {
+        newAllocations[child.id] = String(Math.round((priceNum - allocated) * 100) / 100);
+      } else {
+        newAllocations[child.id] = String(perLine);
+        allocated += perLine;
+      }
+    });
+    setAllocations(newAllocations);
+  }, [qr?.parentLine?.children, priceNum]);
+
   const handleAccept = useCallback(async () => {
     if (!qr || accepting) return;
     setAccepting(true);
     setActionResult(null);
     try {
+      // Build allocation data for CC-level quotes
+      const isCCLvl = qr.parentLine?.quoteLevel === "cost_centre" && (qr.parentLine?.children?.length ?? 0) > 0;
+      const allocationData = isCCLvl
+        ? Object.entries(allocations)
+            .filter(([, val]) => parseFloat(val) > 0)
+            .map(([lineId, val]) => ({ lineId: Number(lineId), amount: parseFloat(val) }))
+        : undefined;
+
       const res = await api.post<{ success: boolean; message: string; data?: { purchaseOrders: Array<{ poNumber: string }> } }>(
         `/api/v1/quote_returns/${returnId}/accept`,
-        { includeTenderDescription: includeTenderDesc }
+        {
+          includeTenderDescription: includeTenderDesc,
+          allocations: allocationData,
+        }
       );
       const msg = (res as { message: string })?.message || "Quote accepted";
       setActionResult({ type: "success", message: msg });
@@ -219,7 +270,7 @@ function QuoteReturnContent() {
     } finally {
       setAccepting(false);
     }
-  }, [qr, returnId, includeTenderDesc, accepting]);
+  }, [qr, returnId, includeTenderDesc, accepting, allocations]);
 
   const handleReject = useCallback(async () => {
     if (!qr || rejecting) return;
@@ -309,7 +360,7 @@ function QuoteReturnContent() {
             </div>
             <div>
               <span className="text-muted-foreground text-xs">
-                Price {extraction ? "(AI)" : ""}
+                Price Ex GST {extraction ? "(AI)" : ""}
               </span>
               <p className={`font-mono font-medium ${qr.isBestPrice ? "text-green-600" : ""}`}>
                 {formatCurrency(qr.priceQuoted)}
@@ -348,8 +399,81 @@ function QuoteReturnContent() {
             )}
           </div>
 
-          {/* PO Line Breakdown */}
-          {isCCLevel && qr.parentLine && (
+          {/* PO Line Allocation (CC-level, editable when actionable) */}
+          {isCCLevel && qr.parentLine && canAct && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <SplitSquareHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    PO Line Allocation
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleAutoAllocate}
+                  disabled={!priceNum}
+                  className="text-xs h-6 px-2"
+                >
+                  Split Evenly
+                </Button>
+              </div>
+
+              {qr.parentLine.budgetAmount != null && (
+                <p className="text-xs text-muted-foreground">
+                  CC: {qr.parentLine.name} ({formatCurrency(qr.parentLine.budgetAmount)} budget)
+                </p>
+              )}
+
+              <div className="space-y-1.5">
+                {qr.parentLine.children.map((child) => {
+                  const amt = parseFloat(allocations[child.id] || "0") || 0;
+                  const pct = priceNum > 0 ? Math.round((amt / priceNum) * 100) : 0;
+                  return (
+                    <div key={child.id} className="flex items-center gap-2">
+                      <span className="text-sm flex-1 truncate" title={child.name}>{child.name}</span>
+                      <div className="relative w-24 shrink-0">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                        <Input
+                          type="number"
+                          value={allocations[child.id] || ""}
+                          onChange={(e) =>
+                            setAllocations((prev) => ({ ...prev, [child.id]: e.target.value }))
+                          }
+                          className="pl-5 text-sm h-7"
+                          placeholder="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground w-8 text-right shrink-0">{pct}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-between pt-1.5 border-t text-xs">
+                <span>Total:</span>
+                <span className="font-medium font-mono">
+                  {formatCurrency(totalAllocated)} / {formatCurrency(priceNum)}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span>Remaining:</span>
+                <span
+                  className={`font-medium font-mono ${
+                    remaining < -0.01 ? "text-red-600" : remaining > 0.01 ? "text-amber-600" : "text-green-600"
+                  }`}
+                >
+                  {formatCurrency(Math.abs(remaining))}
+                  {remaining < -0.01 ? " over" : remaining > 0.01 ? " unallocated" : ""}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* PO Line Breakdown (read-only, already actioned) */}
+          {isCCLevel && qr.parentLine && !canAct && (
             <div>
               <span className="text-xs font-medium text-muted-foreground">
                 PO Lines \u2014 {qr.parentLine.name}
@@ -477,7 +601,7 @@ function QuoteReturnContent() {
                 <div className="flex gap-2">
                   <Button
                     onClick={handleAccept}
-                    disabled={accepting || rejecting || !qr.priceQuoted}
+                    disabled={accepting || rejecting || !qr.priceQuoted || (isCCLevel && (remaining < -0.01 || totalAllocated < 0.01))}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                   >
                     {accepting ? (
@@ -507,6 +631,16 @@ function QuoteReturnContent() {
               {!qr.priceQuoted && !extracting && (
                 <p className="text-xs text-amber-600">
                   Cannot accept without a price. Wait for AI extraction or enter price manually.
+                </p>
+              )}
+              {isCCLevel && qr.priceQuoted && totalAllocated < 0.01 && (
+                <p className="text-xs text-amber-600">
+                  Allocate price to PO lines before accepting.
+                </p>
+              )}
+              {isCCLevel && remaining < -0.01 && (
+                <p className="text-xs text-red-600">
+                  Allocation total exceeds quoted price.
                 </p>
               )}
             </div>
