@@ -262,9 +262,9 @@ function QuoteReturnContent() {
   const hasTenderDesc = !!tender?.requested.description;
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
+    <div className="h-dvh flex bg-background overflow-hidden">
         {/* Left: Quote Info + Actions */}
-        <div className="w-[380px] shrink-0 border-r overflow-auto p-4 space-y-4">
+        <div className="w-[380px] shrink-0 border-r overflow-y-auto p-4 pb-8 space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="min-w-0">
