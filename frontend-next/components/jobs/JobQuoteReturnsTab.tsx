@@ -56,12 +56,30 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
     parentLine?: ParentLineContext | null;
   } | null>(null);
   const [detailSheet, setDetailSheet] = useState<QuoteReturn | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailTender, setDetailTender] = useState<{
+    requested: {
+      description: string | null;
+      budget: number | null;
+      taskName: string | null;
+      documentTypeNames?: string[];
+      rfqInstructions: string | null;
+    };
+    quoted: {
+      supplierName: string | null;
+      price: number | null;
+      quoteNumber: string | null;
+      validTo: string | null;
+      responseNotes: string | null;
+      timeframe: string | null;
+      documentId: number | null;
+    };
+  } | null>(null);
   const [detailDocUrls, setDetailDocUrls] = useState<{
     openUrl: string;
     downloadUrl: string;
     filename: string;
   } | null>(null);
-  const [detailDocLoading, setDetailDocLoading] = useState(false);
 
   const { uploading, uploadForSupplier } = useSupplierDocumentUpload();
 
@@ -85,34 +103,49 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
 
   const handleRowDoubleClick = useCallback(async (qr: QuoteReturn) => {
     setDetailSheet(qr);
+    setDetailTender(null);
     setDetailDocUrls(null);
+    setDetailLoading(true);
 
-    if (qr.warehouseDocumentId) {
-      setDetailDocLoading(true);
-      try {
-        const [dlRes, openRes] = await Promise.all([
-          api.post<{ success: boolean; shareUrl: string }>(
-            `/api/v1/documents/${qr.warehouseDocumentId}/share_link`
-          ),
-          api.post<{ success: boolean; shareUrl: string }>(
-            `/api/v1/documents/${qr.warehouseDocumentId}/share_link`,
-            { open: true }
-          ),
-        ]);
-        if (dlRes?.shareUrl && openRes?.shareUrl) {
-          setDetailDocUrls({
-            downloadUrl: dlRes.shareUrl,
-            openUrl: openRes.shareUrl,
-            filename: qr.supplierName
-              ? `${qr.supplierName} - Quote.pdf`
-              : "Quote Document.pdf",
-          });
-        }
-      } catch {
-        console.error("[JobQuoteReturnsTab] Failed to load document URLs");
-      } finally {
-        setDetailDocLoading(false);
+    try {
+      // Fetch tender details and document URLs in parallel
+      const promises: Promise<unknown>[] = [
+        api.get<{ success: boolean; data: typeof detailTender }>(
+          `/api/v1/quote_returns/${qr.id}/confirm_details`
+        ).then((res) => {
+          setDetailTender((res as { data: typeof detailTender })?.data ?? null);
+        }),
+      ];
+
+      if (qr.warehouseDocumentId) {
+        promises.push(
+          Promise.all([
+            api.post<{ success: boolean; shareUrl: string }>(
+              `/api/v1/documents/${qr.warehouseDocumentId}/share_link`
+            ),
+            api.post<{ success: boolean; shareUrl: string }>(
+              `/api/v1/documents/${qr.warehouseDocumentId}/share_link`,
+              { open: true }
+            ),
+          ]).then(([dlRes, openRes]) => {
+            if (dlRes?.shareUrl && openRes?.shareUrl) {
+              setDetailDocUrls({
+                downloadUrl: dlRes.shareUrl,
+                openUrl: openRes.shareUrl,
+                filename: qr.supplierName
+                  ? `${qr.supplierName} - Quote.pdf`
+                  : "Quote Document.pdf",
+              });
+            }
+          })
+        );
       }
+
+      await Promise.all(promises);
+    } catch {
+      console.error("[JobQuoteReturnsTab] Failed to load detail");
+    } finally {
+      setDetailLoading(false);
     }
   }, []);
 
@@ -456,13 +489,14 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
         onOpenChange={(open) => {
           if (!open) {
             setDetailSheet(null);
+            setDetailTender(null);
             setDetailDocUrls(null);
           }
         }}
       >
         <SheetContent
           side="right"
-          className="w-[700px] sm:max-w-[700px] flex flex-col p-0"
+          className="w-[800px] sm:max-w-[800px] flex flex-col p-0"
         >
           <SheetHeader className="px-6 py-4 border-b shrink-0">
             <SheetTitle className="text-lg">
@@ -472,129 +506,181 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
 
           {detailSheet && (
             <div className="flex flex-col flex-1 overflow-hidden">
-              {/* Quote Info Section */}
-              <div className="px-6 py-4 border-b space-y-3 shrink-0">
-                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                  <div>
-                    <span className="text-muted-foreground text-xs">Supplier</span>
-                    <p className="font-medium">{detailSheet.supplierName || "Unknown"}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Item / Task</span>
-                    <p className="font-medium">{detailSheet.itemName || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">CC / Trade</span>
-                    <p>{detailSheet.parentName || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Price</span>
-                    <p className={`font-mono font-medium ${
-                      detailSheet.isBestPrice
-                        ? "text-green-600 dark:text-green-400"
-                        : ""
-                    }`}>
-                      {formatCurrency(detailSheet.priceQuoted)}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Status</span>
-                    <div className="mt-0.5">
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${STATUS_COLORS[detailSheet.status]}`}
-                      >
-                        {STATUS_LABELS[detailSheet.status]}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Quote #</span>
-                    <p>{detailSheet.quoteNumber || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Sent</span>
-                    <p>
-                      {detailSheet.dateSent
-                        ? format(parseISO(detailSheet.dateSent), DATE_DISPLAY)
-                        : "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Received</span>
-                    <p>
-                      {detailSheet.dateReceived
-                        ? format(parseISO(detailSheet.dateReceived), DATE_DISPLAY)
-                        : "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Valid To</span>
-                    <p className={
-                      detailSheet.validTo && isExpired(detailSheet.validTo)
-                        ? "text-red-600 dark:text-red-400"
-                        : ""
-                    }>
-                      {detailSheet.validTo
-                        ? `${format(parseISO(detailSheet.validTo), DATE_DISPLAY)}${isExpired(detailSheet.validTo) ? " (expired)" : ""}`
-                        : "—"}
-                    </p>
-                  </div>
-                  {detailSheet.confirmedBy && (
-                    <div>
-                      <span className="text-muted-foreground text-xs">Confirmed By</span>
-                      <p>{detailSheet.confirmedBy}</p>
-                    </div>
-                  )}
-                  {detailSheet.purchaseOrderNumber && (
-                    <div>
-                      <span className="text-muted-foreground text-xs">Purchase Order</span>
-                      <p className="text-green-600 dark:text-green-400 font-medium">
-                        PO {detailSheet.purchaseOrderNumber}
-                      </p>
-                    </div>
-                  )}
+              {detailLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <Spinner />
                 </div>
-                {detailSheet.responseNotes && (
-                  <div>
-                    <span className="text-muted-foreground text-xs">Notes</span>
-                    <p className="text-sm whitespace-pre-wrap mt-0.5">
-                      {detailSheet.responseNotes}
-                    </p>
-                  </div>
-                )}
-              </div>
+              ) : (
+                <>
+                  {/* Tender Info Section */}
+                  <div className="px-6 py-4 border-b space-y-4 shrink-0 overflow-auto max-h-[40%]">
+                    {/* Basic Quote Info */}
+                    <div className="grid grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground text-xs">Supplier</span>
+                        <p className="font-medium">{detailSheet.supplierName || "Unknown"}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">Item / Task</span>
+                        <p className="font-medium">{detailSheet.itemName || "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">CC / Trade</span>
+                        <p>{detailSheet.parentName || "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">Price</span>
+                        <p className={`font-mono font-medium ${
+                          detailSheet.isBestPrice ? "text-green-600 dark:text-green-400" : ""
+                        }`}>
+                          {formatCurrency(detailSheet.priceQuoted)}
+                          {detailTender?.requested.budget != null && detailSheet.priceQuoted != null && (
+                            <span className="text-xs text-muted-foreground ml-1">
+                              (Budget: {formatCurrency(detailTender.requested.budget)})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">Status</span>
+                        <div className="mt-0.5">
+                          <Badge variant="outline" className={`text-xs ${STATUS_COLORS[detailSheet.status]}`}>
+                            {STATUS_LABELS[detailSheet.status]}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">Quote #</span>
+                        <p>{detailSheet.quoteNumber || "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">Sent</span>
+                        <p>{detailSheet.dateSent ? format(parseISO(detailSheet.dateSent), DATE_DISPLAY) : "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">Received</span>
+                        <p>{detailSheet.dateReceived ? format(parseISO(detailSheet.dateReceived), DATE_DISPLAY) : "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">Valid To</span>
+                        <p className={detailSheet.validTo && isExpired(detailSheet.validTo) ? "text-red-600 dark:text-red-400" : ""}>
+                          {detailSheet.validTo
+                            ? `${format(parseISO(detailSheet.validTo), DATE_DISPLAY)}${isExpired(detailSheet.validTo) ? " (expired)" : ""}`
+                            : "—"}
+                        </p>
+                      </div>
+                    </div>
 
-              {/* Document Viewer Section */}
-              <div className="flex-1 overflow-hidden">
-                {detailDocLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Spinner />
+                    {/* Tender Description */}
+                    {detailTender?.requested.description && (
+                      <div>
+                        <span className="text-muted-foreground text-xs font-medium">Tender Description</span>
+                        <div className="mt-1 text-sm whitespace-pre-wrap bg-muted/30 rounded-md p-3 border">
+                          {detailTender.requested.description}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* RFQ Instructions */}
+                    {detailTender?.requested.rfqInstructions &&
+                      detailTender.requested.rfqInstructions !== detailTender.requested.description && (
+                      <div>
+                        <span className="text-muted-foreground text-xs font-medium">RFQ Instructions</span>
+                        <div className="mt-1 text-sm whitespace-pre-wrap bg-muted/30 rounded-md p-3 border">
+                          {detailTender.requested.rfqInstructions}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Document Types */}
+                    {detailTender?.requested.documentTypeNames && detailTender.requested.documentTypeNames.length > 0 && (
+                      <div>
+                        <span className="text-muted-foreground text-xs font-medium">Document Types</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {detailTender.requested.documentTypeNames.map((dt) => (
+                            <Badge key={dt} variant="outline" className="text-xs">{dt}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PO Line Breakdown (CC-level quotes) */}
+                    {detailSheet.parentLine?.quoteLevel === "cost_centre" &&
+                      detailSheet.parentLine.children.length > 0 && (
+                      <div>
+                        <span className="text-muted-foreground text-xs font-medium">
+                          PO Lines — {detailSheet.parentLine.name}
+                          {detailSheet.parentLine.budgetAmount != null && (
+                            <span className="ml-1">
+                              (Budget: {formatCurrency(detailSheet.parentLine.budgetAmount)})
+                            </span>
+                          )}
+                        </span>
+                        <div className="mt-1.5 rounded-md border overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-muted/50 border-b">
+                                <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">PO Line</th>
+                                <th className="text-right px-3 py-1.5 text-xs font-medium text-muted-foreground">Budget</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detailSheet.parentLine.children.map((child) => (
+                                <tr key={child.id} className="border-b last:border-0">
+                                  <td className="px-3 py-1.5">{child.name}</td>
+                                  <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">
+                                    {formatCurrency(child.budgetAmount)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Response Notes */}
+                    {(detailTender?.quoted.responseNotes || detailSheet.responseNotes) && (
+                      <div>
+                        <span className="text-muted-foreground text-xs font-medium">Supplier Notes</span>
+                        <p className="text-sm whitespace-pre-wrap mt-1">
+                          {detailTender?.quoted.responseNotes || detailSheet.responseNotes}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* PO info */}
+                    {detailSheet.purchaseOrderNumber && (
+                      <div>
+                        <span className="text-muted-foreground text-xs font-medium">Purchase Order</span>
+                        <p className="text-sm text-green-600 dark:text-green-400 font-medium mt-0.5">
+                          PO {detailSheet.purchaseOrderNumber}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                ) : detailDocUrls ? (
-                  <DocumentViewer
-                    url={detailDocUrls.openUrl}
-                    fileName={detailDocUrls.filename}
-                    downloadUrl={detailDocUrls.downloadUrl}
-                    showHeader={false}
-                    showFooter={false}
-                    theme="light"
-                    className="h-full"
-                  />
-                ) : detailSheet.warehouseDocumentId ? (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <p className="text-sm">Failed to load document</p>
+
+                  {/* Document Viewer Section */}
+                  <div className="flex-1 overflow-hidden">
+                    {detailDocUrls ? (
+                      <DocumentViewer
+                        url={detailDocUrls.openUrl}
+                        fileName={detailDocUrls.filename}
+                        downloadUrl={detailDocUrls.downloadUrl}
+                        showHeader={false}
+                        showFooter={false}
+                        theme="light"
+                        className="h-full"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                        <FileText className="h-12 w-12 mb-3 opacity-30" />
+                        <p className="text-sm">No document attached</p>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                    <FileText className="h-12 w-12 mb-3 opacity-30" />
-                    <p className="text-sm">No document attached</p>
-                    <p className="text-xs mt-1">
-                      Drag a PDF onto the row to attach a quote document
-                    </p>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           )}
         </SheetContent>

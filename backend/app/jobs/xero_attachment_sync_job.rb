@@ -29,6 +29,66 @@ class XeroAttachmentSyncJob < ApplicationJob
   include XeroJobBase
   queue_as :xero_bulk
 
+  # ⚠️ DO NOT SIMPLIFY - Per-variant concurrency keys (Feb 2026)
+  # ════════════════════════════════════════════════════════════════
+  # Why: DeduplicatableJob's default key (self.class.name) creates a GLOBAL lock
+  # so only ONE XeroAttachmentSyncJob can run at a time. But the ULTRA Architecture
+  # above says "each Xero org is INDEPENDENT, process IN PARALLEL". The global key
+  # serialized all orgs → Pilgrim jobs got blocked behind Tekna → stuck at 4,824.
+  # ❌ WRONG: limits_concurrency key: ->(*) { self.class.name }
+  #           → All jobs share ONE slot → serial, not parallel
+  # ✅ CORRECT: Per-variant keys → scheduler, each tenant, and single-invoice
+  #             can all run independently
+  # ════════════════════════════════════════════════════════════════
+  limits_concurrency to: 1, key: ->(external_invoice_id = nil, **options) {
+    if options[:tenant_id].present?
+      "XeroAttachmentSyncJob:tenant:#{options[:tenant_id]}"
+    elsif external_invoice_id.present?
+      "XeroAttachmentSyncJob:invoice:#{external_invoice_id}"
+    else
+      "XeroAttachmentSyncJob:scheduler"
+    end
+  }
+
+  # Override DeduplicatableJob's cleanup to be concurrency-key-aware.
+  # The default cleanup deletes ALL blocked XeroAttachmentSyncJob instances
+  # except the oldest, treating per-tenant jobs as "duplicates" of each other.
+  # With per-variant keys, each tenant's job is independent work, not a duplicate.
+  def self.cleanup_duplicate_copies!(excluding_job_id: nil)
+    # Group blocked executions by concurrency_key, keep 1 per key
+    blocked = SolidQueue::BlockedExecution
+      .joins(:job)
+      .where(solid_queue_jobs: { class_name: name, finished_at: nil })
+
+    blocked.group(:concurrency_key).having("COUNT(*) > 1").count.each do |key, _count|
+      key_blocked_ids = SolidQueue::BlockedExecution
+        .joins(:job)
+        .where(concurrency_key: key)
+        .where(solid_queue_jobs: { class_name: name, finished_at: nil })
+        .order("solid_queue_jobs.id ASC")
+        .pluck(:job_id)
+
+      next if key_blocked_ids.size <= 1
+
+      excess_ids = key_blocked_ids[1..] # Keep oldest per key, remove rest
+      Rails.logger.info "[DeduplicatableJob] Clearing #{excess_ids.count} excess blocked #{name} job(s) for key #{key}"
+      SolidQueue::BlockedExecution.where(job_id: excess_ids).delete_all
+      SolidQueue::Job.where(id: excess_ids).update_all(finished_at: Time.current)
+    end
+
+    # Also clean duplicate ready copies (same as default)
+    duplicates = SolidQueue::Job.where(finished_at: nil, class_name: name)
+    duplicates = duplicates.where.not(id: excluding_job_id) if excluding_job_id
+    ready_ids = SolidQueue::ReadyExecution.where(job_id: duplicates.select(:id)).pluck(:job_id)
+    if ready_ids.count > 1
+      # Keep oldest ready, remove rest
+      excess_ready = ready_ids.sort[1..]
+      Rails.logger.info "[DeduplicatableJob] Clearing #{excess_ready.count} duplicate ready #{name} job(s)"
+      SolidQueue::ReadyExecution.where(job_id: excess_ready).delete_all
+      SolidQueue::Job.where(id: excess_ready).update_all(finished_at: Time.current)
+    end
+  end
+
   # Xero rate limits (per tenant)
   MINUTE_LIMIT = 60
   DAILY_LIMIT = 5000
