@@ -7,8 +7,8 @@
 # NOTE: YAML anchors/aliases (<<: *default) removed for Psych 5.x compatibility
 #
 # QUEUE PRIORITY ORDER (first = highest priority):
-# - critical: SmRolloverJob, time-sensitive operations
-# - default: BPMN workflows, user-triggered jobs, health monitors
+# - critical: BPMN workflows (token advance, service tasks, retries, timers), SmRolloverJob
+# - default: user-triggered jobs, health monitors
 # - solid_queue_recurring: SolidQueue's internal recurring task scheduler
 # - email_sync: OrgEmailSyncJob, AllOrgsEmailSyncJob (long-running, capped at 3 threads)
 # - xero_sync: Xero sync operations (invoice, contact, bank txn, tracking, health)

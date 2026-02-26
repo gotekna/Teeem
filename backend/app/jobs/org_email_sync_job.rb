@@ -387,6 +387,15 @@ class OrgEmailSyncJob < ApplicationJob
           # Persist smart target cache if any mailbox's oldest email was discovered this cycle
           oldest_email_year_cache = (sync_config["mailbox_oldest_email_year"] || {}).merge(@oldest_email_year_updates || {})
 
+          # Persist backfill folder progress (FRC: tracks completed folders within a year)
+          backfill_year_folders = sync_config["backfill_year_folders"] || {}
+          if @backfill_folder_progress_update
+            backfill_year_folders.merge!(@backfill_folder_progress_update)
+            @backfill_folder_progress_update = nil
+          end
+          # Clean up folder progress for mailboxes that completed backfill
+          backfill_year_folders.delete(user_email.downcase) if backfill_completed_map[user_email.downcase]
+
           updated_config = sync_config.merge(
             "mailbox_synced_at" => mailbox_synced_at,
             "mailbox_last_attempted_at" => mailbox_last_attempted_at,
@@ -395,6 +404,7 @@ class OrgEmailSyncJob < ApplicationJob
             "folder_stats" => folder_stats,
             "mailbox_sync_depth" => mailbox_sync_depth,
             "backfill_completed" => backfill_completed_map,
+            "backfill_year_folders" => backfill_year_folders,
             "mailbox_oldest_email_year" => oldest_email_year_cache
           )
           @credential.update_columns(last_sync_at: Time.current, sync_config: updated_config)
@@ -502,6 +512,15 @@ class OrgEmailSyncJob < ApplicationJob
       folder_results = Concurrent::Hash.new
       thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
 
+      # ⚠️ FRC (Feb 2026): Track completed folders within backfill year
+      # ════════════════════════════════════════════════════════════════
+      # Root cause: When budget is exhausted mid-year, the next cycle restarts from the
+      # first folder, re-processing the same folders forever. Large mailboxes (170+ folders)
+      # never finish a year because Deleted Items/Inbox consume the entire budget every cycle.
+      # Fix: Track which folders completed for the current year. Skip them on resume.
+      # ════════════════════════════════════════════════════════════════
+      backfill_folder_progress = @credential.sync_config&.dig("backfill_year_folders", user_email.downcase) || {}
+
       # ⚠️ ULTRA FIX (Feb 2026): Smart backfill target - use oldest email instead of blind sync_years
       # ════════════════════════════════════════════════════════════════
       # Root cause: Pilgrim has 56 mailboxes with sync_years=15 (target: 2011). Most mailboxes
@@ -594,29 +613,56 @@ class OrgEmailSyncJob < ApplicationJob
           break
         end
 
+        # ⚠️ FRC (Feb 2026): Skip folders already completed for this year
+        completed_for_year = if backfill_folder_progress["year"] == current_year
+                               Set.new(backfill_folder_progress["completed"] || [])
+                             else
+                               Set.new  # Different year = start fresh
+                             end
+        remaining_folders = folders.reject { |f| completed_for_year.include?(f[:id]) }
+
+        if remaining_folders.empty?
+          # All folders already synced for this year — advance immediately
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: all #{folders.count} folders already synced for year #{current_year}, advancing"
+          backfill_folder_progress = {}
+          @consecutive_empty_years = 0
+          current_year -= 1
+          next
+        end
+
         since = Time.new(current_year, 1, 1).beginning_of_day
         @sync_before = current_year < Date.current.year ? Time.new(current_year + 1, 1, 1).beginning_of_day : nil
 
-        Rails.logger.info "[SYNC-DEBUG] #{user_email}: backfill year #{current_year} (since=#{since.iso8601}#{@sync_before ? ", before=#{@sync_before.iso8601}" : ""}, budget=#{remaining || 'unlimited'}s)"
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: backfill year #{current_year} — #{remaining_folders.count}/#{folders.count} folders remaining (#{completed_for_year.count} already done) (since=#{since.iso8601}#{@sync_before ? ", before=#{@sync_before.iso8601}" : ""}, budget=#{remaining || 'unlimited'}s)"
 
         year_start = Time.current
-        year_synced = sync_folders_parallel(client, user_email, folders, since,
+        year_folder_results = Concurrent::Hash.new
+        year_synced = sync_folders_parallel(client, user_email, remaining_folders, since,
           thread_count: thread_count, time_budget: remaining,
           existing_folder_stats: {},  # No skip during backfill (different years = different content)
-          folder_results: folder_results)
+          folder_results: year_folder_results)
+
+        # Merge year's folder results into overall results for stats persistence
+        folder_results.merge!(year_folder_results)
 
         total_synced += year_synced
         year_elapsed = (Time.current - year_start).round(1)
-        Rails.logger.info "[SYNC-DEBUG] #{user_email}: year #{current_year} complete: #{year_synced} emails in #{year_elapsed}s"
+
+        # Track newly completed folders for this year
+        all_completed_for_year = completed_for_year | Set.new(year_folder_results.keys)
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: year #{current_year}: #{year_synced} emails in #{year_elapsed}s (#{all_completed_for_year.count}/#{folders.count} folders done)"
 
         # Check if budget was exhausted during this year (folder loop broke early)
         post_remaining = time_budget ? (time_budget - (Time.current - mailbox_start_time).to_i) : nil
         if post_remaining && post_remaining < 5
-          # Year was partially synced - don't mark as complete, will resume next cycle
-          # (upsert_all handles duplicates safely so re-syncing is harmless)
-          Rails.logger.info "[SYNC-DEBUG] #{user_email}: year #{current_year} interrupted (budget exhausted), will resume next cycle"
+          # Save folder progress so next cycle resumes where we left off (not from scratch)
+          backfill_folder_progress = { "year" => current_year, "completed" => all_completed_for_year.to_a }
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: year #{current_year} interrupted (budget exhausted), saved #{all_completed_for_year.count}/#{folders.count} folder progress for resume"
           break
         end
+
+        # Year fully processed — clear progress for next year
+        backfill_folder_progress = {}
 
         # ⚠️ ULTRA FIX (Feb 2026): Empty-year early termination
         # If we get 2 consecutive years with zero emails (in the past, not current year),
@@ -643,6 +689,9 @@ class OrgEmailSyncJob < ApplicationJob
       total_elapsed = (Time.current - mailbox_start_time).round(1)
       years_processed = depth_year - (current_year >= final_target ? current_year : final_target - 1)
       Rails.logger.info "[SYNC-DEBUG] #{user_email}: multi-year backfill: #{years_processed} years processed, #{total_synced} emails in #{total_elapsed}s#{@next_depth_year ? ", next: #{@next_depth_year}" : ", COMPLETE"}"
+
+      # Save backfill folder progress for persistence in perform
+      @backfill_folder_progress_update = { user_email.downcase => backfill_folder_progress }
 
       # Merge folder results into existing stats
       merged_folder_stats = existing_folder_stats.merge(folder_results.to_h)

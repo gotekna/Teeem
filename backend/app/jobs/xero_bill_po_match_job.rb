@@ -9,8 +9,10 @@ class XeroBillPoMatchJob < ApplicationJob
   include DeduplicatableJob
   queue_as :xero_sync
 
-  # 30 min time budget — runs daily, will resume remaining work next day
-  TIME_BUDGET_SECONDS = 30.minutes.to_i
+  # 5 min time budget — shared worker is single-threaded (R14 prevention),
+  # so long-running jobs block ALL other queues. Idempotent: resumes next run.
+  # FRC (Feb 2026): Was 30 min, blocked default queue jobs for 20+ min at 7am peak.
+  TIME_BUDGET_SECONDS = 5.minutes.to_i
 
   # ⚠️ FRC (Feb 2026): Must iterate over tenants
   # Root cause: PurchaseOrder and XeroJobTrackingLink have acts_as_tenant.

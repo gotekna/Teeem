@@ -1,5 +1,7 @@
 class BpmnServiceTaskJob < ApplicationJob
-  queue_as :default
+  # FRC (Feb 2026): Critical queue so BPMN workflows aren't blocked behind
+  # long-running Xero/attachment jobs on default queue (single-thread worker).
+  queue_as :critical
 
   retry_on StandardError, wait: :polynomially_longer, attempts: 3
 

@@ -1,5 +1,7 @@
 class BpmnTimerJob < ApplicationJob
-  queue_as :default
+  # FRC (Feb 2026): Critical queue so BPMN workflows aren't blocked behind
+  # long-running Xero/attachment jobs on default queue (single-thread worker).
+  queue_as :critical
 
   def perform(token_id)
     token = BpmnToken.find_by(id: token_id)
