@@ -48,14 +48,8 @@ class BackfillImapEmailBlobsJob < ApplicationJob
       break unless time_remaining?
       break if memory_exceeded?
 
-      # Find IMAP emails without WarehouseDocument
-      query = SyncedEmail.unscoped
-        .where(source_type: "imap")
-        .where.not(uid: [nil, ""])
-        .where.not(imap_credential_id: nil)
-        .left_joins(:warehouse_document)
-        .where(warehouse_documents: { id: nil })
-
+      # Find IMAP emails without WarehouseDocument — SSoT scope
+      query = SyncedEmail.unscoped.pending_imap_upload
       query = query.where(imap_credential_id: credential_id) if credential_id.present?
 
       emails = query.limit(batch_size).to_a
@@ -108,14 +102,8 @@ class BackfillImapEmailBlobsJob < ApplicationJob
         end
       end
 
-      # Check remaining
-      remaining = SyncedEmail.unscoped
-        .where(source_type: "imap")
-        .where.not(uid: [nil, ""])
-        .where.not(imap_credential_id: nil)
-        .left_joins(:warehouse_document)
-        .where(warehouse_documents: { id: nil })
-        .count
+      # Check remaining — SSoT scope
+      remaining = SyncedEmail.unscoped.pending_imap_upload.count
 
       Rails.logger.info "[ImapUpload] Batch #{batch_number}: uploaded=#{total_uploaded}, errors=#{total_errors}, remaining=#{remaining}"
       break if remaining == 0

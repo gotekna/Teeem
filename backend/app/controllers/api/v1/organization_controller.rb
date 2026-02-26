@@ -585,12 +585,13 @@ module Api
           with_direction = SyncedEmail.where.not(direction: nil).count
           with_body_preview = SyncedEmail.where("body_preview IS NOT NULL AND body_preview != ''").count
 
-          # Email Storage Upload Progress (SSoT: storage_path is new, storage_email_path is legacy)
-          with_storage = SyncedEmail.where("storage_path IS NOT NULL AND storage_path != ''").count
+          # Email Storage Upload Progress — SSoT: SyncedEmail.pending_storage_upload scope
+          # FRC (Feb 2026): Previously used different query than upload job, causing count mismatch.
+          remaining_to_upload = SyncedEmail.pending_storage_upload.count
           uploadable = SyncedEmail.where.not(outlook_id: [nil, ""])
                                      .where.not(mailbox_owner_email: [nil, ""])
                                      .count
-          remaining_to_upload = uploadable - with_storage
+          with_storage = uploadable - remaining_to_upload
 
           # Email Attachments Storage Progress (SSoT Jan 2026: WarehouseDocument)
           attachment_count = WarehouseDocument.where(source_type: "email_attachment").count
@@ -604,8 +605,8 @@ module Api
           dedup_ratio = unique_blobs > 0 ? (attachments_with_blob.to_f / unique_blobs).round(2) : 0
           files_saved = attachments_with_blob > unique_blobs ? attachments_with_blob - unique_blobs : 0
 
-          # Pending emails by mailbox (for migration visibility)
-          pending_by_mailbox = SyncedEmail.where(storage_path: nil)
+          # Pending emails by mailbox (for migration visibility) — SSoT scope
+          pending_by_mailbox = SyncedEmail.pending_storage_upload
             .group(:mailbox_owner_email)
             .count
             .sort_by { |_, v| -v }

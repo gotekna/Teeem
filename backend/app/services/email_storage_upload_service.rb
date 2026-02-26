@@ -55,12 +55,8 @@ class EmailStorageUploadService
     # FRC (Feb 2026): Randomize order so each run attempts different emails.
     # Previously .order(:id) meant the same failing emails blocked every batch.
     # With RANDOM(), even if some emails consistently fail, others get a chance.
-    emails = SyncedEmail
-      .where(storage_path: [nil, ""])
-      .where(storage_email_path: [nil, ""])
-      .where.not(outlook_id: [nil, ""])
-      .where.not(mailbox_owner_email: [nil, ""])
-      .where(content_unavailable: false)  # SSoT: Skip permanently unavailable emails
+    # SSoT: SyncedEmail.pending_storage_upload scope defines what needs uploading
+    emails = SyncedEmail.pending_storage_upload
       .order(Arel.sql("RANDOM()"))
 
     emails = emails.limit(batch_size) if batch_size.present?

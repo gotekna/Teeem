@@ -218,30 +218,14 @@ class QueueStatusCacheJob < ApplicationJob
   def compute_backlog
     items = []
 
-    # Email Bodies
-    email_total = SyncedEmail.unscoped.count
-    if email_total > 0
-      # Subquery for emails that have verified warehouse documents
-      emails_with_file_subquery = WarehouseDocument
-        .where(source_type: "email", documentable_type: "SyncedEmail")
-        .joins(:storage_blob)
-        .where("storage_blobs.verified_at IS NOT NULL")
-        .select(:documentable_id)
-
-      email_with_file = emails_with_file_subquery.count
-      email_unfetchable_without_file = SyncedEmail.unscoped
-        .where("storage_path LIKE ?", "UNFETCHABLE%")
-        .or(SyncedEmail.unscoped.where(content_unavailable: true))
-        .where.not(id: emails_with_file_subquery)
-        .count
-      email_no_outlook_without_file = SyncedEmail.unscoped
-        .where(outlook_id: [nil, ""])
-        .or(SyncedEmail.unscoped.where(mailbox_owner_email: [nil, ""]))
-        .where.not(id: emails_with_file_subquery)
-        .count
-      email_missing = [email_total - email_with_file - email_unfetchable_without_file - email_no_outlook_without_file, 0].max
-      items << { key: "email_uploads", label: "Email uploads", remaining: email_missing } if email_missing > 0
-    end
+    # Email Bodies — SSoT: SyncedEmail.pending_storage_upload scope
+    # FRC (Feb 2026): Previously used WarehouseDocument+verified blob check which diverged
+    # from the upload job's actual query (storage_path check). Now all three locations
+    # (popup, dashboard, upload job) use the same SSoT scope.
+    email_missing = SyncedEmail.unscoped.pending_storage_upload.count
+    imap_missing = SyncedEmail.unscoped.pending_imap_upload.count
+    total_email_missing = email_missing + imap_missing
+    items << { key: "email_uploads", label: "Email uploads", remaining: total_email_missing } if total_email_missing > 0
 
     # Xero Invoices
     if defined?(ExternalInvoice)

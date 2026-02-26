@@ -99,14 +99,8 @@ class UploadEmailsToStorageJob < ApplicationJob
   end
 
   def process_all_tenants(batch_size:)
-    # Find tenants that have emails needing sync (unscoped to see all tenants)
-    # SSoT: Match EmailStorageUploadService filters exactly to avoid false positives
-    tenant_ids_with_pending = SyncedEmail.unscoped
-      .where(storage_path: [nil, ""])
-      .where(storage_email_path: [nil, ""])
-      .where.not(outlook_id: [nil, ""])
-      .where.not(mailbox_owner_email: [nil, ""])
-      .where(content_unavailable: false)
+    # Find tenants that have emails needing sync — SSoT scope
+    tenant_ids_with_pending = SyncedEmail.unscoped.pending_storage_upload
       .distinct
       .pluck(:tenant_id)
       .compact
@@ -229,14 +223,8 @@ class UploadEmailsToStorageJob < ApplicationJob
           break
         end
 
-        # 5. Check if there are actually more processable emails (tenant-scoped, proper filters)
-        remaining = SyncedEmail
-          .where(storage_path: [nil, ""])
-          .where(storage_email_path: [nil, ""])
-          .where.not(outlook_id: [nil, ""])
-          .where.not(mailbox_owner_email: [nil, ""])
-          .where(content_unavailable: false)
-          .count
+        # 5. Check if there are actually more processable emails — SSoT scope
+        remaining = SyncedEmail.pending_storage_upload.count
 
         if remaining == 0
           Rails.logger.info "[UploadEmailsToStorageJob] All processable emails migrated for tenant #{tenant.id}!"
