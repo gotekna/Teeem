@@ -94,6 +94,7 @@ function ViewerContent() {
       url={currentFile.openUrl}
       fileName={currentFile.name}
       downloadUrl={currentFile.downloadUrl}
+      contentType={currentFile.contentType}
       files={context.files}
       currentIndex={currentIndex}
       onFileChange={setCurrentIndex}

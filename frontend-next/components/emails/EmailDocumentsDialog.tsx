@@ -147,6 +147,7 @@ export function EmailDocumentsDialog({
             name: r.doc.name,
             downloadUrl: r.downloadUrl || "",
             openUrl: r.openUrl || r.downloadUrl || "",
+            contentType: r.doc.mimeType || undefined,
           }));
 
           const ctxRes = await api.post<{ success: boolean; id?: string }>(

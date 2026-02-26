@@ -398,9 +398,9 @@ function StorageDetailCard({ data, label }: { data: StorageProviderBilling; labe
             return (
               <div key={h.period} className="flex items-center text-[10px] gap-1 py-0.5">
                 <span className="flex-1 text-muted-foreground">{periodLabel}</span>
-                <span className="w-14 text-right font-mono">{h.totalSizeGB.toFixed(1)} GB</span>
-                <span className="w-16 text-right font-mono">{h.totalObjects.toLocaleString()}</span>
-                <span className="w-16 text-right font-mono font-medium">${h.estimatedCost.toFixed(2)}</span>
+                <span className="w-14 text-right font-mono">{(h.totalSizeGB ?? 0).toFixed(1)} GB</span>
+                <span className="w-16 text-right font-mono">{(h.totalObjects ?? 0).toLocaleString()}</span>
+                <span className="w-16 text-right font-mono font-medium">${(h.estimatedCost ?? 0).toFixed(2)}</span>
               </div>
             );
           })}
@@ -1134,7 +1134,7 @@ export default function CostsMap() {
                                   {vercelBilling.currentPeriod.minutesUsed.toLocaleString()} min
                                 </span>
                                 <span className="text-muted-foreground">
-                                  (${vercelBilling.currentPeriod.minutesCost.toFixed(2)} overage + ${vercelBilling.currentPeriod.allocationCost.toFixed(2)} included)
+                                  (${(vercelBilling.currentPeriod.minutesCost ?? 0).toFixed(2)} overage + ${(vercelBilling.currentPeriod.allocationCost ?? 0).toFixed(2)} included)
                                 </span>
                                 {vercelBilling.buildMinutes && (
                                   <span className={cn(
@@ -1161,12 +1161,12 @@ export default function CostsMap() {
                               <div className="flex items-center gap-2 text-xs">
                                 <span className="text-muted-foreground">Current Charges:</span>
                                 <span className="font-mono font-medium">
-                                  ${vercelBilling.currentPeriod.amountDue.toFixed(2)}
+                                  ${(vercelBilling.currentPeriod.amountDue ?? 0).toFixed(2)}
                                 </span>
                                 <Badge variant="outline" className="text-[10px]">in progress</Badge>
                                 {vercelBilling.currentInvoice && (
                                   <span className="text-[10px] text-muted-foreground">
-                                    (last month: ${vercelBilling.currentInvoice.total.toFixed(2)} {vercelBilling.currentInvoice.status})
+                                    (last month: ${(vercelBilling.currentInvoice.total ?? 0).toFixed(2)} {vercelBilling.currentInvoice.status})
                                   </span>
                                 )}
                               </div>
@@ -1176,7 +1176,7 @@ export default function CostsMap() {
                               <div className="flex items-center gap-2 text-xs">
                                 <span className="text-muted-foreground">Invoice:</span>
                                 <span className="font-mono font-medium">
-                                  ${vercelBilling.currentInvoice.total.toFixed(2)}
+                                  ${(vercelBilling.currentInvoice.total ?? 0).toFixed(2)}
                                 </span>
                                 <Badge variant="outline" className="text-[10px]">
                                   {vercelBilling.currentInvoice.status}
@@ -1210,7 +1210,7 @@ export default function CostsMap() {
                                     </span>
                                     <span className="w-16 text-right font-mono">{h.buildMinutes > 0 ? h.buildMinutes.toLocaleString() : "—"}</span>
                                     <span className="w-12 text-right font-mono">{h.teamSeats}</span>
-                                    <span className="w-16 text-right font-mono font-medium">${h.amountDue.toFixed(2)}</span>
+                                    <span className="w-16 text-right font-mono font-medium">${(h.amountDue ?? 0).toFixed(2)}</span>
                                     <span className="w-14 text-right">
                                       <Badge variant="outline" className="text-[10px]">{h.status}</Badge>
                                     </span>
