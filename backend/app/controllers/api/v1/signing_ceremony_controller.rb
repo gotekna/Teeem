@@ -55,6 +55,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
         date_format: field.date_format,
         placeholder: field.placeholder,
         completed: field.complete?,
+        completed_at: field.completed_at&.in_time_zone("Australia/Brisbane")&.strftime("%d/%m/%Y %I:%M %p AEST"),
         value: field.value
       }
     end
@@ -253,6 +254,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
       field: {
         id: field.id,
         completed: true,
+        completed_at: field.completed_at&.in_time_zone("Australia/Brisbane")&.strftime("%d/%m/%Y %I:%M %p AEST"),
         value: field.field_type.in?(%w[signature initials]) ? "[CAPTURED]" : field.value
       },
       all_fields_complete: all_complete

@@ -81,6 +81,7 @@ interface SignatureField {
   date_format?: string;
   placeholder?: string;
   completed: boolean;
+  completed_at?: string;
   value?: string;
 }
 
@@ -429,10 +430,15 @@ export function PositionedSigningStep({
         throw new Error(errorMsg || "Failed to complete field");
       }
 
-      // Update local state
+      // Update local state - keep local base64 value for signature/initials
+      // (backend returns "[CAPTURED]" for security, but we need the image for display)
+      const fieldObj = fields.find((f) => f.id === fieldId);
+      const displayValue = (fieldObj?.field_type === "signature" || fieldObj?.field_type === "initials")
+        ? value  // Keep the base64 image we sent
+        : data.field.value;
       const updatedFields = fields.map((f) =>
         f.id === fieldId
-          ? { ...f, completed: true, value: data.field.value }
+          ? { ...f, completed: true, completed_at: data.field.completed_at, value: displayValue }
           : f
       );
       setFields(updatedFields);
@@ -535,6 +541,8 @@ export function PositionedSigningStep({
     const Icon = FIELD_ICONS[field.field_type];
     const isCompleted = field.completed;
     const isNext = nextField?.id === field.id;
+    const isSignatureType = field.field_type === "signature" || field.field_type === "initials";
+    const hasSignatureImage = isCompleted && isSignatureType && field.value?.startsWith("data:image");
 
     const style: React.CSSProperties = {
       position: "absolute",
@@ -544,45 +552,73 @@ export function PositionedSigningStep({
       height: `${field.height_percent}%`,
     };
 
-    // Show actual signature/initials image when field is completed
-    const hasSignatureImage = isCompleted && field.value?.startsWith("data:image");
+    // DocuSign-style completed signature/initials stamp
+    if (hasSignatureImage) {
+      // Generate a short hash from the field ID for the stamp
+      const fieldHash = field.id.toString(16).toUpperCase().padStart(8, "0");
+      return (
+        <div
+          key={field.id}
+          className="absolute bg-white cursor-default"
+          style={style}
+        >
+          <div className="relative w-full h-full flex flex-col">
+            {/* Signature image */}
+            <div className="flex-1 flex items-center justify-center min-h-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={field.value}
+                alt="Signature"
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+            {/* Metadata bar - DocuSign style */}
+            <div className="flex-shrink-0 border-t border-gray-300 px-1 leading-tight" style={{ fontSize: `${Math.max(5, Math.min(7, scale * 6))}px` }}>
+              <div className="text-gray-500 font-mono tracking-tight">
+                <span className="text-purple-600 font-semibold">{fieldHash}</span>
+                {field.completed_at && (
+                  <span className="ml-1">{field.completed_at}</span>
+                )}
+              </div>
+              <div className="text-gray-400">
+                Electronic Transactions Act 1999 (Cth) s.10
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
+    // Completed non-signature field (checkmark)
+    if (isCompleted) {
+      return (
+        <div
+          key={field.id}
+          className="absolute border-2 rounded bg-green-500/20 border-green-500 cursor-default flex items-center justify-center"
+          style={style}
+        >
+          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+        </div>
+      );
+    }
+
+    // Incomplete field - clickable button
     return (
       <button
         key={field.id}
         className={cn(
           "absolute border-2 rounded transition-all flex items-center justify-center gap-1 overflow-hidden",
-          isCompleted
-            ? hasSignatureImage
-              ? "border-transparent cursor-default bg-transparent"
-              : "bg-green-500/20 border-green-500 cursor-default"
-            : isNext
-              ? "bg-blue-500/30 border-blue-600 border-solid hover:bg-blue-500/40 cursor-pointer animate-pulse ring-2 ring-blue-400 ring-offset-1"
-              : "bg-blue-500/20 border-blue-500 border-dashed hover:bg-blue-500/30 cursor-pointer"
+          isNext
+            ? "bg-blue-500/30 border-blue-600 border-solid hover:bg-blue-500/40 cursor-pointer animate-pulse ring-2 ring-blue-400 ring-offset-1"
+            : "bg-blue-500/20 border-blue-500 border-dashed hover:bg-blue-500/30 cursor-pointer"
         )}
         style={style}
         onClick={() => handleFieldClick(field)}
-        disabled={isCompleted}
       >
-        {isCompleted ? (
-          hasSignatureImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={field.value}
-              alt="Signature"
-              className="w-full h-full object-contain p-0.5"
-            />
-          ) : (
-            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-          )
-        ) : (
-          <>
-            <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <span className="text-xs text-blue-700 dark:text-blue-300 font-semibold truncate max-w-[80%]">
-              {field.field_type === "signature" ? "Sign" : field.field_type === "initials" ? "Initial" : field.label || "Fill"}
-            </span>
-          </>
-        )}
+        <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        <span className="text-xs text-blue-700 dark:text-blue-300 font-semibold truncate max-w-[80%]">
+          {field.field_type === "signature" ? "Sign" : field.field_type === "initials" ? "Initial" : field.label || "Fill"}
+        </span>
       </button>
     );
   };
