@@ -41,8 +41,14 @@ class UploadEmailsToStorageJob < ApplicationJob
   # Shared worker dyno is 1024MB. Leave 224MB headroom for other processes.
   MEMORY_ABORT_MB = 800
 
+  # Hard cap on batch_size regardless of what's passed in job args.
+  # FRC (Feb 2026): Stale SolidQueue jobs with batch_size=200 survived deploys,
+  # fetching 200 emails' MIME content into memory at once → R14 on 1024MB dyno.
+  MAX_BATCH_SIZE = 50
+
   def perform(batch_size: nil, tenant_id: nil)
     @started_at = Time.current
+    batch_size = [batch_size, MAX_BATCH_SIZE].min if batch_size
 
     # If tenant specified, process just that tenant
     if tenant_id
