@@ -460,6 +460,17 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       json[:reminder_interval_days] = request.reminder_interval_days
       json[:has_certificate] = request.certificate.present?
       json[:has_document] = request.original_storage_reference.present?
+      json[:events] = request.events.reverse_chronological.limit(50).map { |e|
+        {
+          id: e.id,
+          event_type: e.event_type,
+          description: e.human_description,
+          occurred_at: e.occurred_at,
+          actor_type: e.actor_type,
+          actor_name: e.actor_name,
+          signer_name: e.e_signature_signer&.name
+        }
+      }
     end
 
     json

@@ -36,6 +36,8 @@ import {
   Eye,
   PenLine,
   Save,
+  History,
+  SendHorizonal,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format, formatDistanceToNow } from "date-fns";
@@ -86,6 +88,16 @@ interface BackendField {
   signer_email: string;
 }
 
+interface ESignatureEvent {
+  id: number;
+  event_type: string;
+  description: string;
+  occurred_at: string;
+  actor_type: string | null;
+  actor_name: string | null;
+  signer_name: string | null;
+}
+
 interface ESignatureRequest {
   id: number;
   request_number: string;
@@ -110,6 +122,7 @@ interface ESignatureRequest {
   send_reminders: boolean;
   document_type_id: number | null;
   document_type_name: string | null;
+  events?: ESignatureEvent[];
 }
 
 interface ESignatureResponse {
@@ -182,6 +195,22 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   cancelled: { label: "Cancelled", color: "bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground", icon: <XCircle className="h-4 w-4" /> },
 };
 
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  created: "text-muted-foreground",
+  sent: "text-blue-600 dark:text-blue-400",
+  notified: "text-blue-600 dark:text-blue-400",
+  notification_failed: "text-red-600 dark:text-red-400",
+  viewed: "text-amber-600 dark:text-amber-400",
+  verified: "text-green-600 dark:text-green-400",
+  verification_failed: "text-red-600 dark:text-red-400",
+  signed: "text-green-600 dark:text-green-400",
+  declined: "text-red-600 dark:text-red-400",
+  completed: "text-green-600 dark:text-green-400",
+  expired: "text-muted-foreground",
+  cancelled: "text-red-600 dark:text-red-400",
+  field_completed: "text-muted-foreground",
+};
+
 const SIGNER_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   pending: { label: "Pending", color: "bg-muted text-muted-foreground" },
   notified: { label: "Notified", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300" },
@@ -241,6 +270,25 @@ export default function ESignatureDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["e-signature-request", id] });
     },
   });
+
+  const [resendingAll, setResendingAll] = React.useState(false);
+  const handleResendAll = async () => {
+    if (!request) return;
+    setResendingAll(true);
+    try {
+      const pendingSigners = request.signers.filter(
+        (s) => ["pending", "notified", "viewed"].includes(s.status)
+      );
+      for (const signer of pendingSigners) {
+        await api.post(`/api/v1/e_signature_requests/${id}/signers/${signer.id}/resend`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["e-signature-request", id] });
+    } catch {
+      // Individual failures handled silently
+    } finally {
+      setResendingAll(false);
+    }
+  };
 
   const saveFieldsMutation = useMutation({
     mutationFn: async (fields: SignatureField[]) => {
@@ -438,6 +486,22 @@ export default function ESignatureDetailPage() {
                   <Send className="h-4 w-4 mr-2" />
                 )}
                 Send for Signing
+              </Button>
+            )}
+
+            {["sent", "in_progress"].includes(request.status) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResendAll}
+                disabled={resendingAll || !request.signers.some((s) => ["pending", "notified", "viewed"].includes(s.status))}
+              >
+                {resendingAll ? (
+                  <Spinner size={16} className="mr-2" />
+                ) : (
+                  <SendHorizonal className="h-4 w-4 mr-2" />
+                )}
+                Resend All
               </Button>
             )}
 
@@ -720,6 +784,53 @@ export default function ESignatureDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Activity Log */}
+          {request.events && request.events.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Activity Log
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-0">
+                  {request.events.map((event, index) => {
+                    const isFirst = index === 0;
+                    const eventColor = EVENT_TYPE_COLORS[event.event_type] || "text-muted-foreground";
+                    return (
+                      <div key={event.id} className="flex gap-3 py-2">
+                        {/* Timeline dot + line */}
+                        <div className="flex flex-col items-center pt-1">
+                          <div className={`w-2 h-2 rounded-full ${isFirst ? "bg-primary" : "bg-muted-foreground/40"}`} />
+                          {index < request.events!.length - 1 && (
+                            <div className="w-px flex-1 bg-muted-foreground/20 mt-1" />
+                          )}
+                        </div>
+                        {/* Content */}
+                        <div className="flex-1 min-w-0 pb-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-sm font-medium ${eventColor}`}>
+                              {event.description}
+                            </span>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {format(new Date(event.occurred_at), "MMM d, h:mm a")}
+                            </span>
+                          </div>
+                          {event.actor_name && (
+                            <span className="text-xs text-muted-foreground">
+                              by {event.actor_name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
