@@ -262,27 +262,23 @@ function QuoteReturnContent() {
   const hasTenderDesc = !!tender?.requested.description;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <div className="border-b bg-card px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">{qr.supplierName || "Quote Details"}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {qr.itemName || ""}
-              {qr.parentName ? ` \u2014 ${qr.parentName}` : ""}
-            </p>
-          </div>
-          <Badge variant="outline" className={`text-sm px-3 py-1 ${STATUS_COLORS[qr.status] || ""}`}>
-            {STATUS_LABELS[qr.status] || qr.status}
-          </Badge>
-        </div>
-      </div>
-
-      {/* Content: Side-by-side layout */}
-      <div className="flex flex-1 overflow-hidden">
+    <div className="h-screen flex bg-background overflow-hidden">
         {/* Left: Quote Info + Actions */}
-        <div className="w-[420px] shrink-0 border-r overflow-auto p-6 space-y-5">
+        <div className="w-[380px] shrink-0 border-r overflow-auto p-4 space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold truncate">{qr.supplierName || "Quote Details"}</h1>
+              <p className="text-xs text-muted-foreground truncate">
+                {qr.itemName || ""}
+                {qr.parentName ? ` \u2014 ${qr.parentName}` : ""}
+              </p>
+            </div>
+            <Badge variant="outline" className={`text-xs shrink-0 ml-2 ${STATUS_COLORS[qr.status] || ""}`}>
+              {STATUS_LABELS[qr.status] || qr.status}
+            </Badge>
+          </div>
+
           {/* AI Extraction Banner */}
           {extracting && (
             <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-md px-3 py-2 border border-blue-200">
@@ -542,7 +538,7 @@ function QuoteReturnContent() {
               url={docUrls.openUrl}
               fileName={docUrls.filename}
               downloadUrl={docUrls.downloadUrl}
-              showHeader={true}
+              showHeader={false}
               showFooter={false}
               theme="dark"
               className="h-full"
@@ -555,7 +551,6 @@ function QuoteReturnContent() {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 }
