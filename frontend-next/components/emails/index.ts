@@ -1,5 +1,6 @@
 // Email components
 export { ComposeEmailModal } from "./ComposeEmailModal";
+export { EmailComposePane, type EmailComposePaneProps } from "./EmailComposePane";
 export { EmailToContactsModal } from "./EmailToContactsModal";
 export { EmailDetailDialog } from "./EmailDetailDialog";
 export { AttachmentList, type Attachment } from "./AttachmentList";

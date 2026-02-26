@@ -103,6 +103,7 @@ import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns
 import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { EmailComposePane } from "@/components/emails/EmailComposePane";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { DraftsList } from "@/components/emails/DraftsList";
 import {
@@ -2797,7 +2798,33 @@ ${originalBody}
           minSize="300px"
           className="flex flex-col min-w-0 overflow-hidden bg-background"
         >
-        {selectedEmail ? (
+        {composeOpen ? (
+          <EmailComposePane
+            isActive={composeOpen}
+            onClose={() => {
+              setComposeOpen(false);
+              setReplyTo(null);
+              setResumeDraft(null);
+            }}
+            defaultTo={replyTo?.to || ""}
+            defaultCc={replyTo?.cc || ""}
+            defaultSubject={replyTo?.subject || ""}
+            defaultBody={replyTo?.body || ""}
+            defaultFromAccountId={replyTo?.fromAccountId}
+            defaultFromEmail={replyTo?.fromEmail}
+            replyToMessageId={replyTo?.replyToMessageId}
+            forwardEmailId={replyTo?.forwardEmailId}
+            forwardAttachments={replyTo?.forwardAttachments}
+            originalEmailId={replyTo?.originalEmailId}
+            originalAttachments={replyTo?.originalAttachments}
+            draft={resumeDraft || undefined}
+            onSent={() => {
+              fetchEmails();
+              setReplyTo(null);
+              setResumeDraft(null);
+            }}
+          />
+        ) : selectedEmail ? (
           <>
             {/* Outlook-style Toolbar Header */}
             <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
@@ -3007,34 +3034,36 @@ ${originalBody}
       </ResizablePanel>
     </ResizablePanelGroup>
 
-      {/* Compose Modal */}
-      <ComposeEmailModal
-        open={composeOpen}
-        onOpenChange={(open) => {
-          setComposeOpen(open);
-          if (!open) {
+      {/* Compose Modal fallback - only used when reading pane is "off" (no inline area available) */}
+      {readingPanePosition === "off" && (
+        <ComposeEmailModal
+          open={composeOpen}
+          onOpenChange={(open) => {
+            setComposeOpen(open);
+            if (!open) {
+              setReplyTo(null);
+              setResumeDraft(null);
+            }
+          }}
+          defaultTo={replyTo?.to || ""}
+          defaultCc={replyTo?.cc || ""}
+          defaultSubject={replyTo?.subject || ""}
+          defaultBody={replyTo?.body || ""}
+          defaultFromAccountId={replyTo?.fromAccountId}
+          defaultFromEmail={replyTo?.fromEmail}
+          replyToMessageId={replyTo?.replyToMessageId}
+          forwardEmailId={replyTo?.forwardEmailId}
+          forwardAttachments={replyTo?.forwardAttachments}
+          originalEmailId={replyTo?.originalEmailId}
+          originalAttachments={replyTo?.originalAttachments}
+          draft={resumeDraft || undefined}
+          onSent={() => {
+            fetchEmails();
             setReplyTo(null);
             setResumeDraft(null);
-          }
-        }}
-        defaultTo={replyTo?.to || ""}
-        defaultCc={replyTo?.cc || ""}
-        defaultSubject={replyTo?.subject || ""}
-        defaultBody={replyTo?.body || ""}
-        defaultFromAccountId={replyTo?.fromAccountId}
-        defaultFromEmail={replyTo?.fromEmail}
-        replyToMessageId={replyTo?.replyToMessageId}
-        forwardEmailId={replyTo?.forwardEmailId}
-        forwardAttachments={replyTo?.forwardAttachments}
-        originalEmailId={replyTo?.originalEmailId}
-        originalAttachments={replyTo?.originalAttachments}
-        draft={resumeDraft || undefined}
-        onSent={() => {
-          fetchEmails();
-          setReplyTo(null);
-          setResumeDraft(null);
-        }}
-      />
+          }}
+        />
+      )}
 
       {/* Create Folder Dialog - for IMAP accounts */}
       <CreateFolderDialog

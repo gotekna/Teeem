@@ -249,17 +249,15 @@ export function PositionedSigningStep({
 
           setSelectedField(field);
           if (field.field_type === "signature") {
-            if (savedSignatureRef.current) {
-              setConfirmMode("signature");
-            } else {
+            if (!savedSignatureRef.current) {
               setCaptureMode("signature");
             }
+            // If saved signature exists, don't auto-open dialog - let user tap "Sign" button on the field
           } else if (field.field_type === "initials") {
-            if (savedInitialsRef.current) {
-              setConfirmMode("initials");
-            } else {
+            if (!savedInitialsRef.current) {
               setCaptureMode("initials");
             }
+            // If saved initials exist, don't auto-open dialog - let user tap "Initial" button on the field
           }
         }, 400);
       }, 200);
@@ -370,13 +368,15 @@ export function PositionedSigningStep({
 
     if (field.field_type === "signature") {
       if (savedSignatureRef.current) {
-        setConfirmMode("signature");
+        // Auto-apply saved signature (no confirm dialog)
+        completeField(field.id, savedSignatureRef.current);
       } else {
         setCaptureMode("signature");
       }
     } else if (field.field_type === "initials") {
       if (savedInitialsRef.current) {
-        setConfirmMode("initials");
+        // Auto-apply saved initials (no confirm dialog)
+        completeField(field.id, savedInitialsRef.current);
       } else {
         setCaptureMode("initials");
       }
@@ -578,11 +578,9 @@ export function PositionedSigningStep({
         ) : (
           <>
             <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            {field.label && (
-              <span className="text-xs text-blue-700 font-medium truncate max-w-[80%]">
-                {field.label}
-              </span>
-            )}
+            <span className="text-xs text-blue-700 dark:text-blue-300 font-semibold truncate max-w-[80%]">
+              {field.field_type === "signature" ? "Sign" : field.field_type === "initials" ? "Initial" : field.label || "Fill"}
+            </span>
           </>
         )}
       </button>

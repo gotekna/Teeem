@@ -13,7 +13,7 @@ module Api
   module V1
     class QuoteReturnsController < ApplicationController
       before_action :set_job, only: [:index]
-      before_action :set_return_record, only: [:confirm_details, :accept, :reject]
+      before_action :set_return_record, only: [:confirm_details, :accept, :reject, :extract]
 
       # GET /api/v1/jobs/:job_id/quote_returns
       # Returns unified list of all quote returns for a job
@@ -86,11 +86,12 @@ module Api
       # Accepts a quote and creates PO(s) with confirmation tracking
       def accept
         notes = params[:confirmationNotes]
+        include_tender_desc = ActiveModel::Type::Boolean.new.cast(params[:includeTenderDescription])
 
         if @source == :qt
           accept_quote_tracker!(@record, notes)
         else
-          accept_custom_quote_supplier!(@record, notes)
+          accept_custom_quote_supplier!(@record, notes, include_tender_description: include_tender_desc)
         end
       rescue => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
@@ -119,6 +120,47 @@ module Api
         }
       rescue => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/quote_returns/:id/extract
+      # AI-extract price/dates from attached quote PDF and auto-save to record
+      def extract
+        unless @source == :cqs
+          return render json: { success: false, error: "AI extraction only available for custom quotes" }, status: :unprocessable_entity
+        end
+
+        doc = @record.warehouse_document
+        unless doc&.storage_blob
+          return render json: { success: false, error: "No document attached" }, status: :unprocessable_entity
+        end
+
+        result = QuoteParsingService.new.extract!(doc)
+
+        # Auto-save extracted data back to the record
+        updates = {}
+        updates[:price_quoted] = result[:priceQuoted] if result[:priceQuoted].present? && @record.price_quoted.blank?
+        updates[:quote_number] = result[:quoteNumber] if result[:quoteNumber].present? && @record.quote_number.blank?
+        updates[:valid_to] = result[:validTo] if result[:validTo].present? && @record.valid_to.blank?
+        updates[:response_notes] = result[:notesSummary] if result[:notesSummary].present? && @record.response_notes.blank?
+        updates[:date_received] = Date.current if @record.date_received.blank?
+
+        if updates.any?
+          # Move to responded if currently sent
+          updates[:status] = 'responded' if @record.status == 'sent'
+          @record.update!(updates)
+        end
+
+        render json: {
+          success: true,
+          data: {
+            extraction: result,
+            saved: updates.any?,
+            updatedFields: updates.keys.map(&:to_s)
+          }
+        }
+      rescue StandardError => e
+        Rails.logger.error "[QuoteReturns#extract] Failed for #{params[:id]}: #{e.message}"
+        render json: { success: false, error: "Extraction failed: #{e.message}" }, status: :unprocessable_entity
       end
 
       private
@@ -175,7 +217,7 @@ module Api
         }
       end
 
-      def accept_custom_quote_supplier!(cqs, notes)
+      def accept_custom_quote_supplier!(cqs, notes, include_tender_description: false)
         pos = nil
         ActiveRecord::Base.transaction do
           pos = CustomQuotePoCreatorService.accept!(supplier: cqs, user: current_user)
@@ -190,7 +232,7 @@ module Api
           end
 
           # Enhance POs with quote details
-          pos.each { |po| enhance_po_from_cqs!(po, cqs) }
+          pos.each { |po| enhance_po_from_cqs!(po, cqs, include_tender_description: include_tender_description) }
         end
 
         render json: {
@@ -217,11 +259,19 @@ module Api
         po.update!(updates)
       end
 
-      def enhance_po_from_cqs!(po, cqs)
+      def enhance_po_from_cqs!(po, cqs, include_tender_description: false)
         line = cqs.custom_quote_line
         updates = { status: 'approved' }
         updates[:quote_warehouse_document_id] = cqs.warehouse_document_id if cqs.warehouse_document_id.present?
         updates[:special_instructions] = line.rfq_instructions if line.rfq_instructions.present?
+
+        # Append tender description to PO description if requested
+        if include_tender_description && line.tender_description.present?
+          existing = po.description.to_s
+          tender_desc = line.tender_description.truncate(2000)
+          updates[:description] = existing.present? ? "#{existing}\n\n#{tender_desc}" : tender_desc
+        end
+
         po.update!(updates)
       end
 

@@ -465,21 +465,49 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
       ]);
 
       if (response.success) {
-        // Extract global totals and blob health (single call, not aggregated)
+        // Extract global totals, blob health, and per-tenant status from the GLOBAL pdf_sync_status call.
+        // FRC (Feb 2026): The global call already includes per_tenant_status with total/synced/pending/percentage
+        // for every tenant. Using this eliminates N+1 per-tenant API calls that were timing out (H12)
+        // on staging with 10+ Xero orgs, causing pdf_sync to always be undefined → shows "0/total".
         let globalTotals: TotalsSummary | undefined;
         let globalBlobHealth: BlobHealth | undefined;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let globalPerTenantStatus: Array<any> = [];
         if (globalPdfResponse.success && globalPdfResponse.data) {
           globalTotals = globalPdfResponse.data.totals_summary;
           globalBlobHealth = globalPdfResponse.data.blob_health;
+          globalPerTenantStatus = globalPdfResponse.data.per_tenant_status || [];
         }
 
-        // On first load, fetch per-tenant PDF sync in parallel for all tenants.
-        // On subsequent polls, preserve existing data (don't re-fetch every 30s).
-        // FRC (Feb 2026): Previously lazy-loaded only on expand, which caused
-        // Stage 2 to always show "0/total" until user clicked each card.
-        const isFirstFetch = !hasFetchedPdfSyncRef.current;
-        let perTenantPdfData: Record<string, { pdf_sync?: TenantPdfSyncStats; data_sync?: TenantDataSyncStats }> = {};
+        // Build per-tenant PDF data from the global response's per_tenant_status.
+        // This is reliable (single API call already succeeded) vs the old approach
+        // of making N separate per-tenant calls that would time out.
+        const perTenantPdfData: Record<string, { pdf_sync?: TenantPdfSyncStats; data_sync?: TenantDataSyncStats }> = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        globalPerTenantStatus.forEach((pts: any) => {
+          if (pts.tenant_id) {
+            perTenantPdfData[pts.tenant_id] = {
+              pdf_sync: {
+                total: pts.total ?? 0,
+                synced: pts.synced ?? 0,
+                pending: pts.pending ?? 0,
+                percentage: pts.percentage ?? 0,
+                last_synced_at: null,
+                next_sync_at: null,
+                schedule: null,
+                blocker: pts.status === "rate_limited" ? {
+                  reason: pts.reason || "Rate limited",
+                  detail: pts.detail || "",
+                } : null,
+                breakdown: null,
+              },
+            };
+          }
+        });
 
+        // On first load, also try per-tenant detailed calls for breakdown/schedule info.
+        // These enhance the display but are NOT required — the global data above is sufficient.
+        const isFirstFetch = !hasFetchedPdfSyncRef.current;
         if (isFirstFetch && response.data.tenants.length > 0) {
           hasFetchedPdfSyncRef.current = true;
           const pdfResponses = await Promise.all(
@@ -492,13 +520,14 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
           response.data.tenants.forEach((tenant, i) => {
             const pdfRes = pdfResponses[i];
             if (pdfRes?.success && pdfRes.data) {
+              // Detailed per-tenant data overrides the basic global data
               perTenantPdfData[tenant.tenant_id] = mapPdfSyncResponse(pdfRes.data);
             }
           });
         }
 
         const enrichedTenants = response.data.tenants.map((tenant) => {
-          // On first load, use freshly-fetched data; on polls, preserve existing
+          // Use fresh data from global or per-tenant calls; on polls, preserve existing
           const existing = data?.tenants?.find((t) => t.tenant_id === tenant.tenant_id);
           const freshPdf = perTenantPdfData[tenant.tenant_id];
           return {
@@ -684,9 +713,10 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
         next.delete(tenantId);
       } else {
         next.add(tenantId);
-        // Lazy-load PDF sync data for this tenant if not already loaded
+        // Lazy-load detailed PDF sync data for this tenant if we only have basic data
+        // (basic data comes from global per_tenant_status, detailed adds breakdown/schedule/timing)
         const tenant = data?.tenants?.find((t) => t.tenant_id === tenantId);
-        if (tenant && !tenant.pdf_sync) {
+        if (tenant && (!tenant.pdf_sync || !tenant.pdf_sync.breakdown)) {
           fetchTenantPdfSync(tenantId);
         }
       }
