@@ -191,15 +191,24 @@ export function PositionedSigningStep({
         scrollToField(field);
 
         // Show dialog after scroll animation
-        setTimeout(() => {
+        setTimeout(async () => {
           // Auto-fill name/initials fields silently (no dialog)
-          if (field.field_type === "signer_name") {
-            completeField(field.id, signerName);
-            return;
-          }
-          if (field.field_type === "signer_initials") {
-            const initials = signerName.split(/\s+/).map((w) => w[0]?.toUpperCase() || "").join("");
-            completeField(field.id, initials);
+          if (field.field_type === "signer_name" || field.field_type === "signer_initials") {
+            const value = field.field_type === "signer_name"
+              ? signerName
+              : signerName.split(/\s+/).map((w) => w[0]?.toUpperCase() || "").join("");
+            try {
+              const response = await fetch(`${apiUrl}/api/v1/sign/${token}/fields/${field.id}/complete`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ value }),
+              });
+              if (response.ok) {
+                setFields((prev) => prev.map((f) => f.id === field.id ? { ...f, completed: true, value } : f));
+              }
+            } catch {
+              // Fall through to manual handling
+            }
             return;
           }
 
@@ -220,25 +229,8 @@ export function PositionedSigningStep({
         }, 400);
       }, 200);
     },
-    [scrollToField, signerName, completeField]
+    [scrollToField, signerName, apiUrl, token]
   );
-
-  // Auto-complete signer_name and signer_initials fields (no user interaction needed)
-  const autoCompleteNameFields = useCallback(async () => {
-    const autoFields = fields.filter(
-      (f) => !f.completed && (f.field_type === "signer_name" || f.field_type === "signer_initials")
-    );
-    for (const field of autoFields) {
-      const value = field.field_type === "signer_name"
-        ? signerName
-        : signerName.split(/\s+/).map((w) => w[0]?.toUpperCase() || "").join("");
-      try {
-        await completeField(field.id, value);
-      } catch {
-        // Silently continue - field will remain for manual completion
-      }
-    }
-  }, [fields, signerName, completeField]);
 
   // Auto-open the first incomplete field once the PDF is loaded
   const onDocumentLoadSuccess = useCallback(({ numPages: pages }: { numPages: number }) => {
@@ -250,8 +242,27 @@ export function PositionedSigningStep({
       hasAutoOpened.current = true;
       // Small delay so PDF dimensions are available
       setTimeout(async () => {
-        // Auto-fill name/initials fields first
-        await autoCompleteNameFields();
+        // Auto-fill signer_name and signer_initials fields first (no user interaction needed)
+        const autoFields = fields.filter(
+          (f) => !f.completed && (f.field_type === "signer_name" || f.field_type === "signer_initials")
+        );
+        for (const field of autoFields) {
+          const value = field.field_type === "signer_name"
+            ? signerName
+            : signerName.split(/\s+/).map((w) => w[0]?.toUpperCase() || "").join("");
+          try {
+            const response = await fetch(`${apiUrl}/api/v1/sign/${token}/fields/${field.id}/complete`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ value }),
+            });
+            if (response.ok) {
+              setFields((prev) => prev.map((f) => f.id === field.id ? { ...f, completed: true, value } : f));
+            }
+          } catch {
+            // Silently continue - field will remain for manual completion on click
+          }
+        }
 
         const firstIncomplete = findNextIncompleteField();
         if (firstIncomplete) {
@@ -268,7 +279,7 @@ export function PositionedSigningStep({
         }
       }, 500);
     }
-  }, [findNextIncompleteField, navigateToField, fields, scrollToField, autoCompleteNameFields]);
+  }, [findNextIncompleteField, navigateToField, fields, scrollToField, signerName, apiUrl, token]);
 
   const onDocumentLoadError = useCallback((error: Error) => {
     console.error("Failed to load PDF:", error);
