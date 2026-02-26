@@ -86,7 +86,7 @@ interface SignatureField {
   value?: string;
 }
 
-type SigningStep = "loading" | "error" | "verify_email" | "consent" | "view_document" | "sign" | "sign_positioned" | "completed" | "declined" | "already_signed";
+type SigningStep = "loading" | "error" | "verify_email" | "consent" | "choose_signature" | "view_document" | "sign" | "sign_positioned" | "completed" | "declined" | "already_signed";
 
 // Minimal inline spinner (no external imports needed)
 function LoadingSpinner() {
@@ -112,6 +112,7 @@ export default function SigningCeremonyPage() {
   const [request, setRequest] = useState<RequestInfo | null>(null);
   const [fields, setFields] = useState<SignatureField[]>([]);
   const [requestCompleted, setRequestCompleted] = useState(false);
+  const [chosenSignature, setChosenSignature] = useState<string | null>(null);
 
   const apiUrl = getSigningApiUrl();
 
@@ -153,9 +154,8 @@ export default function SigningCeremonyPage() {
         // ERSD consent required before viewing/signing
         setStep("consent");
       } else if (data.request?.has_positioned_fields && data.fields?.length > 0) {
-        // Skip review step for positioned fields - the positioned signing step
-        // already shows the full PDF with field overlays and serves as review + sign
-        setStep("sign_positioned");
+        // Choose signature first, then positioned signing
+        setStep("choose_signature");
       } else {
         setStep("view_document");
       }
@@ -189,10 +189,11 @@ export default function SigningCeremonyPage() {
     }
   };
 
-  // Proceed to document view/signing after ERSD consent is accepted
+  // Proceed after ERSD consent: choose signature first for positioned flows
   const proceedAfterConsent = () => {
     if (request?.has_positioned_fields && fields.length > 0) {
-      setStep("sign_positioned");
+      // Go to signature selection step first, then positioned signing
+      setStep("choose_signature");
     } else {
       setStep("view_document");
     }
@@ -210,6 +211,13 @@ export default function SigningCeremonyPage() {
     } else {
       setStep("sign");
     }
+  };
+
+  const handleSignatureChosen = (_allComplete: boolean, signatureData?: string) => {
+    if (signatureData) {
+      setChosenSignature(signatureData);
+    }
+    setStep("sign_positioned");
   };
 
   const handleSignatureSubmitted = (completed: boolean) => {
@@ -274,6 +282,18 @@ export default function SigningCeremonyPage() {
           />
         );
 
+      case "choose_signature":
+        return (
+          <SignatureCaptureStep
+            token={token}
+            signerName={signer?.name || ""}
+            onComplete={handleSignatureChosen}
+            onBack={() => setStep("consent")}
+            embedded={true}
+            apiUrl={apiUrl}
+          />
+        );
+
       case "view_document":
         return (
           <SigningReviewStep
@@ -305,6 +325,7 @@ export default function SigningCeremonyPage() {
             onComplete={handleSignatureSubmitted}
             onDecline={handleDecline}
             apiUrl={apiUrl}
+            initialSignature={chosenSignature || undefined}
           />
         );
 

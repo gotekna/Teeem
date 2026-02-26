@@ -94,6 +94,8 @@ interface PositionedSigningStepProps {
   onDecline: (reason: string) => void;
   /** API base URL - passed from parent to ensure consistent URL across signing flow */
   apiUrl?: string;
+  /** Pre-drawn signature (base64) from the choose-signature step */
+  initialSignature?: string;
 }
 
 const FIELD_ICONS: Record<string, typeof PenLine> = {
@@ -115,6 +117,7 @@ export function PositionedSigningStep({
   onComplete,
   onDecline,
   apiUrl: apiUrlProp,
+  initialSignature,
 }: PositionedSigningStepProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -140,7 +143,7 @@ export function PositionedSigningStep({
   const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   // Refs to avoid stale closures in navigateToField callbacks
-  const savedSignatureRef = useRef<string | null>(null);
+  const savedSignatureRef = useRef<string | null>(initialSignature || null);
   const savedInitialsRef = useRef<string | null>(null);
 
   // Fields sorted in reading order for sequential navigation
@@ -247,20 +250,15 @@ export function PositionedSigningStep({
             }
           }, 400);
         } else if (field.field_type === "signature" || field.field_type === "initials") {
-          // Reuse saved signature if available, otherwise open capture dialog
-          setTimeout(() => {
-            if (!field.completed) {
-              const saved = field.field_type === "signature" ? savedSignatureRef.current : savedInitialsRef.current;
-              if (saved) {
-                // Already drew this signature type — apply it directly
-                completeField(field.id, saved);
-              } else {
-                // First time — open capture dialog (draw/type/upload)
-                setSelectedField(field);
-                setCaptureMode(field.field_type === "signature" ? "signature" : "initials");
-              }
-            }
-          }, 400);
+          // Just scroll to the field — user must click "Press to Sign" to apply
+          // If no saved signature exists yet, open the capture dialog
+          const saved = field.field_type === "signature" ? savedSignatureRef.current : savedInitialsRef.current;
+          if (!saved && !field.completed) {
+            setTimeout(() => {
+              setSelectedField(field);
+              setCaptureMode(field.field_type === "signature" ? "signature" : "initials");
+            }, 400);
+          }
         }
       }, 200);
     },
