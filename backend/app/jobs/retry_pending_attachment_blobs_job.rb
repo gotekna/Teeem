@@ -21,10 +21,16 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
   MAX_RUNTIME_SECONDS = 5 * 60 # 5 minutes
 
+  # Memory guard: stop processing if RSS exceeds this (MB)
+  # FRC (Feb 2026): This job downloads attachment files from MS Graph into memory.
+  # Even with 1 thread, sequential jobs accumulate RSS that Ruby doesn't release to OS.
+  MEMORY_ABORT_MB = 750
+
   def perform(batch_size: 50)
     @started_at = Time.current
     total_retried = 0
     total_errors = 0
+    @memory_exceeded = false
 
     # === Case 1: Orphaned metadata (WarehouseDocument exists, no blob) ===
     # FRC (Feb 2026): Exclude permanently_failed attachments (e.g. unsupported
@@ -60,6 +66,7 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
         email_ids.each do |email_id|
           break unless time_remaining?
+          break if memory_exceeded?
 
           email = SyncedEmail.find_by(id: email_id)
           next unless email
@@ -111,6 +118,7 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
           deferred_emails.each do |email|
             break unless time_remaining?
+            break if memory_exceeded?
 
             begin
               email.sync_attachments!
@@ -134,5 +142,32 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
   def time_remaining?
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
+  end
+
+  # Check memory every 5 calls (avoid overhead of reading /proc on every email)
+  def memory_exceeded?
+    return true if @memory_exceeded
+
+    @memory_check_counter = (@memory_check_counter || 0) + 1
+    return false unless @memory_check_counter % 5 == 0
+
+    GC.start
+    rss = current_rss_mb
+    if rss > MEMORY_ABORT_MB
+      Rails.logger.warn "[RetryPendingAttachmentBlobs] Memory high (#{rss}MB > #{MEMORY_ABORT_MB}MB), stopping"
+      @memory_exceeded = true
+    end
+    @memory_exceeded
+  end
+
+  def current_rss_mb
+    if File.exist?("/proc/self/status")
+      status = File.read("/proc/self/status")
+      match = status.match(/VmRSS:\s+(\d+)\s+kB/)
+      return match[1].to_i / 1024 if match
+    end
+    `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+  rescue StandardError
+    0
   end
 end

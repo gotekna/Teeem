@@ -424,19 +424,23 @@ email_storage_upload:
 # FRC (Feb 2026): Was a one-off backfill job, now recurring to handle new IMAP emails
 # FRC (Feb 2026): Moved to :low - blob backfill is background work, frees :default for sync
 # FRC (Feb 2026): Changed from every 5 min → every 10 min for memory staggering
+# FRC (Feb 2026): Reduced batch_size 100→25. On 1024MB shared worker with 1 thread,
+# IMAP fetch holds raw .eml content in memory. 100 emails could spike 200MB+.
 imap_email_storage_upload:
   class: BackfillImapEmailBlobsJob
   queue: low
-  args: [{ batch_size: 100 }]
+  args: [{ batch_size: 25 }]
   schedule: every 10 minutes
 
 # Retry pending attachment blob downloads (self-healing)
 # FRC (Feb 2026): Two-step sync creates metadata in step 1 but step 2 (blob download)
 # can fail silently. This job retries those orphaned attachments every 15 minutes.
+# FRC (Feb 2026): Reduced batch_size 20→10. Each attachment download holds binary
+# content in memory. With sequential jobs on 1024MB dyno, must limit per-job impact.
 retry_pending_attachment_blobs:
   class: RetryPendingAttachmentBlobsJob
   queue: default
-  args: [{ batch_size: 20 }]
+  args: [{ batch_size: 10 }]
   schedule: every 15 minutes
 
 # Note: BackfillEmailAttachmentBlobsJob removed (Jan 2026) - EmailAttachment table dropped

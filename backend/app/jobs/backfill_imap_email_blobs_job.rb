@@ -23,6 +23,11 @@ class BackfillImapEmailBlobsJob < ApplicationJob
   # Max runtime before yielding back to the scheduler
   MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
 
+  # Memory guard: stop processing if RSS exceeds this (MB)
+  # FRC (Feb 2026): IMAP fetch downloads raw .eml into memory via Tempfile.
+  # Ruby heap grows from the content and doesn't shrink between iterations.
+  MEMORY_ABORT_MB = 750
+
   def perform(batch_size: 100, credential_id: nil)
     @started_at = Time.current
     total_uploaded = 0
@@ -32,6 +37,7 @@ class BackfillImapEmailBlobsJob < ApplicationJob
     loop do
       batch_number += 1
       break unless time_remaining?
+      break if memory_exceeded?
 
       # Find IMAP emails without WarehouseDocument
       query = SyncedEmail.unscoped
@@ -67,6 +73,7 @@ class BackfillImapEmailBlobsJob < ApplicationJob
 
             cred_emails.each do |email|
               break unless time_remaining?
+              break if memory_exceeded?
 
               begin
                 tempfile = fetch_email_to_tempfile(service, email)
@@ -113,6 +120,32 @@ class BackfillImapEmailBlobsJob < ApplicationJob
 
   def time_remaining?
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
+  end
+
+  def memory_exceeded?
+    return true if @memory_exceeded
+
+    @memory_check_counter = (@memory_check_counter || 0) + 1
+    return false unless @memory_check_counter % 5 == 0
+
+    GC.start
+    rss = current_rss_mb
+    if rss > MEMORY_ABORT_MB
+      Rails.logger.warn "[ImapUpload] Memory high (#{rss}MB > #{MEMORY_ABORT_MB}MB), stopping"
+      @memory_exceeded = true
+    end
+    @memory_exceeded
+  end
+
+  def current_rss_mb
+    if File.exist?("/proc/self/status")
+      status = File.read("/proc/self/status")
+      match = status.match(/VmRSS:\s+(\d+)\s+kB/)
+      return match[1].to_i / 1024 if match
+    end
+    `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+  rescue StandardError
+    0
   end
 
   # Memory-safe: writes IMAP content directly to Tempfile instead of holding in heap.
