@@ -445,11 +445,20 @@ module Api
 
           job = @supplier.custom_quote_line.custom_quote.job
 
+          # Look up "Quote Returns" warehouse folder for filing
+          quote_returns_folder = WarehouseFolder
+            .joins(:warehouse_type)
+            .where(warehouse_types: { code: "job" })
+            .find_by(display_name: "Quote Returns")
+
           doc = WarehouseDocumentCreator.create!(
             filename: filename,
             source_type: "job",
             storage_blob: blob,
-            linkable: job
+            linkable: job,
+            warehouse_folder_id: quote_returns_folder&.id,
+            metadata: { supplier_name: @supplier.supplier&.name, supplier_id: @supplier.supplier_id },
+            user: current_user
           )
 
           @supplier.update!(warehouse_document: doc)

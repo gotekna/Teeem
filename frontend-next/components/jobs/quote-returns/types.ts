@@ -66,7 +66,7 @@ export interface ConfirmDetailsQuoted {
   validTo: string | null;
   responseNotes: string | null;
   timeframe: string | null;
-  documentUrl: string | null;
+  documentId: number | null;
 }
 
 export interface ConfirmDetails {

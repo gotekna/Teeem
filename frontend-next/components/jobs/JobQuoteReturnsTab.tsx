@@ -10,7 +10,7 @@ import {
   FileText,
   ClipboardCheck,
 } from "lucide-react";
-import { api, getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
