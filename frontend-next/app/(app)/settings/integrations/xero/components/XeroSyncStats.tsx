@@ -90,6 +90,7 @@ interface TenantRateLimits {
 interface TenantPdfSyncStats {
   total: number;
   synced: number;
+  bills_processed: number;
   pending: number;
   percentage: number;
   last_synced_at: string | null;
@@ -138,6 +139,7 @@ function mapPdfSyncResponse(data: any): { pdf_sync?: TenantPdfSyncStats; data_sy
   const pdf_sync: TenantPdfSyncStats | undefined = stage2 ? {
     total: stage2.total_to_sync ?? 0,
     synced: stage2.downloaded ?? 0,
+    bills_processed: stage2.bills_processed ?? 0,
     pending: stage2.pending ?? 0,
     percentage: stage2.progress_percentage ?? 0,
     last_synced_at: stage2.last_synced_at ?? null,
@@ -165,6 +167,7 @@ interface TotalsSummary {
   active: number;
   voided_deleted: number;
   synced: number;
+  bills_processed: number;
   pending: number;
 }
 
@@ -357,8 +360,13 @@ function TenantCard({ tenant, router, onOpenReviewSheet }: TenantCardProps) {
               className={`h-1.5 ${(tenant.pdf_sync?.percentage || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-blue-500"}`}
             />
             <div className="text-xs text-muted-foreground mt-1">
-              {(tenant.pdf_sync?.synced || 0).toLocaleString()} / {(tenant.pdf_sync?.total || tenant.documents.total).toLocaleString()}
+              {(tenant.pdf_sync?.synced || 0).toLocaleString()} PDFs / {(tenant.pdf_sync?.total || tenant.documents.total).toLocaleString()}
             </div>
+            {(tenant.pdf_sync?.bills_processed || 0) > 0 && (
+              <div className="text-[10px] text-muted-foreground">
+                + {(tenant.pdf_sync.bills_processed).toLocaleString()} bills (no PDF)
+              </div>
+            )}
           </div>
         )}
 
@@ -490,6 +498,7 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
               pdf_sync: {
                 total: pts.total ?? 0,
                 synced: pts.synced ?? 0,
+                bills_processed: pts.bills_processed ?? 0,
                 pending: pts.pending ?? 0,
                 percentage: pts.percentage ?? 0,
                 last_synced_at: null,
@@ -997,7 +1006,7 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                 {/* Total All */}
                 <div className="text-center p-3 bg-white dark:bg-background rounded border">
                   <div className="text-2xl font-bold">{(globalTotals?.total_all || 0).toLocaleString()}</div>
@@ -1013,12 +1022,18 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
                     </div>
                   )}
                 </div>
-                {/* Synced */}
+                {/* PDFs (actual files downloaded) */}
                 <div className="text-center p-3 bg-white dark:bg-background rounded border">
                   <div className="text-2xl font-bold text-green-600">{(globalTotals?.synced || 0).toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">Synced</div>
+                  <div className="text-xs text-muted-foreground">PDFs</div>
                   <Progress value={syncPct} className="h-1 mt-1 [&>div]:bg-green-500" />
                   <div className="text-[10px] text-muted-foreground mt-1">{syncPct}%</div>
+                </div>
+                {/* Bills (processed, no PDF available) */}
+                <div className="text-center p-3 bg-white dark:bg-background rounded border">
+                  <div className="text-2xl font-bold text-slate-500 dark:text-slate-400">{(globalTotals?.bills_processed || 0).toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Bills</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">(no PDF)</div>
                 </div>
                 {/* Pending */}
                 <div className="text-center p-3 bg-white dark:bg-background rounded border">
@@ -1197,8 +1212,13 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
                         className={`h-1.5 mt-1 ${(tenant.pdf_sync?.percentage || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-blue-500"}`}
                       />
                       <div className="text-xs text-muted-foreground mt-1">
-                        {(tenant.pdf_sync?.synced || 0).toLocaleString()} / {(tenant.pdf_sync?.total || tenant.documents.total).toLocaleString()}
+                        {(tenant.pdf_sync?.synced || 0).toLocaleString()} PDFs / {(tenant.pdf_sync?.total || tenant.documents.total).toLocaleString()}
                       </div>
+                      {(tenant.pdf_sync?.bills_processed || 0) > 0 && (
+                        <div className="text-[10px] text-muted-foreground">
+                          + {(tenant.pdf_sync!.bills_processed).toLocaleString()} bills (no PDF)
+                        </div>
+                      )}
                       {/* Stage 2 Timing */}
                       {tenant.pdf_sync && (
                         <div className="flex justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">

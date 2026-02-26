@@ -1894,6 +1894,7 @@ module Api
               tenant_name: cred.tenant_name,
               total: tenant_remaining[:total],
               synced: tenant_remaining[:synced],
+              bills_processed: tenant_remaining[:bills_processed] || 0,
               pending: tenant_remaining[:pending],
               percentage: tenant_remaining[:percentage],
               status: status_info[:status],
@@ -1993,11 +1994,13 @@ module Api
               },
 
               # Totals Summary (including voided/deleted for full picture)
+              # synced = actual PDFs only, bills_processed = bills with no PDF available
               totals_summary: {
                 total_all: total_all_invoices,
                 active: total_invoices_in_db,
                 voided_deleted: voided_deleted_count,
                 synced: invoices_with_pdfs,
+                bills_processed: per_tenant_status.sum { |t| t[:bills_processed] || 0 },
                 pending: pdfs_pending
               },
 
@@ -3732,8 +3735,9 @@ module Api
       # PER-TENANT STATUS HELPERS (Feb 2026: Ultra Transparency)
       # ============================================
 
-      # Batch-count remaining PDFs for ALL Xero tenants in 2 queries (not N*2)
-      # Returns: { xero_org_id => { total:, synced:, pending:, percentage: }, ... }
+      # Batch-count remaining PDFs for ALL Xero tenants in 3 queries (not N*3)
+      # Returns: { xero_org_id => { total:, synced:, bills_processed:, pending:, percentage: }, ... }
+      # synced = actual PDFs with blobs, bills_processed = bill records with no PDF
       def batch_count_remaining(xero_org_ids)
         return {} if xero_org_ids.empty?
 
@@ -3744,8 +3748,8 @@ module Api
           .group(:xero_org_id)
           .count
 
-        # Query 2: Synced invoices per org (with valid PDF or bill record marker)
-        synced_counts = WarehouseDocument
+        # Query 2: Actual PDFs synced per org (with valid blob + content hash)
+        pdf_counts = WarehouseDocument
           .where(source_type: "xero")
           .where(documentable_type: "ExternalInvoice")
           .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
@@ -3753,26 +3757,39 @@ module Api
           .where.not(external_invoices: { status: "draft" })
           .where.not(external_invoices: { status: %w[voided deleted] })
           .where(<<~SQL.squish)
-            (warehouse_documents.metadata->>'is_bill_record' = 'true')
-            OR
-            (warehouse_documents.metadata->>'is_primary' = 'true'
-             AND warehouse_documents.storage_blob_id IS NOT NULL
-             AND EXISTS (
-               SELECT 1 FROM storage_blobs
-               WHERE storage_blobs.id = warehouse_documents.storage_blob_id
-               AND storage_blobs.content_hash IS NOT NULL
-             ))
+            warehouse_documents.metadata->>'is_primary' = 'true'
+            AND warehouse_documents.storage_blob_id IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM storage_blobs
+              WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+              AND storage_blobs.content_hash IS NOT NULL
+            )
           SQL
+          .group("external_invoices.xero_org_id")
+          .distinct.count(:documentable_id)
+
+        # Query 3: Bill records per org (processed but no PDF - is_bill_record=true without blob)
+        bill_counts = WarehouseDocument
+          .where(source_type: "xero")
+          .where(documentable_type: "ExternalInvoice")
+          .where("warehouse_documents.metadata->>'is_bill_record' = 'true'")
+          .where(storage_blob_id: nil)
+          .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+          .where(external_invoices: { xero_org_id: xero_org_ids })
+          .where.not(external_invoices: { status: "draft" })
+          .where.not(external_invoices: { status: %w[voided deleted] })
           .group("external_invoices.xero_org_id")
           .distinct.count(:documentable_id)
 
         # Build result hash for all org_ids
         xero_org_ids.each_with_object({}) do |org_id, hash|
           total = totals[org_id] || 0
-          synced = synced_counts[org_id] || 0
-          pending = [total - synced, 0].max
-          percentage = total > 0 ? ((synced.to_f / total) * 100).round(1) : 100.0
-          hash[org_id] = { total: total, synced: synced, pending: pending, percentage: percentage }
+          synced = pdf_counts[org_id] || 0
+          bills = bill_counts[org_id] || 0
+          pending = [total - synced - bills, 0].max
+          processed = synced + bills
+          percentage = total > 0 ? ((processed.to_f / total) * 100).round(1) : 100.0
+          hash[org_id] = { total: total, synced: synced, bills_processed: bills, pending: pending, percentage: percentage }
         end
       end
 
@@ -3790,8 +3807,7 @@ module Api
           .where.not(status: "draft")
           .count
 
-        # Count invoices WITH synced PDFs OR bill record markers
-        # SSoT: Bills don't get auto-generated PDFs, so is_bill_record = "processed"
+        # Count invoices WITH actual synced PDFs (blob with content hash)
         synced = WarehouseDocument
           .where(source_type: "xero")
           .where(documentable_type: "ExternalInvoice")
@@ -3800,22 +3816,33 @@ module Api
           .where.not(external_invoices: { status: "draft" })
           .where.not(external_invoices: { status: %w[voided deleted] })
           .where(<<~SQL.squish)
-            (warehouse_documents.metadata->>'is_bill_record' = 'true')
-            OR
-            (warehouse_documents.metadata->>'is_primary' = 'true'
-             AND warehouse_documents.storage_blob_id IS NOT NULL
-             AND EXISTS (
-               SELECT 1 FROM storage_blobs
-               WHERE storage_blobs.id = warehouse_documents.storage_blob_id
-               AND storage_blobs.content_hash IS NOT NULL
-             ))
+            warehouse_documents.metadata->>'is_primary' = 'true'
+            AND warehouse_documents.storage_blob_id IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM storage_blobs
+              WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+              AND storage_blobs.content_hash IS NOT NULL
+            )
           SQL
           .distinct.count(:documentable_id)
 
-        pending = [total - synced, 0].max
-        percentage = total > 0 ? ((synced.to_f / total) * 100).round(1) : 100.0
+        # Count bill records (processed but no PDF available - is_bill_record=true without blob)
+        bills_processed = WarehouseDocument
+          .where(source_type: "xero")
+          .where(documentable_type: "ExternalInvoice")
+          .where("warehouse_documents.metadata->>'is_bill_record' = 'true'")
+          .where(storage_blob_id: nil)
+          .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+          .where(external_invoices: { xero_org_id: xero_tenant_id })
+          .where.not(external_invoices: { status: "draft" })
+          .where.not(external_invoices: { status: %w[voided deleted] })
+          .distinct.count(:documentable_id)
 
-        { total: total, synced: synced, pending: pending, percentage: percentage }
+        pending = [total - synced - bills_processed, 0].max
+        processed = synced + bills_processed
+        percentage = total > 0 ? ((processed.to_f / total) * 100).round(1) : 100.0
+
+        { total: total, synced: synced, bills_processed: bills_processed, pending: pending, percentage: percentage }
       end
 
       # Determine status and reason for a specific tenant

@@ -57,7 +57,7 @@ interface QueueStatusData {
       recent_restarts: number;
     };
   };
-  backlog: Array<{ key: string; label: string; remaining: number }>;
+  backlog: Array<{ key: string; label: string; remaining: number; bills_processed?: number }>;
   dbConnections: { active: number; max: number } | null;
   memory: { usedMb: number; maxMb: number } | null;
   uptime: {
@@ -420,7 +420,7 @@ export function WorkerQueueStatus() {
   const hasQueueDepth =
     data?.queueDepth && data.queueDepth.some((q) => q.count > 0);
 
-  const hasBacklog = data?.backlog && data.backlog.some((b) => b.remaining > 0);
+  const hasBacklog = data?.backlog && data.backlog.some((b) => b.remaining > 0 || (b.bills_processed ?? 0) > 0);
 
   // Worker dead banner - portal to body so it renders above everything
   const showBanner = status === "error" && !bannerDismissed;
@@ -517,12 +517,13 @@ export function WorkerQueueStatus() {
               </p>
               {hasBacklog ? (
                 <div className="space-y-2.5">
-                  {data.backlog.filter((b) => b.remaining > 0).map((item) => {
+                  {data.backlog.filter((b) => b.remaining > 0 || (b.bills_processed ?? 0) > 0).map((item) => {
                     const Icon = BACKLOG_ICONS[item.key] || FileText;
                     const eta = formatEta(item.remaining, data.completedPerMin);
                     const hourly = getHourlyProgress(item.key);
                     const processedText = formatProcessed(hourly.processed);
                     const systemStuck = data.trend === "stuck";
+                    const hasBills = (item.bills_processed ?? 0) > 0;
                     return (
                       <div key={item.key}>
                         <div className="flex justify-between text-xs items-center">
@@ -531,9 +532,14 @@ export function WorkerQueueStatus() {
                             {item.label}
                           </span>
                           <span className="shrink-0 ml-2 text-muted-foreground tabular-nums">
-                            {(item.remaining ?? 0).toLocaleString()} left
+                            {item.remaining > 0 ? `${(item.remaining).toLocaleString()} left` : hasBills ? "done" : "0 left"}
                           </span>
                         </div>
+                        {hasBills && (
+                          <div className="text-[10px] text-muted-foreground ml-5">
+                            {(item.bills_processed!).toLocaleString()} bills (no PDF)
+                          </div>
+                        )}
                         <div className="mt-1 flex items-center gap-2">
                           <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                             <div

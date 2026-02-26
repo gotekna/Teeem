@@ -96,17 +96,22 @@ class XeroAttachmentSyncJob < ApplicationJob
   SAFE_MINUTE_LIMIT = 55
   SAFE_DAILY_LIMIT = 4800
 
-  # FRC (Feb 2026): Reduced from 4 to 2 for memory safety.
-  # Each concurrent download creates a Tempfile + S3 upload stream.
-  # With 4 threads × multipart chunk buffers, memory spikes on the 1024MB dyno.
-  # 2 threads still gives good throughput for IO-bound work while keeping
-  # peak memory ~535MB (489MB headroom). 3 remaining Xero slots for webhooks/other.
-  CONCURRENT_DOWNLOADS = 2
+  # ⚠️ DO NOT ADD THREADING BACK (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════════════
+  # Why: Threads provide minimal throughput gain because Xero rate limit
+  # (60/min) is the bottleneck, not download parallelism. But threads add:
+  #   - ~1MB stack per thread
+  #   - Closures holding invoice object references (prevents GC)
+  #   - Connection pool overhead per thread
+  #   - Cumulative: over 9 min runtime = ~260MB extra memory → R14
+  # Sequential processing is ~5% slower but uses ~40% less memory.
+  # ════════════════════════════════════════════════════════════════════════════
+  BATCH_SIZE = 10  # Small batches to keep invoices_array footprint low
 
   # Memory threshold (MB) — if RSS exceeds this, force GC before next batch
-  MEMORY_WARNING_MB = 800
+  MEMORY_WARNING_MB = 700
   # Hard abort threshold — if RSS exceeds this after GC, stop processing
-  MEMORY_ABORT_MB = 900
+  MEMORY_ABORT_MB = 800
 
   # Per-tenant lock TTL (must exceed MAX_RUNTIME to prevent overlap)
   TENANT_LOCK_TTL = 12.minutes
@@ -179,7 +184,7 @@ class XeroAttachmentSyncJob < ApplicationJob
       # ⚠️ DO NOT REMOVE STAGGER - All orgs hitting Xero at once = all rate limited at once (Feb 2026)
       # 30 second gap between each tenant's job start = spread load across the minute
       stagger_delay = (scheduled_count * 30).seconds
-      XeroAttachmentSyncJob.set(wait: stagger_delay).perform_later(nil, tenant_id: tenant_id, limit: options[:limit] || 50)
+      XeroAttachmentSyncJob.set(wait: stagger_delay).perform_later(nil, tenant_id: tenant_id, limit: options[:limit] || BATCH_SIZE)
       scheduled_count += 1
       Rails.logger.info("[XeroAttachmentSync] Scheduled job for #{credential.tenant_name} in #{stagger_delay.to_i}s (#{remaining} remaining)")
     end
@@ -365,7 +370,7 @@ class XeroAttachmentSyncJob < ApplicationJob
     max_by_minute = (minute_remaining / api_calls_per_pdf).clamp(0, SAFE_MINUTE_LIMIT)
     max_by_daily = (daily_remaining / api_calls_per_pdf).clamp(0, 500)
 
-    limit = [max_by_minute, max_by_daily, options[:limit] || 50].min
+    limit = [max_by_minute, max_by_daily, options[:limit] || BATCH_SIZE].min
 
     if limit <= 0
       return { processed: 0, success: 0, failed: 0, skipped_rate_limit: true }
@@ -396,76 +401,71 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     results = { processed: 0, success: 0, failed: 0, errors: [] }
 
-    # FRC (Feb 2026): Process PDFs concurrently using threads.
-    # Xero allows 5 concurrent API calls per org — we use CONCURRENT_DOWNLOADS (4).
-    # Ruby threads are ideal for IO-bound work (HTTP calls to Xero API).
-    # Each thread gets its own DB connection via connection_pool.with_connection.
-    # Source: https://developer.xero.com/faq/limits
-    invoices_array.each_slice(CONCURRENT_DOWNLOADS) do |batch|
+    # ⚠️ MEMORY-SAFE (Feb 2026): Sequential processing with shared resources.
+    # Rate limit (60/min) is the bottleneck, not download speed.
+    # Threading added ~260MB overhead over 9 min (stacks, closures, connection pool)
+    # which pushed the 1024MB dyno past R14. Sequential uses ~40% less memory.
+    shared = build_shared_resources(tenant_id)
+
+    invoices_array.each do |invoice|
       break if should_pause_for_rate_limit?(tenant_id)
 
-      # Spawn threads for concurrent downloads
-      threads = batch.map do |invoice|
-        Thread.new(invoice) do |inv|
-          ActiveRecord::Base.connection_pool.with_connection do
-            begin
-              service = XeroAttachmentSyncService.new(inv)
-              result = service.sync!
-              { invoice_id: inv.id, result: result, error: nil }
-            rescue XeroApiClient::RateLimitError => e
-              { invoice_id: inv.id, result: nil, error: e, rate_limited: true }
-            rescue StandardError => e
-              Rails.logger.error("[XeroAttachmentSync] Invoice #{inv.id} failed: #{e.message}")
-              { invoice_id: inv.id, result: nil, error: e }
-            end
-          end
-        end
-      end
-
-      # Wait for all threads in this batch to complete
-      thread_results = threads.map(&:value)
-
-      # Collect results (back on main thread — no concurrency issues)
-      thread_results.each do |tr|
+      begin
+        service = XeroAttachmentSyncService.new(invoice, shared_resources: shared)
+        result = service.sync!
         results[:processed] += 1
 
-        if tr[:rate_limited]
-          # Re-raise so sync_tenant records the lockout and stops
-          raise tr[:error]
-        elsif tr[:error]
+        if result[:errors].any?
           results[:failed] += 1
-          results[:errors] << { invoice_id: tr[:invoice_id], errors: [tr[:error].message] }
-          # FRC (Feb 2026): Put failed invoices on cooldown so they don't block the queue.
-          # Without this, the same timing-out invoices sit at the front of the queue
-          # (ordered by id ASC) and prevent newer invoices from being processed.
-          add_to_cooldown!(tenant_id, tr[:invoice_id])
-        elsif tr[:result][:errors].any?
-          results[:failed] += 1
-          results[:errors] << { invoice_id: tr[:invoice_id], errors: tr[:result][:errors] }
-          add_to_cooldown!(tenant_id, tr[:invoice_id])
+          results[:errors] << { invoice_id: invoice.id, errors: result[:errors] }
+          add_to_cooldown!(tenant_id, invoice.id)
         else
           results[:success] += 1
-          clear_cooldown!(tenant_id, tr[:invoice_id])
+          clear_cooldown!(tenant_id, invoice.id)
         end
+      rescue XeroApiClient::RateLimitError => e
+        results[:processed] += 1
+        raise e  # Re-raise so sync_tenant records the lockout
+      rescue StandardError => e
+        results[:processed] += 1
+        results[:failed] += 1
+        results[:errors] << { invoice_id: invoice.id, errors: [e.message] }
+        Rails.logger.error("[XeroAttachmentSync] Invoice #{invoice.id} failed: #{e.message}")
+        add_to_cooldown!(tenant_id, invoice.id)
       end
 
-      # ⚠️ MEMORY-SAFE (Feb 2026): Nil out references and GC between thread batches.
-      # Without this, completed thread objects and their closures (holding Tempfile refs,
-      # service instances, API response data) accumulate across all 13+ batches.
-      # GC.start is ~10-50ms — negligible compared to 0.3s sleep below.
-      threads = nil
-      thread_results = nil
+      # GC after every invoice to prevent memory creep over 9 min runtime.
+      # GC.start is ~10-50ms — negligible vs rate limit pauses.
+      GC.start if results[:processed] % 5 == 0
 
-      # Brief pause between batches to avoid burst-hammering Xero
+      # Brief pause to avoid burst-hammering Xero
       sleep(0.3)
-
-      # Periodic GC every 3 batches to prevent memory creep
-      if results[:processed] > 0 && results[:processed] % (CONCURRENT_DOWNLOADS * 3) == 0
-        GC.start
-      end
     end
 
+    # Release batch references for GC
+    invoices_array = nil
+    shared = nil
+
     results
+  end
+
+  # Build shared resources once per tenant batch — reused across all invoices.
+  # Saves ~10 AR queries per invoice × 50 invoices = 500 queries per batch.
+  def build_shared_resources(xero_tenant_id)
+    credential = XeroCredential.find_by(tenant_id: xero_tenant_id)
+    tenant = credential ? Tenant.find_by(id: credential.teeem_tenant_id) : nil
+    organization = tenant&.organizations&.where(is_active: true)&.first
+    storage_config = tenant ? WarehouseProvider.for_tenant(tenant) : nil
+
+    {
+      xero_client: XeroApiClient.new,
+      tenant: tenant,
+      xero_tenant_id: xero_tenant_id,
+      xero_credential: credential,
+      xero_tenant_name: credential&.tenant_name,
+      organization: organization,
+      storage_config: storage_config
+    }
   end
 
   # ════════════════════════════════════════════════════════════════════════════

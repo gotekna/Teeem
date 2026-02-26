@@ -543,7 +543,7 @@ Rails.application.routes.draw do
 
       # Company Documents (corporate company document counts)
       # SSoT: WarehouseDocument is THE ONE table for document metadata (Jan 2026)
-      resources :company_documents, only: [:index] do
+      resources :company_documents, only: [:index, :destroy] do
         collection do
           get :counts
         end
@@ -890,6 +890,7 @@ Rails.application.routes.draw do
         post ":token/view", to: "signing_ceremony#mark_viewed"
         post ":token/send_verification", to: "signing_ceremony#send_verification_code"
         post ":token/verify", to: "signing_ceremony#verify_code"
+        post ":token/accept_ersd", to: "signing_ceremony#accept_ersd"
         post ":token/sign", to: "signing_ceremony#sign"
         post ":token/decline", to: "signing_ceremony#decline"
         get ":token/document", to: "signing_ceremony#download_document"

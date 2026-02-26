@@ -113,44 +113,50 @@ class DirectorChangeService
   # Called when e-signature completes - updates director records
   def complete_signing!(e_signature_request)
     ActiveRecord::Base.transaction do
-      # Set resignation_date on ceasing directors
+      # Set resignation_date on ALL CorporateDirector records for each ceasing person.
+      # Each cd_data[:corporate_director] is ONE record, but the person may hold multiple
+      # positions (director, secretary, public_officer) as separate CorporateDirector rows.
+      # We must resign ALL position records listed in cd_data[:positions].
       ceasing_directors.each do |cd_data|
-        director = cd_data[:corporate_director]
-        director.update!(
-          resignation_date: cd_data[:cessation_date],
-          is_current: false
-        )
-
-        log_activity(
-          "director_resigned",
-          "#{director.contact.display_name} resigned as #{cd_data[:positions].join(', ')}"
-        )
+        contact = cd_data[:corporate_director].contact
+        cd_data[:positions].each do |position|
+          record = company.corporate_directors.find_by(
+            contact: contact,
+            position: position,
+            is_current: true
+          )
+          if record
+            record.update!(resignation_date: cd_data[:cessation_date], is_current: false)
+          else
+            Rails.logger.warn "[DirectorChange] No current #{position} record found for #{contact.display_name} on #{company.name}"
+          end
+        end
       end
 
-      # Create new CorporateDirector records for appointments.
-      # DB unique constraint (company_id, contact_id) WHERE is_current = true
-      # means ONE record per contact with combined position string.
+      # Create one CorporateDirector record PER POSITION per contact.
+      # e.g., ["director", "secretary", "public_officer"] → 3 separate records.
+      # Note: CorporateDirector model callbacks handle activity logging automatically
       new_appointments.each do |appt_data|
         contact = appt_data[:contact]
-        combined_position = appt_data[:positions].join("_")
 
-        company.corporate_directors.create!(
-          contact: contact,
-          position: combined_position,
-          appointment_date: appt_data[:appointment_date],
-          is_current: true
-        )
-
-        log_activity(
-          "director_appointed",
-          "#{contact.display_name} appointed as #{appt_data[:positions].join(', ')}"
-        )
+        appt_data[:positions].each do |position|
+          company.corporate_directors.create!(
+            contact: contact,
+            position: position,
+            appointment_date: appt_data[:appointment_date],
+            is_current: true
+          )
+        end
       end
 
-      # Store signed PDF as WarehouseDocument
-      if e_signature_request.signed_storage_reference.present?
-        store_signed_document(e_signature_request)
-      end
+      # Store signed PDF as WarehouseDocument.
+      # Fail fast: require the signed (stamped) blob - no fallback to original.
+      # If store_signed_document! failed in ESignatureRequest#complete!, that
+      # error should have been visible and fixed before reaching this point.
+      storage_ref = e_signature_request.signed_storage_reference
+      raise "Signed document not available for #{e_signature_request.request_number}. " \
+            "store_signed_document! in ESignatureRequest#complete! may have failed." unless storage_ref.present?
+      store_signed_document(e_signature_request, storage_ref)
     end
   end
 
@@ -569,8 +575,26 @@ class DirectorChangeService
   # Legacy alias for external references (BPMN task etc.)
   BADGE_POSITION = BADGE_POSITIONS[:resignation].freeze
 
-  def store_signed_document(e_signature_request)
-    signed_blob = StorageBlob.find_by(id: e_signature_request.signed_storage_reference)
+  # Split the signed combined PDF into individual documents and store each separately.
+  #
+  # The combined PDF is generated in deterministic order (same as generate_all_documents):
+  #   1. Minutes (1 page)
+  #   2. Resignations (1 page per position per ceasing director)
+  #   3. Consents (1 page per position per new appointment)
+  #   4. Form 484 Cessation (1+ pages)
+  #   5. Form 484 Appointment (1+ pages)
+  #   6. Certificate of Completion (last page, added by ESignaturePdfStamper)
+  #
+  # Each document gets its own StorageBlob so it opens as a standalone PDF in the UI.
+  def store_signed_document(e_signature_request, storage_ref = nil)
+    storage_ref ||= e_signature_request.signed_storage_reference
+    signed_blob = StorageBlob.find_by(id: storage_ref)
+    raise "[DirectorChange] Signed blob not found for ref #{storage_ref}" unless signed_blob
+
+    signed_content = signed_blob.download
+    signed_pdf = HexaPDF::Document.new(io: StringIO.new(signed_content))
+    total_pages = signed_pdf.pages.count
+
     asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
     base_metadata = {
       form_type: "form_484",
@@ -578,46 +602,112 @@ class DirectorChangeService
       signed_at: e_signature_request.completed_at
     }
 
-    # One warehouse document per position-specific doc type
-    minutes_name = resolve_doc_name("DM", "Minutes of Meeting of Directors")
-    store_one(signed_blob, asic_folder, "DM", minutes_name, base_metadata)
+    # Build page assignments in deterministic document order.
+    # Each template-generated document is 1 page (same assumption as build_page_signer_map).
+    # Certificate of Completion is always the last page.
+    page_assignments = []
+    current_page = 1
 
+    # 1. Minutes
+    minutes_name = resolve_doc_name("DM", "Minutes of Meeting of Directors")
+    page_assignments << { pages: [current_page], abbr: "DM", name: minutes_name, metadata: base_metadata }
+    current_page += 1
+
+    # 2. Resignations (1 page per position per ceasing director)
+    # Must iterate ALL positions (matching generate_all_documents), not just RESIGNATION_DOC_TYPES keys.
     ceasing_directors.each do |cd|
       person_name = cd[:corporate_director].contact.display_name
       date_str = cd[:cessation_date].strftime("%d/%m/%Y")
-      cd[:positions].select { |p| RESIGNATION_DOC_TYPES.key?(p) }.each do |pos|
-        abbr = RESIGNATION_DOC_TYPES[pos]
+      cd[:positions].each do |pos|
+        abbr = RESIGNATION_DOC_TYPES[pos] || "RD"
         doc_name = resolve_doc_name(abbr, "Resignation #{pos.tr('_', ' ').split.map(&:capitalize).join(' ')}")
-        store_one(signed_blob, asic_folder, abbr, "#{doc_name} - #{person_name} #{date_str}",
-          base_metadata.merge(person: person_name, position: pos, date: cd[:cessation_date].iso8601))
+        page_assignments << {
+          pages: [current_page], abbr: abbr,
+          name: "#{doc_name} - #{person_name} #{date_str}",
+          metadata: base_metadata.merge(person_name: person_name, position: pos, date: cd[:cessation_date].iso8601)
+        }
+        current_page += 1
       end
     end
 
+    # 3. Consents (1 page per position per new appointment)
+    # Must iterate ALL positions (matching generate_all_documents), not just CONSENT_DOC_TYPES keys.
     new_appointments.each do |appt|
       person_name = appt[:contact].display_name
       date_str = appt[:appointment_date].strftime("%d/%m/%Y")
-      appt[:positions].select { |p| CONSENT_DOC_TYPES.key?(p) }.each do |pos|
-        abbr = CONSENT_DOC_TYPES[pos]
+      appt[:positions].each do |pos|
+        abbr = CONSENT_DOC_TYPES[pos] || "CAD"
         doc_name = resolve_doc_name(abbr, "Consent to Act as #{pos.tr('_', ' ').split.map(&:capitalize).join(' ')}")
-        store_one(signed_blob, asic_folder, abbr, "#{doc_name} - #{person_name} #{date_str}",
-          base_metadata.merge(person: person_name, position: pos, date: appt[:appointment_date].iso8601))
+        page_assignments << {
+          pages: [current_page], abbr: abbr,
+          name: "#{doc_name} - #{person_name} #{date_str}",
+          metadata: base_metadata.merge(person_name: person_name, position: pos, date: appt[:appointment_date].iso8601)
+        }
+        current_page += 1
       end
     end
 
-    # Store separate Form 484 records for cessation and appointment
+    # 4. Form 484 pages (remaining pages before certificate)
+    last_content_page = total_pages - 1  # certificate is always the last page
+    remaining_pages = (current_page..last_content_page).to_a
+
     f484_name = resolve_doc_name("F484", "Form 484")
-    if ceasing_directors.any?
-      store_one(signed_blob, asic_folder, "F484", "#{f484_name} - Cessation", base_metadata.merge(form_subtype: "cessation"))
+    # Build person_name for F484 metadata: join all relevant names with " & "
+    # so WFDT template {PersonName} resolves (e.g., "Rachel Harder & Robert Harder")
+    ceasing_names = ceasing_directors.map { |cd| cd[:corporate_director].contact.display_name }.uniq.join(" & ")
+    appointment_names = new_appointments.map { |appt| appt[:contact].display_name }.uniq.join(" & ")
+
+    if ceasing_directors.any? && new_appointments.any? && remaining_pages.size >= 2
+      midpoint = remaining_pages.size / 2
+      page_assignments << { pages: remaining_pages[0...midpoint], abbr: "F484", name: "#{f484_name} - Cessation", metadata: base_metadata.merge(form_subtype: "cessation", person_name: ceasing_names) }
+      page_assignments << { pages: remaining_pages[midpoint..], abbr: "F484", name: "#{f484_name} - Appointment", metadata: base_metadata.merge(form_subtype: "appointment", person_name: appointment_names) }
+    elsif ceasing_directors.any? && remaining_pages.any?
+      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} - Cessation", metadata: base_metadata.merge(form_subtype: "cessation", person_name: ceasing_names) }
+    elsif new_appointments.any? && remaining_pages.any?
+      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} - Appointment", metadata: base_metadata.merge(form_subtype: "appointment", person_name: appointment_names) }
     end
-    if new_appointments.any?
-      store_one(signed_blob, asic_folder, "F484", "#{f484_name} - Appointment", base_metadata.merge(form_subtype: "appointment"))
+
+    # Certificate of Completion is always the last page of the signed PDF.
+    # Append it to every individual document so each is self-contained
+    # and legally verifiable when submitted to ASIC or regulators.
+    certificate_page = total_pages
+
+    # Extract each document's pages into a separate PDF and store individually
+    page_assignments.each do |assignment|
+      individual_content = extract_pages(signed_pdf, assignment[:pages] + [certificate_page])
+      individual_blob = StorageBlob.find_or_create_for_content!(
+        individual_content,
+        filename: "#{assignment[:name]}.pdf",
+        content_type: "application/pdf"
+      )
+      store_one(individual_blob, asic_folder, assignment[:abbr], assignment[:name], assignment[:metadata])
     end
+  end
+
+  # Extract specific pages from a parsed HexaPDF document into a new PDF binary string.
+  # Page numbers are 1-indexed (matching PDF convention).
+  def extract_pages(source_doc, page_numbers)
+    new_doc = HexaPDF::Document.new
+    page_numbers.each do |page_num|
+      source_page = source_doc.pages[page_num - 1]
+      next unless source_page
+      new_doc.pages << new_doc.import(source_page)
+    end
+    output = StringIO.new
+    new_doc.write(output)
+    output.string
   end
 
   def store_one(blob, asic_folder, abbreviation, fallback_name, metadata)
     wfdt = asic_folder && WarehouseFolderDocumentType
       .joins(:document_type)
       .find_by(warehouse_folder: asic_folder, document_types: { abbreviation: abbreviation })
+
+    # Auto-validate: TEEEM-generated documents are pre-validated by the platform
+    metadata = metadata.merge(
+      "user_validated_at" => Time.current.iso8601,
+      "user_validated_by_name" => "TEEEM Platform"
+    )
 
     # Pass specific WFDT so materialize_ui_name uses the correct template.
     # fallback_name used as original_filename if no template resolves.

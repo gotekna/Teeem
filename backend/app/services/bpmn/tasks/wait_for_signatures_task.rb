@@ -45,23 +45,30 @@ module Bpmn
 
       private
 
+      # ⚠️ NO FALLBACKS - Fail fast (2026-02-27)
+      # ════════════════════════════════════════════════════════════════
+      # Why: "Most recent request" fallback silently grabbed wrong requests
+      #      when multiple director changes existed on same Corporate.
+      #      Bugs stayed hidden until client reported wrong documents.
+      # ❌ WRONG: @subject.e_signature_requests.order(:desc).first
+      # ✅ CORRECT: Require explicit variable or config, fail if missing
+      # ════════════════════════════════════════════════════════════════
       def find_request
-        # Try from variable first
+        # Try from variable (set by CreateDirectorChangeEsignTask or CreateESignRequestTask)
         if @config["request_variable"].present?
           request_info = @variables[@config["request_variable"]]
-          return ESignatureRequest.find_by(id: request_info["request_id"]) if request_info
+          if request_info.is_a?(Hash) && request_info["request_id"].present?
+            return ESignatureRequest.find_by(id: request_info["request_id"])
+          end
+          log_info("request_variable '#{@config["request_variable"]}' is missing or invalid: #{request_info.inspect}")
         end
 
-        # Try direct ID
+        # Try direct ID from node config
         if @config["request_id"].present?
           return ESignatureRequest.find_by(id: @config["request_id"])
         end
 
-        # Try from subject's most recent e-sign request
-        if @subject.respond_to?(:e_signature_requests)
-          return @subject.e_signature_requests.order(created_at: :desc).first
-        end
-
+        log_info("No request_variable or request_id configured - cannot find e-signature request")
         nil
       end
 

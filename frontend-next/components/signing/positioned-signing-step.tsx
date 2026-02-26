@@ -94,6 +94,8 @@ interface PositionedSigningStepProps {
   onDecline: (reason: string) => void;
   /** API base URL - passed from parent to ensure consistent URL across signing flow */
   apiUrl?: string;
+  /** Pre-drawn signature (base64) from the choose-signature step */
+  initialSignature?: string;
 }
 
 const FIELD_ICONS: Record<string, typeof PenLine> = {
@@ -115,6 +117,7 @@ export function PositionedSigningStep({
   onComplete,
   onDecline,
   apiUrl: apiUrlProp,
+  initialSignature,
 }: PositionedSigningStepProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -140,7 +143,7 @@ export function PositionedSigningStep({
   const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   // Refs to avoid stale closures in navigateToField callbacks
-  const savedSignatureRef = useRef<string | null>(null);
+  const savedSignatureRef = useRef<string | null>(initialSignature || null);
   const savedInitialsRef = useRef<string | null>(null);
 
   // Fields sorted in reading order for sequential navigation
@@ -153,9 +156,14 @@ export function PositionedSigningStep({
   // Uses functional setState to prevent re-renders when value hasn't changed.
   const calculateFitScale = useCallback(() => {
     const container = pdfContainerRef.current;
+    const scrollContainer = scrollContainerRef.current;
     if (!container || !pdfDimensions) return;
     const containerWidth = container.clientWidth - 32; // 16px padding each side
-    const fitScale = containerWidth / pdfDimensions.width;
+    const fitWidthScale = containerWidth / pdfDimensions.width;
+    // Also consider height so the entire page fits on screen (fit-to-page)
+    const viewportHeight = (scrollContainer?.clientHeight || container.clientHeight) - 32;
+    const fitHeightScale = viewportHeight / pdfDimensions.height;
+    const fitScale = Math.min(fitWidthScale, fitHeightScale);
     // Clamp between 0.4 and 2.0, round to avoid floating-point drift
     const clamped = Math.round(Math.min(2.0, Math.max(0.4, fitScale)) * 1000) / 1000;
     setAutoFitScale(prev => prev === clamped ? prev : clamped);
@@ -213,23 +221,23 @@ export function PositionedSigningStep({
     container.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
   }, [pdfDimensions, scale]);
 
-  // Navigate to a field: change page, scroll to badge, then open dialog.
-  // If we already have a saved signature/initials, show the quick-confirm dialog instead.
-  // Uses refs (not state) so the latest saved signature is always available even in stale closures.
+  // Navigate to a field: change page, scroll to badge, and open capture dialog.
+  // For signature/initials: opens capture dialog (or confirm dialog if signature already saved).
+  // For signer_name/signer_initials: auto-fills silently (no user interaction needed).
+  // Never auto-applies a signature — user must always confirm.
   const navigateToField = useCallback(
     (field: SignatureField) => {
       setCurrentPage(field.page_number);
       setCaptureError(null);
       setCaptureLoading(false);
 
-      // Delay dialog opening so the page renders and scrolls to the field first
+      // Delay so the page renders first, then scroll to the field
       setTimeout(() => {
         scrollToField(field);
 
-        // Show dialog after scroll animation
-        setTimeout(async () => {
-          // Auto-fill name/initials fields silently (no dialog)
-          if (field.field_type === "signer_name" || field.field_type === "signer_initials") {
+        // Auto-fill name/initials fields silently (no dialog)
+        if (field.field_type === "signer_name" || field.field_type === "signer_initials") {
+          setTimeout(async () => {
             const value = field.field_type === "signer_name"
               ? signerName
               : signerName.split(/\s+/).map((w) => w[0]?.toUpperCase() || "").join("");
@@ -245,22 +253,18 @@ export function PositionedSigningStep({
             } catch {
               // Fall through to manual handling
             }
-            return;
+          }, 400);
+        } else if (field.field_type === "signature" || field.field_type === "initials") {
+          // Just scroll to the field — user must click "Press to Sign" to apply
+          // If no saved signature exists yet, open the capture dialog
+          const saved = field.field_type === "signature" ? savedSignatureRef.current : savedInitialsRef.current;
+          if (!saved && !field.completed) {
+            setTimeout(() => {
+              setSelectedField(field);
+              setCaptureMode(field.field_type === "signature" ? "signature" : "initials");
+            }, 400);
           }
-
-          setSelectedField(field);
-          if (field.field_type === "signature") {
-            if (!savedSignatureRef.current) {
-              setCaptureMode("signature");
-            }
-            // If saved signature exists, don't auto-open dialog - let user tap "Sign" button on the field
-          } else if (field.field_type === "initials") {
-            if (!savedInitialsRef.current) {
-              setCaptureMode("initials");
-            }
-            // If saved initials exist, don't auto-open dialog - let user tap "Initial" button on the field
-          }
-        }, 400);
+        }
       }, 200);
     },
     [scrollToField, signerName, apiUrl, token]
@@ -340,11 +344,15 @@ export function PositionedSigningStep({
       if (prev && prev.width === w && prev.height === h) return prev;
       return { width: w, height: h };
     });
-    // Immediately calculate fit-to-width using current container width
+    // Immediately calculate fit-to-page using current container size
     const container = pdfContainerRef.current;
-    if (container && w > 0) {
+    const scrollContainer = scrollContainerRef.current;
+    if (container && w > 0 && h > 0) {
       const containerWidth = container.clientWidth - 32;
-      const fitScale = Math.round(Math.min(2.0, Math.max(0.4, containerWidth / w)) * 1000) / 1000;
+      const fitWidthScale = containerWidth / w;
+      const viewportHeight = (scrollContainer?.clientHeight || container.clientHeight) - 32;
+      const fitHeightScale = viewportHeight / h;
+      const fitScale = Math.round(Math.min(2.0, Math.max(0.4, Math.min(fitWidthScale, fitHeightScale))) * 1000) / 1000;
       setAutoFitScale(prev => prev === fitScale ? prev : fitScale);
       setScale(prev => prev === fitScale ? prev : fitScale);
     }
@@ -358,7 +366,9 @@ export function PositionedSigningStep({
   const completedRequired = requiredFields.filter((f) => f.completed);
   const allRequiredComplete = completedRequired.length === requiredFields.length;
 
-  // Handle field click - if signature already captured, show confirm; otherwise full capture
+  // Handle field click - reuses saved signature or opens capture dialog.
+  // First time: opens capture dialog (draw/type/upload).
+  // Subsequent fields: auto-applies saved signature (no confirm needed).
   const handleFieldClick = (field: SignatureField) => {
     if (field.completed) return;
 
@@ -373,20 +383,20 @@ export function PositionedSigningStep({
       return;
     }
 
-    setSelectedField(field);
-
     if (field.field_type === "signature") {
       if (savedSignatureRef.current) {
-        // Auto-apply saved signature (no confirm dialog)
+        // Already drew signature — apply it directly
         completeField(field.id, savedSignatureRef.current);
       } else {
+        setSelectedField(field);
         setCaptureMode("signature");
       }
     } else if (field.field_type === "initials") {
       if (savedInitialsRef.current) {
-        // Auto-apply saved initials (no confirm dialog)
+        // Already drew initials — apply directly
         completeField(field.id, savedInitialsRef.current);
       } else {
+        setSelectedField(field);
         setCaptureMode("initials");
       }
     }
@@ -610,22 +620,31 @@ export function PositionedSigningStep({
       );
     }
 
-    // Incomplete field - clickable button
+    // Incomplete field - prominent clickable button
+    const buttonLabel = field.field_type === "signature"
+      ? "Press to Sign"
+      : field.field_type === "initials"
+        ? "Press to Initial"
+        : field.label || "Click to Fill";
+
     return (
       <button
         key={field.id}
         className={cn(
-          "absolute border-2 rounded transition-all flex items-center justify-center gap-1 overflow-hidden",
+          "absolute border-2 rounded-md transition-all flex flex-col items-center justify-center gap-0.5 overflow-hidden shadow-sm",
           isNext
-            ? "bg-blue-500/30 border-blue-600 border-solid hover:bg-blue-500/40 cursor-pointer animate-pulse ring-2 ring-blue-400 ring-offset-1"
-            : "bg-blue-500/20 border-blue-500 border-dashed hover:bg-blue-500/30 cursor-pointer"
+            ? "bg-yellow-100 border-yellow-500 border-solid hover:bg-yellow-200 cursor-pointer animate-pulse ring-2 ring-yellow-400 ring-offset-1"
+            : "bg-blue-100 border-blue-500 border-solid hover:bg-blue-200 cursor-pointer"
         )}
         style={style}
         onClick={() => handleFieldClick(field)}
       >
-        <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-        <span className="text-xs text-blue-700 dark:text-blue-300 font-semibold truncate max-w-[80%]">
-          {field.field_type === "signature" ? "Sign" : field.field_type === "initials" ? "Initial" : field.label || "Fill"}
+        <Icon className={cn("h-5 w-5", isNext ? "text-yellow-700" : "text-blue-600")} />
+        <span className={cn(
+          "text-xs font-bold truncate max-w-[90%] leading-tight",
+          isNext ? "text-yellow-800" : "text-blue-700"
+        )}>
+          {buttonLabel}
         </span>
       </button>
     );
@@ -700,7 +719,7 @@ export function PositionedSigningStep({
             <button
               className="text-xs tabular-nums min-w-[40px] text-center hover:text-blue-600 cursor-pointer"
               onClick={() => { calculateFitScale(); }}
-              title="Fit to width"
+              title="Fit to page"
             >
               {Math.round(scale * 100)}%
             </button>

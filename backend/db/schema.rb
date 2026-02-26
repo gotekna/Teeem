@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_26_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1992,7 +1992,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.index ["appointment_date"], name: "index_corporate_directors_on_appointment_date"
-    t.index ["company_id", "contact_id"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
+    t.index ["company_id", "contact_id", "position"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
     t.index ["company_id"], name: "index_corporate_directors_on_company_id"
     t.index ["contact_id"], name: "index_corporate_directors_on_contact_id"
     t.index ["is_current"], name: "index_corporate_directors_on_is_current"
@@ -2757,9 +2757,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.string "original_storage_item_id"
     t.string "signed_storage_item_id"
     t.bigint "document_type_id"
+    t.string "download_token"
     t.index ["created_by_id"], name: "index_e_signature_requests_on_created_by_id"
     t.index ["document_type_id"], name: "index_e_signature_requests_on_document_type_id"
     t.index ["documentable_type", "documentable_id"], name: "index_e_signature_requests_on_documentable"
+    t.index ["download_token"], name: "index_e_signature_requests_on_download_token", unique: true
     t.index ["expires_at"], name: "index_e_signature_requests_on_expires_at"
     t.index ["request_number"], name: "index_e_signature_requests_on_request_number", unique: true
     t.index ["status"], name: "index_e_signature_requests_on_status"

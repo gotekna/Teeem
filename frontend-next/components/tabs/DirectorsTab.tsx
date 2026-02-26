@@ -161,10 +161,11 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     }
   }, [effectiveCompanyId, loadOfficers]);
 
-  // Group officers by role type - combined positions (e.g. director_secretary) appear in each matching group
+  // Group officers by primary role - each officer appears in ONE group only
+  // Priority: director/chairman > secretary > public_officer > corporate_officer
   const directors = officers.filter(o => o.position?.includes("director") || o.position === "chairman");
-  const secretaries = officers.filter(o => o.position?.includes("secretary"));
-  const publicOfficers = officers.filter(o => o.position?.includes("public_officer"));
+  const secretaries = officers.filter(o => o.position?.includes("secretary") && !o.position?.includes("director") && o.position !== "chairman");
+  const publicOfficers = officers.filter(o => o.position?.includes("public_officer") && !o.position?.includes("director") && !o.position?.includes("secretary") && o.position !== "chairman");
 
   const startDirectorChangeWorkflow = React.useCallback(async () => {
     if (!company) return;

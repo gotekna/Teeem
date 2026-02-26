@@ -16,15 +16,29 @@
 class BackfillImapEmailBlobsJob < ApplicationJob
   include DeduplicatableJob
 
-  # FRC (Feb 2026): Moved from :default to :low to reduce queue pressure
-  # Blob backfill is not user-facing; can run on Worker 2's idle threads
-  queue_as :low
+  # FRC (Feb 2026): Moved to :email_enrichment so it runs on the EMAIL WORKER,
+  # not the shared worker. This job downloads raw .eml from IMAP servers —
+  # that's email work. On the shared worker it monopolized the single thread
+  # and caused R14 from .eml content in memory.
+  # CRITICAL: recurring.yml queue setting OVERRIDES this — must match there too.
+  queue_as :email_enrichment
 
-  # Max runtime before yielding back to the scheduler
-  MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
+  # Max runtime before yielding back to the scheduler.
+  # FRC (Feb 2026): Reduced from 10min to 3min (same reasoning as UploadEmailsToStorageJob).
+  # Now on email worker's single thread — must yield for sync + enrichment.
+  MAX_RUNTIME_SECONDS = 3 * 60  # 3 minutes
+
+  # Memory guard: stop processing if THIS PROCESS (Worker) VmRSS exceeds this (MB)
+  # See UploadEmailsToStorageJob for full explanation of why per-process monitoring.
+  # Worker baseline: ~350-400MB. At 550MB, total dyno ≈ 850-950MB (under 1024MB R14).
+  MEMORY_ABORT_MB = 550
+
+  # Hard cap on batch_size regardless of stale queue args
+  MAX_BATCH_SIZE = 25
 
   def perform(batch_size: 100, credential_id: nil)
     @started_at = Time.current
+    batch_size = [batch_size, MAX_BATCH_SIZE].min
     total_uploaded = 0
     total_errors = 0
     batch_number = 0
@@ -32,15 +46,10 @@ class BackfillImapEmailBlobsJob < ApplicationJob
     loop do
       batch_number += 1
       break unless time_remaining?
+      break if memory_exceeded?
 
-      # Find IMAP emails without WarehouseDocument
-      query = SyncedEmail.unscoped
-        .where(source_type: "imap")
-        .where.not(uid: [nil, ""])
-        .where.not(imap_credential_id: nil)
-        .left_joins(:warehouse_document)
-        .where(warehouse_documents: { id: nil })
-
+      # Find IMAP emails without WarehouseDocument — SSoT scope
+      query = SyncedEmail.unscoped.pending_imap_upload
       query = query.where(imap_credential_id: credential_id) if credential_id.present?
 
       emails = query.limit(batch_size).to_a
@@ -67,6 +76,7 @@ class BackfillImapEmailBlobsJob < ApplicationJob
 
             cred_emails.each do |email|
               break unless time_remaining?
+              break if memory_exceeded?
 
               begin
                 tempfile = fetch_email_to_tempfile(service, email)
@@ -92,14 +102,8 @@ class BackfillImapEmailBlobsJob < ApplicationJob
         end
       end
 
-      # Check remaining
-      remaining = SyncedEmail.unscoped
-        .where(source_type: "imap")
-        .where.not(uid: [nil, ""])
-        .where.not(imap_credential_id: nil)
-        .left_joins(:warehouse_document)
-        .where(warehouse_documents: { id: nil })
-        .count
+      # Check remaining — SSoT scope
+      remaining = SyncedEmail.unscoped.pending_imap_upload.count
 
       Rails.logger.info "[ImapUpload] Batch #{batch_number}: uploaded=#{total_uploaded}, errors=#{total_errors}, remaining=#{remaining}"
       break if remaining == 0
@@ -113,6 +117,29 @@ class BackfillImapEmailBlobsJob < ApplicationJob
 
   def time_remaining?
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
+  end
+
+  def memory_exceeded?
+    return true if @memory_exceeded
+
+    @memory_check_counter = (@memory_check_counter || 0) + 1
+    return false unless @memory_check_counter % 5 == 0
+
+    GC.start
+    rss = current_rss_mb
+    if rss > MEMORY_ABORT_MB
+      Rails.logger.warn "[ImapUpload] Memory high (#{rss}MB > #{MEMORY_ABORT_MB}MB), stopping"
+      @memory_exceeded = true
+    end
+    @memory_exceeded
+  end
+
+  # ⚠️ DO NOT SIMPLIFY - Must read Worker process VmRSS only (Feb 2026)
+  # See UploadEmailsToStorageJob for full explanation.
+  def current_rss_mb
+    File.read("/proc/self/status").match(/VmRSS:\s+(\d+)\s+kB/)[1].to_i / 1024
+  rescue StandardError
+    0
   end
 
   # Memory-safe: writes IMAP content directly to Tempfile instead of holding in heap.

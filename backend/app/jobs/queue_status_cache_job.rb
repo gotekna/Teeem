@@ -218,30 +218,14 @@ class QueueStatusCacheJob < ApplicationJob
   def compute_backlog
     items = []
 
-    # Email Bodies
-    email_total = SyncedEmail.unscoped.count
-    if email_total > 0
-      # Subquery for emails that have verified warehouse documents
-      emails_with_file_subquery = WarehouseDocument
-        .where(source_type: "email", documentable_type: "SyncedEmail")
-        .joins(:storage_blob)
-        .where("storage_blobs.verified_at IS NOT NULL")
-        .select(:documentable_id)
-
-      email_with_file = emails_with_file_subquery.count
-      email_unfetchable_without_file = SyncedEmail.unscoped
-        .where("storage_path LIKE ?", "UNFETCHABLE%")
-        .or(SyncedEmail.unscoped.where(content_unavailable: true))
-        .where.not(id: emails_with_file_subquery)
-        .count
-      email_no_outlook_without_file = SyncedEmail.unscoped
-        .where(outlook_id: [nil, ""])
-        .or(SyncedEmail.unscoped.where(mailbox_owner_email: [nil, ""]))
-        .where.not(id: emails_with_file_subquery)
-        .count
-      email_missing = [email_total - email_with_file - email_unfetchable_without_file - email_no_outlook_without_file, 0].max
-      items << { key: "email_uploads", label: "Email uploads", remaining: email_missing } if email_missing > 0
-    end
+    # Email Bodies — SSoT: SyncedEmail.pending_storage_upload scope
+    # FRC (Feb 2026): Previously used WarehouseDocument+verified blob check which diverged
+    # from the upload job's actual query (storage_path check). Now all three locations
+    # (popup, dashboard, upload job) use the same SSoT scope.
+    email_missing = SyncedEmail.unscoped.pending_storage_upload.count
+    imap_missing = SyncedEmail.unscoped.pending_imap_upload.count
+    total_email_missing = email_missing + imap_missing
+    items << { key: "email_uploads", label: "Email uploads", remaining: total_email_missing } if total_email_missing > 0
 
     # Xero Invoices
     if defined?(ExternalInvoice)
@@ -252,8 +236,16 @@ class QueueStatusCacheJob < ApplicationJob
           .joins(:storage_blob)
           .where("storage_blobs.verified_at IS NOT NULL")
           .count
-        xero_missing = [xero_total - xero_with_file, 0].max
-        items << { key: "xero_invoices", label: "Xero invoices", remaining: xero_missing } if xero_missing > 0
+        # Bills don't have auto-generated PDFs - exclude from "remaining" count
+        xero_bills_processed = WarehouseDocument
+          .where(source_type: "xero", documentable_type: "ExternalInvoice", storage_blob_id: nil)
+          .where("warehouse_documents.metadata->>'is_bill_record' = 'true'")
+          .count
+        xero_missing = [xero_total - xero_with_file - xero_bills_processed, 0].max
+        # Show row if PDFs remaining OR bills were processed (so user sees progress)
+        if xero_missing > 0 || xero_bills_processed > 0
+          items << { key: "xero_invoices", label: "Xero invoices", remaining: xero_missing, bills_processed: xero_bills_processed }
+        end
       end
     end
 

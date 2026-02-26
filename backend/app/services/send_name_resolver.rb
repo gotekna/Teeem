@@ -186,6 +186,13 @@ class SendNameResolver
   # Build template context from warehouse document
   # SSoT (Feb 2026): Checks linkable FIRST (photos use linkable: Job, not documentable),
   # then documentable, then metadata as fallback for tokens.
+  #
+  # ⚠️ DYNAMIC TOKEN RESOLUTION (Feb 2026)
+  # ════════════════════════════════════════════════════════════════
+  # Metadata keys auto-import into context. Any {PascalCase} token in a template
+  # resolves from context[:snake_case] automatically. No hardcoded token list.
+  # To add a new token: just put the data in metadata when creating the document.
+  # ════════════════════════════════════════════════════════════════
   def build_context(warehouse_document)
     documentable = warehouse_document.documentable
     context = build_context_from_documentable(documentable)
@@ -215,14 +222,17 @@ class SendNameResolver
       end
     end
 
-    # SSoT (Feb 2026): Metadata fallback for tokens not found in linkable/documentable
+    # Auto-import ALL metadata keys into context (Feb 2026)
+    # This is what makes the resolver dynamic - any key in metadata becomes a token.
+    # e.g., metadata: {"bsb": "123-456"} → context[:bsb] → resolves {BSB} in templates
     meta = warehouse_document.metadata || {}
-    context[:job_code] ||= meta["job_code"] if meta["job_code"].present?
-    context[:contact_name] ||= meta["contact_name"] if meta["contact_name"].present?
-    context[:company_code] ||= meta["company_code"] if meta["company_code"].present?
-    context[:director_name] ||= meta["person"] if meta["person"].present?
-    context[:person_name] ||= meta["person_name"] if meta["person_name"].present?
-    # Override document_date with metadata date (e.g., cessation/appointment date from director change)
+    meta.each do |key, value|
+      next if value.blank?
+      context_key = key.to_s.underscore.to_sym
+      context[context_key] ||= value
+    end
+
+    # Override document_date with metadata date (e.g., cessation/appointment date)
     if meta["date"].present?
       context[:document_date] = Date.parse(meta["date"]) rescue context[:document_date]
     end
@@ -320,102 +330,111 @@ class SendNameResolver
     context
   end
 
-  # Expand template with context values
-  # Supports both {Token} and {{Token}} syntax for flexibility
+  # ⚠️ DYNAMIC TOKEN RESOLUTION (Feb 2026)
+  # ════════════════════════════════════════════════════════════════
+  # Why: Hardcoded replace_token calls went out of sync with templates.
+  #      34 of 48 tokens in production templates had no resolver code.
+  # How: Two phases:
+  #   1. Compute formatted values for tokens that need special logic (dates, expiry)
+  #   2. Auto-resolve ALL remaining {PascalCase} tokens from context[:snake_case]
+  # Result: Add a token to template + put data in metadata = works. No code change.
+  # ════════════════════════════════════════════════════════════════
   def expand_template(template, context)
     return nil if template.blank?
 
     result = template.dup
 
-    # Original filename tokens (for display_name templates)
-    if context[:original_filename].present?
-      original = context[:original_filename]
-      base_name = File.basename(original, ".*")
-      extension = File.extname(original).delete_prefix(".")
-      replace_token(result, "OriginalFileName", base_name)
-      replace_token(result, "OriginalFileNameWithExt", original)
-      replace_token(result, "FileExtension", extension)
-    end
+    # Phase 1: Compute formatted values into context for tokens needing special logic.
+    # These MUST run before the auto-resolver because they derive values from raw data.
+    compute_formatted_values(result, context)
 
-    # Task tokens
-    replace_token(result, "TaskId", context[:task_id]) if context[:task_id]
-    replace_token(result, "TaskID", context[:task_id]) if context[:task_id]
-    replace_token(result, "TaskNumber", context[:task_number]) if context[:task_number]
-    replace_token(result, "TaskName", context[:task_name]) if context[:task_name]
-
-    # Date tokens
-    doc_date = context[:document_date] || context[:received_date] || Time.current
-    doc_date = doc_date.to_date if doc_date.respond_to?(:to_date)
-
-    replace_token(result, "Date", doc_date.strftime("%d-%m-%Y"))
-    replace_token(result, "DDMMYYYY", doc_date.strftime("%d-%m-%Y"))
-    replace_token(result, "YYYYMMDD", doc_date.strftime("%Y-%m-%d"))
-    replace_token(result, "DateTime", Time.current.strftime("%Y-%m-%d %H:%M"))
-
-    # Email tokens
-    if context[:subject].present?
-      sanitized_subject = sanitize_for_template(context[:subject])
-      replace_token(result, "Subject", sanitized_subject)
-      replace_token(result, "SubjectShort", sanitized_subject[0..49].to_s.strip)
-    end
-    replace_token(result, "FromName", context[:from_name]) if context[:from_name]
-    replace_token(result, "FromEmail", context[:from_email]) if context[:from_email]
-    if context[:received_date]
-      recv_datetime = context[:received_date]
-      recv_date = recv_datetime.to_date rescue doc_date
-      replace_token(result, "ReceivedDate", recv_date.strftime("%d-%m-%Y"))
-      # Sortable date format YYYY-MM-DD for chronological ordering
-      replace_token(result, "ReceivedDateSort", recv_date.strftime("%Y-%m-%d"))
-      # Time format HH-MM for filename safety (no colons)
-      replace_token(result, "ReceivedTime", recv_datetime.strftime("%H-%M"))
-    end
-
-    # Job tokens
-    replace_token(result, "JobCode", context[:job_code]) if context[:job_code]
-    replace_token(result, "JobName", context[:job_name]) if context[:job_name]
-    replace_token(result, "JobTitle", context[:job_title]) if context[:job_title]
-
-    # Company tokens
-    replace_token(result, "CompanyCode", context[:company_code]) if context[:company_code]
-    replace_token(result, "CompanyName", context[:company_name]) if context[:company_name]
-    replace_token(result, "CompanyGroup", context[:company_group]) if context[:company_group]
-
-    # Person/Contact tokens
-    replace_token(result, "Name", context[:name]) if context[:name]
-    replace_token(result, "PersonName", context[:person_name]) if context[:person_name]
-    replace_token(result, "DirectorName", context[:director_name]) if context[:director_name]
-
-    # Document type tokens
-    replace_token(result, "DocTypeName", context[:doc_type_name]) if context[:doc_type_name]
-    replace_token(result, "DocTypeCode", context[:doc_type_code]) if context[:doc_type_code]
-    replace_token(result, "Category", context[:category]) if context[:category]
-
-    # Expiry date tokens (matches placeholders.ts: {EX} → "EX dd/mm/yy", {Expiry} → "Expiry dd MMMM yyyy")
-    if context[:expiry_date]
-      exp = context[:expiry_date].to_date rescue nil
-      if exp
-        replace_token(result, "EX", "EX #{exp.strftime('%d/%m/%y')}")
-        replace_token(result, "Expiry", "Expiry #{exp.strftime('%-d %B %Y')}")
+    # Phase 2: Auto-resolve ALL remaining {Token} / {{Token}} patterns from context.
+    # PascalCase token → snake_case key: {ContactName} → context[:contact_name]
+    result.gsub!(/\{\{?(\w+)\}?\}/) do |match|
+      token = $1
+      key = token.underscore.to_sym
+      value = context[key]
+      if value.present?
+        sanitize_for_template(value.to_s)
+      else
+        match # Leave unreplaced for cleanup
       end
     end
 
-    # Generic tokens
-    replace_token(result, "Description", context[:description]) if context[:description]
-    replace_token(result, "Number", context[:number]) if context[:number]
-    replace_token(result, "Folder", context[:folder]) if context[:folder]
-
-    # Clean up unreplaced tokens (both {Token} and {{Token}} syntax)
+    # Phase 3: Clean up unreplaced tokens (both {Token} and {{Token}} syntax)
     result.gsub!(/\s*\{\{?[^}]+\}?\}\s*/, " ")
 
     # Clean up extra spaces
     result.gsub(/\s+/, " ").strip
   end
 
-  # Replace token in both {Token} and {{Token}} syntax
-  def replace_token(str, token_name, value)
-    return unless value.present?
-    str.gsub!("{#{token_name}}", value.to_s)
-    str.gsub!("{{#{token_name}}}", value.to_s)
+  # Compute formatted string values for tokens that need special logic.
+  # These are PRE-COMPUTED into context so the auto-resolver picks them up.
+  # Only ~12 tokens need this; the other 36+ resolve directly from context.
+  def compute_formatted_values(_result, context)
+    # --- Date tokens (derived from document_date) ---
+    doc_date = context[:document_date] || context[:received_date] || Time.current
+    doc_date = doc_date.to_date if doc_date.respond_to?(:to_date)
+
+    context[:date]            ||= doc_date.strftime("%d-%m-%Y")
+    context[:date_au]         ||= doc_date.strftime("%d-%m-%Y")
+    context[:ddmmyyyy]        ||= doc_date.strftime("%d-%m-%Y")
+    context[:yyyymmdd]        ||= doc_date.strftime("%Y-%m-%d")
+    context[:date_time]       ||= Time.current.strftime("%Y-%m-%d %H:%M")
+    context[:month_year]      ||= doc_date.strftime("%b %Y")
+    context[:month_year_long] ||= doc_date.strftime("%B %Y")
+    context[:yy]              ||= doc_date.strftime("%y")
+    context[:fy]              ||= compute_financial_year(doc_date)
+    context[:print_date]      ||= Time.current.strftime("%d-%m-%Y")
+
+    # --- Email tokens (sanitized/truncated) ---
+    if context[:subject].present?
+      sanitized = sanitize_for_template(context[:subject])
+      context[:subject] = sanitized
+      context[:subject_short] ||= sanitized[0..49].to_s.strip
+    end
+
+    if context[:received_date]
+      recv = context[:received_date]
+      recv_date = recv.respond_to?(:to_date) ? recv.to_date : doc_date
+      context[:received_date]      = recv_date.strftime("%d-%m-%Y")
+      context[:received_date_sort] ||= recv_date.strftime("%Y-%m-%d")
+      context[:received_time]      ||= (recv.respond_to?(:strftime) ? recv.strftime("%H-%M") : "")
+    end
+
+    # --- Expiry tokens (prefixed formatted dates) ---
+    if context[:expiry_date]
+      exp = context[:expiry_date].to_date rescue nil
+      if exp
+        context[:ex]     ||= "EX #{exp.strftime('%d/%m/%y')}"
+        context[:expiry] ||= "Expiry #{exp.strftime('%-d %B %Y')}"
+      end
+    end
+
+    # --- File tokens (derived from original filename) ---
+    if context[:original_filename].present?
+      original = context[:original_filename]
+      context[:original_file_name]          ||= File.basename(original, ".*")
+      context[:original_file_name_with_ext] ||= original
+      context[:file_extension]              ||= File.extname(original).delete_prefix(".")
+    end
+
+    # --- Date range tokens (format if raw Date/Time objects) ---
+    [:from_date, :to_date].each do |key|
+      if context[key].respond_to?(:strftime) && !context[key].is_a?(String)
+        context[key] = context[key].strftime("%d-%m-%Y")
+      end
+    end
+
+    # --- TaskID alias (TaskId and TaskID both map to task_id) ---
+    # Already handled by underscore: "TaskId".underscore = "task_id", "TaskID".underscore = "task_id"
+  end
+
+  # Australian financial year: July 1 - June 30
+  # FY2026 = July 2025 through June 2026
+  def compute_financial_year(date)
+    fy_year = date.month >= 7 ? date.year + 1 : date.year
+    "FY#{fy_year}"
   end
 
   # Sanitize a value for use in templates (not the final filename)

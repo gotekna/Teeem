@@ -55,12 +55,8 @@ class EmailStorageUploadService
     # FRC (Feb 2026): Randomize order so each run attempts different emails.
     # Previously .order(:id) meant the same failing emails blocked every batch.
     # With RANDOM(), even if some emails consistently fail, others get a chance.
-    emails = SyncedEmail
-      .where(storage_path: [nil, ""])
-      .where(storage_email_path: [nil, ""])
-      .where.not(outlook_id: [nil, ""])
-      .where.not(mailbox_owner_email: [nil, ""])
-      .where(content_unavailable: false)  # SSoT: Skip permanently unavailable emails
+    # SSoT: SyncedEmail.pending_storage_upload scope defines what needs uploading
+    emails = SyncedEmail.pending_storage_upload
       .order(Arel.sql("RANDOM()"))
 
     emails = emails.limit(batch_size) if batch_size.present?
@@ -170,8 +166,9 @@ class EmailStorageUploadService
 
     Rails.logger.info "[EmailUpload] Batch fetch complete: #{mime_contents.count} emails fetched"
 
-    # Step 3: Upload to S3 in parallel (4 threads - S3 can handle more concurrency)
-    thread_count = 4
+    # Step 3: Upload to S3 sequentially (was 4 threads, reduced to 1 to prevent
+    # concurrent memory spikes on 1024MB shared worker dyno - Feb 2026)
+    thread_count = 1
     pool = Concurrent::FixedThreadPool.new(thread_count)
     processed = Concurrent::AtomicFixnum.new(0)
     cancelled = Concurrent::AtomicBoolean.new(false)
@@ -183,7 +180,7 @@ class EmailStorageUploadService
         begin
           ActiveRecord::Base.connection_pool.with_connection do
             ActsAsTenant.with_tenant(@tenant) do
-              mime_content = mime_contents[email.id]
+              mime_content = mime_contents.delete(email.id)  # delete frees memory immediately
               upload_email_with_content(email.id, mime_content)
             end
 

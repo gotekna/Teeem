@@ -21,14 +21,28 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
   MAX_RUNTIME_SECONDS = 5 * 60 # 5 minutes
 
+  # Memory guard: stop processing if THIS PROCESS (Worker) VmRSS exceeds this (MB)
+  # See UploadEmailsToStorageJob for full explanation of why per-process monitoring.
+  # Worker baseline: ~350-400MB. At 550MB, total dyno ≈ 850-950MB (under 1024MB R14).
+  MEMORY_ABORT_MB = 550
+
+  # Hard cap on batch_size regardless of stale queue args (same pattern as UploadEmailsToStorageJob)
+  MAX_BATCH_SIZE = 10
+
   def perform(batch_size: 50)
     @started_at = Time.current
+    batch_size = [batch_size, MAX_BATCH_SIZE].min
     total_retried = 0
     total_errors = 0
+    @memory_exceeded = false
 
     # === Case 1: Orphaned metadata (WarehouseDocument exists, no blob) ===
+    # FRC (Feb 2026): Exclude permanently_failed attachments (e.g. unsupported
+    # referenceAttachment type). Without this filter, the job re-processes the same
+    # ~800x-failed attachments every 5 minutes, wasting memory and MS Graph API calls.
     tenant_ids = WarehouseDocument.unscoped
       .where(source_type: "email_attachment", storage_blob_id: nil)
+      .where("metadata->>'blob_status' IS NULL OR metadata->>'blob_status' != 'permanently_failed'")
       .distinct
       .pluck(:tenant_id)
       .compact
@@ -44,6 +58,7 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
       ActsAsTenant.with_tenant(tenant) do
         email_ids = WarehouseDocument
           .where(source_type: "email_attachment", storage_blob_id: nil)
+          .where("metadata->>'blob_status' IS NULL OR metadata->>'blob_status' != 'permanently_failed'")
           .where("metadata->>'synced_email_id' IS NOT NULL")
           .distinct
           .pluck(Arel.sql("metadata->>'synced_email_id'"))
@@ -55,6 +70,7 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
         email_ids.each do |email_id|
           break unless time_remaining?
+          break if memory_exceeded?
 
           email = SyncedEmail.find_by(id: email_id)
           next unless email
@@ -106,6 +122,7 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
           deferred_emails.each do |email|
             break unless time_remaining?
+            break if memory_exceeded?
 
             begin
               email.sync_attachments!
@@ -129,5 +146,29 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
   def time_remaining?
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
+  end
+
+  # Check memory every 5 calls (avoid overhead of reading /proc on every email)
+  def memory_exceeded?
+    return true if @memory_exceeded
+
+    @memory_check_counter = (@memory_check_counter || 0) + 1
+    return false unless @memory_check_counter % 5 == 0
+
+    GC.start
+    rss = current_rss_mb
+    if rss > MEMORY_ABORT_MB
+      Rails.logger.warn "[RetryPendingAttachmentBlobs] Memory high (#{rss}MB > #{MEMORY_ABORT_MB}MB), stopping"
+      @memory_exceeded = true
+    end
+    @memory_exceeded
+  end
+
+  # ⚠️ DO NOT SIMPLIFY - Must read Worker process VmRSS only (Feb 2026)
+  # See UploadEmailsToStorageJob for full explanation.
+  def current_rss_mb
+    File.read("/proc/self/status").match(/VmRSS:\s+(\d+)\s+kB/)[1].to_i / 1024
+  rescue StandardError
+    0
   end
 end

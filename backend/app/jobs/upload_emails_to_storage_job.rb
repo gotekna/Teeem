@@ -29,16 +29,39 @@
 class UploadEmailsToStorageJob < ApplicationJob
   include DeduplicatableJob
 
-  # FRC (Feb 2026): Moved from :default to :low to reduce queue pressure
-  # Blob uploads are background work, not user-facing. Frees Worker 1 for sync.
-  queue_as :low
+  # FRC (Feb 2026): Moved to :email_enrichment so it runs on the EMAIL WORKER,
+  # not the shared worker. This job downloads email MIME content from Microsoft
+  # Graph API — that's email work. On the shared worker (1 thread, 1GB) it
+  # monopolized the thread for 10 min and caused R14 from MIME content in memory.
+  # Email worker has 2 threads and its own 1GB budget.
+  # CRITICAL: recurring.yml queue setting OVERRIDES this — must match there too.
+  queue_as :email_enrichment
 
-  # Max runtime before yielding back to the scheduler (Heroku dynos have 30min limit,
-  # but we want to leave headroom for other jobs on the low queue)
-  MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
+  # Max runtime before yielding back to the scheduler.
+  # FRC (Feb 2026): Reduced from 10min to 3min. Now runs on email worker (1 thread)
+  # shared with sync + enrichment. 10min monopolized the thread, starving email sync.
+  # 3min × batch_size 25 ≈ 4-5 batches = 100-125 emails per run. Runs every 10min,
+  # so throughput = ~750/hour — enough for backfill without starving other email jobs.
+  MAX_RUNTIME_SECONDS = 3 * 60  # 3 minutes
+
+  # Memory guard: stop processing if THIS PROCESS (Worker) VmRSS exceeds this (MB)
+  # Heroku's container-level metric is inaccessible from within (no cgroup usage files).
+  # ps -eo rss= and /proc/[pid]/statm both double-count COW pages from SolidQueue forks.
+  # Instead, we monitor just the Worker process (where jobs run) via /proc/self/status.
+  # Worker baseline: ~350-400MB. Other processes (Supervisor, Dispatcher, Scheduler): ~300-400MB.
+  # At Worker=550MB, total dyno ≈ 850-950MB (safe, under 1024MB R14 threshold).
+  MEMORY_ABORT_MB = 550
+
+  # Hard cap on batch_size regardless of what's passed in job args.
+  # FRC (Feb 2026): Stale SolidQueue jobs with batch_size=200 survived deploys,
+  # fetching 200 emails' MIME content into memory at once → R14 on 1024MB dyno.
+  # Reduced to 25: Worker at 352MB baseline + 50 emails adds ~200MB = 988MB total → R14.
+  # With 25 emails: ~100MB spike → ~860MB total (under 1024MB).
+  MAX_BATCH_SIZE = 25
 
   def perform(batch_size: nil, tenant_id: nil)
     @started_at = Time.current
+    batch_size = [batch_size, MAX_BATCH_SIZE].min if batch_size
 
     # If tenant specified, process just that tenant
     if tenant_id
@@ -57,15 +80,27 @@ class UploadEmailsToStorageJob < ApplicationJob
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
   end
 
+  # ⚠️ DO NOT SIMPLIFY - Must read Worker process VmRSS only (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: Heroku exposes NO container-level memory metrics from within the dyno.
+  # - cgroup memory.usage_in_bytes → doesn't exist on Heroku
+  # - `ps -eo rss=` → double-counts COW pages across SolidQueue forks (1261MB vs real 700MB)
+  # - /proc/[pid]/statm → only deduplicates file-backed pages, not COW (1207MB vs 700MB)
+  # ✅ CORRECT: /proc/self/status VmRSS → Worker process only, with per-process threshold
+  # The Worker process is where blob downloads happen. Other SolidQueue processes
+  # (Supervisor, Dispatcher, Scheduler) add ~300-400MB constant overhead.
+  # MEMORY_ABORT_MB is calibrated for the Worker process alone (550MB).
+  # At Worker=550MB, total dyno ≈ 850-950MB, safely under 1024MB R14 threshold.
+  # ════════════════════════════════════════════
+  def current_rss_mb
+    File.read("/proc/self/status").match(/VmRSS:\s+(\d+)\s+kB/)[1].to_i / 1024
+  rescue StandardError
+    0
+  end
+
   def process_all_tenants(batch_size:)
-    # Find tenants that have emails needing sync (unscoped to see all tenants)
-    # SSoT: Match EmailStorageUploadService filters exactly to avoid false positives
-    tenant_ids_with_pending = SyncedEmail.unscoped
-      .where(storage_path: [nil, ""])
-      .where(storage_email_path: [nil, ""])
-      .where.not(outlook_id: [nil, ""])
-      .where.not(mailbox_owner_email: [nil, ""])
-      .where(content_unavailable: false)
+    # Find tenants that have emails needing sync — SSoT scope
+    tenant_ids_with_pending = SyncedEmail.unscoped.pending_storage_upload
       .distinct
       .pluck(:tenant_id)
       .compact
@@ -117,13 +152,21 @@ class UploadEmailsToStorageJob < ApplicationJob
       total_skipped = 0
       total_errors = []
       batch_number = 0
-      consecutive_error_batches = 0
+      consecutive_zero_batches = 0
 
       # Loop within same job execution instead of chaining perform_later
       # (DeduplicatableJob blocks chained jobs since current job is still running)
       loop do
         batch_number += 1
-        Rails.logger.info "[UploadEmailsToStorageJob] Batch #{batch_number} (batch_size: #{batch_size || 'all'}) for tenant #{tenant.id}"
+
+        # Pre-batch memory check: don't start a new batch if already high
+        rss = current_rss_mb
+        if rss > MEMORY_ABORT_MB
+          Rails.logger.warn "[UploadEmailsToStorageJob] Memory already high before batch #{batch_number} (#{rss}MB > #{MEMORY_ABORT_MB}MB), yielding"
+          break
+        end
+
+        Rails.logger.info "[UploadEmailsToStorageJob] Batch #{batch_number} (batch_size: #{batch_size || 'all'}, rss: #{rss}MB) for tenant #{tenant.id}"
 
         service = EmailStorageUploadService.new(progress: progress, tenant: tenant)
         result = service.upload_missing_emails(batch_size: batch_size)
@@ -142,23 +185,26 @@ class UploadEmailsToStorageJob < ApplicationJob
         # 1. No batch_size → processed everything in one go
         break unless batch_size.present?
 
-        # 2. Nothing was processed (all remaining are unfetchable/missing outlook_id)
-        break if uploaded == 0 && skipped == 0
-
-        # 3. Circuit breaker: if no uploads and ALL are errors, allow up to 3 consecutive
-        # all-error batches before stopping. With randomized order, each batch attempts
-        # different emails, so transient failures in one batch may not affect the next.
-        # FRC (Feb 2026): Without this, broken emails loop forever consuming memory until R14.
-        # FRC (Feb 2026): Softened from 1 → 3 to avoid one bad batch blocking 87K emails.
-        if uploaded == 0 && errors.count > 0 && errors.count >= skipped
-          consecutive_error_batches += 1
-          if consecutive_error_batches >= 3
-            Rails.logger.warn "[UploadEmailsToStorageJob] Circuit breaker: #{consecutive_error_batches} consecutive error batches, stopping"
+        # 2. No uploads this batch → no forward progress.
+        # ⚠️ DO NOT SIMPLIFY - This MUST break on uploaded==0 regardless of skipped/errors (Feb 2026)
+        # ════════════════════════════════════════════
+        # Why: When remaining emails are all unfetchable (no Graph credential, expired tokens,
+        # content_unavailable not yet set), they get "skipped" every batch. Without this guard,
+        # the loop runs 300-400+ iterations finding the same emails, skipping them, and repeating.
+        # Each iteration creates service objects + DB queries → garbage accumulates → R14.
+        # Observed: Batch 382+ with uploaded=0, skipped=4, errors=0 on every iteration.
+        # ❌ WRONG: break if uploaded == 0 && skipped == 0 (misses skipped-only case)
+        # ✅ CORRECT: Break if uploaded == 0 after allowing 3 retries for transient failures
+        # ════════════════════════════════════════════
+        if uploaded == 0
+          consecutive_zero_batches += 1
+          if consecutive_zero_batches >= 3
+            Rails.logger.warn "[UploadEmailsToStorageJob] No progress for #{consecutive_zero_batches} consecutive batches (skipped=#{skipped}, errors=#{errors.count}), stopping"
             break
           end
-          Rails.logger.warn "[UploadEmailsToStorageJob] All-error batch #{consecutive_error_batches}/3, trying next batch..."
+          Rails.logger.info "[UploadEmailsToStorageJob] Zero uploads batch #{consecutive_zero_batches}/3, trying next batch..."
         else
-          consecutive_error_batches = 0  # Reset on any success
+          consecutive_zero_batches = 0  # Reset on any successful upload
         end
 
         # 4. Time limit reached
@@ -167,14 +213,18 @@ class UploadEmailsToStorageJob < ApplicationJob
           break
         end
 
-        # 5. Check if there are actually more processable emails (tenant-scoped, proper filters)
-        remaining = SyncedEmail
-          .where(storage_path: [nil, ""])
-          .where(storage_email_path: [nil, ""])
-          .where.not(outlook_id: [nil, ""])
-          .where.not(mailbox_owner_email: [nil, ""])
-          .where(content_unavailable: false)
-          .count
+        # 4b. Memory guard: force GC between batches and abort if too high.
+        # Each batch downloads 50+ emails' MIME content (~10-40MB) which
+        # accumulates faster than Ruby's GC collects across a 10-min run.
+        GC.start
+        rss = current_rss_mb
+        if rss > MEMORY_ABORT_MB
+          Rails.logger.warn "[UploadEmailsToStorageJob] Memory high after GC (#{rss}MB > #{MEMORY_ABORT_MB}MB), yielding to scheduler"
+          break
+        end
+
+        # 5. Check if there are actually more processable emails — SSoT scope
+        remaining = SyncedEmail.pending_storage_upload.count
 
         if remaining == 0
           Rails.logger.info "[UploadEmailsToStorageJob] All processable emails migrated for tenant #{tenant.id}!"

@@ -121,6 +121,27 @@ class SyncedEmail < ApplicationRecord
   scope :from_imap, -> { where(source_type: "imap") }
   scope :for_imap_credential, ->(credential_id) { where(imap_credential_id: credential_id) }
 
+  # SSoT: Pending MS365 email uploads — emails that still need .eml files uploaded to storage.
+  # Used by: UploadEmailsToStorageJob, QueueStatusCacheJob, organization_controller.
+  # ⚠️ DO NOT DUPLICATE this query elsewhere. Use this scope everywhere.
+  scope :pending_storage_upload, -> {
+    where(storage_path: [nil, ""])
+      .where(storage_email_path: [nil, ""])
+      .where.not(outlook_id: [nil, ""])
+      .where.not(mailbox_owner_email: [nil, ""])
+      .where(content_unavailable: false)
+  }
+
+  # SSoT: Pending IMAP email uploads — IMAP emails that need .eml files fetched and stored.
+  # Used by: BackfillImapEmailBlobsJob, QueueStatusCacheJob.
+  scope :pending_imap_upload, -> {
+    where(source_type: "imap")
+      .where.not(uid: [nil, ""])
+      .where.not(imap_credential_id: nil)
+      .left_joins(:warehouse_document)
+      .where(warehouse_documents: { id: nil })
+  }
+
   # SSoT: Folder name filtering (case-insensitive)
   # ALWAYS use this scope instead of .where(folder_name: x) to handle provider variations
   # Gmail uses INBOX, Outlook uses Inbox, others may use inbox - this handles all cases

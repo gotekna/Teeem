@@ -55,7 +55,7 @@ class ESignatureRequest < ApplicationRecord
     status.in?(%w[draft sent in_progress])
   end
 
-  def send_for_signing!
+  def send_for_signing!(ip_address: nil, user_agent: nil)
     return false unless can_send?
 
     transaction do
@@ -74,7 +74,11 @@ class ESignatureRequest < ApplicationRecord
         signers.each(&:send_notification!)
       end
 
-      log_event("sent", description: "Request sent for signing")
+      log_event("sent",
+        description: "Request sent for signing",
+        ip_address: ip_address,
+        user_agent: user_agent
+      )
     end
 
     true
@@ -115,6 +119,10 @@ class ESignatureRequest < ApplicationRecord
       # Send completion notifications
       ESignatureEmailService.deliver(ESignatureMailer.completion_notification(self))
     end
+
+    # Wake up any BPMN workflows waiting for this signature to complete.
+    # Without this, workflows poll every 60 minutes via BpmnRetryWaitingTaskJob.
+    wake_up_waiting_bpmn_tokens
   end
 
   def decline!(signer)
@@ -266,19 +274,28 @@ class ESignatureRequest < ApplicationRecord
     }
   end
 
-  # Generate a stateless signed download token for the completed document.
-  # Uses Rails MessageVerifier so no DB column needed - token encodes the request ID
-  # and is cryptographically signed with an expiry.
-  def generate_download_token(expires_in: 30.days)
-    Rails.application.message_verifier(:esign_download).generate(
-      { request_id: id },
-      expires_at: expires_in.from_now
-    )
+  # Generate a random download token stored in the database.
+  #
+  # ⚠️ DO NOT SIMPLIFY - Environment-independent token (2026-02-26)
+  # ════════════════════════════════════════════════════════════════
+  # Why: Staging/beta/production share the same DB but have different SECRET_KEY_BASE.
+  #      MessageVerifier tokens signed on staging can't be verified on production.
+  #      DB-stored tokens work regardless of which environment generates or verifies them.
+  # ❌ WRONG: Rails.application.message_verifier(:esign_download).generate(...)
+  # ✅ CORRECT: Random token stored in DB, verified by lookup
+  # ════════════════════════════════════════════════════════════════
+  def generate_download_token
+    return download_token if download_token.present?
+
+    token = SecureRandom.urlsafe_base64(32)
+    update!(download_token: token)
+    token
   end
 
   def download_url
     token = generate_download_token
-    api_url = InfrastructureUrls.backend_url
+    # Always point to production - external signers access the download link from email
+    api_url = InfrastructureUrls.production_backend_url
     "#{api_url}/api/v1/esign_download?token=#{CGI.escape(token)}"
   end
 
@@ -307,13 +324,36 @@ class ESignatureRequest < ApplicationRecord
     if document_type&.download_name.present? && documentable.is_a?(Job)
       document_type.generate_proposed_name(job: documentable, file_extension: "pdf", description: "Signed")
     else
-      date = CompanySetting.in_company_timezone { Date.current }.strftime("%d-%m-%Y")
+      date = TenantSetting.in_company_timezone { Date.current }.strftime("%d-%m-%Y")
       sanitized_title = title.to_s.gsub(/[<>:"\/\\|?*]/, "_").strip[0..60]
       "#{sanitized_title} - Signed #{date}.pdf"
     end
   end
 
   private
+
+  # Immediately retry any BPMN tokens waiting on this e-signature request.
+  # Finds waiting tokens via the documentable (e.g., Corporate) subject link.
+  def wake_up_waiting_bpmn_tokens
+    return unless documentable.present?
+
+    waiting_tokens = BpmnToken.waiting
+      .joins(:bpmn_process_instance)
+      .where(
+        bpmn_process_instances: {
+          subject_type: documentable_type,
+          subject_id: documentable_id,
+          status: "active"
+        }
+      )
+
+    waiting_tokens.find_each do |token|
+      Rails.logger.info("ESignatureRequest##{id}: Waking up BPMN token #{token.id} (was waiting for signatures)")
+      BpmnRetryWaitingTaskJob.perform_later(token.id)
+    end
+  rescue StandardError => e
+    Rails.logger.error("ESignatureRequest##{id}: Failed to wake BPMN tokens: #{e.message}")
+  end
 
   def generate_request_number
     return if request_number.present?
@@ -344,77 +384,81 @@ class ESignatureRequest < ApplicationRecord
   #
   # Downloads the original PDF from storage, creates a StorageBlob (deduplicated),
   # and creates a WarehouseDocument linked to the documentable (Job, Corporate, etc.).
+  # ⚠️ FAIL FAST - No silent error swallowing (2026-02-26)
+  # ════════════════════════════════════════════════════════════════
+  # Why: Silent rescue hid storage failures for W2G Assets director change.
+  #      Signed PDF was never stored, nobody knew until workflow got stuck.
+  # ❌ WRONG: rescue => e; Rails.logger.error  → errors invisible
+  # ✅ CORRECT: Let errors propagate → visible, fixable
+  # ════════════════════════════════════════════════════════════════
   def store_signed_document!
     storage_ref = original_storage_reference
-    return unless storage_ref.present?
+    raise "[ESignature] No original_storage_reference for #{request_number}" unless storage_ref.present?
 
-    begin
-      # Download original document content from storage
-      # SSoT pattern: Try StorageBlob first (used by DirectorChangeService, signing ceremony),
-      # fall back to S3 direct download (legacy path)
-      blob_source = StorageBlob.find_by(id: storage_ref)
-      if blob_source
-        content = blob_source.download
-      else
-        storage_service = DocumentStorageService.new
-        provider = storage_service.send(:s3_provider)
-        return unless provider
-        content = provider.download_file(storage_ref)
-      end
-      return if content.blank?
-
-      # Stamp signatures onto the PDF before storing.
-      # The stamper overlays actual signature images, timestamps, metadata,
-      # and a certificate of completion page onto the original PDF.
-      stamper = ESignaturePdfStamper.new(self)
-      stamped_content = stamper.stamp!
-      content = stamped_content if stamped_content.present?
-
-      filename = generate_signed_filename
-      source_type = resolve_source_type
-
-      # Always create a new blob for the stamped content (don't reuse original)
-      blob = StorageBlob.find_or_create_for_content!(
-        content,
-        filename: filename,
-        content_type: "application/pdf"
-      )
-
-      # Store the signed blob reference so downstream consumers
-      # (e.g. DirectorChangeService#complete_signing!) can find it
-      set_signed_storage_reference(blob.id.to_s)
-      save!
-
-      # Create WarehouseDocument via standard service (SSoT: WarehouseDocumentCreator)
-      metadata = {
-        "version_status" => "signed",
-        "e_signature_request_id" => id,
-        "request_number" => request_number,
-        "signed_at" => completed_at&.iso8601,
-        "source" => "e_signature"
-      }
-      metadata["document_type_id"] = document_type_id if document_type_id.present?
-      metadata["document_type"] = document_type.name if document_type.present?
-
-      # Resolve warehouse folder from document type (for precise path materialization)
-      warehouse_folder_id = document_type&.primary_warehouse_folder&.id
-
-      WarehouseDocumentCreator.create!(
-        filename: filename,
-        source_type: source_type,
-        linkable: documentable,
-        storage_blob: blob,
-        warehouse_folder_id: warehouse_folder_id,
-        file_size: content.bytesize,
-        content_type: "application/pdf",
-        metadata: metadata
-      )
-
-      Rails.logger.info "[ESignature] Stored signed document for #{request_number} as WarehouseDocument"
-    rescue => e
-      # Don't fail the completion if document storage fails
-      Rails.logger.error "[ESignature] Failed to store signed document for #{request_number}: #{e.message}"
+    # Download original document content from storage
+    blob_source = StorageBlob.find_by(id: storage_ref)
+    if blob_source
+      content = blob_source.download
+    else
+      storage_service = DocumentStorageService.new
+      provider = storage_service.send(:s3_provider)
+      raise "[ESignature] No S3 provider available to download #{storage_ref} for #{request_number}" unless provider
+      content = provider.download_file(storage_ref)
     end
+    raise "[ESignature] Empty content downloaded for #{request_number} (ref: #{storage_ref})" if content.blank?
+
+    # Stamp signatures onto the PDF before storing.
+    # The stamper overlays actual signature images, timestamps, metadata,
+    # and a certificate of completion page onto the original PDF.
+    stamper = ESignaturePdfStamper.new(self)
+    stamped_content = stamper.stamp!
+    raise "[ESignature] PDF stamper returned blank content for #{request_number}" if stamped_content.blank?
+    content = stamped_content
+
+    filename = generate_signed_filename
+    source_type = resolve_source_type
+
+    # Always create a new blob for the stamped content (don't reuse original)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: "application/pdf"
+    )
+
+    # Store the signed blob reference so downstream consumers
+    # (e.g. DirectorChangeService#complete_signing!) can find it
+    set_signed_storage_reference(blob.id.to_s)
+    save!
+
+    # Create WarehouseDocument via standard service (SSoT: WarehouseDocumentCreator)
+    metadata = {
+      "version_status" => "signed",
+      "e_signature_request_id" => id,
+      "request_number" => request_number,
+      "signed_at" => completed_at&.iso8601,
+      "source" => "e_signature",
+      # Auto-validate: TEEEM-generated signed documents are pre-validated by the platform
+      "user_validated_at" => Time.current.iso8601,
+      "user_validated_by_name" => "TEEEM Platform"
+    }
+    metadata["document_type_id"] = document_type_id if document_type_id.present?
+    metadata["document_type"] = document_type.name if document_type.present?
+
+    # Resolve warehouse folder from document type (for precise path materialization)
+    warehouse_folder_id = document_type&.primary_warehouse_folder&.id
+
+    WarehouseDocumentCreator.create!(
+      filename: filename,
+      source_type: source_type,
+      linkable: documentable,
+      storage_blob: blob,
+      warehouse_folder_id: warehouse_folder_id,
+      file_size: content.bytesize,
+      content_type: "application/pdf",
+      metadata: metadata
+    )
+
+    Rails.logger.info "[ESignature] Stored signed document for #{request_number} as WarehouseDocument (blob: #{blob.id})"
   end
 
   # Map documentable_type to WarehouseDocument source_type

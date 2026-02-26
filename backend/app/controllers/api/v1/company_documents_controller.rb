@@ -133,6 +133,15 @@ module Api
         render_error("Document not found", status: :not_found)
       end
 
+      # DELETE /api/v1/company_documents/:id
+      def destroy
+        doc = WarehouseDocument.find(params[:id])
+        doc.destroy!
+        render json: { success: true, message: "Document deleted" }
+      rescue ActiveRecord::RecordNotFound
+        render_error("Document not found", status: :not_found)
+      end
+
       # POST /api/v1/company_documents/:id/validate
       # Stamps the document as human-validated (user reviewed and confirmed classification)
       def validate

@@ -403,40 +403,37 @@ email_health_monitor:
 
 # Upload synced emails to Wasabi storage (self-healing)
 # FRC (Jan 2026): Auto-recovers from queue DB connection failures
-# Auto-discovers all tenants with pending emails (no manual tenant_id needed)
-# FRC (Feb 2026): batch_size 500→100→50. Memory safety on 1024MB dyno.
-# FRC (Feb 2026): Moved to :low - blob uploads are background work, frees :default for sync
-# FRC (Feb 2026): Changed from every 5 min → every 10 min to stagger with
-# warehouse_xero_attachments (also every 10 min). Both are memory-heavy
-# (download + hash + S3 upload). Running simultaneously caused R14 OOM.
-# Internal auto-continue loop maintains throughput at 10-min intervals.
-  # FRC (Feb 2026): Increased from 50 → 200. With randomized order and resilient
-  # sub-batches, larger batches mean more emails attempted per run.
-  # 200/run × 6 runs/hr = ~1,200/hr throughput (vs ~0 at batch_size: 50 with stuck emails)
+# FRC (Feb 2026): Moved to email_enrichment queue → runs on EMAIL WORKER, not shared worker.
+# Root cause: This job downloads email MIME content from Microsoft Graph API and uploads
+# to Wasabi — that's email work. On the shared worker (1 thread, 1GB) it monopolized
+# the thread for 10 min straight, blocking ALL other jobs (Xero, badges, etc.) and
+# caused R14 from MIME content accumulating in memory. Now runs on email worker
+# which has 2 threads and its own 1GB budget, leaving shared worker free.
+# batch_size 25 = ~100MB memory spike per batch (safe on 1GB email worker).
 email_storage_upload:
   class: UploadEmailsToStorageJob
-  queue: low
-  args: [{ batch_size: 200 }]
+  queue: email_enrichment
+  args: [{ batch_size: 25 }]
   schedule: every 10 minutes
 
 # Upload IMAP emails to Wasabi storage (parallel to MS365 upload above)
 # IMAP emails use uid + folder_name to fetch raw .eml from IMAP server
-# FRC (Feb 2026): Was a one-off backfill job, now recurring to handle new IMAP emails
-# FRC (Feb 2026): Moved to :low - blob backfill is background work, frees :default for sync
-# FRC (Feb 2026): Changed from every 5 min → every 10 min for memory staggering
+# FRC (Feb 2026): Moved to email_enrichment → runs on EMAIL WORKER (same reasoning).
 imap_email_storage_upload:
   class: BackfillImapEmailBlobsJob
-  queue: low
-  args: [{ batch_size: 100 }]
+  queue: email_enrichment
+  args: [{ batch_size: 25 }]
   schedule: every 10 minutes
 
 # Retry pending attachment blob downloads (self-healing)
 # FRC (Feb 2026): Two-step sync creates metadata in step 1 but step 2 (blob download)
 # can fail silently. This job retries those orphaned attachments every 15 minutes.
+# FRC (Feb 2026): Reduced batch_size 20→10. Each attachment download holds binary
+# content in memory. With sequential jobs on 1024MB dyno, must limit per-job impact.
 retry_pending_attachment_blobs:
   class: RetryPendingAttachmentBlobsJob
   queue: default
-  args: [{ batch_size: 20 }]
+  args: [{ batch_size: 10 }]
   schedule: every 15 minutes
 
 # Note: BackfillEmailAttachmentBlobsJob removed (Jan 2026) - EmailAttachment table dropped
