@@ -84,6 +84,9 @@ module Api
 
       # POST /api/v1/quote_returns/:id/accept
       # Accepts a quote and creates PO(s) with confirmation tracking
+      #
+      # For CC-level custom quotes, allocations can be passed inline:
+      #   { allocations: [{ lineId: 1, amount: 5000 }, ...] }
       def accept
         notes = params[:confirmationNotes]
         include_tender_desc = ActiveModel::Type::Boolean.new.cast(params[:includeTenderDescription])
@@ -91,7 +94,9 @@ module Api
         if @source == :qt
           accept_quote_tracker!(@record, notes)
         else
-          accept_custom_quote_supplier!(@record, notes, include_tender_description: include_tender_desc)
+          accept_custom_quote_supplier!(@record, notes,
+            include_tender_description: include_tender_desc,
+            allocations: params[:allocations])
         end
       rescue => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
@@ -217,9 +222,14 @@ module Api
         }
       end
 
-      def accept_custom_quote_supplier!(cqs, notes, include_tender_description: false)
+      def accept_custom_quote_supplier!(cqs, notes, include_tender_description: false, allocations: nil)
         pos = nil
         ActiveRecord::Base.transaction do
+          # Save allocations for CC-level quotes (must exist before PO creation)
+          if allocations.present?
+            save_allocations!(cqs, allocations)
+          end
+
           pos = CustomQuotePoCreatorService.accept!(supplier: cqs, user: current_user)
 
           # Record confirmation
@@ -249,6 +259,20 @@ module Api
             }
           }
         }
+      end
+
+      # ─── Allocation Saving ─────────────────────────────────────────────
+
+      def save_allocations!(cqs, allocs)
+        # Clear any existing allocations (idempotent on re-try)
+        cqs.allocations.destroy_all
+
+        allocs.each do |alloc|
+          cqs.allocations.create!(
+            custom_quote_line_id: alloc[:lineId],
+            allocated_amount: alloc[:amount]
+          )
+        end
       end
 
       # ─── PO Enhancement ──────────────────────────────────────────────

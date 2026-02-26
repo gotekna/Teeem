@@ -6,7 +6,7 @@
 class ESignatureSigner < ApplicationRecord
   # Constants
   STATUSES = %w[pending notified viewed signed declined].freeze
-  SIGNATURE_TYPES = %w[drawn typed uploaded].freeze
+  SIGNATURE_TYPES = %w[drawn typed uploaded positioned].freeze
   ROLES = %w[client builder witness guarantor director partner solicitor accountant other].freeze
 
   # Associations

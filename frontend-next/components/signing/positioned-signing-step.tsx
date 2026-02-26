@@ -118,8 +118,8 @@ export function PositionedSigningStep({
 }: PositionedSigningStepProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [scale, setScale] = useState(1);
-  const [autoFitScale, setAutoFitScale] = useState(1);
+  const [scale, setScale] = useState(0.6);
+  const [autoFitScale, setAutoFitScale] = useState(0.6);
   const [pdfDimensions, setPdfDimensions] = useState<{ width: number; height: number } | null>(null);
   const [fields, setFields] = useState<SignatureField[]>(initialFields);
   const [selectedField, setSelectedField] = useState<SignatureField | null>(null);
@@ -340,6 +340,14 @@ export function PositionedSigningStep({
       if (prev && prev.width === w && prev.height === h) return prev;
       return { width: w, height: h };
     });
+    // Immediately calculate fit-to-width using current container width
+    const container = pdfContainerRef.current;
+    if (container && w > 0) {
+      const containerWidth = container.clientWidth - 32;
+      const fitScale = Math.round(Math.min(2.0, Math.max(0.4, containerWidth / w)) * 1000) / 1000;
+      setAutoFitScale(prev => prev === fitScale ? prev : fitScale);
+      setScale(prev => prev === fitScale ? prev : fitScale);
+    }
   }, []);
 
   // Get fields for current page
