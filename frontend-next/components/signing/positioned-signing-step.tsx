@@ -807,7 +807,7 @@ export function PositionedSigningStep({
 
       {/* Text/Date/Comment field dialog */}
       <Dialog
-        open={selectedField !== null && !["signature", "initials"].includes(selectedField?.field_type || "") && confirmMode === null && captureMode === null}
+        open={selectedField !== null && !["signature", "initials", "yes_no"].includes(selectedField?.field_type || "") && confirmMode === null && captureMode === null}
         onOpenChange={() => setSelectedField(null)}
       >
         <DialogContent className={selectedField?.field_type === "comment" ? "max-w-lg" : undefined}>
@@ -824,6 +824,42 @@ export function PositionedSigningStep({
             onSubmit={handleTextFieldSubmit}
             onCancel={() => setSelectedField(null)}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Yes/No field dialog */}
+      <Dialog
+        open={selectedField !== null && selectedField?.field_type === "yes_no" && confirmMode === null && captureMode === null}
+        onOpenChange={() => setSelectedField(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{selectedField?.label || "Yes or No?"}</DialogTitle>
+            <DialogDescription>
+              Please select your response
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 pt-2">
+            <Button
+              className="flex-1 h-16 text-lg bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => handleTextFieldSubmit("Yes")}
+            >
+              <ThumbsUp className="h-5 w-5 mr-2" />
+              Yes
+            </Button>
+            <Button
+              className="flex-1 h-16 text-lg bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => handleTextFieldSubmit("No")}
+            >
+              <ThumbsDown className="h-5 w-5 mr-2" />
+              No
+            </Button>
+          </div>
+          <div className="flex justify-center">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedField(null)}>
+              Skip
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
