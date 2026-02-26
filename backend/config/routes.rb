@@ -543,7 +543,7 @@ Rails.application.routes.draw do
 
       # Company Documents (corporate company document counts)
       # SSoT: WarehouseDocument is THE ONE table for document metadata (Jan 2026)
-      resources :company_documents, only: [:index] do
+      resources :company_documents, only: [:index, :destroy] do
         collection do
           get :counts
         end
