@@ -255,6 +255,8 @@ class ESignaturePdfStamper
       stamp_text_field(page, field, x, y, width, height)
     when "comment"
       stamp_comment_field(page, field, x, y, width, height)
+    when "yes_no"
+      stamp_yes_no_field(page, field, x, y, width, height)
     end
   end
 
@@ -361,6 +363,37 @@ class ESignaturePdfStamper
     canvas.fill_color("000000")
     text_y = y + (height / 2) - 3
     canvas.text(field.value || "", at: [ x + 4, text_y ])
+  end
+
+  # Stamp a yes/no field (colored box with bold text)
+  def stamp_yes_no_field(page, field, x, y, width, height)
+    canvas = page.canvas(type: :overlay)
+
+    is_yes = field.value&.downcase == "yes"
+    bg_color = is_yes ? "e6f4ea" : "fce8e6"
+    text_color = is_yes ? "1e7e34" : "cc0000"
+    border_color = is_yes ? "34a853" : "ea4335"
+
+    # Draw colored background
+    canvas.fill_color(bg_color)
+    canvas.rectangle(x, y, width, height)
+    canvas.fill
+
+    # Draw border
+    canvas.stroke_color(border_color)
+    canvas.line_width(1.5)
+    canvas.rectangle(x, y, width, height)
+    canvas.stroke
+    canvas.line_width(1)
+
+    # Draw bold text centered
+    font_size = [ height * 0.5, 12 ].min.clamp(8, 12)
+    label = is_yes ? "YES" : "NO"
+
+    canvas.font("Helvetica", variant: :bold, size: font_size)
+    canvas.fill_color(text_color)
+    text_y = y + (height / 2) - (font_size * 0.35)
+    canvas.text(label, at: [ x + 4, text_y ])
   end
 
   # Stamp a comment field (multi-line text with word wrapping)
