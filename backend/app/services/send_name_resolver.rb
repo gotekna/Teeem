@@ -348,6 +348,7 @@ class SendNameResolver
     doc_date = doc_date.to_date if doc_date.respond_to?(:to_date)
 
     replace_token(result, "Date", doc_date.strftime("%d-%m-%Y"))
+    replace_token(result, "DateAU", doc_date.strftime("%d-%m-%Y"))
     replace_token(result, "DDMMYYYY", doc_date.strftime("%d-%m-%Y"))
     replace_token(result, "YYYYMMDD", doc_date.strftime("%Y-%m-%d"))
     replace_token(result, "DateTime", Time.current.strftime("%Y-%m-%d %H:%M"))

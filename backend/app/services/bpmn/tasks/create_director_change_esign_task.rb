@@ -39,6 +39,7 @@ module Bpmn
           title: "Director Change - #{@subject.name}",
           documentable: @subject,
           created_by: resolve_user,
+          document_type: DocumentType.find_by(abbreviation: "F484"),
           signing_order: ESignatureRequest::SIGNING_ORDERS[:sequential],
           send_reminders: true,
           original_document_hash: Digest::SHA256.hexdigest(pdf_content)

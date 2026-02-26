@@ -624,7 +624,7 @@ class DirectorChangeService
         page_assignments << {
           pages: [current_page], abbr: abbr,
           name: "#{doc_name} - #{person_name} #{date_str}",
-          metadata: base_metadata.merge(person: person_name, position: pos, date: cd[:cessation_date].iso8601)
+          metadata: base_metadata.merge(person_name: person_name, position: pos, date: cd[:cessation_date].iso8601)
         }
         current_page += 1
       end
@@ -641,7 +641,7 @@ class DirectorChangeService
         page_assignments << {
           pages: [current_page], abbr: abbr,
           name: "#{doc_name} - #{person_name} #{date_str}",
-          metadata: base_metadata.merge(person: person_name, position: pos, date: appt[:appointment_date].iso8601)
+          metadata: base_metadata.merge(person_name: person_name, position: pos, date: appt[:appointment_date].iso8601)
         }
         current_page += 1
       end

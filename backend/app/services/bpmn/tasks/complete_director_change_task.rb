@@ -50,18 +50,20 @@ module Bpmn
       private
 
       def find_esign_request(esign_result)
-        # Try from stored signing result variable
+        # Try from stored signing result variable (set by CreateDirectorChangeEsignTask)
         if esign_result.is_a?(Hash) && esign_result["request_id"].present?
           return ESignatureRequest.find_by(id: esign_result["request_id"])
         end
 
-        # Fallback: find by subject's most recent completed e-sign request
-        @subject.e_signature_requests
-          .where(status: "completed")
-          .order(completed_at: :desc)
-          .first
-      rescue NoMethodError
-        # Subject might not have e_signature_requests association
+        # ⚠️ DO NOT FALLBACK to "most recent completed" request (2026-02-27)
+        # ════════════════════════════════════════════════════════════════
+        # Why: If there are multiple completed e-sign requests on this Corporate
+        #      (e.g., previous director changes), the fallback would grab the WRONG
+        #      request, finalizing a stale director change with wrong signers/dates.
+        # ❌ WRONG: @subject.e_signature_requests.where(status: "completed").last
+        # ✅ CORRECT: Fail fast so the issue is visible and fixable
+        # ════════════════════════════════════════════════════════════════
+        log_info("esign_result variable missing or invalid: #{esign_result.inspect}")
         nil
       end
 
