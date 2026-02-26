@@ -114,7 +114,8 @@ class ESignatureSigner < ApplicationRecord
   def send_notification!
     return if notified_at.present?
 
-    generate_access_token!
+    # Token is generated inside the mailer (signing_url_for) so it appears in the email link.
+    # Do NOT call generate_access_token! here - it would be overwritten by the mailer.
     begin
       ESignatureEmailService.deliver(
         ESignatureMailer.signing_request(e_signature_request, self)

@@ -93,13 +93,42 @@ export default function WorkflowTaskDetailPage() {
           { form_data: formData }
         );
         if (res?.success) {
-          // Brief processing state while background jobs execute (PDF generation, e-signature creation)
+          // Show processing state while background jobs execute (PDF generation, e-signature creation)
           setWorkflowProcessing(true);
-          await new Promise((r) => setTimeout(r, 3000));
+
+          // Poll process variables until esign_result appears (background job creates it)
+          const maxAttempts = 40; // 40 * 3s = 2 min max wait
+          let esignRequestId: number | null = null;
+
+          for (let i = 0; i < maxAttempts; i++) {
+            await new Promise((r) => setTimeout(r, 3000));
+            try {
+              const pollRes = await api.get<{ success: boolean; task: TaskDetail }>(
+                `/api/v1/bpmn_tasks/${task.id}`
+              );
+              if (pollRes?.success) {
+                const vars = pollRes.task.process_variables || {};
+                const esignResult = vars.esign_result as { request_id?: number } | undefined;
+                if (esignResult?.request_id) {
+                  esignRequestId = esignResult.request_id;
+                  break;
+                }
+              }
+            } catch {
+              // Ignore poll errors, keep trying
+            }
+          }
+
           setWorkflowProcessing(false);
-          setCompleted(true);
-          // Invalidate e-signature cache so the list page shows fresh data
           queryClient.invalidateQueries({ queryKey: ["e-signature-requests"] });
+
+          if (esignRequestId) {
+            // Auto-navigate to the specific e-signature request
+            router.push(`/e-signature/${esignRequestId}`);
+          } else {
+            // Fallback: show completion page if polling timed out
+            setCompleted(true);
+          }
         } else {
           setError(res?.error || "Failed to complete task");
         }
@@ -109,7 +138,7 @@ export default function WorkflowTaskDetailPage() {
         setCompleting(false);
       }
     },
-    [task]
+    [task, queryClient, router]
   );
 
   const handleCancel = useCallback(() => {
@@ -144,7 +173,7 @@ export default function WorkflowTaskDetailPage() {
 
   if (!task) return null;
 
-  // Processing state - brief wait while background jobs run
+  // Processing state - polling while background jobs run
   if (workflowProcessing) {
     return (
       <div className="p-6 space-y-4">
@@ -154,7 +183,10 @@ export default function WorkflowTaskDetailPage() {
             <Spinner className="h-10 w-10 mx-auto mb-4" />
             <p className="text-lg font-medium">Processing Workflow...</p>
             <p className="text-muted-foreground mt-1">
-              Generating documents and sending for e-signature.
+              Generating documents and preparing for e-signature. This may take up to a minute.
+            </p>
+            <p className="text-xs text-muted-foreground mt-3">
+              You&apos;ll be redirected automatically when ready.
             </p>
           </CardContent>
         </Card>
