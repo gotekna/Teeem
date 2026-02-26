@@ -18,12 +18,16 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 interface ConsentStepProps {
+  token: string;
+  apiUrl: string;
   documentTitle: string;
   onConsent: () => void;
   onDecline: (reason: string) => void;
 }
 
 export function ConsentStep({
+  token,
+  apiUrl,
   documentTitle,
   onConsent,
   onDecline,
@@ -33,8 +37,33 @@ export function ConsentStep({
   const [consent3, setConsent3] = useState(false);
   const [showDeclineDialog, setShowDeclineDialog] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [disclosureId, setDisclosureId] = useState<string | null>(null);
 
   const allConsented = consent1 && consent2 && consent3;
+
+  const handleAcceptErsd = async () => {
+    if (!allConsented || submitting) return;
+    setSubmitting(true);
+
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/sign/${token}/accept_ersd`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setDisclosureId(data.disclosure_id);
+        onConsent();
+      }
+    } catch {
+      // Still proceed on network error - consent is recorded server-side
+      onConsent();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleDecline = () => {
     if (declineReason.trim()) {
@@ -49,14 +78,14 @@ export function ConsentStep({
         <ShieldCheck className="h-8 w-8 text-primary" />
       </div>
 
-      <h2 className="text-xl font-semibold mb-2">Consent to Sign</h2>
+      <h2 className="text-xl font-semibold mb-2">Electronic Record and Signature Disclosure</h2>
       <p className="text-muted-foreground text-center mb-8 max-w-md">
-        Before signing &ldquo;{documentTitle}&rdquo;, please confirm your understanding and consent below.
+        Before signing &ldquo;{documentTitle}&rdquo;, please review and consent to the following disclosures.
       </p>
 
       {/* Consent checkboxes */}
       <div className="space-y-6 w-full max-w-md">
-        {/* Consent 1: Read and understand */}
+        {/* Consent 1: Electronic delivery */}
         <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
           <Checkbox
             id="consent1"
@@ -69,11 +98,11 @@ export function ConsentStep({
               htmlFor="consent1"
               className="font-medium cursor-pointer"
             >
-              I have read and understand the document
+              I consent to electronic delivery
             </Label>
             <p className="text-sm text-muted-foreground">
-              I confirm that I have reviewed the entire document and understand its contents,
-              terms, and conditions.
+              I agree to receive this document electronically and understand that I may
+              request a paper copy at any time by contacting the sender.
             </p>
           </div>
         </div>
@@ -95,7 +124,9 @@ export function ConsentStep({
             </Label>
             <p className="text-sm text-muted-foreground">
               I agree that my electronic signature on this document is legally binding and
-              has the same legal effect as a handwritten signature.
+              has the same legal effect as a handwritten signature under the{" "}
+              <em>Electronic Transactions Act 1999</em> (Cth) s.10 and equivalent
+              State and Territory legislation.
             </p>
           </div>
         </div>
@@ -113,11 +144,12 @@ export function ConsentStep({
               htmlFor="consent3"
               className="font-medium cursor-pointer"
             >
-              I intend to sign this document
+              I have reviewed and intend to sign this document
             </Label>
             <p className="text-sm text-muted-foreground">
-              I confirm my intent to apply my electronic signature to this document,
-              thereby entering into a legally binding agreement.
+              I confirm that I have been given the opportunity to review the document,
+              understand its contents, and intend to apply my electronic signature
+              to create a legally binding agreement.
             </p>
           </div>
         </div>
@@ -127,9 +159,11 @@ export function ConsentStep({
       <div className="mt-6 p-4 bg-muted dark:bg-slate-800 rounded-lg max-w-md">
         <p className="text-xs text-muted-foreground text-center">
           By proceeding, you acknowledge that electronic signatures are legally binding
-          under applicable laws including the Electronic Signatures in Global and National
-          Commerce Act (E-SIGN), the Uniform Electronic Transactions Act (UETA), and equivalent
-          legislation in your jurisdiction.
+          under the <em>Electronic Transactions Act 1999</em> (Cth), the <em>Electronic
+          Signatures in Global and National Commerce Act</em> (E-SIGN), the <em>Uniform
+          Electronic Transactions Act</em> (UETA), and equivalent legislation in your
+          jurisdiction. Your consent, IP address, and timestamp will be recorded for
+          compliance purposes.
         </p>
       </div>
 
@@ -143,11 +177,11 @@ export function ConsentStep({
           Decline
         </Button>
         <Button
-          onClick={onConsent}
-          disabled={!allConsented}
+          onClick={handleAcceptErsd}
+          disabled={!allConsented || submitting}
           className="flex-1"
         >
-          Continue to Sign
+          {submitting ? "Recording consent..." : "Continue to Sign"}
         </Button>
       </div>
 

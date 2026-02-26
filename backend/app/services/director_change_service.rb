@@ -139,9 +139,13 @@ class DirectorChangeService
         end
       end
 
-      # Store signed PDF as WarehouseDocument
-      if e_signature_request.signed_storage_reference.present?
-        store_signed_document(e_signature_request)
+      # Store signed PDF as WarehouseDocument.
+      # Prefer signed blob (stamped with signatures), fall back to original blob
+      # if the stamper/storage step failed during mark_as_completed!.
+      storage_ref = e_signature_request.signed_storage_reference.presence ||
+                    e_signature_request.original_storage_reference.presence
+      if storage_ref.present?
+        store_signed_document(e_signature_request, storage_ref)
       end
     end
   end
@@ -561,8 +565,9 @@ class DirectorChangeService
   # Legacy alias for external references (BPMN task etc.)
   BADGE_POSITION = BADGE_POSITIONS[:resignation].freeze
 
-  def store_signed_document(e_signature_request)
-    signed_blob = StorageBlob.find_by(id: e_signature_request.signed_storage_reference)
+  def store_signed_document(e_signature_request, storage_ref = nil)
+    storage_ref ||= e_signature_request.signed_storage_reference
+    signed_blob = StorageBlob.find_by(id: storage_ref)
     asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
     base_metadata = {
       form_type: "form_484",

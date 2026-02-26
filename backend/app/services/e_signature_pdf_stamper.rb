@@ -540,105 +540,306 @@ class ESignaturePdfStamper
   end
 
   def add_certificate_page(document)
-    # Add a new page for the completion certificate
+    cert = @request.certificate
     page = document.pages.add
     box = page.box
     canvas = page.canvas
+    page_width = box.width
+    content_width = page_width - (MARGIN * 2)
+
+    y = box.height - MARGIN
+
+    # ── Header Section ──
+    y = draw_certificate_header(canvas, y, page_width, content_width, cert)
+
+    # ── Signer Events Section ──
+    y = draw_signer_events(document, canvas, y, content_width)
+
+    # ── Envelope Originator Section ──
+    y = draw_originator_section(canvas, y)
+
+    # ── Events Timeline Section ──
+    y = draw_events_timeline(canvas, y)
+
+    # ── Document Integrity Section ──
+    y = draw_document_integrity(canvas, y, cert)
+
+    # ── Legal Footer ──
+    draw_legal_footer(canvas, cert)
+  end
+
+  # Certificate header: title, request info, document metadata
+  def draw_certificate_header(canvas, y, page_width, content_width, cert)
+    # Border line at top
+    canvas.stroke_color("1a5632")
+    canvas.line_width(2)
+    canvas.line(MARGIN, y, page_width - MARGIN, y)
+    canvas.stroke
+    canvas.line_width(1)
+    y -= 25
 
     # Title
-    canvas.font("Helvetica", variant: :bold, size: 24)
-    canvas.fill_color("000000")
-    canvas.text("Certificate of Completion", at: [ box.width / 2 - 100, box.height - 80 ])
-
-    # Certificate number
-    cert = @request.certificate
-    if cert
-      canvas.font("Helvetica", size: 10)
-      canvas.fill_color("666666")
-      canvas.text("Certificate #: #{cert.certificate_number}", at: [ MARGIN, box.height - 120 ])
-    end
-
-    # Document info
-    y = box.height - 160
-    canvas.font("Helvetica", variant: :bold, size: 12)
-    canvas.fill_color("000000")
-    canvas.text("Document Details", at: [ MARGIN, y ])
-
-    canvas.font("Helvetica", size: 10)
+    canvas.font("Helvetica", variant: :bold, size: 16)
+    canvas.fill_color("1a5632")
+    canvas.text("TEEEM Certificate of Completion", at: [ MARGIN, y ])
     y -= 20
-    canvas.text("Title: #{@request.title}", at: [ MARGIN, y ])
-    y -= 15
-    canvas.text("Request Number: #{@request.request_number}", at: [ MARGIN, y ])
-    y -= 15
-    canvas.text("Created: #{@request.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}", at: [ MARGIN, y ])
-    y -= 15
-    canvas.text("Completed: #{@request.completed_at&.strftime('%Y-%m-%d %H:%M:%S UTC')}", at: [ MARGIN, y ])
 
-    # Document hashes
-    y -= 30
-    canvas.font("Helvetica", variant: :bold, size: 12)
-    canvas.text("Document Integrity", at: [ MARGIN, y ])
+    # Request number and status
+    canvas.font("Helvetica", size: 9)
+    canvas.fill_color("333333")
+    status_label = @request.status == "completed" ? "Completed" : @request.status.capitalize
+    canvas.text("Request: #{@request.request_number}    Status: #{status_label}", at: [ MARGIN, y ])
+    y -= 13
 
-    canvas.font("Courier", size: 8)
-    y -= 20
-    canvas.text("Original Hash (SHA-256):", at: [ MARGIN, y ])
-    y -= 12
-    canvas.text(@request.original_document_hash || "N/A", at: [ MARGIN, y ])
+    # Subject (title)
+    subject = @request.title.to_s
+    subject = subject[0..70] + "..." if subject.length > 73
+    canvas.text("Subject: #{subject}", at: [ MARGIN, y ])
+    y -= 13
+
+    # Document metadata: page count, signature/initials counts
+    sig_count = @request.fields.where(field_type: "signature").completed.count
+    sig_count += @request.signers.signed.count if sig_count == 0
+    initials_count = @request.fields.where(field_type: "initials").completed.count
+    canvas.text("Signatures: #{sig_count}, Initials: #{initials_count}", at: [ MARGIN, y ])
+    y -= 5
+
+    # Divider
+    canvas.stroke_color("cccccc")
+    canvas.line(MARGIN, y, page_width - MARGIN, y)
+    canvas.stroke
     y -= 15
-    canvas.text("Signed Hash (SHA-256):", at: [ MARGIN, y ])
-    y -= 12
-    canvas.text(@request.signed_document_hash || "N/A", at: [ MARGIN, y ])
 
-    # Signers list
-    y -= 30
-    canvas.font("Helvetica", variant: :bold, size: 12)
-    canvas.text("Signatories", at: [ MARGIN, y ])
+    y
+  end
 
-    canvas.font("Helvetica", size: 10)
+  # Signer events: one block per signer with signature image, timestamps, ERSD
+  def draw_signer_events(document, canvas, y, content_width)
+    canvas.font("Helvetica", variant: :bold, size: 11)
+    canvas.fill_color("333333")
+    canvas.text("SIGNER EVENTS", at: [ MARGIN, y ])
+    y -= 15
+
     @request.signers.signed.order(:signing_order).each do |signer|
-      y -= 20
-      canvas.text(
-        "#{signer.name} (#{signer.email}) - #{signer.role || 'Signer'}",
-        at: [ MARGIN, y ]
-      )
-      y -= 12
-      canvas.font("Helvetica", size: 8)
-      canvas.fill_color("666666")
-      type_label = signature_type_label(signer)
-      canvas.text(
-        "Signed: #{signer.signed_at&.strftime('%Y-%m-%d %H:%M:%S AEST')} | Method: #{type_label} | IP: #{signer.ip_address}",
-        at: [ MARGIN + 20, y ]
-      )
-      canvas.fill_color("000000")
-      canvas.font("Helvetica", size: 10)
+      y = draw_signer_block(document, canvas, signer, y, content_width)
+      y -= 8
     end
 
-    # Legal notice
-    y -= 40
+    y
+  end
+
+  # Individual signer block: name, role, signature image, timestamps, IP, ERSD
+  def draw_signer_block(document, canvas, signer, y, content_width)
+    block_start_y = y
+
+    # Box border
+    canvas.stroke_color("dddddd")
+    # We'll draw the box after calculating height
+
+    x = MARGIN + 8
+    inner_y = y - 4
+
+    # Name and email
+    canvas.font("Helvetica", variant: :bold, size: 9)
+    canvas.fill_color("000000")
+    canvas.text(signer.name, at: [ x, inner_y ])
     canvas.font("Helvetica", size: 8)
     canvas.fill_color("666666")
-    canvas.text(
-      "This document was electronically signed using TEEEM E-Signature. Electronic signatures are legally binding",
-      at: [ MARGIN, y ]
-    )
-    y -= 10
-    canvas.text(
-      "under the Electronic Transactions Act 1999 (Cth), equivalent State and Territory legislation, the Electronic",
-      at: [ MARGIN, y ]
-    )
-    y -= 10
-    canvas.text(
-      "Signatures in Global and National Commerce Act (E-SIGN), and the Uniform Electronic Transactions Act (UETA).",
-      at: [ MARGIN, y ]
-    )
+    name_width = signer.name.length * 5
+    canvas.text(signer.email, at: [ x + [ name_width + 15, 180 ].min, inner_y ])
+    inner_y -= 12
 
-    # Verification URL
-    y -= 25
-    canvas.font("Helvetica", size: 9)
-    canvas.fill_color("0066cc")
-    canvas.text(
-      "Verify this document at: #{InfrastructureUrls.production_frontend_url}/verify/#{cert&.certificate_number}",
-      at: [ MARGIN, y ]
-    )
+    # Role and security level
+    role_label = signer.role&.capitalize || "Signer"
+    canvas.font("Helvetica", size: 8)
+    canvas.fill_color("444444")
+    canvas.text("Role: #{role_label}    Security: Email", at: [ x, inner_y ])
+    inner_y -= 14
+
+    # Signature image (if available)
+    sig_data = signer.signature_data
+    if sig_data.present? && sig_data.start_with?("data:image")
+      begin
+        image_data = sig_data.split(",")[1]
+        image_bytes = Base64.decode64(image_data)
+        Tempfile.create([ "cert_sig", ".png" ]) do |temp|
+          temp.binmode
+          temp.write(image_bytes)
+          temp.rewind
+          image = document.images.add(temp.path)
+          canvas.image(image, at: [ x, inner_y - 20 ], width: 150, height: 30)
+        end
+        inner_y -= 35
+      rescue StandardError => e
+        Rails.logger.error("ESignaturePdfStamper: Certificate sig image failed: #{e.message}")
+        canvas.font("Helvetica", variant: :bold, size: 10)
+        canvas.fill_color("000000")
+        canvas.text(signer.name, at: [ x, inner_y ])
+        inner_y -= 14
+      end
+    else
+      canvas.font("Helvetica", variant: :bold, size: 10)
+      canvas.fill_color("000000")
+      canvas.text(signer.name, at: [ x, inner_y ])
+      inner_y -= 14
+    end
+
+    # Timestamps: Sent, Viewed, Signed
+    canvas.font("Helvetica", size: 7.5)
+    canvas.fill_color("555555")
+
+    sent_time = signer.notified_at&.in_time_zone("Australia/Brisbane")&.strftime("%d/%m/%Y %I:%M %p AEST")
+    viewed_time = signer.viewed_at&.in_time_zone("Australia/Brisbane")&.strftime("%d/%m/%Y %I:%M %p AEST")
+    signed_time = signer.signed_at&.in_time_zone("Australia/Brisbane")&.strftime("%d/%m/%Y %I:%M %p AEST")
+
+    canvas.text("Sent: #{sent_time || 'N/A'}", at: [ x, inner_y ]) if sent_time
+    inner_y -= 10 if sent_time
+    canvas.text("Viewed: #{viewed_time || 'N/A'}", at: [ x, inner_y ]) if viewed_time
+    inner_y -= 10 if viewed_time
+    canvas.text("Signed: #{signed_time}", at: [ x, inner_y ])
+    inner_y -= 10
+
+    # IP address (full, not masked - certificate is the legal record)
+    canvas.text("IP: #{signer.ip_address || 'N/A'}", at: [ x, inner_y ])
+    inner_y -= 10
+
+    # Signature method
+    type_label = signature_type_label(signer)
+    canvas.text("Signature Method: #{type_label}", at: [ x, inner_y ])
+    inner_y -= 10
+
+    # ERSD acceptance
+    ersd_event = @request.events.where(event_type: "ersd_accepted", e_signature_signer_id: signer.id).first
+    if ersd_event
+      disclosure_id = ersd_event.event_data&.dig("disclosure_id") || "N/A"
+      ersd_time = ersd_event.occurred_at&.in_time_zone("Australia/Brisbane")&.strftime("%d/%m/%Y %I:%M %p AEST")
+      canvas.text("ERSD: Accepted (ID: #{disclosure_id}) #{ersd_time}", at: [ x, inner_y ])
+      inner_y -= 10
+    end
+
+    inner_y -= 2
+
+    # Draw the box border around the signer block
+    box_height = block_start_y - inner_y
+    canvas.rectangle(MARGIN + 2, inner_y, content_width - 4, box_height)
+    canvas.stroke
+
+    inner_y
+  end
+
+  # Originator section: who sent the envelope
+  def draw_originator_section(canvas, y)
+    y -= 5
+    canvas.font("Helvetica", variant: :bold, size: 11)
+    canvas.fill_color("333333")
+    canvas.text("ENVELOPE ORIGINATOR", at: [ MARGIN, y ])
+    y -= 14
+
+    creator = @request.created_by
+    if creator
+      canvas.font("Helvetica", size: 8)
+      canvas.fill_color("444444")
+      canvas.text("Name: #{creator.name} (#{creator.email})", at: [ MARGIN + 8, y ])
+      y -= 11
+
+      # Get originator IP from the "sent" event
+      sent_event = @request.events.where(event_type: "sent").first
+      if sent_event&.ip_address.present?
+        canvas.text("IP: #{sent_event.ip_address}", at: [ MARGIN + 8, y ])
+        y -= 11
+      end
+
+      sent_time = @request.sent_at&.in_time_zone("Australia/Brisbane")&.strftime("%d/%m/%Y %I:%M %p AEST")
+      canvas.text("Sent: #{sent_time}", at: [ MARGIN + 8, y ]) if sent_time
+      y -= 11 if sent_time
+    else
+      canvas.font("Helvetica", size: 8)
+      canvas.fill_color("666666")
+      canvas.text("System-generated request", at: [ MARGIN + 8, y ])
+      y -= 11
+    end
+
+    y -= 5
+    y
+  end
+
+  # Events timeline: key request-level events
+  def draw_events_timeline(canvas, y)
+    canvas.font("Helvetica", variant: :bold, size: 11)
+    canvas.fill_color("333333")
+    canvas.text("EVENTS", at: [ MARGIN, y ])
+    y -= 14
+
+    canvas.font("Helvetica", size: 8)
+    canvas.fill_color("444444")
+
+    # Key timeline events
+    timeline = [
+      [ "Envelope Created", @request.created_at ],
+      [ "Envelope Sent", @request.sent_at ]
+    ]
+
+    # Add certified_delivered if it exists
+    delivered_event = @request.events.where(event_type: "certified_delivered").first
+    timeline << [ "Certified Delivered", delivered_event&.occurred_at ] if delivered_event
+
+    timeline << [ "Signing Complete", @request.completed_at ]
+
+    timeline.each do |label, time|
+      next unless time
+      formatted = time.in_time_zone("Australia/Brisbane").strftime("%d/%m/%Y %I:%M %p AEST")
+      canvas.text("#{label}:  #{formatted}", at: [ MARGIN + 8, y ])
+      y -= 11
+    end
+
+    y -= 5
+    y
+  end
+
+  # Document integrity: SHA-256 hashes and certificate number
+  def draw_document_integrity(canvas, y, cert)
+    canvas.font("Helvetica", variant: :bold, size: 11)
+    canvas.fill_color("333333")
+    canvas.text("DOCUMENT INTEGRITY", at: [ MARGIN, y ])
+    y -= 14
+
+    canvas.font("Courier", size: 7)
+    canvas.fill_color("444444")
+
+    orig_hash = @request.original_document_hash || "N/A"
+    signed_hash = @request.signed_document_hash || "N/A"
+
+    canvas.text("Original SHA-256: #{orig_hash}", at: [ MARGIN + 8, y ])
+    y -= 10
+    canvas.text("Signed SHA-256:   #{signed_hash}", at: [ MARGIN + 8, y ])
+    y -= 10
+
+    if cert
+      canvas.text("Certificate: #{cert.certificate_number}", at: [ MARGIN + 8, y ])
+      y -= 10
+    end
+
+    y -= 5
+    y
+  end
+
+  # Legal footer at the bottom of the page
+  def draw_legal_footer(canvas, cert)
+    y = MARGIN + 40
+
+    canvas.stroke_color("cccccc")
+    canvas.line(MARGIN, y + 5, canvas.context.document.pages[-1].box.width - MARGIN, y + 5)
+    canvas.stroke
+
+    canvas.font("Helvetica", size: 7.5)
+    canvas.fill_color("666666")
+    canvas.text("Electronic Transactions Act 1999 (Cth) s.10", at: [ MARGIN, y - 5 ])
+    canvas.text("Timezone: Australia/Brisbane (AEST, UTC+10)", at: [ MARGIN, y - 14 ])
+
+    if cert
+      verify_url = "#{InfrastructureUrls.production_frontend_url}/verify/#{cert.certificate_number}"
+      canvas.fill_color("0066cc")
+      canvas.text("Verify: #{verify_url}", at: [ MARGIN, y - 23 ])
+    end
   end
 end

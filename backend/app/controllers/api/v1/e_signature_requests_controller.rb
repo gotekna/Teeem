@@ -114,7 +114,7 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       return
     end
 
-    if @request.send_for_signing!
+    if @request.send_for_signing!(ip_address: request.remote_ip, user_agent: request.user_agent)
       render json: {
         success: true,
         e_signature_request: request_json(@request, include_details: true),

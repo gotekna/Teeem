@@ -19,6 +19,8 @@ class ESignatureEvent < ApplicationRecord
     verified
     verification_failed
     verification_locked
+    ersd_accepted
+    certified_delivered
     field_completed
     signed
     declined
@@ -118,6 +120,11 @@ class ESignatureEvent < ApplicationRecord
       "Email verification failed"
     when "verification_locked"
       "Too many verification attempts - account locked"
+    when "ersd_accepted"
+      signer_name = e_signature_signer&.name || "Unknown"
+      "Electronic Record and Signature Disclosure accepted by #{signer_name}"
+    when "certified_delivered"
+      "Envelope delivered to all recipients"
     when "field_completed"
       "Signature field completed"
     when "notification_failed"

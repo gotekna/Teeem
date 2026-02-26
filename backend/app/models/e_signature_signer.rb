@@ -147,6 +147,15 @@ class ESignatureSigner < ApplicationRecord
 
     # Update request status
     e_signature_request.mark_in_progress!
+
+    # Log certified_delivered when the last pending signer views the document.
+    # This mirrors DocuSign's "Certified Delivered" status: all recipients have received the envelope.
+    remaining_unviewed = e_signature_request.signers.where(viewed_at: nil).where.not(id: id)
+    if remaining_unviewed.empty? && !e_signature_request.events.exists?(event_type: "certified_delivered")
+      e_signature_request.log_event("certified_delivered",
+        description: "Envelope delivered to all recipients"
+      )
+    end
   end
 
   def sign!(signature_data:, signature_type:, ip_address: nil, user_agent: nil, typed_font: nil, device: nil, skip_email_verification: false)

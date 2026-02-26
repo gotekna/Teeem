@@ -55,7 +55,7 @@ class ESignatureRequest < ApplicationRecord
     status.in?(%w[draft sent in_progress])
   end
 
-  def send_for_signing!
+  def send_for_signing!(ip_address: nil, user_agent: nil)
     return false unless can_send?
 
     transaction do
@@ -74,7 +74,11 @@ class ESignatureRequest < ApplicationRecord
         signers.each(&:send_notification!)
       end
 
-      log_event("sent", description: "Request sent for signing")
+      log_event("sent",
+        description: "Request sent for signing",
+        ip_address: ip_address,
+        user_agent: user_agent
+      )
     end
 
     true

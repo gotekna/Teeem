@@ -252,7 +252,12 @@ class QueueStatusCacheJob < ApplicationJob
           .joins(:storage_blob)
           .where("storage_blobs.verified_at IS NOT NULL")
           .count
-        xero_missing = [xero_total - xero_with_file, 0].max
+        # Bills don't have auto-generated PDFs - exclude from "remaining" count
+        xero_bills_processed = WarehouseDocument
+          .where(source_type: "xero", documentable_type: "ExternalInvoice", storage_blob_id: nil)
+          .where("warehouse_documents.metadata->>'is_bill_record' = 'true'")
+          .count
+        xero_missing = [xero_total - xero_with_file - xero_bills_processed, 0].max
         items << { key: "xero_invoices", label: "Xero invoices", remaining: xero_missing } if xero_missing > 0
       end
     end

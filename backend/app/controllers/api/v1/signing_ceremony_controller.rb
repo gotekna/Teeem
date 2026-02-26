@@ -66,6 +66,9 @@ class Api::V1::SigningCeremonyController < ApplicationController
     # Check tenant setting for email verification requirement
     email_verification_required = resolve_email_verification_required(signer)
 
+    # Check if this signer has already accepted ERSD (so frontend can skip consent step)
+    ersd_accepted = signer.events.exists?(event_type: "ersd_accepted")
+
     render json: {
       success: true,
       signer: {
@@ -76,7 +79,8 @@ class Api::V1::SigningCeremonyController < ApplicationController
         status: signer.status,
         can_sign: signer.can_sign?,
         email_verified: signer.email_verified?,
-        email_verification_required: email_verification_required
+        email_verification_required: email_verification_required,
+        ersd_accepted: ersd_accepted
       },
       request: {
         id: request.id,
@@ -104,6 +108,32 @@ class Api::V1::SigningCeremonyController < ApplicationController
     render json: {
       success: true,
       message: "Document marked as viewed"
+    }
+  end
+
+  # POST /api/v1/sign/:token/accept_ersd
+  # Record Electronic Record and Signature Disclosure acceptance
+  def accept_ersd
+    # Generate unique disclosure ID: ERSD-{year}-{request_id}-{signer_id}
+    esign_request = @signer.e_signature_request
+    disclosure_id = "ERSD-#{Date.current.year}-#{esign_request.id}-#{@signer.id}"
+
+    # Don't duplicate if already accepted
+    unless @signer.events.exists?(event_type: "ersd_accepted")
+      @signer.log_event("ersd_accepted",
+        description: "Electronic Record and Signature Disclosure accepted",
+        ip_address: request.remote_ip,
+        user_agent: request.user_agent,
+        event_data: {
+          disclosure_id: disclosure_id,
+          legislation: "Electronic Transactions Act 1999 (Cth) s.10"
+        }
+      )
+    end
+
+    render json: {
+      success: true,
+      disclosure_id: disclosure_id
     }
   end
 
