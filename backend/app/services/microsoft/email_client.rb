@@ -365,6 +365,9 @@ module Microsoft
     # Batch fetch MIME content for multiple emails (up to 20 per batch)
     # Returns hash of { "user_email:message_id" => mime_content_or_nil }
     # FRC (Jan 2026): Reduces HTTP calls by ~95% (250 emails = 13 batch calls instead of 250)
+    # FRC (Feb 2026): Resilient sub-batch processing.
+    # Previously, one failed sub-batch would raise and abort all remaining sub-batches.
+    # Now each sub-batch is rescued independently so the rest continue.
     def batch_get_email_mime_content(email_requests)
       return {} if email_requests.empty?
 
@@ -372,8 +375,17 @@ module Microsoft
       results = {}
 
       email_requests.each_slice(20) do |batch|
-        batch_results = execute_mime_batch(batch)
-        results.merge!(batch_results)
+        begin
+          batch_results = execute_mime_batch(batch)
+          results.merge!(batch_results)
+        rescue => e
+          Rails.logger.error "[Microsoft::EmailClient] Sub-batch failed (#{batch.count} emails): #{e.message}"
+          # Mark individual emails as failed instead of losing them silently
+          batch.each do |req|
+            key = "#{req[:user_email]}:#{req[:message_id]}"
+            results[key] = { error: "Sub-batch failed: #{e.message}", status: nil }
+          end
+        end
       end
 
       results

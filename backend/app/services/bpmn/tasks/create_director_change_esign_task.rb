@@ -88,6 +88,7 @@ module Bpmn
 
       # Create ESignatureField records at known positions for each signing page.
       # Uses the same deterministic document order as DirectorChangeService.
+      # Each template type has different signature positions (see BADGE_POSITIONS).
       def create_fields_from_metadata(request, form_data)
         signers = request.signers.order(:signing_order).to_a
         return if signers.empty?
@@ -100,7 +101,7 @@ module Bpmn
         current_page = 1
 
         # Page 1: Minutes → chairperson (first ceasing director = first signer)
-        page_map[current_page] = signers.first
+        page_map[current_page] = { signer: signers.first, template: :minutes }
         current_page += 1
 
         # Resignations: one page per position per ceasing director
@@ -113,7 +114,7 @@ module Bpmn
 
           positions = cd["positions"] || []
           positions.each do |_pos|
-            page_map[current_page] = signer
+            page_map[current_page] = { signer: signer, template: :resignation }
             current_page += 1
           end
         end
@@ -128,21 +129,24 @@ module Bpmn
 
           positions = appt["positions"] || []
           positions.each do |_pos|
-            page_map[current_page] = signer
+            page_map[current_page] = { signer: signer, template: :consent }
             current_page += 1
           end
         end
 
-        # Create fields at the fixed badge position
-        page_map.each do |page_number, signer|
+        # Create fields using per-template badge positions
+        page_map.each do |page_number, entry|
+          signer = entry[:signer]
+          pos = DirectorChangeService::BADGE_POSITIONS[entry[:template]] || DirectorChangeService::BADGE_POSITIONS[:resignation]
+
           request.fields.create!(
             e_signature_signer: signer,
             field_type: "signature",
             page_number: page_number,
-            x_percent: DirectorChangeService::BADGE_POSITION[:x_percent],
-            y_percent: DirectorChangeService::BADGE_POSITION[:y_percent],
-            width_percent: DirectorChangeService::BADGE_POSITION[:width_percent],
-            height_percent: DirectorChangeService::BADGE_POSITION[:height_percent],
+            x_percent: pos[:x_percent],
+            y_percent: pos[:y_percent],
+            width_percent: pos[:width_percent],
+            height_percent: pos[:height_percent],
             label: "Signature - #{signer.name}",
             required: true
           )

@@ -384,8 +384,9 @@ export function PositionedSigningStep({
         const errorMsg = data.errors?.[0] || "";
         if (response.status === 422 && errorMsg.toLowerCase().includes("already been completed")) {
           // Field was saved by a previous attempt that returned 500
+          // Keep the original value (base64 image) rather than backend's [CAPTURED]
           const updatedFields = fields.map((f) =>
-            f.id === fieldId ? { ...f, completed: true } : f
+            f.id === fieldId ? { ...f, completed: true, value } : f
           );
           setFields(updatedFields);
           setSelectedField(null);
@@ -526,13 +527,18 @@ export function PositionedSigningStep({
       height: `${field.height_percent}%`,
     };
 
+    // Show actual signature/initials image when field is completed
+    const hasSignatureImage = isCompleted && field.value?.startsWith("data:image");
+
     return (
       <button
         key={field.id}
         className={cn(
-          "absolute border-2 rounded transition-all flex items-center justify-center gap-1",
+          "absolute border-2 rounded transition-all flex items-center justify-center gap-1 overflow-hidden",
           isCompleted
-            ? "bg-green-500/20 border-green-500 cursor-default"
+            ? hasSignatureImage
+              ? "border-transparent cursor-default bg-transparent"
+              : "bg-green-500/20 border-green-500 cursor-default"
             : isNext
               ? "bg-blue-500/30 border-blue-600 border-solid hover:bg-blue-500/40 cursor-pointer animate-pulse ring-2 ring-blue-400 ring-offset-1"
               : "bg-blue-500/20 border-blue-500 border-dashed hover:bg-blue-500/30 cursor-pointer"
@@ -542,7 +548,16 @@ export function PositionedSigningStep({
         disabled={isCompleted}
       >
         {isCompleted ? (
-          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+          hasSignatureImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={field.value}
+              alt="Signature"
+              className="w-full h-full object-contain p-0.5"
+            />
+          ) : (
+            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+          )
         ) : (
           <>
             <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />

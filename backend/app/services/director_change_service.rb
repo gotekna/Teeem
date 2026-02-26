@@ -550,19 +550,23 @@ class DirectorChangeService
   # always renders at a consistent position regardless of content length.
   # Values are percentages of the FULL PDF page dimensions (including margins).
   #
-  # A4 page = 841.89pt tall. Grover margins = 15mm (42.52pt) top/bottom.
-  # Content area: 42.52pt to 799.37pt (5% to 95% of page).
-  # Signature block is flex-pushed to bottom of content area.
-  # Block height ≈ 70pt (label + signature-box + badge).
-  # Block top ≈ 799.37 - 70 = 729pt from page top = 86.6% of page.
-  # Badge is ~28pt below block top = 757pt = 90% of page.
-  # We position the overlay to cover the whole signature block area.
-  BADGE_POSITION = {
-    x_percent: 5.0,       # Left margin area
-    y_percent: 73.0,      # Aligned with "Signature:" label in templates
-    width_percent: 42.0,   # Left column width
-    height_percent: 8.0    # Covers signature box area
+  # Signature field positions per template type (measured from rendered PDFs at 66% zoom).
+  # Each template has `margin-top: auto` pushing the signature block to the bottom,
+  # but the block HEIGHT varies by template (different fields below the signature line),
+  # so the "Signature:" label ends up at different y_percent positions.
+  #
+  # Common: x_percent: 5.0 (left margin), width_percent: 42.0 (left column), height_percent: 8.0
+  BADGE_POSITIONS = {
+    # Minutes: only "Chairperson: [name]" below signature → signature at ~85%
+    minutes:     { x_percent: 5.0, y_percent: 85.0, width_percent: 42.0, height_percent: 8.0 },
+    # Resignation: Full Name + DOB + Address below signature → signature at ~74%
+    resignation: { x_percent: 5.0, y_percent: 74.0, width_percent: 42.0, height_percent: 8.0 },
+    # Consent: only "Full Name: [name]" below signature → signature at ~83%
+    consent:     { x_percent: 5.0, y_percent: 83.0, width_percent: 42.0, height_percent: 8.0 }
   }.freeze
+
+  # Legacy alias for external references (BPMN task etc.)
+  BADGE_POSITION = BADGE_POSITIONS[:resignation].freeze
 
   def store_signed_document(e_signature_request)
     signed_blob = StorageBlob.find_by(id: e_signature_request.signed_storage_reference)
@@ -802,27 +806,29 @@ class DirectorChangeService
     return if signers.empty?
 
     # Build page-to-contact mapping from deterministic document order
-    # Each signing page has exactly one signer (the person whose badge is on it)
+    # Each signing page has exactly one signer and a template type
     page_signer_map = build_page_signer_map(signers)
 
-    page_signer_map.each do |page_number, signer|
+    page_signer_map.each do |page_number, entry|
+      signer = entry[:signer]
+      pos = BADGE_POSITIONS[entry[:template]] || BADGE_POSITIONS[:resignation]
+
       request.fields.create!(
         e_signature_signer: signer,
         field_type: "signature",
         page_number: page_number,
-        x_percent: BADGE_POSITION[:x_percent],
-        y_percent: BADGE_POSITION[:y_percent],
-        width_percent: BADGE_POSITION[:width_percent],
-        height_percent: BADGE_POSITION[:height_percent],
+        x_percent: pos[:x_percent],
+        y_percent: pos[:y_percent],
+        width_percent: pos[:width_percent],
+        height_percent: pos[:height_percent],
         label: "Signature - #{signer.name}",
         required: true
       )
     end
   end
 
-  # Map each signing page to its signer based on the deterministic document order.
-  # The minutes chairperson is the first ceasing director (or fallback chain),
-  # which is also the first signer on the request.
+  # Map each signing page to its signer and template type.
+  # Returns: { page_number => { signer: ESignatureSigner, template: :minutes|:resignation|:consent } }
   def build_page_signer_map(signers)
     page_map = {}
     current_page = 1
@@ -834,7 +840,7 @@ class DirectorChangeService
     # Page 1: Minutes - chairperson signs (first signer = first ceasing director)
     chair = determine_chairperson
     chairperson_signer = signer_by_contact_id[chair[:contact]&.id] || signers.first
-    page_map[current_page] = chairperson_signer
+    page_map[current_page] = { signer: chairperson_signer, template: :minutes }
     current_page += 1
 
     # Resignations: one page per position per ceasing director
@@ -844,7 +850,7 @@ class DirectorChangeService
       next unless signer
 
       cd[:positions].each do |_position|
-        page_map[current_page] = signer
+        page_map[current_page] = { signer: signer, template: :resignation }
         current_page += 1
       end
     end
@@ -856,7 +862,7 @@ class DirectorChangeService
       next unless signer
 
       appt[:positions].each do |_position|
-        page_map[current_page] = signer
+        page_map[current_page] = { signer: signer, template: :consent }
         current_page += 1
       end
     end

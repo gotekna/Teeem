@@ -410,10 +410,13 @@ email_health_monitor:
 # warehouse_xero_attachments (also every 10 min). Both are memory-heavy
 # (download + hash + S3 upload). Running simultaneously caused R14 OOM.
 # Internal auto-continue loop maintains throughput at 10-min intervals.
+  # FRC (Feb 2026): Increased from 50 → 200. With randomized order and resilient
+  # sub-batches, larger batches mean more emails attempted per run.
+  # 200/run × 6 runs/hr = ~1,200/hr throughput (vs ~0 at batch_size: 50 with stuck emails)
 email_storage_upload:
   class: UploadEmailsToStorageJob
   queue: low
-  args: [{ batch_size: 50 }]
+  args: [{ batch_size: 200 }]
   schedule: every 10 minutes
 
 # Upload IMAP emails to Wasabi storage (parallel to MS365 upload above)
