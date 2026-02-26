@@ -135,7 +135,7 @@ class UploadEmailsToStorageJob < ApplicationJob
       total_skipped = 0
       total_errors = []
       batch_number = 0
-      consecutive_error_batches = 0
+      consecutive_zero_batches = 0
 
       # Loop within same job execution instead of chaining perform_later
       # (DeduplicatableJob blocks chained jobs since current job is still running)
@@ -160,23 +160,26 @@ class UploadEmailsToStorageJob < ApplicationJob
         # 1. No batch_size → processed everything in one go
         break unless batch_size.present?
 
-        # 2. Nothing was processed (all remaining are unfetchable/missing outlook_id)
-        break if uploaded == 0 && skipped == 0
-
-        # 3. Circuit breaker: if no uploads and ALL are errors, allow up to 3 consecutive
-        # all-error batches before stopping. With randomized order, each batch attempts
-        # different emails, so transient failures in one batch may not affect the next.
-        # FRC (Feb 2026): Without this, broken emails loop forever consuming memory until R14.
-        # FRC (Feb 2026): Softened from 1 → 3 to avoid one bad batch blocking 87K emails.
-        if uploaded == 0 && errors.count > 0 && errors.count >= skipped
-          consecutive_error_batches += 1
-          if consecutive_error_batches >= 3
-            Rails.logger.warn "[UploadEmailsToStorageJob] Circuit breaker: #{consecutive_error_batches} consecutive error batches, stopping"
+        # 2. No uploads this batch → no forward progress.
+        # ⚠️ DO NOT SIMPLIFY - This MUST break on uploaded==0 regardless of skipped/errors (Feb 2026)
+        # ════════════════════════════════════════════
+        # Why: When remaining emails are all unfetchable (no Graph credential, expired tokens,
+        # content_unavailable not yet set), they get "skipped" every batch. Without this guard,
+        # the loop runs 300-400+ iterations finding the same emails, skipping them, and repeating.
+        # Each iteration creates service objects + DB queries → garbage accumulates → R14.
+        # Observed: Batch 382+ with uploaded=0, skipped=4, errors=0 on every iteration.
+        # ❌ WRONG: break if uploaded == 0 && skipped == 0 (misses skipped-only case)
+        # ✅ CORRECT: Break if uploaded == 0 after allowing 3 retries for transient failures
+        # ════════════════════════════════════════════
+        if uploaded == 0
+          consecutive_zero_batches += 1
+          if consecutive_zero_batches >= 3
+            Rails.logger.warn "[UploadEmailsToStorageJob] No progress for #{consecutive_zero_batches} consecutive batches (skipped=#{skipped}, errors=#{errors.count}), stopping"
             break
           end
-          Rails.logger.warn "[UploadEmailsToStorageJob] All-error batch #{consecutive_error_batches}/3, trying next batch..."
+          Rails.logger.info "[UploadEmailsToStorageJob] Zero uploads batch #{consecutive_zero_batches}/3, trying next batch..."
         else
-          consecutive_error_batches = 0  # Reset on any success
+          consecutive_zero_batches = 0  # Reset on any successful upload
         end
 
         # 4. Time limit reached
