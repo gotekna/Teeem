@@ -37,9 +37,11 @@ class UploadEmailsToStorageJob < ApplicationJob
   # but we want to leave headroom for other jobs on the low queue)
   MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
 
-  # Memory guard: stop processing if RSS exceeds this (MB)
-  # Shared worker dyno is 1024MB. Leave 224MB headroom for other processes.
-  MEMORY_ABORT_MB = 800
+  # Memory guard: stop processing if total dyno RSS exceeds this (MB)
+  # Shared worker dyno is 1024MB quota. Baseline RSS from SolidQueue + Xero jobs is ~820MB.
+  # R14 = warning at memory_total > 1024MB. R15 = kill at ~1.5x quota.
+  # Setting to 950 allows 1-2 batches before stopping, preventing R15.
+  MEMORY_ABORT_MB = 950
 
   # Hard cap on batch_size regardless of what's passed in job args.
   # FRC (Feb 2026): Stale SolidQueue jobs with batch_size=200 survived deploys,
@@ -149,7 +151,15 @@ class UploadEmailsToStorageJob < ApplicationJob
       # (DeduplicatableJob blocks chained jobs since current job is still running)
       loop do
         batch_number += 1
-        Rails.logger.info "[UploadEmailsToStorageJob] Batch #{batch_number} (batch_size: #{batch_size || 'all'}) for tenant #{tenant.id}"
+
+        # Pre-batch memory check: don't start a new batch if already high
+        rss = current_rss_mb
+        if rss > MEMORY_ABORT_MB
+          Rails.logger.warn "[UploadEmailsToStorageJob] Memory already high before batch #{batch_number} (#{rss}MB > #{MEMORY_ABORT_MB}MB), yielding"
+          break
+        end
+
+        Rails.logger.info "[UploadEmailsToStorageJob] Batch #{batch_number} (batch_size: #{batch_size || 'all'}, rss: #{rss}MB) for tenant #{tenant.id}"
 
         service = EmailStorageUploadService.new(progress: progress, tenant: tenant)
         result = service.upload_missing_emails(batch_size: batch_size)

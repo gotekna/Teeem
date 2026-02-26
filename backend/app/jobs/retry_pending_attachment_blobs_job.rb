@@ -21,10 +21,10 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
   MAX_RUNTIME_SECONDS = 5 * 60 # 5 minutes
 
-  # Memory guard: stop processing if RSS exceeds this (MB)
-  # FRC (Feb 2026): This job downloads attachment files from MS Graph into memory.
-  # Even with 1 thread, sequential jobs accumulate RSS that Ruby doesn't release to OS.
-  MEMORY_ABORT_MB = 750
+  # Memory guard: stop processing if total dyno RSS exceeds this (MB)
+  # Shared worker dyno is 1024MB quota. Baseline RSS from SolidQueue + Xero is ~820MB.
+  # R14 = warning at memory_total > 1024MB. R15 = kill at ~1.5x quota.
+  MEMORY_ABORT_MB = 950
 
   # Hard cap on batch_size regardless of stale queue args (same pattern as UploadEmailsToStorageJob)
   MAX_BATCH_SIZE = 10

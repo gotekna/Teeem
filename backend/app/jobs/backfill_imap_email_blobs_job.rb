@@ -23,10 +23,10 @@ class BackfillImapEmailBlobsJob < ApplicationJob
   # Max runtime before yielding back to the scheduler
   MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
 
-  # Memory guard: stop processing if RSS exceeds this (MB)
-  # FRC (Feb 2026): IMAP fetch downloads raw .eml into memory via Tempfile.
-  # Ruby heap grows from the content and doesn't shrink between iterations.
-  MEMORY_ABORT_MB = 750
+  # Memory guard: stop processing if total dyno RSS exceeds this (MB)
+  # Shared worker dyno is 1024MB quota. Baseline RSS from SolidQueue + Xero is ~820MB.
+  # R14 = warning at memory_total > 1024MB. R15 = kill at ~1.5x quota.
+  MEMORY_ABORT_MB = 950
 
   # Hard cap on batch_size regardless of stale queue args
   MAX_BATCH_SIZE = 25
