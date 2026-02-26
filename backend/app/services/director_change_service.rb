@@ -140,13 +140,13 @@ class DirectorChangeService
       end
 
       # Store signed PDF as WarehouseDocument.
-      # Prefer signed blob (stamped with signatures), fall back to original blob
-      # if the stamper/storage step failed during mark_as_completed!.
-      storage_ref = e_signature_request.signed_storage_reference.presence ||
-                    e_signature_request.original_storage_reference.presence
-      if storage_ref.present?
-        store_signed_document(e_signature_request, storage_ref)
-      end
+      # Fail fast: require the signed (stamped) blob - no fallback to original.
+      # If store_signed_document! failed in ESignatureRequest#complete!, that
+      # error should have been visible and fixed before reaching this point.
+      storage_ref = e_signature_request.signed_storage_reference
+      raise "Signed document not available for #{e_signature_request.request_number}. " \
+            "store_signed_document! in ESignatureRequest#complete! may have failed." unless storage_ref.present?
+      store_signed_document(e_signature_request, storage_ref)
     end
   end
 

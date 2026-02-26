@@ -18,10 +18,17 @@ class BpmnRetryWaitingTaskJob < ApplicationJob
 
     Rails.logger.info "BpmnRetryWaitingTaskJob: Retrying waiting task for token #{token_id}"
 
-    # Reset token status to active so it can be re-executed
-    token.update!(status: "active")
+    # ⚠️ DO NOT CHANGE TOKEN STATUS - Leave as "waiting" (2026-02-26)
+    # ════════════════════════════════════════════════════════════════
+    # Why: BpmnTokenAdvanceJob (called by task_instance.complete!) checks
+    #      token.waiting? and returns early if false. Setting token to "active"
+    #      here breaks that guard, causing the advance job to skip the token.
+    #      BpmnServiceTaskJob (initial execution) does NOT change status either.
+    # ❌ WRONG: token.update!(status: "active")  → advance job skips
+    # ✅ CORRECT: Leave as "waiting" → advance job finds it and advances
+    # ════════════════════════════════════════════════════════════════
 
-    # Re-execute the service task
+    # Re-execute the service task (token stays "waiting" throughout)
     Bpmn::ServiceTaskExecutor.execute(token)
   rescue Bpmn::Tasks::PermanentError => e
     # Non-transient error - don't retry (ServiceTaskExecutor already failed the process)
