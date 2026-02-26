@@ -213,9 +213,10 @@ export function PositionedSigningStep({
     container.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
   }, [pdfDimensions, scale]);
 
-  // Navigate to a field: change page and scroll to the badge.
-  // Does NOT auto-open dialogs — the user must click the "Press to Sign" button on the field.
-  // Auto-fill signer_name/signer_initials fields silently (no user interaction needed).
+  // Navigate to a field: change page, scroll to badge, and open capture dialog.
+  // For signature/initials: opens capture dialog (or confirm dialog if signature already saved).
+  // For signer_name/signer_initials: auto-fills silently (no user interaction needed).
+  // Never auto-applies a signature — user must always confirm.
   const navigateToField = useCallback(
     (field: SignatureField) => {
       setCurrentPage(field.page_number);
@@ -245,8 +246,27 @@ export function PositionedSigningStep({
               // Fall through to manual handling
             }
           }, 400);
+        } else if (field.field_type === "signature" || field.field_type === "initials") {
+          // Open the capture/confirm dialog after scrolling (but never auto-apply)
+          setTimeout(() => {
+            if (!field.completed) {
+              setSelectedField(field);
+              if (field.field_type === "signature") {
+                if (savedSignatureRef.current) {
+                  setConfirmMode("signature");
+                } else {
+                  setCaptureMode("signature");
+                }
+              } else {
+                if (savedInitialsRef.current) {
+                  setConfirmMode("initials");
+                } else {
+                  setCaptureMode("initials");
+                }
+              }
+            }
+          }, 400);
         }
-        // For signature/initials/other fields: just scroll, wait for user to click the field button
       }, 200);
     },
     [scrollToField, signerName, apiUrl, token]
