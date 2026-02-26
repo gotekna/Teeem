@@ -513,7 +513,7 @@ module Api
                 when "is_empty"
                   if [:jsonb, :json].include?(db_column_type)
                     ["#{quoted_column} IS NULL OR #{quoted_column} = '[]'::jsonb"]
-                  elsif %i[integer bigint decimal float].include?(db_column_type)
+                  elsif %i[integer bigint decimal float boolean].include?(db_column_type)
                     ["#{quoted_column} IS NULL"]
                   else
                     ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
@@ -521,7 +521,7 @@ module Api
                 when "is_not_empty"
                   if [:jsonb, :json].include?(db_column_type)
                     ["#{quoted_column} IS NOT NULL AND #{quoted_column} != '[]'::jsonb"]
-                  elsif %i[integer bigint decimal float].include?(db_column_type)
+                  elsif %i[integer bigint decimal float boolean].include?(db_column_type)
                     ["#{quoted_column} IS NOT NULL"]
                   else
                     ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
@@ -1920,14 +1920,14 @@ module Api
                   ["#{quoted_column} ILIKE ?", "%#{value}%"]
                 when "is_empty"
                   db_col_type = model.columns_hash[column]&.type
-                  if %i[integer bigint decimal float].include?(db_col_type)
+                  if %i[integer bigint decimal float boolean].include?(db_col_type)
                     ["#{quoted_column} IS NULL"]
                   else
                     ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
                   end
                 when "is_not_empty"
                   db_col_type = model.columns_hash[column]&.type
-                  if %i[integer bigint decimal float].include?(db_col_type)
+                  if %i[integer bigint decimal float boolean].include?(db_col_type)
                     ["#{quoted_column} IS NOT NULL"]
                   else
                     ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]

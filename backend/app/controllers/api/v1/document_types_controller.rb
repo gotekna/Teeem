@@ -403,7 +403,7 @@ module Api
             id: tab.id,
             tab_key: tab.tab_key,
             display_name: tab.display_name,
-            hierarchy_path: [tab.warehouse_type&.display_name, lookup_full_ancestor_path(tab)].compact.join('/'),
+            hierarchy_path: [tab.warehouse_type&.display_name, lookup_folder_name_path(tab)].compact.join('/'),
             warehouse_type_code: tab.warehouse_type&.code,
             warehouse_type_name: tab.warehouse_type&.display_name,
             parent_id: tab.parent_id,

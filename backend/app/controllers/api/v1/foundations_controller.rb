@@ -402,8 +402,8 @@ module Api
                     quoted_col = conn.quote_column_name(column)
                     if col_type == :jsonb
                       query = query.where("#{quoted_col} IS NULL OR #{quoted_col} = '[]'::jsonb")
-                    elsif %i[integer bigint decimal float].include?(col_type)
-                      # Numeric types can only be NULL, not empty string
+                    elsif %i[integer bigint decimal float boolean].include?(col_type)
+                      # Numeric/boolean types can only be NULL, not empty string
                       query = query.where(column => nil)
                     else
                       query = query.where("#{quoted_col} IS NULL OR #{quoted_col} = ''")
@@ -413,8 +413,8 @@ module Api
                     quoted_col = conn.quote_column_name(column)
                     if col_type == :jsonb
                       query = query.where("#{quoted_col} IS NOT NULL AND #{quoted_col} != '[]'::jsonb")
-                    elsif %i[integer bigint decimal float].include?(col_type)
-                      # Numeric types: not empty just means not NULL
+                    elsif %i[integer bigint decimal float boolean].include?(col_type)
+                      # Numeric/boolean types: not empty just means not NULL
                       query = query.where.not(column => nil)
                     else
                       query = query.where("#{quoted_col} IS NOT NULL AND #{quoted_col} != ''")
