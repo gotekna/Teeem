@@ -266,19 +266,28 @@ class ESignatureRequest < ApplicationRecord
     }
   end
 
-  # Generate a stateless signed download token for the completed document.
-  # Uses Rails MessageVerifier so no DB column needed - token encodes the request ID
-  # and is cryptographically signed with an expiry.
-  def generate_download_token(expires_in: 30.days)
-    Rails.application.message_verifier(:esign_download).generate(
-      { request_id: id },
-      expires_at: expires_in.from_now
-    )
+  # Generate a random download token stored in the database.
+  #
+  # ⚠️ DO NOT SIMPLIFY - Environment-independent token (2026-02-26)
+  # ════════════════════════════════════════════════════════════════
+  # Why: Staging/beta/production share the same DB but have different SECRET_KEY_BASE.
+  #      MessageVerifier tokens signed on staging can't be verified on production.
+  #      DB-stored tokens work regardless of which environment generates or verifies them.
+  # ❌ WRONG: Rails.application.message_verifier(:esign_download).generate(...)
+  # ✅ CORRECT: Random token stored in DB, verified by lookup
+  # ════════════════════════════════════════════════════════════════
+  def generate_download_token
+    return download_token if download_token.present?
+
+    token = SecureRandom.urlsafe_base64(32)
+    update!(download_token: token)
+    token
   end
 
   def download_url
     token = generate_download_token
-    api_url = InfrastructureUrls.backend_url
+    # Always point to production - external signers access the download link from email
+    api_url = InfrastructureUrls.production_backend_url
     "#{api_url}/api/v1/esign_download?token=#{CGI.escape(token)}"
   end
 

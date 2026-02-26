@@ -283,19 +283,28 @@ class Api::V1::SigningCeremonyController < ApplicationController
     end
   end
 
-  # GET /api/v1/esign_download/:token
-  # Public download of the signed/stamped document using a stateless signed token.
-  # No signer authentication needed - the token IS the auth (signed by Rails secret).
+  # GET /api/v1/esign_download?token=xxx
+  # Public download of the signed/stamped document using a DB-stored token.
+  # No signer authentication needed - the token IS the auth (random, stored in DB).
   # Used in completion emails so external signers can download without a TEEEM account.
+  #
+  # ⚠️ Token is a random string stored in e_signature_requests.download_token.
+  # Environment-independent: works regardless of which Heroku app serves the request.
   def download_signed_document
-    begin
-      data = Rails.application.message_verifier(:esign_download).verify(params[:token])
-      request_obj = ESignatureRequest.find(data[:request_id])
-    rescue ActiveSupport::MessageVerifier::InvalidSignature
+    request_obj = ESignatureRequest.find_by(download_token: params[:token])
+
+    # Backward compatibility: try MessageVerifier for tokens generated before this fix
+    if request_obj.nil?
+      begin
+        data = Rails.application.message_verifier(:esign_download).verify(params[:token])
+        request_obj = ESignatureRequest.find(data[:request_id])
+      rescue ActiveSupport::MessageVerifier::InvalidSignature, ActiveRecord::RecordNotFound
+        # Token doesn't match either method
+      end
+    end
+
+    unless request_obj
       render json: { success: false, errors: ["Invalid or expired download link"] }, status: :unauthorized
-      return
-    rescue ActiveRecord::RecordNotFound
-      render json: { success: false, errors: ["Document not found"] }, status: :not_found
       return
     end
 

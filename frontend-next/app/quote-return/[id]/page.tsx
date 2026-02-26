@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { FileText, Sparkles, Loader2, Check, X, Paperclip, SplitSquareHorizontal } from "lucide-react";
+import { FileText, Sparkles, Loader2, Check, X, Paperclip, SplitSquareHorizontal, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,8 +110,11 @@ function QuoteReturnContent() {
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [actionResult, setActionResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [createdPOs, setCreatedPOs] = useState<Array<{ id: number; poNumber: string; budget: number | null; status: string }>>([]);
   // PO line allocation state (CC-level only)
   const [allocations, setAllocations] = useState<Record<number, string>>({});
+  const [inputModes, setInputModes] = useState<Record<number, "$" | "%">>({});
+  const [percentInputs, setPercentInputs] = useState<Record<number, string>>({});
 
   useEffect(() => {
     const ctx = decodeHash();
@@ -255,7 +258,7 @@ function QuoteReturnContent() {
             .map(([lineId, val]) => ({ lineId: Number(lineId), amount: parseFloat(val) }))
         : undefined;
 
-      const res = await api.post<{ success: boolean; message: string; data?: { purchaseOrders: Array<{ poNumber: string }> } }>(
+      const res = await api.post<{ success: boolean; message: string; data?: { purchaseOrders: Array<{ id: number; poNumber: string; budget: number | null; status: string }> } }>(
         `/api/v1/quote_returns/${returnId}/accept`,
         {
           includeTenderDescription: includeTenderDesc,
@@ -263,6 +266,8 @@ function QuoteReturnContent() {
         }
       );
       const msg = (res as { message: string })?.message || "Quote accepted";
+      const pos = (res as { data?: { purchaseOrders: Array<{ id: number; poNumber: string; budget: number | null; status: string }> } })?.data?.purchaseOrders || [];
+      setCreatedPOs(pos);
       setActionResult({ type: "success", message: msg });
       setQr((prev) => prev ? { ...prev, status: "accepted" } : prev);
     } catch (err) {
@@ -430,23 +435,50 @@ function QuoteReturnContent() {
                 {qr.parentLine.children.map((child) => {
                   const amt = parseFloat(allocations[child.id] || "0") || 0;
                   const pct = priceNum > 0 ? Math.round((amt / priceNum) * 100) : 0;
+                  const isPercent = inputModes[child.id] === "%";
+                  const pctInputVal = percentInputs[child.id] ?? "";
                   return (
                     <div key={child.id} className="flex items-center gap-2">
                       <span className="text-sm flex-1 truncate" title={child.name}>{child.name}</span>
                       <div className="relative w-24 shrink-0">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          {isPercent ? "%" : "$"}
+                        </span>
                         <Input
                           type="number"
-                          value={allocations[child.id] || ""}
-                          onChange={(e) =>
-                            setAllocations((prev) => ({ ...prev, [child.id]: e.target.value }))
-                          }
+                          value={isPercent ? pctInputVal : (allocations[child.id] || "")}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (isPercent) {
+                              setPercentInputs((prev) => ({ ...prev, [child.id]: val }));
+                              const p = parseFloat(val) || 0;
+                              const dollarAmt = Math.round((p / 100) * priceNum * 100) / 100;
+                              setAllocations((prev) => ({ ...prev, [child.id]: dollarAmt > 0 ? String(dollarAmt) : "" }));
+                            } else {
+                              setAllocations((prev) => ({ ...prev, [child.id]: val }));
+                            }
+                          }}
                           className="pl-5 text-sm h-7"
                           placeholder="0"
-                          step="0.01"
+                          step={isPercent ? "1" : "0.01"}
                         />
                       </div>
-                      <span className="text-xs text-muted-foreground w-8 text-right shrink-0">{pct}%</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInputModes((prev) => {
+                            const next = prev[child.id] === "%" ? "$" : "%";
+                            if (next === "%") {
+                              setPercentInputs((p) => ({ ...p, [child.id]: pct > 0 ? String(pct) : "" }));
+                            }
+                            return { ...prev, [child.id]: next };
+                          });
+                        }}
+                        className="text-xs text-muted-foreground w-10 text-right shrink-0 hover:text-foreground cursor-pointer"
+                        title={`Click to enter as ${isPercent ? "$" : "%"}`}
+                      >
+                        {isPercent ? formatCurrency(amt) : `${pct}%`}
+                      </button>
                     </div>
                   );
                 })}
@@ -646,13 +678,50 @@ function QuoteReturnContent() {
             </div>
           )}
 
-          {/* Already actioned */}
+          {/* Already actioned — accepted with PO links */}
           {qr.status === "accepted" && (
-            <div className="border-t pt-4">
+            <div className="border-t pt-4 space-y-3">
               <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 rounded-md px-3 py-2 border border-green-200">
-                <Check className="h-4 w-4" />
-                Quote accepted{qr.purchaseOrderNumber ? ` \u2014 PO ${qr.purchaseOrderNumber}` : ""}
+                <Check className="h-4 w-4 shrink-0" />
+                Quote accepted
               </div>
+
+              {/* Created PO cards */}
+              {createdPOs.length > 0 && (
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Purchase Orders Created
+                  </span>
+                  <div className={`mt-1.5 flex gap-2 ${createdPOs.length > 2 ? "overflow-x-auto pb-1" : ""}`}>
+                    {createdPOs.map((po) => (
+                      <a
+                        key={po.id}
+                        href={`/purchase_orders/${po.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-none flex items-center gap-2 px-3 py-2 rounded-md border border-green-200 bg-green-50 hover:bg-green-100 transition-colors cursor-pointer min-w-0"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-green-800 truncate">
+                            PO {po.poNumber}
+                          </p>
+                          {po.budget != null && (
+                            <p className="text-xs text-green-600">{formatCurrency(po.budget)}</p>
+                          )}
+                        </div>
+                        <ExternalLink className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fallback if no createdPOs (e.g. page reload after accept) */}
+              {createdPOs.length === 0 && qr.purchaseOrderNumber && (
+                <p className="text-sm text-green-600 font-medium">
+                  PO {qr.purchaseOrderNumber}
+                </p>
+              )}
             </div>
           )}
           {qr.status === "rejected" && (
