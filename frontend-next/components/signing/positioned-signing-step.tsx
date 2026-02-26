@@ -148,16 +148,17 @@ export function PositionedSigningStep({
   const apiUrl = apiUrlProp || getApiBaseUrl();
   const pdfUrl = `${apiUrl}/api/v1/sign/${token}/document`;
 
-  // Auto-fit PDF to container width, recalculate on resize
+  // Auto-fit PDF to container width, recalculate on resize.
+  // Uses functional setState to prevent re-renders when value hasn't changed.
   const calculateFitScale = useCallback(() => {
     const container = pdfContainerRef.current;
     if (!container || !pdfDimensions) return;
     const containerWidth = container.clientWidth - 32; // 16px padding each side
     const fitScale = containerWidth / pdfDimensions.width;
-    // Clamp between 0.4 and 2.0
-    const clamped = Math.min(2.0, Math.max(0.4, fitScale));
-    setAutoFitScale(clamped);
-    setScale(clamped);
+    // Clamp between 0.4 and 2.0, round to avoid floating-point drift
+    const clamped = Math.round(Math.min(2.0, Math.max(0.4, fitScale)) * 1000) / 1000;
+    setAutoFitScale(prev => prev === clamped ? prev : clamped);
+    setScale(prev => prev === clamped ? prev : clamped);
   }, [pdfDimensions]);
 
   useEffect(() => {
@@ -167,9 +168,14 @@ export function PositionedSigningStep({
   useEffect(() => {
     const container = pdfContainerRef.current;
     if (!container) return;
-    const observer = new ResizeObserver(() => calculateFitScale());
+    let rafId: number;
+    const observer = new ResizeObserver(() => {
+      // Debounce via requestAnimationFrame to prevent rapid-fire recalculations
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => calculateFitScale());
+    });
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); cancelAnimationFrame(rafId); };
   }, [calculateFitScale]);
 
   // Find the next incomplete required field in reading order
@@ -319,10 +325,21 @@ export function PositionedSigningStep({
     }
   }, []);
 
+  // ⚠️ DO NOT SIMPLIFY - react-pdf v10 page dimensions (Feb 2026)
+  // ════════════════════════════════════════════════════════════════
+  // Why: react-pdf v10 `page.width/height` INCLUDES scale factor.
+  // Using scaled values in calculateFitScale creates an infinite loop:
+  // scale→page renders→onLoadSuccess(scaled dims)→calculateFitScale→new scale→repeat
+  // ❌ WRONG: { width: page.width, height: page.height }
+  // ✅ CORRECT: Use originalWidth/originalHeight (unscaled intrinsic PDF dimensions)
+  // Functional setState prevents re-renders when dimensions haven't changed.
+  // ════════════════════════════════════════════════════════════════
   const onPageLoadSuccess = useCallback((page: any) => {
-    setPdfDimensions({
-      width: page.width,
-      height: page.height,
+    const w = page.originalWidth ?? page.width;
+    const h = page.originalHeight ?? page.height;
+    setPdfDimensions(prev => {
+      if (prev && prev.width === w && prev.height === h) return prev;
+      return { width: w, height: h };
     });
   }, []);
 

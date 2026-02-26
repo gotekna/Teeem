@@ -136,6 +136,8 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                   ? `${qr.supplierName} - Quote.pdf`
                   : "Quote Document.pdf",
               });
+              // Also open PDF in a new browser tab
+              window.open(openRes.shareUrl, "_blank");
             }
           })
         );
