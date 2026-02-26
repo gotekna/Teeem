@@ -245,73 +245,9 @@ class SyncedEmail < ApplicationRecord
       emails.first.update_column(:is_latest_in_thread, true)
     end
 
-    # Performance: Batch update ALL thread flags in a single SQL statement
-    # Impact: 20,000 queries → 2 queries
-    # Part of 6-month email performance masterpiece plan
-    def update_all_thread_flags_batch
-      # Step 1: Mark all as not latest (single UPDATE)
-      update_all(is_latest_in_thread: false)
-
-      # Step 2: Mark latest per conversation using window function (single UPDATE)
-      # This uses ROW_NUMBER() to find the most recent email in each conversation
-      connection.execute(<<-SQL.squish)
-        UPDATE email_warehouse
-        SET is_latest_in_thread = true
-        FROM (
-          SELECT id
-          FROM (
-            SELECT id, ROW_NUMBER() OVER (
-              PARTITION BY conversation_id
-              ORDER BY received_at DESC NULLS LAST
-            ) as rn
-            FROM synced_emails
-            WHERE conversation_id IS NOT NULL
-          ) ranked
-          WHERE rn = 1
-        ) latest
-        WHERE synced_email.id = latest.id
-      SQL
-
-      # Also mark emails with no conversation_id as latest (they are their own thread)
-      where(conversation_id: nil, is_latest_in_thread: false).update_all(is_latest_in_thread: true)
-    end
-
-    # Performance: Update thread flags only for recently synced emails
-    # Use this after an incremental sync instead of update_all_thread_flags_batch
-    def update_thread_flags_for_recent(since: 1.hour.ago)
-      # Get conversation IDs that have been updated recently
-      conversation_ids = where("last_synced_at > ?", since)
-        .where.not(conversation_id: nil)
-        .distinct
-        .pluck(:conversation_id)
-
-      return if conversation_ids.empty?
-
-      # Update flags only for these conversations
-      connection.execute(sanitize_sql_array([<<-SQL.squish, conversation_ids]))
-        UPDATE email_warehouse
-        SET is_latest_in_thread = false
-        WHERE conversation_id = ANY(ARRAY[?]::text[])
-      SQL
-
-      connection.execute(sanitize_sql_array([<<-SQL.squish, conversation_ids]))
-        UPDATE email_warehouse
-        SET is_latest_in_thread = true
-        FROM (
-          SELECT id
-          FROM (
-            SELECT id, ROW_NUMBER() OVER (
-              PARTITION BY conversation_id
-              ORDER BY received_at DESC NULLS LAST
-            ) as rn
-            FROM synced_emails
-            WHERE conversation_id = ANY(ARRAY[?]::text[])
-          ) ranked
-          WHERE rn = 1
-        ) latest
-        WHERE synced_email.id = latest.id
-      SQL
-    end
+    # FRC (Feb 2026): Removed update_all_thread_flags_batch and update_thread_flags_for_recent.
+    # Dead code (never called) with wrong SQL table names (email_warehouse/synced_email
+    # instead of synced_emails). Would crash with PG::UndefinedTable if ever invoked.
   end
 
   # Instance methods
@@ -1325,52 +1261,6 @@ class SyncedEmail < ApplicationRecord
 
     if failed_docs.any?
       raise "Failed to download #{failed_docs.count}/#{retryable_docs.count} blobs for email #{id}: #{failed_docs.map { |f| f[:error] }.first}"
-    end
-  end
-
-  # Store attachments fetched from Microsoft Graph API (legacy bulk path)
-  # Kept for backward compatibility - new code uses two-step: record_attachment_metadata! + download_pending_blobs!
-  def store_graph_attachments!(attachments, used_mailbox)
-    attachments.each do |att|
-      next if att["contentBytes"].blank?
-
-      content = Base64.decode64(att["contentBytes"])
-      filename = att["name"]
-      content_type = att["contentType"]
-      byte_size = att["size"].to_i
-      content_id = att["contentId"]
-      graph_attachment_id = att["id"]
-
-      # Skip small inline images (likely signatures)
-      next if att["isInline"] && content_type&.start_with?("image/") && byte_size < 50_000
-
-      # Per-attachment dedup: skip only if THIS attachment already has a blob
-      existing_doc = attachment_documents.find { |d| d.original_filename == filename }
-      next if existing_doc&.storage_blob_id.present?
-
-      blob = StorageBlob.find_or_create_for_content!(
-        content, filename: filename, content_type: content_type
-      )
-
-      WarehouseDocumentCreator.create!(
-        filename: filename,
-        source_type: "email_attachment",
-        linkable: self,
-        storage_blob: blob,
-        file_size: byte_size.positive? ? byte_size : blob.file_size,
-        content_type: content_type || blob.content_type,
-        metadata: {
-          "synced_email_id" => id.to_s,
-          "content_id" => content_id,
-          "outlook_attachment_id" => graph_attachment_id,
-          "mailbox" => used_mailbox
-        }.compact
-      )
-
-      blob.increment!(:reference_count)
-      Rails.logger.debug "[SyncedEmail] Synced attachment: #{filename}"
-    rescue StandardError => e
-      Rails.logger.error "[SyncedEmail] Failed to sync attachment #{filename}: #{e.message}"
     end
   end
 

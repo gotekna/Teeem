@@ -187,7 +187,7 @@ class BulkEmailSyncJob < ApplicationJob
 
     # Resume from checkpoint if available
     if @progress["last_processed_attachment_email_id"]
-      scope = scope.where("synced_email.id > ?", @progress["last_processed_attachment_email_id"])
+      scope = scope.where("synced_emails.id > ?", @progress["last_processed_attachment_email_id"])
     end
 
     total_to_process = scope.count

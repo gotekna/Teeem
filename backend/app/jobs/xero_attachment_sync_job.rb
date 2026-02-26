@@ -108,10 +108,13 @@ class XeroAttachmentSyncJob < ApplicationJob
   # ════════════════════════════════════════════════════════════════════════════
   BATCH_SIZE = 10  # Small batches to keep invoices_array footprint low
 
-  # Memory threshold (MB) — if RSS exceeds this, force GC before next batch
-  MEMORY_WARNING_MB = 700
+  # Memory threshold (MB) — if RSS exceeds this, force GC before next batch.
+  # FRC (Feb 2026): Lowered from 700/800 to 550/650 for 2-thread shared worker.
+  # These thresholds check the PROCESS's total RSS (both threads combined).
+  # At 650MB abort, there's 374MB headroom for the other thread on 1024MB dyno.
+  MEMORY_WARNING_MB = 550
   # Hard abort threshold — if RSS exceeds this after GC, stop processing
-  MEMORY_ABORT_MB = 800
+  MEMORY_ABORT_MB = 650
 
   # Per-tenant lock TTL (must exceed MAX_RUNTIME to prevent overlap)
   TENANT_LOCK_TTL = 12.minutes

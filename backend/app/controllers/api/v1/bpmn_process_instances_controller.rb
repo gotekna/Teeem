@@ -204,6 +204,7 @@ module Api
           node_id: token.current_node_id,
           node_key: token.current_node.node_key,
           node_name: token.current_node.display_name,
+          node_description: token.current_node.description,
           node_type: token.current_node.node_type,
           status: token.status,
           parent_token_id: token.parent_token_id,

@@ -115,6 +115,7 @@ interface WorkflowToken {
   node_id: number;
   node_key: string;
   node_name: string;
+  node_description?: string;
   node_type: string;
   status: "active" | "waiting" | "completed" | "failed";
   arrived_at: string;
@@ -974,6 +975,9 @@ export default function BpmnProcessesPage() {
                                             <span className="text-xs text-muted-foreground dark:text-muted-foreground ml-2">
                                               ({token.node_type})
                                             </span>
+                                            {token.node_description && (
+                                              <p className="text-xs text-muted-foreground mt-0.5">{token.node_description}</p>
+                                            )}
                                           </div>
                                           <div className="flex items-center gap-2">
                                             <Badge

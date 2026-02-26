@@ -402,7 +402,7 @@ email_storage_upload:
 # content in memory. With sequential jobs on 1024MB dyno, must limit per-job impact.
 retry_pending_attachment_blobs:
   class: RetryPendingAttachmentBlobsJob
-  queue: default
+  queue: email_enrichment
   args: [{ batch_size: 10 }]
   schedule: every 15 minutes
 
@@ -649,7 +649,7 @@ assistant_monitor:
 # Processes up to 50 emails per tenant per run
 email_intelligence:
   class: EmailIntelligenceJob
-  queue: email_sync
+  queue: email_enrichment
   schedule: every 10 minutes
 
 # Morning briefing delivery - personalized daily digest for active users

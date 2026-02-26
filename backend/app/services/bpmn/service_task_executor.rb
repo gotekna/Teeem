@@ -58,6 +58,14 @@ module Bpmn
     def execute_task(handler_class, task_type)
       task_instance = create_task_instance
 
+      # FRC (Feb 2026): Guard against duplicate execution. If a previous job already
+      # completed this task (race condition from double-enqueued jobs), skip the handler
+      # entirely. Without this, side effects like e-signature creation run twice.
+      if task_instance.completed?
+        Rails.logger.info("BPMN: Service task '#{@node.display_name}' already completed, skipping duplicate execution")
+        return
+      end
+
       begin
         handler = handler_class.constantize.new(@token, @config)
         result = handler.execute

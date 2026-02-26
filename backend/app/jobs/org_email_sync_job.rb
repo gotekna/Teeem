@@ -291,14 +291,17 @@ class OrgEmailSyncJob < ApplicationJob
           next
         end
 
-        # ⚠️ Metadata-first mode: Skip mailboxes that already completed backfill.
-        # In this mode we focus budget on mailboxes that still need their metadata scan.
-        # Backfill-complete mailboxes will get incremental sync once all backfills finish.
+        # ⚠️ Metadata-first mode: Backfilling mailboxes get full budget.
+        # Non-backfilling mailboxes get a quick incremental sync (30s) so users still
+        # see new emails during long backfill periods.
+        # FRC (Feb 2026): Previously skipped completed mailboxes entirely. This meant
+        # during caleb@bypilgrim.co's backfill (weeks), ALL other 55 mailboxes got zero
+        # incremental sync — users missed incoming emails. Fix: give them a short budget.
         if @metadata_first_mode
           unless mailbox_needs_backfill?(user_email.downcase, sync_config, target_year_val)
-            Rails.logger.info "[OrgEmailSync] Metadata-first: skipping #{user_email} (backfill complete)"
-            skipped_count += 1
-            next
+            # Quick incremental sync (30s) — enough for 1-2 folder pages of new emails
+            @dynamic_mailbox_timeout = 30
+            Rails.logger.info "[OrgEmailSync] Metadata-first: quick incremental for #{user_email} (backfill complete, 30s budget)"
           end
         end
 
@@ -1273,12 +1276,6 @@ class OrgEmailSyncJob < ApplicationJob
     @user_cache.fetch_or_store(normalized_email) do
       User.find_by("LOWER(email) = ?", normalized_email)
     end
-  end
-
-  # Performance: Memoized blacklist lookup
-  # Impact: Avoids repeated blacklist queries during sync
-  def cached_blacklist
-    @blacklist_cache ||= EmailBlacklistItem.active.pluck(:pattern_type, :pattern)
   end
 
   # Apply email rules to a newly synced email

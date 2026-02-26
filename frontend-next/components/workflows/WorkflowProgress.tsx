@@ -18,6 +18,7 @@ interface WorkflowNode {
   id: number;
   node_key: string;
   node_name: string;
+  node_description?: string;
   node_type: string;
   status: 'completed' | 'active' | 'waiting' | 'pending';
 }
@@ -27,6 +28,7 @@ interface WorkflowToken {
   node_id: number;
   node_key: string;
   node_name: string;
+  node_description?: string;
   node_type: string;
   status: string;
 }
@@ -90,6 +92,7 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
               id: token.node_id,
               node_key: token.node_key,
               node_name: token.node_name,
+              node_description: token.node_description,
               node_type: token.node_type,
               status,
             });
@@ -233,6 +236,9 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
               {node.status === 'waiting' && 'Waiting for action'}
               {node.status === 'pending' && 'Pending'}
             </p>
+            {node.node_description && (
+              <p className="text-xs text-muted-foreground mt-0.5">{node.node_description}</p>
+            )}
           </div>
         </div>
       ))}

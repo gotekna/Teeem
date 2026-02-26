@@ -43,13 +43,19 @@ production:
     # SolidQueue queue ordering already prevents starvation, so 2 processes was
     # unnecessary. Single process baseline: ~520MB → 504MB headroom for jobs.
     #
-    # FRC (Feb 2026): 1 thread with jemalloc → stable at ~700MB (324MB headroom on 1024MB).
-    # 2 threads tested but R14 returned (1795MB/174%). Root cause: XeroAttachmentSyncJob
-    # and RetryPendingAttachmentBlobsJob both hold large objects across long-running loops.
-    # With 2 threads running these simultaneously → cumulative memory exceeds dyno limit.
-    # 1 thread serializes work, preventing concurrent memory spikes.
+    # FRC (Feb 2026): Re-enabled 2 threads. Original 1-thread constraint was because
+    # XeroAttachmentSyncJob + RetryPendingAttachmentBlobsJob running simultaneously
+    # caused R14 at 1795MB. Both root causes are now resolved:
+    #   1. RetryPendingAttachmentBlobsJob moved to email worker (queue_as :email_enrichment)
+    #      — shared worker queue list below does NOT include email_enrichment
+    #   2. XeroAttachmentSyncJob refactored to use Tempfile streaming (Feb 2026)
+    #      — no longer holds large binary objects in heap
+    # Memory budget (2 threads): ~400MB baseline + ~200MB thread 1 + ~150MB thread 2
+    # = ~750MB worst case → 274MB headroom on 1024MB dyno.
+    # XeroAttachmentSyncJob thresholds lowered to 550/650MB (from 700/800) to leave
+    # headroom for the second thread.
     - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
-      threads: 1
+      threads: 2
       processes: 1
       polling_interval: 0.1
 

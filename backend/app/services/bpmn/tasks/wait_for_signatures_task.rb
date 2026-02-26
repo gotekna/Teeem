@@ -55,12 +55,17 @@ module Bpmn
       # ════════════════════════════════════════════════════════════════
       def find_request
         # Try from variable (set by CreateDirectorChangeEsignTask or CreateESignRequestTask)
+        # FRC (Feb 2026): Default to "esign_result" when no request_variable configured.
+        # CreateDirectorChangeEsignTask always stores as "esign_result" (line 77),
+        # so this default covers the common case without requiring explicit node config.
+        variable_name = @config["request_variable"].presence || "esign_result"
+        request_info = @variables[variable_name]
+        if request_info.is_a?(Hash) && request_info["request_id"].present?
+          return ESignatureRequest.find_by(id: request_info["request_id"])
+        end
+
         if @config["request_variable"].present?
-          request_info = @variables[@config["request_variable"]]
-          if request_info.is_a?(Hash) && request_info["request_id"].present?
-            return ESignatureRequest.find_by(id: request_info["request_id"])
-          end
-          log_info("request_variable '#{@config["request_variable"]}' is missing or invalid: #{request_info.inspect}")
+          log_info("request_variable '#{variable_name}' is missing or invalid: #{request_info.inspect}")
         end
 
         # Try direct ID from node config
@@ -68,7 +73,7 @@ module Bpmn
           return ESignatureRequest.find_by(id: @config["request_id"])
         end
 
-        log_info("No request_variable or request_id configured - cannot find e-signature request")
+        log_info("No e-signature request found in variable '#{variable_name}' or config")
         nil
       end
 

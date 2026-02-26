@@ -18,6 +18,19 @@ module Bpmn
       def execute
         raise "Subject must be a Corporate" unless @subject.is_a?(Corporate)
 
+        # FRC (Feb 2026): Idempotency guard. If a previous execution already generated
+        # the package (stored in process variables), return it instead of regenerating.
+        existing_blob_id = @variables["director_change_blob_id"]
+        if existing_blob_id.present? && StorageBlob.exists?(id: existing_blob_id)
+          log_info("Director change package already generated (blob: #{existing_blob_id}), skipping duplicate generation")
+          return {
+            success: true,
+            blob_id: existing_blob_id,
+            filename: @variables["director_change_filename"],
+            documents: []
+          }
+        end
+
         form_data = get_form_data_from_previous_task
         raise "No director change form data found" if form_data.blank?
 

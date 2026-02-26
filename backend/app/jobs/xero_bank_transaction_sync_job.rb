@@ -64,6 +64,11 @@ class XeroBankTransactionSyncJob < ApplicationJob
         result[:errors] << { tenant_id: tenant_id, error: "Rate limited" }
         next
       end
+
+      # FRC (Feb 2026): GC between tenants to prevent heap growth across the loop.
+      # SSoT: XeroInvoiceSyncJob already does this (line 112). This was the only
+      # multi-tenant Xero sync job missing it.
+      GC.start
     end
 
     Rails.logger.info("XeroBankTransactionSyncJob completed: #{result.inspect}")

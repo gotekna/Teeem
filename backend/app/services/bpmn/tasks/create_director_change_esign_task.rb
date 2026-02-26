@@ -20,6 +20,23 @@ module Bpmn
       def execute
         raise "Subject must be a Corporate" unless @subject.is_a?(Corporate)
 
+        # FRC (Feb 2026): Idempotency guard. If a previous execution already created
+        # the e-signature request (stored in process variables), return it instead of
+        # creating a duplicate. This is the innermost defense against double-execution.
+        existing_result = @variables["esign_result"]
+        if existing_result.present? && existing_result["request_id"].present?
+          existing_request = ESignatureRequest.find_by(id: existing_result["request_id"])
+          if existing_request
+            log_info("E-signature request already exists (#{existing_result['request_number']}), skipping duplicate creation")
+            return {
+              success: true,
+              request_id: existing_request.id,
+              request_number: existing_request.request_number,
+              signers_count: existing_result["signers_count"]
+            }
+          end
+        end
+
         blob_id = @variables["director_change_blob_id"]
         form_data = @variables["director_change_form"]
 

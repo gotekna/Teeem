@@ -17,7 +17,10 @@
 class RetryPendingAttachmentBlobsJob < ApplicationJob
   include DeduplicatableJob
 
-  queue_as :default
+  # FRC (Feb 2026): Moved from :default (shared worker) to :email_enrichment (email worker).
+  # Downloads email attachment bytes via Graph API — email work belongs on email worker.
+  # Was causing R14 on shared worker by competing with Xero/badge jobs for 1GB memory.
+  queue_as :email_enrichment
 
   MAX_RUNTIME_SECONDS = 5 * 60 # 5 minutes
 

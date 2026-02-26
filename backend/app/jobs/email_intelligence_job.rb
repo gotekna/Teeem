@@ -2,7 +2,7 @@
 
 # EmailIntelligenceJob - Recurring batch AI processing for email intelligence
 #
-# Runs every 10 minutes on :low queue (teeem-shared-worker).
+# Runs every 10 minutes on :email_enrichment queue (teeem-email-worker).
 # Iterates all tenants and processes up to 50 unprocessed emails per tenant.
 #
 # Populates: ai_summary, action_items, follow_up_required, follow_up_date,
@@ -12,7 +12,10 @@
 #
 class EmailIntelligenceJob < ApplicationJob
   include DeduplicatableJob
-  queue_as :email_sync
+  # FRC (Feb 2026): Moved from :email_sync to :email_enrichment.
+  # AI summaries are enrichment, not sync. On :email_sync it competed with
+  # OrgEmailSyncJob/ImapSyncJob for the email worker's single thread.
+  queue_as :email_enrichment
 
   # FRC (Feb 2026): Time budget to prevent starving email_enrichment jobs.
   # Email worker has 1 thread shared between email_sync + email_enrichment.

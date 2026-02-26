@@ -39,6 +39,7 @@ namespace :bpmn do
       node_type: "user_task",
       node_key: "UserTask_ConfigureChanges",
       name: "Configure Director Changes",
+      description: "Select directors to cease or appoint, set effective dates, and configure the ASIC Form 484 details",
       position_x: 250,
       position_y: 200,
       config: {
@@ -58,6 +59,7 @@ namespace :bpmn do
       node_type: "service_task",
       node_key: "ServiceTask_GeneratePackage",
       name: "Generate ASIC Package",
+      description: "Generate PDF documents for each director change: Form 484, Consent to Act, Director Resignation Letter, and Board Minutes. Creates individual blobs and adds them to the ASIC tab.",
       position_x: 450,
       position_y: 200,
       config: {
@@ -70,6 +72,7 @@ namespace :bpmn do
       node_type: "service_task",
       node_key: "ServiceTask_SendForSigning",
       name: "Send for E-Signing",
+      description: "Create an e-signature request and send all generated documents to the relevant directors for electronic signing",
       position_x: 650,
       position_y: 200,
       config: {
@@ -83,6 +86,7 @@ namespace :bpmn do
       node_type: "service_task",
       node_key: "ServiceTask_WaitForSignatures",
       name: "Wait for Signatures",
+      description: "Monitor the e-signature request until all directors have signed. Checks hourly and resumes workflow when complete.",
       position_x: 850,
       position_y: 200,
       config: {
@@ -98,6 +102,7 @@ namespace :bpmn do
       node_type: "service_task",
       node_key: "ServiceTask_CompleteChanges",
       name: "Complete Director Changes",
+      description: "Update the directors page with new appointments and ceased directors, and mark the workflow as complete",
       position_x: 1050,
       position_y: 200,
       config: {

@@ -117,8 +117,10 @@ class EmailHealthMonitorJob < ApplicationJob
     cleaned = 0
 
     # Find stuck IMAP sync jobs
+    # FRC (Feb 2026): Was searching queue_name: "default" but these jobs run on "email_sync".
+    # The cleanup was completely ineffective — never finding any orphaned sync jobs.
     stuck_imap_jobs = SolidQueue::Job
-      .where(queue_name: "default")
+      .where(queue_name: %w[default email_sync])
       .where("class_name LIKE ?", "%ImapSyncJob%")
       .where("created_at < ?", MAX_PENDING_JOB_AGE.ago)
       .where(finished_at: nil)
@@ -131,7 +133,7 @@ class EmailHealthMonitorJob < ApplicationJob
 
     # Find stuck Office 365 sync jobs
     stuck_org_jobs = SolidQueue::Job
-      .where(queue_name: "default")
+      .where(queue_name: %w[default email_sync])
       .where("class_name LIKE ?", "%OrgEmailSyncJob%")
       .where("created_at < ?", MAX_PENDING_JOB_AGE.ago)
       .where(finished_at: nil)

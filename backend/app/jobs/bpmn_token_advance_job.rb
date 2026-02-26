@@ -3,6 +3,10 @@ class BpmnTokenAdvanceJob < ApplicationJob
   # long-running Xero/attachment jobs on default queue (single-thread worker).
   queue_as :critical
 
+  # FRC (Feb 2026): Prevent duplicate advancement for the same token.
+  # Two advance jobs for the same token could double-advance through nodes.
+  limits_concurrency to: 1, key: ->(token_id) { "bpmn_token_advance_#{token_id}" }
+
   def perform(token_id)
     token = BpmnToken.find_by(id: token_id)
 
