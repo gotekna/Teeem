@@ -7,6 +7,11 @@ class ImapSyncJob < ApplicationJob
   # (teeem-email-worker) listens to :email_sync and has dedicated memory.
   queue_as :email_sync
 
+  # FRC (Feb 2026): Time budget to prevent starving email_enrichment jobs.
+  # Email worker has 1 thread shared between email_sync + email_enrichment.
+  # Without a budget, IMAP sync could run indefinitely and starve upload jobs.
+  MAX_RUNTIME = 3.minutes
+
   # Retry network errors up to 2 times with backoff, then discard
   # Runs every 2 minutes, so next scheduled run will try again
   retry_on Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED,
@@ -17,6 +22,8 @@ class ImapSyncJob < ApplicationJob
 
   # Sync emails for a single IMAP credential
   def perform(credential_id = nil, full_sync: false)
+    @started_at = Time.current
+
     if credential_id
       # Sync specific credential
       credential = ImapCredential.find_by(id: credential_id)
@@ -27,6 +34,7 @@ class ImapSyncJob < ApplicationJob
       # Sync all active credentials that are due
       ImapCredential.where(is_active: true).find_each do |credential|
         next unless credential.sync_due?
+        break unless time_remaining?
 
         sync_credential(credential, full_sync: full_sync)
       end
@@ -34,6 +42,10 @@ class ImapSyncJob < ApplicationJob
   end
 
   private
+
+  def time_remaining?
+    (Time.current - @started_at) < MAX_RUNTIME
+  end
 
   def sync_credential(credential, full_sync: false)
     Rails.logger.info "[ImapSyncJob] Starting sync for #{credential.email_address} (full_sync: #{full_sync})"

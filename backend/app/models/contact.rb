@@ -1896,7 +1896,7 @@ class Contact < ApplicationRecord
   # Frontend choices: "Person", "Company", "Trust", "Sole Trader", "Price Only"
   # Backend expects:  "person", "company", "trust", "sole_trader", "price_only"
   #
-  # ⚠️ FRC (Feb 2026): Must default blank entity_type to "company"
+  # ⚠️ FRC (Feb 2026): Must default blank entity_type to "company" for NEW records
   # ════════════════════════════════════════════════════════════════
   # Why: Multiple code paths (ExternalInvoiceSyncService, bulk imports, email extraction)
   # create contacts without setting entity_type. With blank entity_type, contacts bypass
@@ -1904,10 +1904,26 @@ class Contact < ApplicationRecord
   # allowing unlimited duplicates. 850+ "Draft" contacts were created this way.
   # ❌ WRONG: return if entity_type.blank? — allows null entity_type, bypasses unique index
   # ✅ CORRECT: Default to "company" — ensures unique index coverage
+  #
+  # ⚠️ FRC (Feb 2026): Preserve existing entity_type for PERSISTED records
+  # ════════════════════════════════════════════════════════════════
+  # Why: If a save operation accidentally blanks entity_type on an existing contact,
+  # defaulting to "company" silently changes person contacts into companies.
+  # Contact #25 (Andrew Clement) was a person linked to a user but got changed to
+  # "company" because something saved with blank entity_type and the old code
+  # unconditionally defaulted to "company".
+  # ❌ WRONG: self.entity_type = "company" for ALL blank cases
+  # ✅ CORRECT: Preserve entity_type_was for existing records, default "company" for new
   # ════════════════════════════════════════════════════════════════
   def normalize_entity_type
     if entity_type.blank?
-      self.entity_type = "company"
+      if persisted? && entity_type_was.present?
+        # Existing record had entity_type — preserve it (don't silently change person→company)
+        self.entity_type = entity_type_was
+      else
+        # New record or existing with no prior entity_type — default to "company"
+        self.entity_type = "company"
+      end
       return
     end
 

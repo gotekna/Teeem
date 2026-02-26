@@ -14,12 +14,19 @@ class EmailIntelligenceJob < ApplicationJob
   include DeduplicatableJob
   queue_as :email_sync
 
+  # FRC (Feb 2026): Time budget to prevent starving email_enrichment jobs.
+  # Email worker has 1 thread shared between email_sync + email_enrichment.
+  MAX_RUNTIME = 3.minutes
+
   def perform
+    @started_at = Time.current
     Rails.logger.info "[EmailIntelligenceJob] Starting email intelligence processing"
 
     total_stats = { processed: 0, skipped: 0, errors: 0, tenants: 0 }
 
     Tenant.find_each do |tenant|
+      break unless time_remaining?
+
       ActsAsTenant.with_tenant(tenant) do
         # Skip tenants with no unprocessed emails
         pending_count = SyncedEmail.needs_ai_processing
@@ -44,5 +51,11 @@ class EmailIntelligenceJob < ApplicationJob
     end
 
     Rails.logger.info "[EmailIntelligenceJob] Complete: #{total_stats.inspect}"
+  end
+
+  private
+
+  def time_remaining?
+    (Time.current - @started_at) < MAX_RUNTIME
   end
 end

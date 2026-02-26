@@ -652,14 +652,19 @@ class DirectorChangeService
     remaining_pages = (current_page..last_content_page).to_a
 
     f484_name = resolve_doc_name("F484", "Form 484")
+    # Build person_name for F484 metadata: join all relevant names with " & "
+    # so WFDT template {PersonName} resolves (e.g., "Rachel Harder & Robert Harder")
+    ceasing_names = ceasing_directors.map { |cd| cd[:corporate_director].contact.display_name }.uniq.join(" & ")
+    appointment_names = new_appointments.map { |appt| appt[:contact].display_name }.uniq.join(" & ")
+
     if ceasing_directors.any? && new_appointments.any? && remaining_pages.size >= 2
       midpoint = remaining_pages.size / 2
-      page_assignments << { pages: remaining_pages[0...midpoint], abbr: "F484", name: "#{f484_name} - Cessation", metadata: base_metadata.merge(form_subtype: "cessation") }
-      page_assignments << { pages: remaining_pages[midpoint..], abbr: "F484", name: "#{f484_name} - Appointment", metadata: base_metadata.merge(form_subtype: "appointment") }
+      page_assignments << { pages: remaining_pages[0...midpoint], abbr: "F484", name: "#{f484_name} - Cessation", metadata: base_metadata.merge(form_subtype: "cessation", person_name: ceasing_names) }
+      page_assignments << { pages: remaining_pages[midpoint..], abbr: "F484", name: "#{f484_name} - Appointment", metadata: base_metadata.merge(form_subtype: "appointment", person_name: appointment_names) }
     elsif ceasing_directors.any? && remaining_pages.any?
-      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} - Cessation", metadata: base_metadata.merge(form_subtype: "cessation") }
+      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} - Cessation", metadata: base_metadata.merge(form_subtype: "cessation", person_name: ceasing_names) }
     elsif new_appointments.any? && remaining_pages.any?
-      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} - Appointment", metadata: base_metadata.merge(form_subtype: "appointment") }
+      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} - Appointment", metadata: base_metadata.merge(form_subtype: "appointment", person_name: appointment_names) }
     end
 
     # Certificate of Completion is always the last page of the signed PDF.
