@@ -54,15 +54,14 @@ module Bpmn
 
         package = service.generate_package(on_progress: progress_callback)
 
-        # Upload combined PDF for e-signature and process variable reference
+        # Upload combined PDF for e-signature and process variable reference.
+        # Documents are NOT stored in the warehouse here - that happens in
+        # CompleteDirectorChangeTask after signing completes.
         combined_blob = StorageBlob.find_or_create_for_content!(
           package[:pdf_content],
           filename: package[:filename],
           content_type: "application/pdf"
         )
-
-        # Store the combined PDF as a warehouse document
-        create_warehouse_document(combined_blob, package)
 
         # Set process variables for subsequent tasks
         set_variable("director_change_blob_id", combined_blob.id)
@@ -127,51 +126,6 @@ module Bpmn
             address: appt["address"]
           }
         end.compact
-      end
-
-      def create_warehouse_document(combined_blob, package)
-        asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
-        current_user = resolve_user
-        base_metadata = {
-          workflow_instance_id: @instance.id,
-          form_type: "form_484",
-          generated_at: Time.current.iso8601
-        }
-
-        # Store each document individually so they appear as separate entries
-        # in the warehouse, each linked to its correct document type via WFDT.
-        package[:documents].each do |doc|
-          next unless doc[:pdf_content].present?
-
-          doc_blob = StorageBlob.find_or_create_for_content!(
-            doc[:pdf_content],
-            filename: "#{doc[:name]}.pdf",
-            content_type: "application/pdf"
-          )
-
-          create_one_warehouse_doc(
-            doc_blob, asic_folder, current_user,
-            doc[:abbreviation], doc[:name],
-            base_metadata.merge(document_type: doc[:type].to_s)
-          )
-        end
-      end
-
-      def create_one_warehouse_doc(blob, asic_folder, current_user, abbreviation, fallback_name, metadata)
-        wfdt = asic_folder && WarehouseFolderDocumentType
-          .joins(:document_type)
-          .find_by(warehouse_folder: asic_folder, document_types: { abbreviation: abbreviation })
-
-        WarehouseDocumentCreator.create!(
-          filename: fallback_name,
-          source_type: "corporate",
-          linkable: @subject,
-          storage_blob: blob,
-          warehouse_folder_id: asic_folder&.id,
-          warehouse_folder_document_type_id: wfdt&.id,
-          metadata: metadata,
-          user: current_user
-        )
       end
 
       def resolve_user

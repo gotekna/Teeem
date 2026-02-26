@@ -1951,7 +1951,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_140000) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.index ["appointment_date"], name: "index_corporate_directors_on_appointment_date"
-    t.index ["company_id", "contact_id"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
+    t.index ["company_id", "contact_id", "position"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
     t.index ["company_id"], name: "index_corporate_directors_on_company_id"
     t.index ["contact_id"], name: "index_corporate_directors_on_contact_id"
     t.index ["is_current"], name: "index_corporate_directors_on_is_current"

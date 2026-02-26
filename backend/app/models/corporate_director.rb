@@ -16,8 +16,8 @@ class CorporateDirector < ApplicationRecord
 
   # Validations
   validates :position, inclusion: { in: POSITIONS, allow_blank: true }
-  validates :contact_id, uniqueness: { scope: :company_id, conditions: -> { where(is_current: true) },
-                                       message: "is already a current director/officer of this company" }
+  validates :contact_id, uniqueness: { scope: [:company_id, :position], conditions: -> { where(is_current: true) },
+                                       message: "already holds this position in this company" }
   validate :resignation_date_after_appointment
 
   # Scopes

@@ -123,20 +123,20 @@ class DirectorChangeService
         )
       end
 
-      # Create new CorporateDirector records for appointments.
-      # DB unique constraint (company_id, contact_id) WHERE is_current = true
-      # means ONE record per contact with combined position string.
+      # Create one CorporateDirector record PER POSITION per contact.
+      # e.g., ["director", "secretary", "public_officer"] → 3 separate records.
       # Note: CorporateDirector model callbacks handle activity logging automatically
       new_appointments.each do |appt_data|
         contact = appt_data[:contact]
-        combined_position = appt_data[:positions].join("_")
 
-        company.corporate_directors.create!(
-          contact: contact,
-          position: combined_position,
-          appointment_date: appt_data[:appointment_date],
-          is_current: true
-        )
+        appt_data[:positions].each do |position|
+          company.corporate_directors.create!(
+            contact: contact,
+            position: position,
+            appointment_date: appt_data[:appointment_date],
+            is_current: true
+          )
+        end
       end
 
       # Store signed PDF as WarehouseDocument
