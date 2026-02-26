@@ -681,10 +681,19 @@ class ExternalInvoiceSyncService
     end
   end
 
-  # Auto-create a TEEEM contact from Xero contact data embedded in invoice
-  # BUG FIX: Added duplicate detection to prevent creating duplicate contacts
-  # IMPROVED: Added fuzzy matching for similar names across Xero orgs
-  # LIM (Jan 2026): XeroContact references removed - ContactExternalLink is THE ONE SSoT
+  # Auto-create a TEEEM contact from Xero contact data embedded in invoice.
+  #
+  # ⚠️ FRC (Feb 2026): Must use case-insensitive lookup matching DB unique index
+  # ════════════════════════════════════════════════════════════════
+  # Why: XeroContactSyncService and ExternalInvoiceSyncService BOTH create contacts.
+  # The old code used Contact.new + .save (case-sensitive, no race protection).
+  # If XeroContactSyncService created "ABC Pty Ltd" and an invoice had "ABC pty ltd",
+  # the case-sensitive find missed it, then .save hit the DB unique index and silently
+  # failed — leaving the invoice unlinked. Next sync, same thing. Contacts appeared
+  # duplicated when the name had slightly different casing or whitespace.
+  # ❌ WRONG: Contact.new + .save — case-sensitive, silent failure on unique constraint
+  # ✅ CORRECT: Case-insensitive find matching DB index, then create with rescue
+  # ════════════════════════════════════════════════════════════════
   def auto_create_contact_from_xero(invoice)
     return nil if invoice.contact_name.blank?
 
@@ -696,43 +705,48 @@ class ExternalInvoiceSyncService
       return existing_contact
     end
 
-    Rails.logger.info("Auto-creating contact for Xero contact: #{invoice.contact_name}")
+    normalized_name = invoice.contact_name.to_s.strip.squish
+    teeem_tid = @current_teeem_tenant_id || teeem_tenant_id_for(@xero_tenant_id)
 
-    begin
-      # SSoT: Multi-tenancy - Contact uses TEEEM tenant_id (integer)
-      # FRC (Feb 2026): Fixed to use resolved TEEEM tenant, not Xero UUID
-      teeem_tid = @current_teeem_tenant_id || teeem_tenant_id_for(@xero_tenant_id)
-      contact = Contact.new(
-        display_name: invoice.contact_name,
-        company_name_or_trust: invoice.contact_name,
+    # Case-insensitive find matching the DB unique index (idx_contacts_unique_company_name)
+    contact = Contact
+      .where(entity_type: "company", is_active: true)
+      .where("LOWER(TRIM(display_name)) = ?", normalized_name.downcase)
+      .first
+
+    unless contact
+      Rails.logger.info("Auto-creating contact for Xero contact: #{normalized_name}")
+      contact = Contact.create!(
+        display_name: normalized_name,
+        company_name_or_trust: normalized_name,
         entity_type: "company",
         sync_with_xero: true,
         tenant_id: teeem_tid
       )
-
-      if contact.save
-        # Create ContactExternalLink for the new TEEEM Contact (SSoT)
-        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
-        if invoice.external_contact_id.present?
-          ContactExternalLink.find_or_create_by!(
-            contact: contact,
-            source: @source,
-            xero_org_id: @xero_tenant_id,
-            external_contact_id: invoice.external_contact_id
-          )
-          Rails.logger.info("Created ContactExternalLink for contact #{contact.id}")
-        end
-
-        Rails.logger.info("Successfully created contact #{contact.id}: #{contact.display_name}")
-        contact
-      else
-        Rails.logger.warn("Failed to create contact for #{invoice.contact_name}: #{contact.errors.full_messages.join(', ')}")
-        nil
-      end
-    rescue StandardError => e
-      Rails.logger.error("Error auto-creating contact for #{invoice.contact_name}: #{e.message}")
-      nil
+      Rails.logger.info("Successfully created contact #{contact.id}: #{contact.display_name}")
     end
+
+    # Create ContactExternalLink for the TEEEM Contact (SSoT)
+    if invoice.external_contact_id.present?
+      ContactExternalLink.find_or_create_by!(
+        contact: contact,
+        source: @source,
+        xero_org_id: @xero_tenant_id,
+        external_contact_id: invoice.external_contact_id
+      )
+    end
+
+    contact
+  rescue ActiveRecord::RecordNotUnique
+    # Race condition: XeroContactSyncService created the contact between our find and create
+    Rails.logger.info("Contact '#{invoice.contact_name}' created by concurrent process, finding it")
+    Contact
+      .where(entity_type: "company", is_active: true)
+      .where("LOWER(TRIM(display_name)) = ?", invoice.contact_name.to_s.strip.squish.downcase)
+      .first
+  rescue StandardError => e
+    Rails.logger.error("Error auto-creating contact for #{invoice.contact_name}: #{e.message}")
+    nil
   end
 
   # Smart contact matching with multiple strategies
