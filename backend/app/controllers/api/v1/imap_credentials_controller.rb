@@ -1080,6 +1080,37 @@ class Api::V1::ImapCredentialsController < ApplicationController
     @credential = ImapCredential.accessible_by(current_user).find(params[:id])
   end
 
+  # FRC (Feb 2026): Download file content from WarehouseDocument regardless of storage provider
+  # Handles both S3 (via storage_blob) and SharePoint (via sharepoint_item_id metadata)
+  def download_warehouse_document_content(doc)
+    # Try S3 first via storage_blob
+    if doc.storage_blob&.storage_path.present?
+      file = download_from_storage(doc.storage_blob.storage_path)
+      return file&.read
+    end
+
+    # SharePoint: use Graph API to download via sharepoint_item_id
+    sharepoint_item_id = doc.meta("sharepoint_item_id")
+    if sharepoint_item_id.present?
+      config = WarehouseProvider.instance
+      credential = MicrosoftCredential.sharepoint_credential rescue nil
+      unless credential
+        Rails.logger.error "[SendEmail] No SharePoint credential for document #{doc.id}"
+        return nil
+      end
+
+      client = MicrosoftGraphClient.new(credential)
+      if credential.credential_type == "app" && config&.drive_id.present?
+        client.get_drive_item_content(drive_id: config.drive_id, item_id: sharepoint_item_id)
+      else
+        client.download_file(sharepoint_item_id)
+      end
+    end
+  rescue => e
+    Rails.logger.error "[SendEmail] Failed to download WarehouseDocument #{doc.id}: #{e.message}"
+    nil
+  end
+
   # Parse recipients from comma-separated string or array
   # Handles: "a@b.com, c@d.com" or ["a@b.com", "c@d.com"] or ["a@b.com, c@d.com"]
   def parse_recipients(value)
@@ -1123,6 +1154,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
     # Handle attachment_data (new format with filenames - Ultra fix Jan 2026)
     # Format: [{ key: "storage/path", filename: "document.pdf", content_type: "application/pdf" }]
+    # FRC (Feb 2026): Also supports document_id for SharePoint-only files without S3 storage key
+    # Format: [{ document_id: 123, filename: "photo.jpg", content_type: "image/jpeg" }]
     if params[:attachment_data].present?
       att_data_array = Array(params[:attachment_data])
       Rails.logger.info "[SendEmail] Processing #{att_data_array.size} attachment_data items"
@@ -1132,9 +1165,37 @@ class Api::V1::ImapCredentialsController < ApplicationController
         storage_key = att_data[:key] || att_data["key"]
         filename = att_data[:filename] || att_data["filename"]
         content_type = att_data[:content_type] || att_data["content_type"]
+        document_id = att_data[:document_id] || att_data["document_id"]
+
+        # FRC (Feb 2026): Resolve storage_key from document_id when key is blank
+        # This supports SharePoint-only files that have no S3 storage path
+        if storage_key.blank? && document_id.present?
+          doc = WarehouseDocument.find_by(id: document_id)
+          if doc&.storage_blob&.storage_path.present?
+            storage_key = doc.storage_blob.storage_path
+            Rails.logger.info "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': Resolved storage_key from document_id #{document_id} → #{storage_key}"
+          elsif doc
+            # SharePoint-only file: download content directly from WarehouseDocument
+            Rails.logger.info "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': Downloading from WarehouseDocument #{document_id} (no S3 blob)"
+            file_content = download_warehouse_document_content(doc)
+            if file_content
+              file_content = file_content.dup.force_encoding(Encoding::ASCII_8BIT)
+              Rails.logger.info "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': SUCCESS via document_id (#{file_content.bytesize} bytes)"
+              attachments << {
+                filename: filename.presence || doc.download_filename,
+                content: file_content,
+                content_type: content_type.presence || doc.content_type || "application/octet-stream"
+              }
+            else
+              Rails.logger.error "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': FAILED to download from document_id #{document_id}"
+              failed_attachments << filename
+            end
+            next
+          end
+        end
 
         if storage_key.blank?
-          Rails.logger.error "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': No storage_key"
+          Rails.logger.error "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': No storage_key or document_id"
           failed_attachments << filename
           next
         end
