@@ -558,10 +558,10 @@ class DirectorChangeService
   # Badge is ~28pt below block top = 757pt = 90% of page.
   # We position the overlay to cover the whole signature block area.
   BADGE_POSITION = {
-    x_percent: 5.0,       # Left margin area (15mm = 5% of 210mm page width)
-    y_percent: 86.0,      # Signature block top (flex-pushed to bottom of content)
-    width_percent: 42.0,   # Left column (50% of content = ~42% of full page width)
-    height_percent: 8.0    # Covers label + signature box + badge
+    x_percent: 5.0,       # Left margin area
+    y_percent: 73.0,      # Aligned with "Signature:" label in templates
+    width_percent: 42.0,   # Left column width
+    height_percent: 8.0    # Covers signature box area
   }.freeze
 
   def store_signed_document(e_signature_request)

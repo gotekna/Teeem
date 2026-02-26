@@ -102,11 +102,13 @@ export default function WorkflowTaskDetailPage() {
           setWorkflowProcessing(true);
 
           // Poll process variables until esign_result appears (background job creates it)
-          const maxAttempts = 40; // 40 * 3s = 2 min max wait
+          // Poll fast initially (1.5s) to catch progress quickly, then slow to 3s
+          const maxAttempts = 60;
           let esignRequestId: number | null = null;
 
           for (let i = 0; i < maxAttempts; i++) {
-            await new Promise((r) => setTimeout(r, 3000));
+            const pollInterval = i < 10 ? 1500 : 3000;
+            await new Promise((r) => setTimeout(r, pollInterval));
             try {
               const pollRes = await api.get<{ success: boolean; task: TaskDetail }>(
                 `/api/v1/bpmn_tasks/${task.id}`

@@ -35,6 +35,14 @@ module Bpmn
           user: resolve_user
         )
 
+        # Set initial progress immediately so the frontend sees it on first poll
+        total_docs = service.document_count
+        set_variable("generation_progress", {
+          current: 0,
+          total: total_docs,
+          document_name: "Starting..."
+        })
+
         # Progress callback persists to DB so the frontend can poll it
         progress_callback = ->(current, total, doc_name) {
           set_variable("generation_progress", {
