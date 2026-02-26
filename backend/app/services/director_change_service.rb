@@ -662,9 +662,14 @@ class DirectorChangeService
       page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} - Appointment", metadata: base_metadata.merge(form_subtype: "appointment") }
     end
 
+    # Certificate of Completion is always the last page of the signed PDF.
+    # Append it to every individual document so each is self-contained
+    # and legally verifiable when submitted to ASIC or regulators.
+    certificate_page = total_pages
+
     # Extract each document's pages into a separate PDF and store individually
     page_assignments.each do |assignment|
-      individual_content = extract_pages(signed_pdf, assignment[:pages])
+      individual_content = extract_pages(signed_pdf, assignment[:pages] + [certificate_page])
       individual_blob = StorageBlob.find_or_create_for_content!(
         individual_content,
         filename: "#{assignment[:name]}.pdf",
