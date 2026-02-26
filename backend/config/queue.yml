@@ -43,12 +43,13 @@ production:
     # SolidQueue queue ordering already prevents starvation, so 2 processes was
     # unnecessary. Single process baseline: ~520MB → 504MB headroom for jobs.
     #
-    # 2 threads: with jemalloc (Feb 2026) we have ~25% less memory usage.
-    # Without jemalloc: 4 threads → 1170MB, 2 threads → 1105MB (both over 1024MB quota).
-    # With jemalloc: 1 thread stable at ~700MB. Testing 2 threads for better throughput.
-    # If R14 returns, drop back to 1 thread.
+    # FRC (Feb 2026): 1 thread with jemalloc → stable at ~700MB (324MB headroom on 1024MB).
+    # 2 threads tested but R14 returned (1795MB/174%). Root cause: XeroAttachmentSyncJob
+    # and RetryPendingAttachmentBlobsJob both hold large objects across long-running loops.
+    # With 2 threads running these simultaneously → cumulative memory exceeds dyno limit.
+    # 1 thread serializes work, preventing concurrent memory spikes.
     - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
-      threads: 2
+      threads: 1
       processes: 1
       polling_interval: 0.1
 

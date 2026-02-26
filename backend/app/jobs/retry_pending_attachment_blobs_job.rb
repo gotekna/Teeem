@@ -27,8 +27,12 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
     total_errors = 0
 
     # === Case 1: Orphaned metadata (WarehouseDocument exists, no blob) ===
+    # FRC (Feb 2026): Exclude permanently_failed attachments (e.g. unsupported
+    # referenceAttachment type). Without this filter, the job re-processes the same
+    # ~800x-failed attachments every 5 minutes, wasting memory and MS Graph API calls.
     tenant_ids = WarehouseDocument.unscoped
       .where(source_type: "email_attachment", storage_blob_id: nil)
+      .where("metadata->>'blob_status' IS NULL OR metadata->>'blob_status' != 'permanently_failed'")
       .distinct
       .pluck(:tenant_id)
       .compact
@@ -44,6 +48,7 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
       ActsAsTenant.with_tenant(tenant) do
         email_ids = WarehouseDocument
           .where(source_type: "email_attachment", storage_blob_id: nil)
+          .where("metadata->>'blob_status' IS NULL OR metadata->>'blob_status' != 'permanently_failed'")
           .where("metadata->>'synced_email_id' IS NOT NULL")
           .distinct
           .pluck(Arel.sql("metadata->>'synced_email_id'"))
