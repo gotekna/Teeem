@@ -14,10 +14,12 @@ class ESignatureEvent < ApplicationRecord
     created
     sent
     notified
+    notification_failed
     viewed
     verified
     verification_failed
     verification_locked
+    field_completed
     signed
     declined
     completed
@@ -116,6 +118,10 @@ class ESignatureEvent < ApplicationRecord
       "Email verification failed"
     when "verification_locked"
       "Too many verification attempts - account locked"
+    when "field_completed"
+      "Signature field completed"
+    when "notification_failed"
+      "Email notification delivery failed"
     when "signed"
       signer_name = e_signature_signer&.name || "Unknown"
       "Document signed by #{signer_name}"
