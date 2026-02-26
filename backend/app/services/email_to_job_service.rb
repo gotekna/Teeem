@@ -34,7 +34,7 @@ class EmailToJobService
 
     # Create proposal record
     proposal = EmailJobProposal.create!(
-      email_warehouse: @email,
+      synced_email: @email,
       created_by_user: @user,
       extracted_data: extracted_data,
       ai_prompt: prompt,
@@ -56,7 +56,7 @@ class EmailToJobService
 
     # Create error proposal
     EmailJobProposal.create!(
-      email_warehouse: @email,
+      synced_email: @email,
       created_by_user: @user,
       extracted_data: { error: e.message },
       status: "error",
