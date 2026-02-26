@@ -25,6 +25,8 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { format } from "date-fns";
+import { DATETIME_DISPLAY } from "@/lib/constants/date-formats";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
@@ -528,7 +530,7 @@ function ProposalCard({
                 <Mail className="w-4 h-4 mr-1" />
                 From: {email.from_email}
               </div>
-              <div>{new Date(proposal.created_at).toLocaleString()}</div>
+              <div>{format(new Date(proposal.created_at), DATETIME_DISPLAY)}</div>
               {collapsed && data.property_address && (
                 <div className="flex items-center">
                   <MapPin className="w-4 h-4 mr-1" />
