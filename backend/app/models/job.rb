@@ -129,11 +129,6 @@ class Job < ApplicationRecord
   before_create :set_temporary_job_code
   after_create :generate_job_code_from_id
 
-  # Description placeholder for document templates
-  def description
-    nil
-  end
-
   # Validations
   validates :name, presence: true
   # SSoT: Supervisor is stored via job_contacts (role: "supervisor")

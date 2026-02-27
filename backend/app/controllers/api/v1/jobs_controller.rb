@@ -1754,6 +1754,7 @@ module Api
         params.require(:job).permit(
           :name,
           :title, # Keep for backward compatibility during transition
+          :description,
           :lot_number,
           :street_number,
           :street_name,

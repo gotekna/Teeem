@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -797,6 +798,83 @@ function AddressDetailsCard({
             <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Editable Description Card
+function JobDescriptionCard({
+  job,
+  onSave,
+}: {
+  job: Job;
+  onSave: (description: string) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [value, setValue] = React.useState(job.description || "");
+
+  React.useEffect(() => {
+    if (!isEditing) {
+      setValue(job.description || "");
+    }
+  }, [job.description, isEditing]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(value);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to save description:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setValue(job.description || "");
+    setIsEditing(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>Description</CardTitle>
+          {!isEditing ? (
+            <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
+              <Pencil className="h-4 w-4 mr-1" />
+              Edit
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>
+                <X className="h-4 w-4 mr-1" />
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                <Save className="h-4 w-4 mr-1" />
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isEditing ? (
+          <Textarea
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Add a description for this job..."
+            className="min-h-[100px] resize-y"
+          />
+        ) : (
+          <p className={value ? "text-sm whitespace-pre-wrap" : "text-sm text-muted-foreground"}>
+            {value || "No description added."}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
@@ -1965,6 +2043,15 @@ export default function JobDetailPage() {
                 }
               }}
             />
+
+            {/* Description */}
+            <JobDescriptionCard job={job} onSave={async (description) => {
+              const response = await api.patch<{ success: boolean; data: Job }>(`/api/v1/jobs/${job.id}`, {
+                job: { description },
+              });
+              const jobData = response.data || response;
+              setJob((prevJob) => prevJob ? { ...prevJob, ...jobData } : prevJob);
+            }} />
 
             {/* Spreadsheets */}
             <JobSpreadsheetsSection jobId={job.id} jobName={job.name} />
