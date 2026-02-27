@@ -9,6 +9,7 @@ import { DocumentTypeTreePicker } from "./DocumentTypeTreePicker";
 import type { CustomQuoteLineNode, QuoteLevel } from "./types";
 
 interface POLineRowProps {
+  jobId: string | number;
   line: CustomQuoteLineNode;
   onUpdateLine: (lineId: number, field: string, value: unknown) => void;
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
@@ -22,6 +23,7 @@ interface POLineRowProps {
 }
 
 export function POLineRow({
+  jobId,
   line,
   onUpdateLine,
   onToggleQuoteLevel,
@@ -122,6 +124,8 @@ export function POLineRow({
           poDescription={line.poDescription}
           rfqInstructions={line.rfqInstructions}
           onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
+          jobId={jobId}
+          documentTypeIds={line.documentTypeIds}
           documentTypeNames={liveDocTypeNames}
         />
       )}

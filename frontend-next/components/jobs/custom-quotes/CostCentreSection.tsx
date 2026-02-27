@@ -10,6 +10,7 @@ import { DocumentTypeTreePicker } from "./DocumentTypeTreePicker";
 import type { CustomQuoteLineNode, QuoteLevel } from "./types";
 
 interface CostCentreSectionProps {
+  jobId: string | number;
   line: CustomQuoteLineNode;
   expanded: boolean;
   onToggleExpanded: () => void;
@@ -27,6 +28,7 @@ interface CostCentreSectionProps {
 }
 
 export function CostCentreSection({
+  jobId,
   line,
   expanded,
   onToggleExpanded,
@@ -176,6 +178,8 @@ export function CostCentreSection({
               poDescription={line.poDescription}
               rfqInstructions={line.rfqInstructions}
               onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
+              jobId={jobId}
+              documentTypeIds={line.documentTypeIds}
               documentTypeNames={liveDocTypeNames}
               poLineNames={line.children.filter((c) => c.quoteLevel !== "not_required").map((c) => c.name)}
             />
@@ -186,6 +190,7 @@ export function CostCentreSection({
             {line.children.map((child) => (
               <POLineRow
                 key={child.id}
+                jobId={jobId}
                 line={child}
                 onUpdateLine={onUpdateLine}
                 onToggleQuoteLevel={onToggleQuoteLevel}

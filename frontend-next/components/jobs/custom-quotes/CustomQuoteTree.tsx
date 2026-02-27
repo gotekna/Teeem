@@ -153,6 +153,7 @@ export function CustomQuoteTree({
         {filteredTree.map((ccLine) => (
           <CostCentreSection
             key={ccLine.id}
+            jobId={quote.jobId}
             line={ccLine}
             expanded={expandedCCs.has(ccLine.id)}
             onToggleExpanded={() => toggleCCExpanded(ccLine.id)}

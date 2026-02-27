@@ -212,27 +212,36 @@ module Api
 
       # GET /api/v1/jobs/:job_id/rfq_documents
       # Returns WarehouseDocuments for this job that can be attached to RFQs
+      #
+      # When document_type_ids[] is provided, returns documents grouped by document type ID.
+      # Types with no matching files return empty arrays.
       def rfq_documents
         documents = WarehouseDocument.where(
           documentable_type: 'Job',
           documentable_id: @job.id
-        ).includes(:storage_blob)
+        ).includes(:storage_blob, :warehouse_folder_document_type)
          .where.not(storage_blobs: { id: nil })
          .order(:ui_name)
-         .limit(50)
 
-        render json: {
-          success: true,
-          data: documents.map { |doc|
-            {
-              id: doc.id,
-              name: doc.ui_name || doc.original_filename,
-              folder: doc.folder_path,
-              contentType: doc.storage_blob&.content_type,
-              size: doc.storage_blob&.byte_size
-            }
+        if params[:document_type_ids].present?
+          type_ids = Array(params[:document_type_ids]).map(&:to_i)
+          wfdt_ids = WarehouseFolderDocumentType.where(document_type_id: type_ids).pluck(:id)
+          matched = documents.where(warehouse_folder_document_type_id: wfdt_ids)
+
+          by_type = {}
+          type_ids.each { |tid| by_type[tid] = [] }
+          matched.each do |doc|
+            dt_id = doc.warehouse_folder_document_type&.document_type_id
+            by_type[dt_id] << rfq_doc_json(doc) if dt_id && by_type.key?(dt_id)
+          end
+
+          render json: { success: true, data: by_type }
+        else
+          render json: {
+            success: true,
+            data: documents.limit(50).map { |doc| rfq_doc_json(doc) }
           }
-        }
+        end
       end
 
       # GET /api/v1/rfq_email_templates
@@ -347,6 +356,16 @@ module Api
 
       def set_tracker
         @tracker = QuoteTracker.find(params[:id])
+      end
+
+      def rfq_doc_json(doc)
+        {
+          id: doc.id,
+          name: doc.ui_name || doc.original_filename,
+          folder: doc.folder_path,
+          contentType: doc.storage_blob&.content_type,
+          size: doc.storage_blob&.byte_size
+        }
       end
 
       def tracker_update_params

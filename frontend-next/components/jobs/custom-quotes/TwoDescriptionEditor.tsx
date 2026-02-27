@@ -4,8 +4,8 @@ import { useState, useCallback, useEffect, useRef, type TextareaHTMLAttributes }
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown, ChevronRight, Paperclip } from "lucide-react";
-import { AttachmentBadge } from "@/components/ui/attachment-badge";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { RfqAttachmentPreview } from "./RfqAttachmentPreview";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface TwoDescriptionEditorProps {
@@ -14,6 +14,10 @@ interface TwoDescriptionEditorProps {
   rfqInstructions?: string | null;
   onUpdate: (field: string, value: string) => void;
   readOnly?: boolean;
+  /** Job ID for fetching actual documents */
+  jobId?: string | number;
+  /** Document type IDs selected on this line */
+  documentTypeIds?: number[];
   /** Document type names selected on this line (for RFQ context) */
   documentTypeNames?: string[];
   /** PO child line names (for RFQ quote breakdown) */
@@ -119,6 +123,8 @@ export function TwoDescriptionEditor({
   rfqInstructions,
   onUpdate,
   readOnly = false,
+  jobId,
+  documentTypeIds = [],
   documentTypeNames = [],
   poLineNames = [],
 }: TwoDescriptionEditorProps) {
@@ -229,24 +235,13 @@ export function TwoDescriptionEditor({
         </div>
       )}
 
-      {/* Attachments preview - shows what document types will be sent with the RFQ */}
-      {documentTypeNames.length > 0 && (
-        <div>
-          <Label className="text-xs flex items-center gap-1">
-            <Paperclip className="h-3 w-3" />
-            RFQ Attachments ({documentTypeNames.length})
-          </Label>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {documentTypeNames.map((name) => (
-              <AttachmentBadge
-                key={name}
-                displayName={name}
-                size="xs"
-                variant="muted"
-              />
-            ))}
-          </div>
-        </div>
+      {/* Attachments preview - shows which doc types have actual files in the job */}
+      {jobId && documentTypeIds.length > 0 && (
+        <RfqAttachmentPreview
+          jobId={jobId}
+          documentTypeIds={documentTypeIds}
+          documentTypeNames={documentTypeNames}
+        />
       )}
     </div>
   );
