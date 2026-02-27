@@ -121,7 +121,7 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         // it means the backend rejected the override (user can't access that tenant).
         // Clear the stale value to stop sending useless headers on every request.
         const storedOverride = getStorageItem<string | null>(STORAGE_KEYS.TENANT_OVERRIDE, null);
-        if (storedOverride && response.current_tenant && String(response.current_tenant.id) !== storedOverride) {
+        if (storedOverride && response.current_tenant && String(response.current_tenant.id) !== String(storedOverride)) {
           console.warn(`[TenantContext] Clearing stale tenant override: stored=${storedOverride}, actual=${response.current_tenant.id}`);
           removeStorageItem(STORAGE_KEYS.TENANT_OVERRIDE);
         }
