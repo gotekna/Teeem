@@ -3,9 +3,8 @@
 import { useState, useCallback, useEffect, useRef, type TextareaHTMLAttributes } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown, ChevronUp, Paperclip } from "lucide-react";
+import { ChevronDown, ChevronRight, Paperclip } from "lucide-react";
 import { AttachmentBadge } from "@/components/ui/attachment-badge";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -125,17 +124,14 @@ export function TwoDescriptionEditor({
 }: TwoDescriptionEditorProps) {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
-  const [syncPo, setSyncPo] = useState(false);
   const [syncRfq, setSyncRfq] = useState(false);
 
   // Local state for immediate typing feedback
   const [localTender, setLocalTender] = useState(tenderDescription || "");
-  const [localPo, setLocalPo] = useState(poDescription || "");
   const [localRfq, setLocalRfq] = useState(rfqInstructions || "");
 
   // Sync from props when they change externally
   useEffect(() => { setLocalTender(tenderDescription || ""); }, [tenderDescription]);
-  useEffect(() => { setLocalPo(poDescription || ""); }, [poDescription]);
   useEffect(() => { setLocalRfq(rfqInstructions || ""); }, [rfqInstructions]);
 
   const debouncedSave = useDebouncedSave(onUpdate);
@@ -154,35 +150,17 @@ export function TwoDescriptionEditor({
   const handleTenderChange = useCallback((value: string) => {
     setLocalTender(value);
     debouncedSave("tender_description", value);
-    if (syncPo) {
-      setLocalPo(value);
-      debouncedSave("po_description", value);
-    }
     if (syncRfq) {
       const rfqText = buildRfqText(value);
       setLocalRfq(rfqText);
       debouncedSave("rfq_instructions", rfqText);
     }
-  }, [debouncedSave, syncPo, syncRfq, buildRfqText]);
-
-  const handlePoChange = useCallback((value: string) => {
-    setLocalPo(value);
-    debouncedSave("po_description", value);
-  }, [debouncedSave]);
+  }, [debouncedSave, syncRfq, buildRfqText]);
 
   const handleRfqChange = useCallback((value: string) => {
     setLocalRfq(value);
     debouncedSave("rfq_instructions", value);
   }, [debouncedSave]);
-
-  const handleSyncPoToggle = useCallback((checked: boolean | "indeterminate") => {
-    const on = checked === true;
-    setSyncPo(on);
-    if (on) {
-      setLocalPo(localTender);
-      debouncedSave("po_description", localTender);
-    }
-  }, [localTender, debouncedSave]);
 
   const handleSyncRfqToggle = useCallback((checked: boolean | "indeterminate") => {
     const on = checked === true;
@@ -195,25 +173,28 @@ export function TwoDescriptionEditor({
   }, [localTender, debouncedSave, buildRfqText]);
 
   if (!expanded) {
-    const hasContent = localTender || localPo || localRfq;
+    const hasContent = localTender || localRfq;
     return (
-      <button
+      <div
+        className="flex items-center gap-1.5 cursor-pointer group py-1"
         onClick={() => setExpanded(true)}
-        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 py-1"
       >
-        <ChevronDown className="h-3 w-3" />
-        {hasContent ? "Show descriptions" : "Add descriptions"}
-      </button>
+        <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+        <span className="text-xs text-muted-foreground group-hover:text-foreground">
+          {hasContent ? "Descriptions" : "Add descriptions"}
+        </span>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-3 py-2 pl-4 border-l-2 border-muted">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">Descriptions</span>
-        <Button size="sm" variant="ghost" className="h-5 px-1" onClick={() => setExpanded(false)}>
-          <ChevronUp className="h-3 w-3" />
-        </Button>
+    <div className="space-y-3 py-2">
+      <div
+        className="flex items-center gap-1.5 cursor-pointer group"
+        onClick={() => setExpanded(false)}
+      >
+        <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+        <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground">Descriptions</span>
       </div>
 
       <div>
@@ -224,25 +205,6 @@ export function TwoDescriptionEditor({
           placeholder="Description for client tender documents..."
           className="mt-1 text-sm min-h-[36px]"
           readOnly={readOnly}
-        />
-      </div>
-
-      <div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs">PO Description (supplier-facing)</Label>
-          {!readOnly && (
-            <label className="flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer ml-auto">
-              <Checkbox checked={syncPo} onCheckedChange={handleSyncPoToggle} className="h-3 w-3" />
-              Copy from Tender
-            </label>
-          )}
-        </div>
-        <AutoTextarea
-          value={localPo}
-          onChange={(e) => handlePoChange(e.target.value)}
-          placeholder="Description for purchase order to supplier..."
-          className={`mt-1 text-sm min-h-[36px] ${syncPo ? "opacity-60" : ""}`}
-          readOnly={readOnly || syncPo}
         />
       </div>
 

@@ -32,6 +32,7 @@ interface TenantUser {
   name: string;
   isTeeemStaff: boolean;
   canSwitchTenants?: boolean;
+  defaultTenantId?: number;
 }
 
 interface TenantContextType {
