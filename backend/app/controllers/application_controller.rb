@@ -53,7 +53,26 @@ class ApplicationController < ActionController::API
       return tenant if tenant
     end
 
-    # Priority 3: User's assigned tenant (SSoT)
+    # Priority 3: User's preferred default tenant (Feb 2026)
+    # ⚠️ DO NOT SIMPLIFY - This prevents silent tenant fallback bugs
+    # ════════════════════════════════════════════════════════════════════
+    # Why: Users with default_tenant_id set (e.g., TEEEM staff user 108
+    # whose tenant_id=1 but prefers Pilgrim Homes tenant_id=3) depend on
+    # X-Tenant-Override header from localStorage. If localStorage is cleared
+    # (cache clear, browser update, storage eviction), the frontend sends
+    # no override header and the user silently falls back to their assigned
+    # tenant (TEEEM) - seeing 0 jobs with no error message.
+    # ❌ WRONG: Skip to current_user.tenant (ignores user's preference)
+    # ✅ CORRECT: Check default_tenant_id first, validate access, then fall back
+    # ════════════════════════════════════════════════════════════════════
+    if current_user&.default_tenant_id.present?
+      default_tenant = Tenant.find_by(id: current_user.default_tenant_id)
+      if default_tenant && current_user.can_access_tenant?(default_tenant)
+        return default_tenant
+      end
+    end
+
+    # Priority 4: User's assigned tenant (ultimate fallback)
     current_user&.tenant
   end
 

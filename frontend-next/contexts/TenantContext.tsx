@@ -117,12 +117,15 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         setUser(response.user);
 
         // FRC (Feb 2026): Detect and clear stale tenant overrides
-        // If the stored override doesn't match the backend's current_tenant,
-        // it means the backend rejected the override (user can't access that tenant).
-        // Clear the stale value to stop sending useless headers on every request.
+        // Only clear if the override doesn't match EITHER the backend's current_tenant
+        // OR the user's defaultTenantId. This prevents clearing valid overrides during
+        // race conditions where the request goes out before the override is in localStorage.
         const storedOverride = getStorageItem<string | null>(STORAGE_KEYS.TENANT_OVERRIDE, null);
-        if (storedOverride && response.current_tenant && String(response.current_tenant.id) !== String(storedOverride)) {
-          console.warn(`[TenantContext] Clearing stale tenant override: stored=${storedOverride}, actual=${response.current_tenant.id}`);
+        const userDefaultTenantId = response.user?.defaultTenantId;
+        if (storedOverride && response.current_tenant &&
+            String(response.current_tenant.id) !== String(storedOverride) &&
+            (!userDefaultTenantId || String(userDefaultTenantId) !== String(storedOverride))) {
+          console.warn(`[TenantContext] Clearing stale tenant override: stored=${storedOverride}, actual=${response.current_tenant.id}, default=${userDefaultTenantId}`);
           removeStorageItem(STORAGE_KEYS.TENANT_OVERRIDE);
         }
       } else {
