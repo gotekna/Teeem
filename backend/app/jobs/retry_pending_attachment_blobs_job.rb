@@ -16,6 +16,7 @@
 #
 class RetryPendingAttachmentBlobsJob < ApplicationJob
   include DeduplicatableJob
+  include MemoryGuard
 
   # FRC (Feb 2026): Moved from :default (shared worker) to :email_enrichment (email worker).
   # Downloads email attachment bytes via Graph API — email work belongs on email worker.
@@ -167,11 +168,5 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
     @memory_exceeded
   end
 
-  # ⚠️ DO NOT SIMPLIFY - Must read Worker process VmRSS only (Feb 2026)
-  # See UploadEmailsToStorageJob for full explanation.
-  def current_rss_mb
-    File.read("/proc/self/status").match(/VmRSS:\s+(\d+)\s+kB/)[1].to_i / 1024
-  rescue StandardError
-    0
-  end
+  # current_rss_mb provided by MemoryGuard concern
 end

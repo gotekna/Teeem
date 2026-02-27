@@ -389,7 +389,14 @@ export default function ContactDetailPage() {
 
   // SSoT: Tab state from path segments (not query params)
   const activeTab = pathSegments.tab;
-  const activeSubTab = pathSegments.subtab || "identity";
+  // Default sub-tab depends on entity type:
+  // - Person/sole_trader contacts: "identity" (Identity/Summary/Structure)
+  // - Company/trust contacts: "details" (Details/Directors/Shareholders/Compliance/Hierarchy)
+  const isCompanyOrTrust =
+    contact?.entity_type?.toLowerCase() === "company" ||
+    contact?.entity_type?.toLowerCase() === "trust";
+  const defaultCorporateSubTab = isCompanyOrTrust ? "details" : "identity";
+  const activeSubTab = pathSegments.subtab || (activeTab === "corporate" ? defaultCorporateSubTab : "identity");
 
   // Jotai atom setters for resetting view state when switching to emails tab
   // ULTRA Solution: Use action atoms for filter mutations
@@ -1855,8 +1862,11 @@ export default function ContactDetailPage() {
   };
 
   const handleCorporateSubTabChange = (value: string) => {
-    // Path-based: /contacts/123/corporate/identity, /contacts/123/corporate/summary
-    const newUrl = value === "identity"
+    // Path-based: /contacts/123/corporate/details, /contacts/123/corporate/directors
+    // Default sub-tab depends on entity type (FRC Feb 2026):
+    // Person → "identity", Company/Trust → "details"
+    const defaultTab = isCompanyOrTrust ? "details" : "identity";
+    const newUrl = value === defaultTab
       ? `/contacts/${id}/corporate`
       : `/contacts/${id}/corporate/${value}`;
     router.push(newUrl);
@@ -1876,7 +1886,7 @@ export default function ContactDetailPage() {
     // e.g., /contacts/123/financial/invoices
     const defaultSubTabs: Record<string, string> = {
       financial: "bank",
-      corporate: "identity",
+      corporate: isCompanyOrTrust ? "details" : "identity",
     };
     const isDefault = defaultSubTabs[parentKey] === childKey;
     const newUrl = isDefault

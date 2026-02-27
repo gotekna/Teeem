@@ -33,6 +33,7 @@
 # ════════════════════════════════════════════
 class UploadEmailsToStorageJob < ApplicationJob
   include DeduplicatableJob
+  include MemoryGuard
 
   # FRC (Feb 2026): Moved to :email_enrichment so it runs on the EMAIL WORKER,
   # not the shared worker. This job downloads email MIME content from Microsoft
@@ -87,23 +88,9 @@ class UploadEmailsToStorageJob < ApplicationJob
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
   end
 
-  # ⚠️ DO NOT SIMPLIFY - Must read Worker process VmRSS only (Feb 2026)
-  # ════════════════════════════════════════════
-  # Why: Heroku exposes NO container-level memory metrics from within the dyno.
-  # - cgroup memory.usage_in_bytes → doesn't exist on Heroku
-  # - `ps -eo rss=` → double-counts COW pages across SolidQueue forks (1261MB vs real 700MB)
-  # - /proc/[pid]/statm → only deduplicates file-backed pages, not COW (1207MB vs 700MB)
-  # ✅ CORRECT: /proc/self/status VmRSS → Worker process only, with per-process threshold
-  # The Worker process is where blob downloads happen. Other SolidQueue processes
-  # (Supervisor, Dispatcher, Scheduler) add ~300-400MB constant overhead.
-  # MEMORY_ABORT_MB is calibrated for the Worker process alone (550MB).
-  # At Worker=550MB, total dyno ≈ 850-950MB, safely under 1024MB R14 threshold.
-  # ════════════════════════════════════════════
-  def current_rss_mb
-    File.read("/proc/self/status").match(/VmRSS:\s+(\d+)\s+kB/)[1].to_i / 1024
-  rescue StandardError
-    0
-  end
+  # current_rss_mb provided by MemoryGuard concern.
+  # Reads /proc/self/status VmRSS (Worker process only) on Linux,
+  # falls back to `ps` on macOS. See MemoryGuard for details.
 
   def process_all_tenants(batch_size:)
     # Find tenants that have emails needing sync — SSoT scope

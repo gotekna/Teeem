@@ -21,12 +21,14 @@ class XeroBillPoMatcherService
 
   attr_reader :stats
 
-  def initialize(job:)
+  def initialize(job:, start_time: nil, time_budget: nil)
     @job = job
     @client = XeroApiClient.new
     @stats = { bills_found: 0, matched: 0, updated_xero: 0, already_matched: 0, skipped: 0, errors: [] }
     # Track which POs have been matched (one-to-one constraint)
     @matched_po_ids = Set.new
+    @start_time = start_time
+    @time_budget = time_budget
   end
 
   def match_and_update!
@@ -145,13 +147,30 @@ class XeroBillPoMatcherService
 
     Rails.logger.info("[XeroBillPoMatcher] #{candidates.length} candidate bills from #{supplier_bills.length} supplier-filtered, fetching details...")
 
-    # Fetch detail only for supplier+amount matched bills (need tracking data)
-    detailed_bills = candidates.map.with_index do |bill, index|
-      Rails.logger.info("[XeroBillPoMatcher] Fetching detail #{index + 1}/#{candidates.length}...") if candidates.length > 5 && (index + 1) % 10 == 0
+    # Release supplier_bills before detail fetch loop — can be hundreds of hashes
+    supplier_bills = nil
+
+    # Fetch detail only for supplier+amount matched bills (need tracking data).
+    # FRC (Feb 2026): GC every 50 fetches to prevent heap fragmentation.
+    # Each detail fetch returns a ~5KB JSON hash. At 1600+ candidates, that's
+    # 8MB+ of transient objects that fragment Ruby's heap without periodic GC.
+    # Also checks time budget so the job yields within its allocated window.
+    total_candidates = candidates.length
+    detailed_bills = []
+    candidates.each_with_index do |bill, index|
+      if time_budget_exceeded?
+        Rails.logger.info("[XeroBillPoMatcher] Time budget exceeded at detail #{index + 1}/#{total_candidates}, stopping")
+        break
+      end
+
+      Rails.logger.info("[XeroBillPoMatcher] Fetching detail #{index + 1}/#{total_candidates}...") if total_candidates > 5 && (index + 1) % 10 == 0
       detail = fetch_invoice_detail(bill["InvoiceID"])
       sleep(XERO_DETAIL_FETCH_SLEEP_SEC)
-      detail || bill
-    end.compact
+
+      detailed_bills << (detail || bill)
+      GC.start if (index + 1) % 50 == 0
+    end
+    candidates = nil
 
     # Final filter: only bills tracked to this job
     matched = detailed_bills.select do |bill|
@@ -309,6 +328,10 @@ class XeroBillPoMatcherService
   rescue XeroApiClient::ApiError => e
     @stats[:errors] << "API error updating #{xero_invoice_id}: #{e.message}"
     false
+  end
+
+  def time_budget_exceeded?
+    @start_time && @time_budget && (Time.current - @start_time) > @time_budget
   end
 
   def with_rate_limit_retry(max_retries: 3)

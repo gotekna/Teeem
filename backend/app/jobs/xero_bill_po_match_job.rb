@@ -7,12 +7,17 @@
 # See XeroBillPoMatcherService for matching logic.
 class XeroBillPoMatchJob < ApplicationJob
   include DeduplicatableJob
+  include MemoryGuard
   queue_as :xero_sync
 
   # 5 min time budget — shared worker is single-threaded (R14 prevention),
   # so long-running jobs block ALL other queues. Idempotent: resumes next run.
   # FRC (Feb 2026): Was 30 min, blocked default queue jobs for 20+ min at 7am peak.
   TIME_BUDGET_SECONDS = 5.minutes.to_i
+
+  # Memory thresholds for MemoryGuard concern
+  MEMORY_WARNING_MB = 700
+  MEMORY_ABORT_MB = 800
 
   # ⚠️ FRC (Feb 2026): Must iterate over tenants
   # Root cause: PurchaseOrder and XeroJobTrackingLink have acts_as_tenant.
@@ -35,6 +40,16 @@ class XeroBillPoMatchJob < ApplicationJob
         # Skip tenants without Xero credentials — no API calls possible
         next unless XeroCredential.exists?
         match_for_tenant(total_stats)
+      end
+
+      # FRC (Feb 2026): GC between tenants to prevent AR object accumulation.
+      # Each tenant's match_for_tenant creates hundreds of API response hashes
+      # and AR objects that fragment the heap without collection.
+      GC.start
+
+      if memory_critical?(label: "XeroBillPoMatchJob")
+        total_stats[:timed_out] = true
+        break
       end
     end
 
@@ -68,7 +83,11 @@ class XeroBillPoMatchJob < ApplicationJob
       next unless job
 
       begin
-        service = XeroBillPoMatcherService.new(job: job)
+        service = XeroBillPoMatcherService.new(
+          job: job,
+          start_time: @start_time,
+          time_budget: TIME_BUDGET_SECONDS
+        )
         result = service.match_and_update!
         total_stats[:jobs_processed] += 1
         total_stats[:matched] += result[:matched]
