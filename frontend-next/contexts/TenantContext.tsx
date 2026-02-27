@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
 import { setStorageItem, removeStorageItem, getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
+import { clearAllCachedRecordsAsync } from '@/lib/records-cache';
 
 // Tenant types
 export interface Tenant {
@@ -159,6 +160,10 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         // This replaces the cookie approach which fails cross-origin (Vercel → Heroku).
         setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.tenant.id));
         setCurrentTenant(response.tenant);
+        // FRC (Feb 2026): Clear ALL cached records before reload to prevent cross-tenant data leakage.
+        // Cache is keyed by foundationId only (not tenant), so switching tenants without clearing
+        // serves stale records from the previous tenant's IndexedDB cache.
+        await clearAllCachedRecordsAsync();
         window.location.reload();
         return true;
       } else {
@@ -186,6 +191,8 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
       if (response?.success) {
         // Clear tenant override from localStorage
         removeStorageItem(STORAGE_KEYS.TENANT_OVERRIDE);
+        // Clear cached records to prevent cross-tenant data leakage (same as switchTenant)
+        await clearAllCachedRecordsAsync();
         window.location.reload();
         return true;
       } else {
