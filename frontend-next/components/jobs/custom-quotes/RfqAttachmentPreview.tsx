@@ -70,31 +70,19 @@ export function RfqAttachmentPreview({
       for (const id of documentTypeIds) {
         params.append("document_type_ids[]", String(id));
       }
-      const url = `/api/v1/jobs/${jobId}/rfq_documents?${params.toString()}`;
-      console.log("[RfqAttachmentPreview] Fetching:", url, "typeIds:", documentTypeIds);
-
       const res = await api.get<{
         success: boolean;
         data: RfqGroupedDocs;
-      }>(url);
-
-      console.log("[RfqAttachmentPreview] API response:", JSON.stringify(res));
+      }>(`/api/v1/jobs/${jobId}/rfq_documents?${params.toString()}`);
 
       if (res?.data) {
-        // Log which types have matches
-        const summary = Object.entries(res.data).map(([k, v]) => `${k}:${(v as RfqDocument[]).length}`).join(", ");
-        console.log("[RfqAttachmentPreview] Grouped summary:", summary);
         setGrouped(res.data);
         onDocumentsLoadedRef.current?.(res.data);
       } else {
-        const msg = `No data in response: ${JSON.stringify(res)}`;
-        console.warn("[RfqAttachmentPreview]", msg);
-        setError(msg);
+        setError("No data in response");
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[RfqAttachmentPreview] Failed to fetch:", msg, err);
-      setError(msg);
+      setError(err instanceof Error ? err.message : "Failed to load documents");
     } finally {
       setLoading(false);
     }

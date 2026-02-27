@@ -2590,7 +2590,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "file_extensions", default: [], array: true
     t.string "target_folder"
     t.boolean "skip_rename", default: false, null: false
-    t.boolean "supports_versioning", default: false, null: false
+    t.boolean "tracks_signing_status", default: false, null: false
     t.jsonb "form_number_mapping", default: {}
     t.boolean "generates_certificate", default: false
     t.string "certificate_template"
@@ -2605,9 +2605,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["filename_patterns"], name: "index_document_types_on_filename_patterns", using: :gin
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["scope"], name: "index_document_types_on_scope"
-    t.index ["supports_versioning"], name: "index_document_types_on_supports_versioning"
     t.index ["tenant_id", "sync_key"], name: "idx_document_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_document_types_on_tenant_id"
+    t.index ["tracks_signing_status"], name: "index_document_types_on_tracks_signing_status"
     t.index ["warehouse_type_id"], name: "index_document_types_on_warehouse_type_id"
   end
 
@@ -10847,6 +10847,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "warehouse_type"
     t.integer "sort_order", default: 0
     t.date "expiry_date"
+    t.string "version_letter", limit: 5
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["linkable_type", "linkable_id", "folder_path"], name: "idx_wd_linkable_folder_path"
@@ -10863,6 +10864,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
+    t.index ["version_group_id", "version_letter"], name: "idx_warehouse_docs_version_letter"
     t.index ["warehouse_folder_document_type_id"], name: "index_warehouse_documents_on_warehouse_folder_document_type_id"
     t.index ["warehouse_folder_id", "sort_order"], name: "idx_wd_folder_sort"
     t.index ["warehouse_folder_id"], name: "idx_wd_warehouse_folder"
