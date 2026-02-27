@@ -41,6 +41,7 @@ import {
   EyeOff,
   GripVertical,
   Check,
+  AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -201,6 +202,8 @@ export function CreateRecordDialog({
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [fieldSearch, setFieldSearch] = useState("");
   const [linkedDocumentTypes, setLinkedDocumentTypes] = useState<LinkedDocumentType[]>([]);
   const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentType[]>([]);
@@ -394,6 +397,8 @@ export function CreateRecordDialog({
       setShowMoreFields(false);
       setShowFieldConfig(false);
       setValidationErrors(new Set());
+      setSaveError(null);
+      setFieldErrors({});
       setFieldSearch("");
       setLinkedDocumentTypes([]);
       prevEntityTypeRef.current = undefined; // Reset entity type tracking
@@ -532,11 +537,20 @@ export function CreateRecordDialog({
   // Clear validation error when field is filled
   const handleFieldChange = (key: string, value: unknown) => {
     setFormData({ ...formData, [key]: value });
+    setSaveError(null);
     // Clear error for this field if it now has a value
     if (validationErrors.has(key) && !isFieldEmpty(value)) {
       const newErrors = new Set(validationErrors);
       newErrors.delete(key);
       setValidationErrors(newErrors);
+    }
+    // Clear server-side field error
+    if (fieldErrors[key]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     }
   };
 
@@ -545,7 +559,9 @@ export function CreateRecordDialog({
     const value = formData[col.key];
     const label = col.label || col.key;
     const isRequired = col.required === true;
-    const hasError = validationErrors.has(col.key);
+    const hasValidationError = validationErrors.has(col.key);
+    const serverError = fieldErrors[col.key];
+    const hasError = hasValidationError || !!serverError;
 
     // Label component with required asterisk
     const FieldLabel = ({ htmlFor, children, className }: { htmlFor: string; children: React.ReactNode; className?: string }) => (
@@ -555,9 +571,11 @@ export function CreateRecordDialog({
       </Label>
     );
 
-    // Error message
+    // Error message - show server error if present, otherwise required field error
     const ErrorMessage = () =>
-      hasError ? (
+      serverError ? (
+        <p className="text-xs text-destructive mt-1">{serverError}</p>
+      ) : hasValidationError ? (
         <p className="text-xs text-destructive mt-1">This field is required</p>
       ) : null;
 
@@ -851,6 +869,8 @@ export function CreateRecordDialog({
 
   // Handle form submission
   const handleCreate = async () => {
+    setSaveError(null);
+    setFieldErrors({});
     // Validate required fields
     const requiredColumns = filteredColumns.filter((col) => col.required === true);
     const missingFields = requiredColumns.filter((col) => isFieldEmpty(formData[col.key]));
@@ -922,12 +942,36 @@ export function CreateRecordDialog({
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
-      console.error("Failed to create record:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create record. Please try again.",
-        variant: "destructive",
-      });
+      // Use console.warn for 422 validation errors (expected behavior, not bugs)
+      const apiErr = error as { status?: number };
+      if (apiErr.status === 422) {
+        console.warn("Validation error on create:", error);
+      } else {
+        console.error("Failed to create record:", error);
+      }
+      const errorMessage = error instanceof Error ? error.message : "Failed to create record. Please try again.";
+      setSaveError(errorMessage);
+
+      // Parse field-level errors from Rails full_messages format
+      // e.g. "Code has already been taken" → field "code", error "has already been taken"
+      const apiError = error as { data?: { errors?: string[] } };
+      const serverErrors = apiError?.data?.errors;
+      if (Array.isArray(serverErrors)) {
+        const newFieldErrors: Record<string, string> = {};
+        for (const errMsg of serverErrors) {
+          if (typeof errMsg !== 'string') continue;
+          for (const col of filteredColumns) {
+            const label = col.label || col.key;
+            if (errMsg.startsWith(label + ' ') || errMsg.toLowerCase().startsWith(label.toLowerCase() + ' ')) {
+              newFieldErrors[col.key] = errMsg;
+              break;
+            }
+          }
+        }
+        if (Object.keys(newFieldErrors).length > 0) {
+          setFieldErrors(newFieldErrors);
+        }
+      }
     } finally {
       setSaving(false);
     }
@@ -1137,6 +1181,13 @@ export function CreateRecordDialog({
 
         {/* Extra content from parent (e.g., PO Task picker for Cost Centres) */}
         {renderExtraContent?.()}
+
+        {saveError && (
+          <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{saveError}</span>
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
