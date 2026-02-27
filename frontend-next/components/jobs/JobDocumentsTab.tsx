@@ -1774,7 +1774,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                             <div className="flex items-start gap-3">
                               <File className="h-5 w-5 text-muted-foreground mt-0.5" />
                               <div>
-                                <p className="font-medium">{doc.name}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="font-medium">{doc.name}</p>
+                                  {doc.version_letter && (
+                                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-mono">
+                                      {doc.version_letter}
+                                    </Badge>
+                                  )}
+                                </div>
                                 <p className="text-sm text-muted-foreground">{doc.folder_path}</p>
                               </div>
                             </div>
@@ -3188,7 +3195,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       />
                       <File className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          {item.version_letter && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-mono shrink-0">
+                              {item.version_letter}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {item.folder_path && (
                             <span className="text-blue-600 dark:text-blue-400">{item.folder_path}/</span>

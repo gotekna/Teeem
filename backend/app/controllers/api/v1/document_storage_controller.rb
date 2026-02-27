@@ -1705,6 +1705,8 @@ module Api
             type: "file",
             folder_path: doc.folder_path || "",
             content_type: doc.content_type,
+            version_letter: doc.version_letter,
+            version_number: doc.version_number,
             from_cache: true
           }
         end
@@ -1764,10 +1766,10 @@ module Api
         # Validate the document supports versioning (check metadata)
         doc_type_id = parent_doc.meta("document_type_id")
         doc_type = DocumentType.find_by(id: doc_type_id) if doc_type_id
-        unless doc_type&.supports_versioning
+        unless doc_type&.tracks_signing?
           return render json: {
             success: false,
-            error: "This document type does not support Draft/Signed versioning"
+            error: "This document type does not track signing status (Draft/Signed)"
           }, status: :unprocessable_entity
         end
 

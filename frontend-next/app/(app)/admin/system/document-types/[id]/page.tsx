@@ -210,7 +210,7 @@ interface DocumentType {
   documents_count?: number;
   created_at?: string;
   updated_at?: string;
-  supports_versioning?: boolean;
+  tracks_signing_status?: boolean;
   form_number_mapping?: Record<string, string>; // Dwelling type -> Form number mapping
   generates_certificate?: boolean; // Auto-generate certificate on task completion
   certificate_template?: string; // Template to use (e.g., "form_43")
@@ -2012,21 +2012,21 @@ export default function DocumentTypeDetailPage() {
               </div>
             </div>
 
-            {/* Versioning - Draft/Signed Support */}
+            {/* Signing Status - Draft/Signed Tracking */}
             <div className="space-y-2">
-              <Label>Versioning</Label>
+              <Label>Signing Status</Label>
               <div className="flex items-center gap-2 text-sm">
                 <Checkbox
-                  id="supports_versioning"
-                  checked={documentType.supports_versioning || false}
-                  onCheckedChange={(checked) => updateField("supports_versioning", checked)}
+                  id="tracks_signing_status"
+                  checked={documentType.tracks_signing_status || false}
+                  onCheckedChange={(checked) => updateField("tracks_signing_status", checked)}
                 />
-                <Label htmlFor="supports_versioning" className="text-xs cursor-pointer">
-                  Supports Draft/Signed versions
+                <Label htmlFor="tracks_signing_status" className="text-xs cursor-pointer">
+                  Track Signing Status (Draft/Signed)
                 </Label>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Enable to track Draft and Signed versions of the same document
+                Enable to track whether documents of this type are Draft or Signed
               </p>
             </div>
 

@@ -169,11 +169,11 @@ class DocumentType < ApplicationRecord
   # SSoT: "contacts" is THE ONE scope for all individuals (Jan 2026 consolidation)
   scope :for_contacts, -> { where(scope: 'contacts') }
   scope :requiring_filing, -> { where(requires_filing: true) }
-  scope :supporting_versioning, -> { where(supports_versioning: true) }
+  scope :tracking_signing, -> { where(tracks_signing_status: true) }
 
-  # Check if this document type supports Draft/Signed versioning
-  def versionable?
-    supports_versioning == true
+  # Check if this document type tracks Draft/Signed signing status
+  def tracks_signing?
+    tracks_signing_status == true
   end
 
   # Check if this document type auto-generates certificates on task completion

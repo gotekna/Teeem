@@ -96,7 +96,7 @@ class TenantConfigSyncService
       name_field: :name,
       match_fields: [:name, :scope],
       sync_fields: [:name, :scope, :download_name, :ui_name, :abbreviation,
-                    :folder, :target_folder, :aliases, :requires_filing, :supports_versioning,
+                    :folder, :target_folder, :aliases, :requires_filing, :tracks_signing_status,
                     :generates_certificate, :certificate_template, :form_number_mapping,
                     :description, :active, :file_extensions, :skip_rename,
                     :filename_patterns, :signature_field_config, :retention_years],

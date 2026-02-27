@@ -374,7 +374,7 @@ module Api
           :abbreviation,
           :scope,
           :target_folder,
-          :supports_versioning,
+          :tracks_signing_status,
           :generates_certificate,     # Auto-generate certificate on task completion
           :certificate_template,      # Template to use (e.g., "form_43")
           :signature_field_config,    # JSONB: Signature field positions for Word→PDF conversion
@@ -493,7 +493,7 @@ module Api
           filename_patterns: document_type.filename_patterns || [],
           target_folder: derived_target_folder,
           form_number_mapping: document_type.form_number_mapping || {},
-          supports_versioning: document_type.supports_versioning,
+          tracks_signing_status: document_type.tracks_signing_status,
           generates_certificate: document_type.generates_certificate || false,
           certificate_template: document_type.certificate_template,
           signature_field_config: document_type.signature_field_config || [],
