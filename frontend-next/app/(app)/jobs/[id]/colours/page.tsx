@@ -22,6 +22,7 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { clearCachedRecords } from "@/lib/records-cache";
 import { Job } from "@/lib/types";
 
 // Types
@@ -376,6 +377,7 @@ export default function ColourSelectionBuilderPage() {
         colour_selections: selectionsToSave,
       });
 
+      clearCachedRecords("jobs");
       toast({ title: "Colour selections saved" });
       setIsDirty(false);
     } catch (error) {

@@ -74,6 +74,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { clearCachedRecords } from "@/lib/records-cache";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
 import {
@@ -548,6 +549,7 @@ export default function PurchaseOrderDetailPage() {
       }
       if (response.success) {
         // Reload the PO data to reflect changes
+        clearCachedRecords("purchase-orders");
         await loadPurchaseOrder();
         setSyncModalOpen(false);
         setSyncPreview(null);
@@ -605,6 +607,7 @@ export default function PurchaseOrderDetailPage() {
       };
 
       const patchResponse = await api.patch(`/api/v1/purchase_orders/${recordId}`, updateData);
+      clearCachedRecords("purchase-orders");
 
       // Reload the purchase order data
       const response = await api.get<PurchaseOrder>(`/api/v1/purchase_orders/${recordId}`);
@@ -2379,6 +2382,7 @@ export default function PurchaseOrderDetailPage() {
             await api.patch(`/api/v1/purchase_orders/${recordId}`, {
               purchase_order: { supplier_id: supplierId },
             });
+            clearCachedRecords("purchase-orders");
           } catch (err) {
             console.error("Failed to update PO supplier:", err);
           }

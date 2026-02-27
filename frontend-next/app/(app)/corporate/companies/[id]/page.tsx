@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { clearCachedRecords } from "@/lib/records-cache";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 // Extracted components (Phase 4 migration)
 import { CompanyDocumentsTab } from "@/components/corporate/CompanyDocumentsTab";
@@ -152,7 +153,7 @@ export default function CompanyDetailPage() {
     try {
       await api.put(`/api/v1/companies/${companyId}`, { company: editFormData });
       setIsEditSheetOpen(false);
-      loadCompany();
+      handleCompanyUpdated();
     } catch (error) {
       console.error("Failed to save company:", error);
     } finally {
@@ -262,6 +263,13 @@ export default function CompanyDetailPage() {
       setLoading(false);
     }
   }, [companyId]);
+
+  // SSoT: Unified callback for any mutation that changes company data.
+  // Clears Foundation cache so the companies list table shows fresh data.
+  const handleCompanyUpdated = React.useCallback(async () => {
+    clearCachedRecords("corporate-companies");
+    await loadCompany();
+  }, [loadCompany]);
 
   // Load document counts for tabs
   const loadDocumentCounts = React.useCallback(async () => {
@@ -560,7 +568,7 @@ export default function CompanyDetailPage() {
                 tabKey={overviewSubTab}
                 company={company}
                 companyId={companyId}
-                onUpdate={loadCompany}
+                onUpdate={handleCompanyUpdated}
                 renderInfoPrefix={<ATOSetupCard company={company} />}
               />
             </div>
@@ -573,7 +581,7 @@ export default function CompanyDetailPage() {
                 companyId={companyId}
                 companyName={company?.name}
                 company={company}
-                onRefresh={loadCompany}
+                onRefresh={handleCompanyUpdated}
                 DocumentsTabComponent={CompanyDocumentsTab}
               />
             </div>
