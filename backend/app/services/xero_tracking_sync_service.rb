@@ -182,27 +182,9 @@ class XeroTrackingSyncService
   # or:     "H201 - 17 Redruth Rd Alexandra Hills" (no lot)
   # Truncated to 100 chars (Xero tracking option name limit)
   def build_tracking_option_name(job)
-    code = job_code_with_type_prefix(job)
-    parts = [code]
-
-    address = []
-    has_lot = job.lot_number.present?
-    has_street_num = job.street_number.present? && job.street_number.to_s.strip != "0"
-
-    if has_lot
-      street_display = has_street_num ? job.street_number : "-"
-      address << "Lot #{job.lot_number} (#{street_display})"
-    elsif has_street_num
-      address << job.street_number.to_s
-    end
-
-    address << job.street_name if job.street_name.present?
-    address << job.street_type if job.street_type.present?
-    address << job.suburb if job.suburb.present?
-
-    parts << address.join(" ") if address.any?
-
-    parts.join(" - ").truncate(100)
+    # Format: "{id} - {job name}" e.g. "332 - 64 Napier Avenue Mango Hill"
+    # Uses job ID (no letter prefix) and the job's display name
+    "#{job.id} - #{job.name}".truncate(100)
   end
 
   # Replace the "J" prefix in job_code with a type-based prefix

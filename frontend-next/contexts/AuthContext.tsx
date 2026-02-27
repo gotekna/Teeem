@@ -319,11 +319,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           setEnvironment(response.environment);
         }
 
+        // FRC (Feb 2026): Clear stale tenant override on fresh login
+        // ════════════════════════════════════════════════════════════════════
+        // Why: If a user was previously logged in as a different account (e.g.,
+        // robert@teeem.com.au on Pilgrim tenant 3), their tenant_override persists
+        // in localStorage. When they log in as robert@tekna.com.au (Tekna tenant 2),
+        // the stale override "3" is sent on all API requests. The backend silently
+        // ignores it (user can't access that tenant), but it causes confusion.
+        // Fresh login = fresh tenant state.
+        // ════════════════════════════════════════════════════════════════════
+        removeStorageItem(STORAGE_KEYS.TENANT_OVERRIDE);
+
         // Auto-set default tenant on fresh login (Feb 2026)
-        // Only applies when user has a default preference AND no existing override
-        if (response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+        if (response.user.default_tenant_id) {
           setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.user.default_tenant_id));
-        } else if (!response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+        } else if (!response.user.default_tenant_id) {
           // ⚠️ DO NOT SIMPLIFY - Fallback /me call for cross-env login (Feb 2026)
           // ════════════════════════════════════════════════════════════════════
           // Why: loginToProduction hits the PRODUCTION backend as the "router".
@@ -482,8 +492,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(response.user);
         applyUserTheme(response.user);
 
-        // Auto-set default tenant on cross-domain redirect (Feb 2026)
-        if (response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+        // FRC (Feb 2026): Clear stale override on cross-domain redirect (same fix as login)
+        removeStorageItem(STORAGE_KEYS.TENANT_OVERRIDE);
+        if (response.user.default_tenant_id) {
           setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.user.default_tenant_id));
         }
 

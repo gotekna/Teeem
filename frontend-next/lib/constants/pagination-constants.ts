@@ -17,7 +17,7 @@
  * This is the batch size for progressive loading.
  * SSoT for: TeeemTableView.tsx, table-atoms.ts
  */
-export const TABLE_ROW_LIMIT = 100;
+export const TABLE_ROW_LIMIT = 250;
 
 /**
  * Maximum number of rows to render in the DOM at once.
@@ -25,7 +25,7 @@ export const TABLE_ROW_LIMIT = 100;
  * Users can still search/filter to find items beyond this limit.
  * SSoT for: TeeemTableView.tsx
  */
-export const MAX_RENDERED_ROWS = 200;
+export const MAX_RENDERED_ROWS = 500;
 
 /**
  * Page size for data warehouse views.

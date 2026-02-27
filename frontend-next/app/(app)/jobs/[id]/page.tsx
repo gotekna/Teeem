@@ -1250,7 +1250,9 @@ export default function JobDetailPage() {
 
     setSavingChoices(true);
     try {
-      await api.patch(`/api/v1/columns/${columnId}`, {
+      // FRC (Feb 2026): Was `/api/v1/columns/${columnId}` which 404'd because
+      // columns are nested under foundations: /api/v1/foundations/:id/columns/:id
+      await api.patch(`/api/v1/foundations/jobs/columns/${columnId}`, {
         column: { available_choices: editingChoices.choices }
       });
 
@@ -1792,7 +1794,7 @@ export default function JobDetailPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>Job Code</Label>
-                      <Input value={job.job_code || `J${job.id}`} readOnly className="bg-muted/50 font-mono" />
+                      <Input value={String(job.id)} readOnly className="bg-muted/50 font-mono" />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -1867,7 +1869,7 @@ export default function JobDetailPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Xero Job Categories</Label>
+                    <Label>Xero Link</Label>
                     {isEditing ? (
                       <MultipleSelector
                         options={xeroTrackingOptions.map(opt => ({ value: opt.id, label: opt.name }))}
@@ -1878,7 +1880,11 @@ export default function JobDetailPage() {
                         hidePlaceholderWhenSelected
                       />
                     ) : (
-                      <Input value={currentXeroOptions.map(o => o.name).join(", ") || job.xero_tracking_option_name || ""} readOnly />
+                      <Input value={(() => {
+                        const xeroName = currentXeroOptions.map(o => o.name).join(", ") || job.xero_tracking_option_name || "";
+                        // Strip leading letter prefix (e.g., "H332" → "332")
+                        return xeroName.replace(/^[A-Za-z](?=\d)/, "");
+                      })()} readOnly />
                     )}
                     {isEditing && currentXeroOptions.length === 0 && suggestedXeroMatch && (
                       <p className="text-xs text-muted-foreground">

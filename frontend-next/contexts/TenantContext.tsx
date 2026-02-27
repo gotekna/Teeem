@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
-import { setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
+import { setStorageItem, removeStorageItem, getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 // Tenant types
 export interface Tenant {
@@ -115,6 +115,16 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         setTenants(response.tenants || []);
         setCurrentTenant(response.current_tenant);
         setUser(response.user);
+
+        // FRC (Feb 2026): Detect and clear stale tenant overrides
+        // If the stored override doesn't match the backend's current_tenant,
+        // it means the backend rejected the override (user can't access that tenant).
+        // Clear the stale value to stop sending useless headers on every request.
+        const storedOverride = getStorageItem<string | null>(STORAGE_KEYS.TENANT_OVERRIDE, null);
+        if (storedOverride && response.current_tenant && String(response.current_tenant.id) !== storedOverride) {
+          console.warn(`[TenantContext] Clearing stale tenant override: stored=${storedOverride}, actual=${response.current_tenant.id}`);
+          removeStorageItem(STORAGE_KEYS.TENANT_OVERRIDE);
+        }
       } else {
         setError(response.error || 'Failed to load tenants');
       }
