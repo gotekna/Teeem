@@ -19,6 +19,8 @@ import {
   MoreHorizontal,
   Sparkles,
   Maximize2,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -33,6 +35,16 @@ import { useAuthenticatedImage } from "@/lib/hooks/useAuthenticatedImage";
 // Base document interface - consumers extend this
 export interface DocumentItem {
   id: number;
+}
+
+// Generic revision history item - used by any document type
+export interface RevisionHistoryItem {
+  id: number | string;
+  label: string;       // "Rev A", "Rev J"
+  date: string | null;  // e.g. "2026-02-18"
+  by: string | null;    // Who made the change
+  isCurrent: boolean;
+  hasFile: boolean;
 }
 
 export interface DocumentListViewProps<T extends DocumentItem> {
@@ -90,6 +102,10 @@ export interface DocumentListViewProps<T extends DocumentItem> {
 
   // Auto-select first document when loading completes (improves UX)
   autoSelectFirst?: boolean;
+
+  // Revision history - expandable in sidebar
+  fetchRevisions?: (doc: T) => Promise<RevisionHistoryItem[]>;
+  onRevisionClick?: (doc: T, revision: RevisionHistoryItem) => void;
 
   // MASTERPIECE: Infinite scroll props
   onLoadMore?: () => void;
@@ -163,6 +179,9 @@ export function DocumentListView<T extends DocumentItem>({
   actionLabels: actionLabelsInput,
   className,
   autoSelectFirst = false,
+  // Revision history
+  fetchRevisions,
+  onRevisionClick,
   // MASTERPIECE: Infinite scroll
   onLoadMore,
   hasMore = false,
@@ -190,6 +209,11 @@ export function DocumentListView<T extends DocumentItem>({
 
   // Fullscreen mode - hides everything except the PDF
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Revision history - expandable per document
+  const [expandedDocId, setExpandedDocId] = useState<number | null>(null);
+  const [revisionCache, setRevisionCache] = useState<Record<number, RevisionHistoryItem[]>>({});
+  const [revisionLoading, setRevisionLoading] = useState<number | null>(null);
 
   // Track previous document to detect document changes (not initial selection)
   const prevDocumentRef = useRef<T | null>(null);
@@ -574,6 +598,7 @@ export function DocumentListView<T extends DocumentItem>({
               const doc = documents[virtualRow.index];
               const id = getDocumentId(doc);
               const name = getDocumentName(doc);
+              const revision = getRevision?.(doc);
               const isSelected = selectedDocument
                 ? getDocumentId(selectedDocument) === id
                 : false;
@@ -613,6 +638,11 @@ export function DocumentListView<T extends DocumentItem>({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{name}</p>
                   </div>
+                  {revision && (
+                    <Badge variant="outline" className="shrink-0 text-xs font-mono px-1.5 py-0">
+                      {revision}
+                    </Badge>
+                  )}
                 </div>
               );
             })}

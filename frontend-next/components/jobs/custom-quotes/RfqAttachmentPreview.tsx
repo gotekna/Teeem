@@ -73,12 +73,16 @@ export function RfqAttachmentPreview({
         data: RfqGroupedDocs;
       }>(`/api/v1/jobs/${jobId}/rfq_documents?${params.toString()}`);
 
+      console.log("[RfqAttachmentPreview] API response:", res);
+
       if (res?.data) {
         setGrouped(res.data);
         onDocumentsLoadedRef.current?.(res.data);
+      } else {
+        console.warn("[RfqAttachmentPreview] No data in response:", res);
       }
-    } catch {
-      // Silently fail - the badges will just not show file counts
+    } catch (err) {
+      console.error("[RfqAttachmentPreview] Failed to fetch:", err);
     } finally {
       setLoading(false);
     }

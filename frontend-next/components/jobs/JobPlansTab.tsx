@@ -114,16 +114,6 @@ interface JobPlan {
   revision_count: number;
 }
 
-interface PlanTab {
-  id: number;
-  name: string;
-  code: string | null;
-  plan_category_id: number | null;
-  plan_count: number;
-  on_issue_count: number;
-  children: PlanTab[];
-}
-
 interface JobPlansTabProps {
   jobId: number;
   jobCode: string;
@@ -146,8 +136,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     };
   }, []);
   const [plans, setPlans] = useState<JobPlan[]>([]);
-  const [tabs, setTabs] = useState<PlanTab[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
 
   // MASTERPIECE: Pagination state for infinite scroll
   const [hasMore, setHasMore] = useState(false);
@@ -168,11 +156,15 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const [planTypes, setPlanTypes] = useState<PlanTypeOption[]>([]);
   const [loadingPlanTypes, setLoadingPlanTypes] = useState(false);
   const [selectedPlanTypeId, setSelectedPlanTypeId] = useState<string>("");
-  const [selectedTabId, setSelectedTabId] = useState<string>("");
   const [variantSuffix, setVariantSuffix] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Adjust Revision dialog state
+  const [showRevisionDialog, setShowRevisionDialog] = useState(false);
+  const [revisionValue, setRevisionValue] = useState("");
+  const [savingRevision, setSavingRevision] = useState(false);
 
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -247,20 +239,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   }, [fetchPlans, hasMore, nextCursor, loadingMore]);
 
-  // Fetch tabs (categories)
-  const fetchTabs = useCallback(async () => {
-    try {
-      const response = (await api.get(
-        `/api/v1/jobs/${jobId}/job_plans/tabs`
-      )) as { success: boolean; data?: PlanTab[] };
-      if (response.success) {
-        setTabs(response.data || []);
-      }
-    } catch (err) {
-      console.error("Error fetching tabs:", err);
-    }
-  }, [jobId]);
-
   // Fetch plan types
   const fetchPlanTypes = useCallback(async () => {
     try {
@@ -281,49 +259,15 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
   useEffect(() => {
     fetchPlans();
-    fetchTabs();
-  }, [fetchPlans, fetchTabs]);
-
-  // Auto-select the category with plans when data loads (if not already selected)
-  useEffect(() => {
-    if (plans.length > 0 && tabs.length > 0 && selectedCategoryId === null) {
-      // Find categories that have plans
-      const categoriesWithPlans = tabs.filter(tab =>
-        plans.some(p => p.job_plan_tab_id === tab.id)
-      );
-
-      if (categoriesWithPlans.length > 0) {
-        // Select the first category that has plans
-        setSelectedCategoryId(categoriesWithPlans[0].id);
-      }
-    }
-  }, [plans, tabs, selectedCategoryId]);
-
-  // Filter plans based on selected category
-  const filteredPlans = selectedCategoryId === null
-    ? plans
-    : plans.filter((p) => p.job_plan_tab_id === selectedCategoryId);
-
-  // Get the currently selected tab
-  const selectedTab = tabs.find(t => t.id === selectedCategoryId);
-
-  // Get other tabs (not selected) that have plans
-  const otherTabsWithPlans = tabs.filter(t =>
-    t.id !== selectedCategoryId && plans.some(p => p.job_plan_tab_id === t.id)
-  );
-
-  // Get tabs without plans (for the dropdown)
-  const emptyTabs = tabs.filter(t =>
-    !plans.some(p => p.job_plan_tab_id === t.id)
-  );
+  }, [fetchPlans]);
 
   // Preload ALL PDFs in background for instant navigation
   // When first plan is selected, start preloading entire plan set
   useEffect(() => {
-    if (!selectedPlan || filteredPlans.length === 0) return;
+    if (!selectedPlan || plans.length === 0) return;
 
     // Get all plans except the currently selected one (it's already loading)
-    const plansToPreload = filteredPlans.filter(p => p.id !== selectedPlan.id);
+    const plansToPreload = plans.filter(p => p.id !== selectedPlan.id);
     if (plansToPreload.length === 0) return;
 
     let cancelled = false;
@@ -374,12 +318,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     // Preload in batches of 2 to avoid overwhelming the network
     // Prioritize adjacent plans first, then load rest
     const preloadAll = async () => {
-      const currentIndex = filteredPlans.findIndex(p => p.id === selectedPlan.id);
+      const currentIndex = plans.findIndex(p => p.id === selectedPlan.id);
 
       // Sort plans by distance from current selection (adjacent first)
       const sortedPlans = [...plansToPreload].sort((a, b) => {
-        const aIndex = filteredPlans.findIndex(p => p.id === a.id);
-        const bIndex = filteredPlans.findIndex(p => p.id === b.id);
+        const aIndex = plans.findIndex(p => p.id === a.id);
+        const bIndex = plans.findIndex(p => p.id === b.id);
         return Math.abs(aIndex - currentIndex) - Math.abs(bIndex - currentIndex);
       });
 
@@ -405,7 +349,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [selectedPlan?.id, filteredPlans]);
+  }, [selectedPlan?.id, plans]);
 
   // Get PDF preview URL
   // Cache-busting: revision.id changes when file is updated, invalidating old cache
@@ -432,7 +376,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const handleOpenAddDialog = () => {
     fetchPlanTypes();
     setSelectedPlanTypeId("");
-    setSelectedTabId("");
     setVariantSuffix("");
     setSelectedFile(null);
     setShowAddDialog(true);
@@ -605,7 +548,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     setOperationId(null);
     // Refresh plans to show updated data
     fetchPlans();
-    fetchTabs();
     const titles: Record<OperationType, string> = {
       plan_upload: "Upload Complete",
       plan_reextract: "Re-extraction Complete",
@@ -687,6 +629,40 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
+  // Adjust revision letter for the selected plan
+  const handleSaveRevision = async () => {
+    if (!selectedPlan?.current_revision || !revisionValue.trim()) return;
+
+    setSavingRevision(true);
+    try {
+      const response = (await api.patch(
+        `/api/v1/jobs/${jobId}/job_plans/${selectedPlan.id}/revisions/${selectedPlan.current_revision.id}`,
+        { revision: { revision: revisionValue.trim().toUpperCase() } }
+      )) as { success: boolean; error?: string };
+
+      if (response.success) {
+        toast({ title: "Success", description: `Revision updated to ${revisionValue.trim().toUpperCase()}` });
+        setShowRevisionDialog(false);
+        fetchPlans();
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to update revision",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Error updating revision:", err);
+      toast({
+        title: "Error",
+        description: "Failed to update revision",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingRevision(false);
+    }
+  };
+
   // Save new plan
   const handleSavePlan = async () => {
     if (!selectedPlanTypeId) {
@@ -710,10 +686,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       return;
     }
 
-    const selectedTab = selectedTabId
-      ? tabs.find((t) => t.id === parseInt(selectedTabId))
-      : null;
-
     const templateValues: Record<string, string> = {
       JobCode: jobCode,
       JobName: jobTitle,
@@ -722,8 +694,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       Variant: variantSuffix || "",
       Rev: "A",
       Date: new Date().toISOString().split("T")[0].replace(/-/g, ""),
-      Category: selectedTab?.name || "",
-      CategoryCode: selectedTab?.code || "",
+      Category: "",
+      CategoryCode: "",
     };
 
     const shortTemplate = selectedPlanType.effective_short_template;
@@ -739,7 +711,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         {
           job_plan: {
             plan_type_id: parseInt(selectedPlanTypeId),
-            job_plan_tab_id: selectedTabId ? parseInt(selectedTabId) : null,
             variant_suffix: variantSuffix || null,
             display_name: longName,
           },
@@ -787,7 +758,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       setShowAddDialog(false);
       fetchPlans();
-      fetchTabs();
     } catch (err) {
       console.error("Error creating plan:", err);
       toast({
@@ -800,18 +770,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       setSaving(false);
     }
   };
-
-  const filteredPlanTypes = selectedTabId
-    ? (() => {
-        const tab = tabs.find((t) => t.id === parseInt(selectedTabId));
-        if (tab?.plan_category_id) {
-          return planTypes.filter((pt) =>
-            pt.category_ids?.includes(tab.plan_category_id!)
-          );
-        }
-        return planTypes;
-      })()
-    : planTypes;
 
   // Main content (used in both fullscreen and normal mode)
   const mainContent = (
@@ -837,139 +795,90 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         </div>
       )}
 
-      {/* Category filter + Add Plan button - absolutely positioned over list area */}
+      {/* Plans toolbar - absolutely positioned over list area */}
       <div className="absolute top-0 left-0 w-[30%] px-3 py-2 z-10 bg-card border-b">
         <div className="flex items-center gap-2">
-          {/* Selected category badge */}
-          {selectedTab && (
-            <Badge variant="default" className="whitespace-nowrap">
-              {selectedTab.name} ({filteredPlans.length})
-            </Badge>
-          )}
+          <Badge variant="default" className="whitespace-nowrap">
+            All Plans ({plans.length})
+          </Badge>
 
-          {/* Show "All" if no category selected or no plans */}
-          {!selectedTab && (
-            <Badge variant="default" className="whitespace-nowrap">
-              All Plans ({plans.length})
-            </Badge>
-          )}
+          {/* Actions dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-6 w-6 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={handleRerunAi}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Re-extract All from PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={async () => {
+                try {
+                  const response = await api.post(`/api/v1/jobs/${jobId}/batch_operations`, {
+                    operation_type: "folder_scan"
+                  }) as { success: boolean; data?: { id: number }; error?: string };
 
-          {/* Dropdown for other categories */}
-          {tabs.length > 0 && (otherTabsWithPlans.length > 0 || emptyTabs.length > 0) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-6 w-6 p-0">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {/* Show All option */}
-                <DropdownMenuItem onClick={() => setSelectedCategoryId(null)}>
-                  All Plans ({plans.length})
-                </DropdownMenuItem>
-
-                {/* Other categories with plans */}
-                {otherTabsWithPlans.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {otherTabsWithPlans.map(tab => {
-                      const count = plans.filter(p => p.job_plan_tab_id === tab.id).length;
-                      return (
-                        <DropdownMenuItem
-                          key={tab.id}
-                          onClick={() => setSelectedCategoryId(tab.id)}
-                        >
-                          {tab.name} ({count})
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </>
-                )}
-
-                {/* Empty categories (no plans yet) */}
-                {emptyTabs.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                      No plans yet
-                    </div>
-                    {emptyTabs.map(tab => (
-                      <DropdownMenuItem
-                        key={tab.id}
-                        onClick={() => setSelectedCategoryId(tab.id)}
-                        className="text-muted-foreground"
-                      >
-                        {tab.name} (0)
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
-
-                {/* Actions */}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleRerunAi}>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Re-extract All from PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={async () => {
-                  // Scan SharePoint folder for new plans
-                  try {
-                    const response = await api.post(`/api/v1/jobs/${jobId}/batch_operations`, {
-                      operation_type: "folder_scan"
-                    }) as { success: boolean; data?: { id: number }; error?: string };
-
-                    if (response.success && response.data?.id) {
-                      setOperationType("folder_scan");
-                      setOperationId(response.data.id);
-                      setShowProcessingModal(true);
-                    } else {
-                      toast({
-                        title: "Error",
-                        description: response.error || "Failed to start folder scan",
-                        variant: "destructive",
-                      });
-                    }
-                  } catch (err) {
+                  if (response.success && response.data?.id) {
+                    setOperationType("folder_scan");
+                    setOperationId(response.data.id);
+                    setShowProcessingModal(true);
+                  } else {
                     toast({
                       title: "Error",
-                      description: "Failed to start folder scan",
+                      description: response.error || "Failed to start folder scan",
                       variant: "destructive",
                     });
                   }
-                }}>
-                  <FolderOpen className="h-4 w-4 mr-2" />
-                  Scan Folder for New Plans
-                </DropdownMenuItem>
-{/* Storage folder button removed - S3/Wasabi doesn't have web UI */}
-                {((selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.storage_file_id) || selectedPlanIds.length > 0) && (
-                  <DropdownMenuItem onClick={() => {
-                    // Download selected plans' PDFs
-                    if (selectedPlanIds.length > 0) {
-                      // Download all checkbox-selected plans
-                      const selectedPlansData = plans.filter(p => selectedPlanIds.includes(p.id));
-                      selectedPlansData.forEach(plan => {
-                        const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.storage_file_id;
-                        if (fileId) {
-                          window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}`, "_blank");
-                        }
-                      });
-                    } else {
-                      // Download single-selected plan
-                      const fileId = selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.storage_file_id;
+                } catch (err) {
+                  toast({
+                    title: "Error",
+                    description: "Failed to start folder scan",
+                    variant: "destructive",
+                  });
+                }
+              }}>
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Scan Folder for New Plans
+              </DropdownMenuItem>
+              {((selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.storage_file_id) || selectedPlanIds.length > 0) && (
+                <DropdownMenuItem onClick={() => {
+                  if (selectedPlanIds.length > 0) {
+                    const selectedPlansData = plans.filter(p => selectedPlanIds.includes(p.id));
+                    selectedPlansData.forEach(plan => {
+                      const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.storage_file_id;
                       if (fileId) {
                         window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}`, "_blank");
                       }
+                    });
+                  } else {
+                    const fileId = selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.storage_file_id;
+                    if (fileId) {
+                      window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}`, "_blank");
                     }
+                  }
+                }}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download {selectedPlanIds.length > 1 ? `(${selectedPlanIds.length})` : "Selected"}
+                </DropdownMenuItem>
+              )}
+              {selectedPlan?.current_revision && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => {
+                    setRevisionValue(selectedPlan.current_revision?.revision || "");
+                    setShowRevisionDialog(true);
                   }}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download {selectedPlanIds.length > 1 ? `(${selectedPlanIds.length})` : "Selected"}
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Adjust Revision ({selectedPlan.current_revision.revision_label})
                   </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-          {/* Add Plan button - next to category */}
+          {/* Add Plan button */}
           <Button size="sm" variant="outline" onClick={handleOpenAddDialog}>
             <Plus className="h-4 w-4 mr-1" />
             Add Plan
@@ -981,7 +890,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               size="sm"
               variant="outline"
               onClick={() => {
-                // Use checkbox selection if available, otherwise use single selection
                 if (selectedPlanIds.length === 0 && selectedPlan) {
                   setSelectedPlanIds([selectedPlan.id]);
                 }
@@ -1000,7 +908,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       {/* DocumentListView - fills entire container */}
       <div className="absolute inset-0">
         <DocumentListView
-          documents={filteredPlans}
+          documents={plans}
           title=""
           getDocumentId={(p) => p.id}
           getDocumentName={(p) => p.display_name}
@@ -1051,6 +959,46 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         onComplete={handleProcessingComplete}
       />
 
+      {/* Adjust Revision Dialog */}
+      <Dialog open={showRevisionDialog} onOpenChange={setShowRevisionDialog}>
+        <DialogContent className="sm:max-w-[320px]">
+          <DialogHeader>
+            <DialogTitle>Adjust Revision</DialogTitle>
+            <DialogDescription>
+              Set the revision letter for {selectedPlan?.display_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label>Revision Letter</Label>
+            <Input
+              value={revisionValue}
+              onChange={(e) => setRevisionValue(e.target.value.toUpperCase())}
+              placeholder="e.g., A, B, J"
+              maxLength={5}
+              className="mt-2 font-mono text-lg"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && revisionValue.trim()) {
+                  handleSaveRevision();
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRevisionDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveRevision}
+              disabled={savingRevision || !revisionValue.trim()}
+            >
+              {savingRevision && <Spinner size={16} className="mr-2" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Add Plan Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-[500px]">
@@ -1063,22 +1011,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <Select value={selectedTabId} onValueChange={setSelectedTabId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tabs.map((tab) => (
-                    <SelectItem key={tab.id} value={tab.id.toString()}>
-                      {tab.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="space-y-2">
               <Label>Plan Type *</Label>
               <Select
@@ -1093,7 +1025,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredPlanTypes.map((pt) => (
+                  {planTypes.map((pt) => (
                     <SelectItem key={pt.id} value={pt.id.toString()}>
                       {pt.display_name}
                     </SelectItem>
@@ -1162,9 +1094,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                 const pt = planTypes.find(
                   (p) => p.id === parseInt(selectedPlanTypeId)
                 );
-                const tab = selectedTabId
-                  ? tabs.find((t) => t.id === parseInt(selectedTabId))
-                  : null;
                 if (!pt) return null;
 
                 const values: Record<string, string> = {
@@ -1178,8 +1107,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                     .toISOString()
                     .split("T")[0]
                     .replace(/-/g, ""),
-                  Category: tab?.name || "",
-                  CategoryCode: tab?.code || "",
+                  Category: "",
+                  CategoryCode: "",
                 };
 
                 const shortName = resolveTemplate(

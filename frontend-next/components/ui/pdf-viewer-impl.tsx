@@ -477,13 +477,14 @@ export function PDFViewerImpl({
           </Button>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-7 w-7"
+            size="sm"
+            className="h-7 px-2 text-xs font-medium"
             onClick={fitToWidth}
             disabled={zoom === "page-fit"}
-            title="Fit to width"
+            title="Fit page to view"
           >
-            <Maximize2 className="h-4 w-4" />
+            <Maximize2 className="h-3.5 w-3.5 mr-1" />
+            Fit
           </Button>
         </div>
       </div>
