@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { RfqAttachmentPreview } from "./RfqAttachmentPreview";
+import { RfqAttachmentPreview, type RfqGroupedDocs, type RfqDocument } from "./RfqAttachmentPreview";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface TwoDescriptionEditorProps {
@@ -43,6 +43,17 @@ function useDebouncedSave(onUpdate: (field: string, value: string) => void, dela
   return save;
 }
 
+/** Format a document for display in the RFQ text: "filename (Rev X)" */
+function formatDocForRfq(doc: RfqDocument): string {
+  const name = doc.originalFilename || doc.name;
+  // Strip file extension for cleaner display
+  const base = name.replace(/\.[^.]+$/, "");
+  if (doc.versionLetter) {
+    return `${base} (Rev ${doc.versionLetter})`;
+  }
+  return base;
+}
+
 /** Wrap tender text with RFQ greeting, attached docs, quote breakdown, and sender signature */
 function wrapAsRfq(
   tenderText: string,
@@ -51,6 +62,9 @@ function wrapAsRfq(
     senderTitle?: string;
     senderPhone?: string;
     senderEmail?: string;
+    /** Actual matched documents grouped by type name - only types with files */
+    attachedDocuments?: Array<{ typeName: string; docs: RfqDocument[] }>;
+    /** Fallback: all document type names (used when live data not yet loaded) */
     documentTypeNames?: string[];
     poLineNames?: string[];
   }
@@ -65,8 +79,17 @@ function wrapAsRfq(
     parts.push(tenderText.trim() + "\n");
   }
 
-  // Attached documents
-  if (opts.documentTypeNames && opts.documentTypeNames.length > 0) {
+  // Attached documents - only those that actually exist
+  if (opts.attachedDocuments && opts.attachedDocuments.length > 0) {
+    parts.push("Please find the following documents attached for quoting:");
+    for (const { docs } of opts.attachedDocuments) {
+      for (const doc of docs) {
+        parts.push(`  - ${formatDocForRfq(doc)}`);
+      }
+    }
+    parts.push("");
+  } else if (opts.documentTypeNames && opts.documentTypeNames.length > 0) {
+    // Fallback to type names while loading
     parts.push("Please find the following documents attached for quoting:");
     for (const name of opts.documentTypeNames) {
       parts.push(`  - ${name}`);
@@ -136,11 +159,29 @@ export function TwoDescriptionEditor({
   const [localTender, setLocalTender] = useState(tenderDescription || "");
   const [localRfq, setLocalRfq] = useState(rfqInstructions || "");
 
+  // Live document data from RfqAttachmentPreview
+  const [liveGroupedDocs, setLiveGroupedDocs] = useState<RfqGroupedDocs | null>(null);
+
   // Sync from props when they change externally
   useEffect(() => { setLocalTender(tenderDescription || ""); }, [tenderDescription]);
   useEffect(() => { setLocalRfq(rfqInstructions || ""); }, [rfqInstructions]);
 
   const debouncedSave = useDebouncedSave(onUpdate);
+
+  // Build the list of attached documents (only types with actual files)
+  const getAttachedDocuments = useCallback((): Array<{ typeName: string; docs: RfqDocument[] }> | undefined => {
+    if (!liveGroupedDocs) return undefined;
+    const result: Array<{ typeName: string; docs: RfqDocument[] }> = [];
+    for (let i = 0; i < documentTypeIds.length; i++) {
+      const typeId = documentTypeIds[i];
+      const typeName = documentTypeNames[i] || `Type ${typeId}`;
+      const docs = liveGroupedDocs[typeId] || [];
+      if (docs.length > 0) {
+        result.push({ typeName, docs });
+      }
+    }
+    return result.length > 0 ? result : undefined;
+  }, [liveGroupedDocs, documentTypeIds, documentTypeNames]);
 
   const buildRfqText = useCallback((tenderText: string) => {
     return wrapAsRfq(tenderText, {
@@ -148,10 +189,11 @@ export function TwoDescriptionEditor({
       senderTitle: user?.job_title || undefined,
       senderPhone: user?.mobile_phone || undefined,
       senderEmail: user?.email,
+      attachedDocuments: getAttachedDocuments(),
       documentTypeNames,
       poLineNames,
     });
-  }, [user, documentTypeNames, poLineNames]);
+  }, [user, getAttachedDocuments, documentTypeNames, poLineNames]);
 
   const handleTenderChange = useCallback((value: string) => {
     setLocalTender(value);
@@ -177,6 +219,20 @@ export function TwoDescriptionEditor({
       debouncedSave("rfq_instructions", rfqText);
     }
   }, [localTender, debouncedSave, buildRfqText]);
+
+  // When live documents load and sync is on, rebuild RFQ text
+  const handleDocumentsLoaded = useCallback((grouped: RfqGroupedDocs) => {
+    setLiveGroupedDocs(grouped);
+  }, []);
+
+  // Re-sync RFQ text when live documents change (if sync is on)
+  useEffect(() => {
+    if (syncRfq && liveGroupedDocs) {
+      const rfqText = buildRfqText(localTender);
+      setLocalRfq(rfqText);
+      debouncedSave("rfq_instructions", rfqText);
+    }
+  }, [liveGroupedDocs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!expanded) {
     const hasContent = localTender || localRfq;
@@ -241,6 +297,7 @@ export function TwoDescriptionEditor({
           jobId={jobId}
           documentTypeIds={documentTypeIds}
           documentTypeNames={documentTypeNames}
+          onDocumentsLoaded={handleDocumentsLoaded}
         />
       )}
     </div>

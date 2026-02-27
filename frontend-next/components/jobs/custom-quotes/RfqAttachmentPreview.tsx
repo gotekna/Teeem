@@ -7,13 +7,19 @@ import { AttachmentBadge } from "@/components/ui/attachment-badge";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
-interface RfqDocument {
+export interface RfqDocument {
   id: number;
   name: string;
+  originalFilename: string | null;
   folder: string | null;
   contentType: string | null;
   size: number | null;
+  versionLetter: string | null;
+  versionNumber: number | null;
 }
+
+/** Grouped data: document type ID → matched documents */
+export type RfqGroupedDocs = Record<number, RfqDocument[]>;
 
 interface RfqAttachmentPreviewProps {
   jobId: string | number;
@@ -21,6 +27,8 @@ interface RfqAttachmentPreviewProps {
   documentTypeIds: number[];
   /** Document type names (parallel array with documentTypeIds) */
   documentTypeNames: string[];
+  /** Called when document data loads/changes - provides grouped docs for RFQ text */
+  onDocumentsLoaded?: (grouped: RfqGroupedDocs) => void;
 }
 
 /**
@@ -28,15 +36,21 @@ interface RfqAttachmentPreviewProps {
  *
  * Top section: types WITH matching files (will be attached to RFQ)
  * Bottom section: types WITHOUT files (warning for missing docs)
+ *
+ * Also exposes matched document data via onDocumentsLoaded for use
+ * in RFQ instruction text generation.
  */
 export function RfqAttachmentPreview({
   jobId,
   documentTypeIds,
   documentTypeNames,
+  onDocumentsLoaded,
 }: RfqAttachmentPreviewProps) {
-  const [grouped, setGrouped] = useState<Record<number, RfqDocument[]> | null>(null);
+  const [grouped, setGrouped] = useState<RfqGroupedDocs | null>(null);
   const [loading, setLoading] = useState(false);
   const prevKeyRef = useRef<string>("");
+  const onDocumentsLoadedRef = useRef(onDocumentsLoaded);
+  onDocumentsLoadedRef.current = onDocumentsLoaded;
 
   const fetchGrouped = useCallback(async () => {
     if (documentTypeIds.length === 0) {
@@ -44,7 +58,7 @@ export function RfqAttachmentPreview({
       return;
     }
 
-    const key = `${jobId}:${documentTypeIds.sort().join(",")}`;
+    const key = `${jobId}:${[...documentTypeIds].sort().join(",")}`;
     if (key === prevKeyRef.current && grouped !== null) return;
     prevKeyRef.current = key;
 
@@ -56,11 +70,12 @@ export function RfqAttachmentPreview({
       }
       const res = await api.get<{
         success: boolean;
-        data: Record<number, RfqDocument[]>;
+        data: RfqGroupedDocs;
       }>(`/api/v1/jobs/${jobId}/rfq_documents?${params.toString()}`);
 
       if (res?.data) {
         setGrouped(res.data);
+        onDocumentsLoadedRef.current?.(res.data);
       }
     } catch {
       // Silently fail - the badges will just not show file counts

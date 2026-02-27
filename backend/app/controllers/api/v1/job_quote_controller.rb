@@ -396,9 +396,12 @@ module Api
         {
           id: doc.id,
           name: doc.ui_name || doc.original_filename,
+          originalFilename: doc.original_filename,
           folder: doc.folder_path,
           contentType: doc.storage_blob&.content_type,
-          size: doc.storage_blob&.byte_size
+          size: doc.storage_blob&.byte_size,
+          versionLetter: doc.version_letter,
+          versionNumber: doc.version_number
         }
       end
 
