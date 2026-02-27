@@ -39,11 +39,10 @@ module HealthChecks
     end
 
     # Jobs missing contract price
-    # SSoT: Check contract_price (THE ONE) - also check contract_value for backwards compat
+    # SSoT: contract_price is THE ONE
     def check_jobs_without_contract_value
       jobs = Job.includes(:job_status)
                .where(contract_price: [ nil, 0 ])
-               .where(contract_value: [ nil, 0 ])  # Also check legacy column
                .where.not(job_statuses: { name: [ "Completed", "Cancelled", "Archived" ] })
                .select(:id, :name, :job_status_id)
 

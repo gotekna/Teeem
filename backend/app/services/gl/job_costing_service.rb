@@ -89,7 +89,8 @@ module Gl
         .sum(:total)
 
       # Contract value from job
-      contract_value = job.contract_value || job.contract_price || 0
+      # SSoT: contract_price is THE ONE
+      contract_value = job.contract_price || 0
 
       # Variations (additional invoices beyond original contract)
       variations = [invoiced - contract_value, 0].max
@@ -363,7 +364,7 @@ module Gl
       {
         id: job.id,
         name: job.name,
-        contract_value: job.contract_value || job.contract_price,
+        contract_value: job.contract_price,
         status: job.job_status&.name,
         stage: job.job_stage&.name,
         start_date: job.start_date,
@@ -381,8 +382,8 @@ module Gl
           costs: budgets.joins(:gl_account).where(gl_accounts: { account_type: 'expense' }).sum(:amount)
         }
       else
-        # Fall back to job contract value
-        contract = job.contract_value || job.contract_price || 0
+        # Fall back to job contract price
+        contract = job.contract_price || 0
         # Estimate costs as contract minus expected margin (assume 15%)
         estimated_margin = 0.15
         {

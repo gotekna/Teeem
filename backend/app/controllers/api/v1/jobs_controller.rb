@@ -1041,7 +1041,7 @@ module Api
           job: {
             id: @job.id,
             name: @job.name,
-            contract_value: @job.contract_value.to_f
+            contract_value: (@job.contract_price || 0).to_f
           },
           groups: boq_groups,
           profitCentres: available_profit_centres,
@@ -1052,7 +1052,7 @@ module Api
             po_gst: total_po_gst.round(2),
             variance: total_variance.round(2),
             variance_percent: total_boq > 0 ? (total_variance / total_boq * 100).round(1) : 0,
-            contract_value: @job.contract_value.to_f,
+            contract_value: (@job.contract_price || 0).to_f,
             po_count: purchase_orders.count,
             category_count: cost_budgets.count
           }
@@ -1766,7 +1766,7 @@ module Api
           # Construction details
           :level,
           :dwelling_type,
-          :contract_value,
+          :contract_price,
           # live_profit and profit_percentage are calculated fields, not user-editable
           :stage,
           :status,

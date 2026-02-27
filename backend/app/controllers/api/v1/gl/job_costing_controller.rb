@@ -252,7 +252,7 @@ module Api
           when 'name'
             jobs = jobs.order(:name)
           when 'contract_value'
-            jobs = jobs.order(contract_value: :desc)
+            jobs = jobs.order(contract_price: :desc)
           when 'start_date'
             jobs = jobs.order(start_date: :desc)
           else

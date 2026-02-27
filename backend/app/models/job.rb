@@ -5,10 +5,7 @@ class Job < ApplicationRecord
   # Explicitly set table name since it was renamed from 'constructions' to 'jobs'
   self.table_name = "jobs"
 
-  # =============================================================================
   # SSoT: contract_price is THE ONE for total contract price
-  # See: TEEEM_DOCS/SSOT_CONTRACT_VALUE_MIGRATION.md
-  # =============================================================================
 
   # BPMN Workflow Triggers - fires when job status changes
   include BpmnTriggerable

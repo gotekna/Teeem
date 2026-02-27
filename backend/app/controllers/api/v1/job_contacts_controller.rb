@@ -131,7 +131,7 @@ module Api
               id: job.id,
               address: job.address,
               job_status: job.job_status&.name,
-              contract_value: job.contract_value
+              contract_value: job.contract_price
             }
           end
         end

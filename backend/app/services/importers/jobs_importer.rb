@@ -34,7 +34,7 @@ module Importers
         job_status: find_lookup(JobStatus, row["status"]),
         job_stage: find_lookup(JobStage, row["stage"]),
         client_contact: find_client_contact(row["client_contact"] || row["client_email"]),
-        contract_value: parse_decimal(row["contract_value"]),
+        contract_price: parse_decimal(row["contract_value"]),
         start_date: parse_date(row["start_date"]),
         estimated_completion: parse_date(row["estimated_completion"]),
         actual_completion: parse_date(row["actual_completion"]),
