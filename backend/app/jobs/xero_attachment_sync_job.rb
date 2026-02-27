@@ -12,7 +12,7 @@
 # 1. Scheduler mode (no tenant_id): Queue a separate job for EACH tenant
 # 2. Per-tenant mode (with tenant_id): Process that tenant's invoices
 # 3. No global lock - each tenant has its own lock
-# 4. No follow-up chains - scheduler runs every 10 min and re-queues all
+# 4. No follow-up chains - scheduler runs every 30 min and re-queues all
 # 5. STAGGER: Jobs start 30s apart to avoid hitting Xero API simultaneously
 #
 # This scales to 15,000+ Xero orgs with linear throughput increase.
@@ -93,9 +93,11 @@ class XeroAttachmentSyncJob < ApplicationJob
   # Xero rate limits (per tenant)
   MINUTE_LIMIT = 60
   DAILY_LIMIT = 5000
-  # Leave headroom for other operations (contacts sync, health monitor, etc.)
+  # Leave headroom for other operations (contacts sync, health monitor, invoice sync, etc.)
+  # FRC (Feb 2026): Was 4800 (96% of daily). Left only 200 calls for all other Xero jobs,
+  # causing daily limit exhaustion in ~2 hours. Now 3000 (60%) leaves 2000 for other ops.
   SAFE_MINUTE_LIMIT = 55
-  SAFE_DAILY_LIMIT = 4800
+  SAFE_DAILY_LIMIT = 3000
 
   # ⚠️ DO NOT ADD THREADING BACK (Feb 2026)
   # ════════════════════════════════════════════════════════════════════════════
@@ -229,6 +231,12 @@ class XeroAttachmentSyncJob < ApplicationJob
       started_at = Time.current
       total_results = { processed: 0, success: 0, failed: 0, errors: [], batches: 0 }
 
+      # Log daily budget status at start so we can see consumption in Heroku logs
+      usage = XeroRateLimitTracker.usage_for(tenant_id)
+      daily_used = usage&.dig(:daily, :used) || 0
+      daily_pct = usage&.dig(:daily, :percentage) || 0
+      Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Daily budget #{daily_used}/#{DAILY_LIMIT} (#{daily_pct}%), safe limit #{SAFE_DAILY_LIMIT}")
+
       # FRC (Feb 2026): Stall detection — prevents tight spin when all remaining
       # invoices are on cooldown or the already_synced subquery disagrees with the
       # sync service (e.g. WarehouseDocument exists but missing is_primary metadata).
@@ -271,6 +279,15 @@ class XeroAttachmentSyncJob < ApplicationJob
         # Hard lockout from Xero 429 — can't retry
         break if batch_results[:aborted_lockout]
 
+        # FRC (Feb 2026): When daily budget is exhausted, break immediately.
+        # Daily limit resets at midnight, not after a 30s sleep. Previously this
+        # returned :skipped_rate_limit which triggered a 30s sleep + retry loop,
+        # spinning uselessly for up to 9 minutes burning CPU.
+        if batch_results[:daily_budget_exhausted]
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Daily budget exhausted (#{SAFE_DAILY_LIMIT}/#{DAILY_LIMIT}), stopping — processed #{total_results[:processed]} this run")
+          break
+        end
+
         # FRC (Feb 2026): Only sleep for RATE LIMIT, not for "no invoices found".
         # Previously also slept on (processed == 0 && total > 0) which caught the
         # "all on cooldown" case — sleeping 30s doesn't help when cooldown is 30 min.
@@ -312,7 +329,7 @@ class XeroAttachmentSyncJob < ApplicationJob
         "pdfs",
         tenant_id: tenant_id,
         records_synced: total_results[:success],
-        next_sync_at: 10.minutes.from_now
+        next_sync_at: 30.minutes.from_now
       )
 
       Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Total #{total_results[:success]}/#{total_results[:processed]} in #{total_results[:batches]} batches, #{remaining} remaining")
@@ -365,6 +382,12 @@ class XeroAttachmentSyncJob < ApplicationJob
     limit = [max_by_minute, max_by_daily, options[:limit] || BATCH_SIZE].min
 
     if limit <= 0
+      # FRC (Feb 2026): Distinguish daily vs minute exhaustion. When DAILY budget is
+      # exhausted, sleeping 30s won't help — it resets at midnight. Return a distinct
+      # flag so sync_tenant can break the loop instead of spinning uselessly.
+      if daily_remaining <= 0
+        return { processed: 0, success: 0, failed: 0, daily_budget_exhausted: true }
+      end
       return { processed: 0, success: 0, failed: 0, skipped_rate_limit: true }
     end
 

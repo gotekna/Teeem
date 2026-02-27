@@ -289,11 +289,13 @@ warehouse_daily_snapshot:
 # Pagination fix prevents new gaps. This repairs existing ones surgically.
 # Fetches 30 invoices/run individually from Xero API.
 # Self-disabling: exits immediately when no repairs needed.
+# FRC (Feb 2026): Reduced from 30 min → 2 hours. Once repairs are complete this is a no-op.
+# Saves ~1,080 API calls/day (from 1,440 to 360).
 xero_invoice_repair:
   class: XeroInvoiceRepairJob
   queue: xero_sync
   args: [{}]
-  schedule: every 30 minutes
+  schedule: every 2 hours
 
 # Sync Xero invoice data from Xero API to database
 # Safety net: webhooks handle real-time updates, this catches anything missed
@@ -305,15 +307,16 @@ xero_invoice_data_sync:
   args: [{}]
   schedule: every 15 minutes
 
-# Sync Xero invoice attachments (PDFs) - runs frequently for backfill
+# Sync Xero invoice attachments (PDFs)
 # Syncs invoices to WarehouseDocument (SSoT for all documents)
-# FRC (Feb 2026): Was every 2 hours - too slow for 4000+ PDF backfill
-# Changed to every 10 minutes with self-healing batch lock
+# FRC (Feb 2026): Was every 10 min — continuous 9-min loop consumed 3,500-4,800 API calls/day
+# out of 5,000 daily limit, exhausting quota in ~2 hours. Now 30 min with SAFE_DAILY_LIMIT=3000.
+# 9 min on / 21 min off = ~2,000 invoices/day capacity — sufficient for steady-state sync.
 warehouse_xero_attachments:
   class: XeroAttachmentSyncJob
   queue: xero_bulk
   args: [null, { limit: 25 }]
-  schedule: every 10 minutes
+  schedule: every 30 minutes
 
 # NOTE: XeroStorageUploadBackfillJob was removed in Jan 2026 refactor
 # Storage upload now happens inline in XeroAttachmentSyncService

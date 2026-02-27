@@ -774,6 +774,15 @@ export default function ContactDetailPage() {
     }
   };
 
+  // SSoT: Unified callback for any mutation that changes contact data.
+  // Clears Foundation cache so Contacts list table shows fresh data.
+  // FRC (Feb 2026): Previously only clearCachedRecords("xero-sync-contacts") was called
+  // on the save handler, but "contacts" Foundation was never cleared — list showed stale data.
+  const handleContactUpdated = async () => {
+    clearCachedRecords("contacts");
+    await loadContact();
+  };
+
   // SSoT: Pre-flight check before delete (Phase 3 Contact Consolidation)
   // Calls deletion_check endpoint to get warnings/blockers before showing delete dialog
   const handleDelete = async () => {
@@ -912,7 +921,7 @@ export default function ContactDetailPage() {
         }
 
         toast({ title: "Contact Enriched", description: message });
-        await loadContact(); // Reload contact to show updated details
+        await handleContactUpdated(); // Reload contact + clear Foundation cache
       } else {
         toast({ title: "Error", description: `Failed: ${response?.error || 'Unknown error'}`, variant: "destructive" });
       }
@@ -1172,7 +1181,7 @@ export default function ContactDetailPage() {
         contact: { is_team_contact: checked }
       });
       // Reload to get updated display_name from server
-      loadContact();
+      handleContactUpdated();
     } catch (err) {
       console.error("Failed to save team contact setting:", err);
       toast({
@@ -1236,7 +1245,7 @@ export default function ContactDetailPage() {
       }
 
       // Reload contact data to get updated relationships
-      await loadContact();
+      await handleContactUpdated();
     } catch (err) {
       console.error("Failed to update company relationships:", err);
       // Revert on error
@@ -1290,7 +1299,7 @@ export default function ContactDetailPage() {
       });
 
       // Reload contact data
-      await loadContact();
+      await handleContactUpdated();
     } catch (err) {
       console.error("[Company Roles] Failed to update roles for company:", companyId, "Error:", err);
     }
@@ -1308,11 +1317,11 @@ export default function ContactDetailPage() {
       const company_ids = newCompanies.map(c => parseInt(c.value));
       await api.post(`/api/v1/contacts/relationships/${contact!.id}/reorder_companies`, { company_ids });
       // Reload to update Primary Company display
-      await loadContact();
+      await handleContactUpdated();
     } catch (err) {
       console.error("Failed to reorder companies:", err);
       toast({ title: "Error", description: "Failed to save company order", variant: "destructive" });
-      loadContact(); // Reload on error
+      handleContactUpdated(); // Reload on error
     }
   };
 
@@ -1365,7 +1374,7 @@ export default function ContactDetailPage() {
       }
 
       setSelectedEmployees(newSelectedEmployees);
-      await loadContact();
+      await handleContactUpdated();
     } catch (err) {
       console.error("Failed to update employee relationships:", err);
       setSelectedEmployees(selectedEmployees);
@@ -1387,7 +1396,7 @@ export default function ContactDetailPage() {
 
       if (rel) {
         await api.delete(`/api/v1/contacts/${employeeId}/relationships/${rel.id}`);
-        await loadContact();
+        await handleContactUpdated();
       } else {
       }
     } catch (err) {
@@ -1543,7 +1552,7 @@ export default function ContactDetailPage() {
       console.error("Failed to reorder employees:", err);
       toast({ title: "Error", description: "Failed to save employee order", variant: "destructive" });
       // Reload to get correct order from server
-      loadContact();
+      handleContactUpdated();
     }
   };
 
@@ -1642,7 +1651,7 @@ export default function ContactDetailPage() {
       sessionStorage.setItem('SESSION_STORAGE_KEYS.CONTACTS_NEEDS_REFRESH', 'true');
       // Clear Xero sync contacts cache so changes show when returning to that view
       clearCachedRecords("xero-sync-contacts");
-      loadContact();
+      handleContactUpdated();
       // Increment refresh key to force tab data reload (directorships, shareholdings, etc.)
       setRefreshKey(prev => prev + 1);
     } catch (err) {

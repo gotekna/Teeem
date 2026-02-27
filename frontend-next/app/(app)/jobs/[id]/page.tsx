@@ -1195,6 +1195,17 @@ export default function JobDetailPage() {
     }
   }, [jobId]);
 
+  // SSoT: Unified callback for child tabs that mutate job data.
+  // Clears Foundation cache so the Jobs list table shows fresh data,
+  // then reloads the individual job detail.
+  // FRC (Feb 2026): Previously child tabs only called loadJob (no cache clear),
+  // so changes made on Contract/Settings/etc tabs didn't appear in the Jobs table
+  // until the user manually refreshed.
+  const handleJobUpdated = React.useCallback(() => {
+    clearCachedRecords("jobs");
+    loadJob();
+  }, [loadJob]);
+
   // Load lookup data for dropdowns - only when editing starts
   const loadLookupData = React.useCallback(async () => {
     setLookupLoading(true);
@@ -2099,7 +2110,7 @@ export default function JobDetailPage() {
                     jobId={job.id}
                     job={job}
                     jobTitle={job.name}
-                    onUpdate={loadJob}
+                    onUpdate={handleJobUpdated}
                     contractValue={job.contract_value}
                   />
                 </React.Suspense>

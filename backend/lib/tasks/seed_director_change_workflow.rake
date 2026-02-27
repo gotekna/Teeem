@@ -59,7 +59,7 @@ namespace :bpmn do
       node_type: "service_task",
       node_key: "ServiceTask_GeneratePackage",
       name: "Generate ASIC Package",
-      description: "Generate PDF documents for each director change: Form 484, Consent to Act, Director Resignation Letter, and Board Minutes. Creates individual blobs and adds them to the ASIC tab.",
+      description: "Generate PDF documents for each director change: Form 484, Consent to Act, Director Resignation Letter, and Board Minutes. Combines into a single PDF package ready for e-signing.",
       position_x: 450,
       position_y: 200,
       config: {
@@ -102,7 +102,7 @@ namespace :bpmn do
       node_type: "service_task",
       node_key: "ServiceTask_CompleteChanges",
       name: "Complete Director Changes",
-      description: "Update the directors page with new appointments and ceased directors, and mark the workflow as complete",
+      description: "Split the signed PDF into individual documents and store each to the ASIC tab with the correct document type (DM, RD, CAD, F484, etc.). Update director records with new appointments and cessations.",
       position_x: 1050,
       position_y: 200,
       config: {
