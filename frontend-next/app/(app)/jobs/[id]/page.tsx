@@ -39,6 +39,7 @@ import {
   Clock,
   ClipboardCheck,
   Pencil,
+  Check,
   Save,
   X,
   FileSignature,
@@ -894,6 +895,8 @@ export default function JobDetailPage() {
   const [newChoiceInput, setNewChoiceInput] = React.useState('');
   const [savingChoices, setSavingChoices] = React.useState(false);
   const [choiceColumnIds, setChoiceColumnIds] = React.useState<{ level?: number; dwelling_type?: number }>({});
+  const [editingChoiceIndex, setEditingChoiceIndex] = React.useState<number | null>(null);
+  const [editingChoiceValue, setEditingChoiceValue] = React.useState('');
 
   // Get tab from URL - URL is SSoT for tab state (back button support)
   // Uses path-based structure: /jobs/{id}/{parent}/{child} for hierarchical tabs
@@ -1298,6 +1301,19 @@ export default function JobDetailPage() {
       ...editingChoices,
       choices: editingChoices.choices.filter(c => c !== choice)
     });
+  };
+
+  // Rename a choice in the editing list
+  const renameChoice = (index: number, newValue: string) => {
+    if (!editingChoices || !newValue.trim()) return;
+    const trimmed = newValue.trim();
+    // Prevent duplicates (allow same index = no actual rename)
+    if (editingChoices.choices.some((c, i) => i !== index && c === trimmed)) return;
+    const updated = [...editingChoices.choices];
+    updated[index] = trimmed;
+    setEditingChoices({ ...editingChoices, choices: updated });
+    setEditingChoiceIndex(null);
+    setEditingChoiceValue('');
   };
 
   React.useEffect(() => {
@@ -1717,7 +1733,7 @@ export default function JobDetailPage() {
                           <DropdownMenuContent align="end">
                             <button
                               className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
-                              onClick={() => setEditingChoices({ field: 'level', choices: [...levelChoices] })}
+                              onClick={() => { setEditingChoiceIndex(null); setEditingChoiceValue(''); setEditingChoices({ field: 'level', choices: [...levelChoices] }); }}
                             >
                               <Settings className="h-3 w-3 inline mr-2" />
                               Edit Choices
@@ -1748,7 +1764,7 @@ export default function JobDetailPage() {
                           <DropdownMenuContent align="end">
                             <button
                               className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
-                              onClick={() => setEditingChoices({ field: 'dwelling_type', choices: dwellingTypeChoices.map(c => c.value) })}
+                              onClick={() => { setEditingChoiceIndex(null); setEditingChoiceValue(''); setEditingChoices({ field: 'dwelling_type', choices: dwellingTypeChoices.map(c => c.value) }); }}
                             >
                               <Settings className="h-3 w-3 inline mr-2" />
                               Edit Choices
@@ -2244,18 +2260,20 @@ export default function JobDetailPage() {
             <div className="space-y-2">
               <Label>Click to select, or add/remove choices</Label>
               <div className="space-y-1">
-                {editingChoices?.choices.map((choice) => {
+                {editingChoices?.choices.map((choice, index) => {
                   const currentValue = editingChoices.field === 'level' ? editForm.level : editForm.dwelling_type;
                   const isSelected = currentValue === choice;
+                  const isRenaming = editingChoiceIndex === index;
                   return (
                     <div
-                      key={choice}
-                      className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted hover:bg-muted/80'
+                      key={`${index}-${choice}`}
+                      className={`flex items-center justify-between p-2 rounded-md transition-colors ${
+                        isRenaming ? 'bg-muted' : isSelected
+                          ? 'bg-primary text-primary-foreground cursor-pointer'
+                          : 'bg-muted hover:bg-muted/80 cursor-pointer'
                       }`}
                       onClick={() => {
+                        if (isRenaming) return; // Don't select while renaming
                         // Select this choice and close the dialog
                         if (editingChoices.field === 'level') {
                           setEditForm({ ...editForm, level: choice });
@@ -2269,18 +2287,67 @@ export default function JobDetailPage() {
                         setEditingChoices(null);
                       }}
                     >
-                      <span className="text-sm">{choice}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={`h-6 w-6 ${isSelected ? 'text-primary-foreground hover:text-primary-foreground/80' : 'text-destructive hover:text-destructive'}`}
-                        onClick={(e) => {
-                          e.stopPropagation(); // Don't trigger row click
-                          removeChoice(choice);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      {isRenaming ? (
+                        <div className="flex items-center gap-2 flex-1 mr-2">
+                          <Input
+                            value={editingChoiceValue}
+                            onChange={(e) => setEditingChoiceValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') renameChoice(index, editingChoiceValue);
+                              if (e.key === 'Escape') { setEditingChoiceIndex(null); setEditingChoiceValue(''); }
+                            }}
+                            className="h-7 text-sm"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-green-600 hover:text-green-700 shrink-0"
+                            onClick={(e) => { e.stopPropagation(); renameChoice(index, editingChoiceValue); }}
+                            disabled={!editingChoiceValue.trim()}
+                          >
+                            <Check className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
+                            onClick={(e) => { e.stopPropagation(); setEditingChoiceIndex(null); setEditingChoiceValue(''); }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="text-sm">{choice}</span>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`h-6 w-6 ${isSelected ? 'text-primary-foreground hover:text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingChoiceIndex(index);
+                                setEditingChoiceValue(choice);
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`h-6 w-6 ${isSelected ? 'text-primary-foreground hover:text-primary-foreground/80' : 'text-destructive hover:text-destructive'}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeChoice(choice);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })}
