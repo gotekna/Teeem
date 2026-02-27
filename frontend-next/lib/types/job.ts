@@ -165,6 +165,9 @@ export interface Job {
   // Storage
   storage_folder_status?: "not_requested" | "pending" | "processing" | "completed" | "failed";
 
+  // Description / notes
+  description?: string;
+
   // Estimator
   estimator_analysis?: string;
 
