@@ -43,19 +43,16 @@ production:
     # SolidQueue queue ordering already prevents starvation, so 2 processes was
     # unnecessary. Single process baseline: ~520MB → 504MB headroom for jobs.
     #
-    # FRC (Feb 2026): Re-enabled 2 threads. Original 1-thread constraint was because
-    # XeroAttachmentSyncJob + RetryPendingAttachmentBlobsJob running simultaneously
-    # caused R14 at 1795MB. Both root causes are now resolved:
-    #   1. RetryPendingAttachmentBlobsJob moved to email worker (queue_as :email_enrichment)
-    #      — shared worker queue list below does NOT include email_enrichment
-    #   2. XeroAttachmentSyncJob refactored to use Tempfile streaming (Feb 2026)
-    #      — no longer holds large binary objects in heap
-    # Memory budget (2 threads): ~400MB baseline + ~200MB thread 1 + ~150MB thread 2
-    # = ~750MB worst case → 274MB headroom on 1024MB dyno.
-    # XeroAttachmentSyncJob thresholds lowered to 550/650MB (from 700/800) to leave
-    # headroom for the second thread.
+    # FRC (Feb 2026): 1 thread required. Two attempts at 2 threads both hit R14:
+    #   Attempt 1: XeroAttachmentSyncJob + RetryPendingAttachmentBlobsJob (1795MB)
+    #   Attempt 2: XeroInvoiceSyncJob + XeroBillPoMatchJob (963MB after 1hr, trending to R14)
+    # Root cause: Not binary blob memory — it's sustained AR object churn from two
+    # concurrent jobs each making hundreds of API calls over 1+ hours. Ruby memory
+    # fragmentation accumulates even with jemalloc + page-by-page streaming.
+    # Baseline ~893MB with 2 threads vs ~700MB with 1 thread = 193MB thread overhead.
+    # On a 1024MB dyno, 193MB overhead leaves insufficient headroom.
     - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
-      threads: 2
+      threads: 1
       processes: 1
       polling_interval: 0.1
 

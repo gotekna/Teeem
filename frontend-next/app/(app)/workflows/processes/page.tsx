@@ -136,9 +136,20 @@ interface WorkflowTask {
   error_message?: string;
 }
 
+interface ProcessNode {
+  node_id: number;
+  node_key: string;
+  node_name: string;
+  node_description?: string;
+  node_type: string;
+  status: string;
+  completed_at?: string;
+}
+
 interface InstanceDetail extends WorkflowInstance {
   tokens: WorkflowToken[];
   tasks: WorkflowTask[];
+  process_nodes?: ProcessNode[];
   variables: Record<string, unknown>;
 }
 
@@ -952,56 +963,65 @@ export default function BpmnProcessesPage() {
                                   <Workflow className="h-4 w-4" />
                                   Workflow Steps
                                 </h4>
-                                {instanceDetail.tokens.length === 0 ? (
-                                  <p className="text-sm text-muted-foreground dark:text-muted-foreground">No steps recorded yet</p>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {instanceDetail.tokens.map((token, idx) => (
-                                      <div
-                                        key={token.id}
-                                        className="flex items-center gap-3"
-                                      >
-                                        {/* Status indicator */}
-                                        <div className="flex flex-col items-center">
-                                          <div className={`w-3 h-3 rounded-full ${getTokenStatusColor(token.status)}`} />
-                                          {idx < instanceDetail.tokens.length - 1 && (
-                                            <div className="w-0.5 h-6 bg-muted dark:bg-slate-700 mt-1" />
-                                          )}
-                                        </div>
-                                        {/* Step info */}
-                                        <div className="flex-1 flex items-center justify-between py-1">
-                                          <div>
-                                            <span className="text-sm font-medium">{token.node_name}</span>
-                                            <span className="text-xs text-muted-foreground dark:text-muted-foreground ml-2">
-                                              ({token.node_type})
-                                            </span>
-                                            {token.node_description && (
-                                              <p className="text-xs text-muted-foreground mt-0.5">{token.node_description}</p>
+                                {(() => {
+                                  // Use process_nodes (all definition nodes with status) when available,
+                                  // falling back to tokens for older API responses.
+                                  const steps: Array<{ node_key: string; node_name: string; node_description?: string; node_type: string; status: string; completed_at?: string }> =
+                                    instanceDetail.process_nodes
+                                      ? instanceDetail.process_nodes
+                                      : instanceDetail.tokens.map(t => ({ node_key: t.node_key, node_name: t.node_name, node_description: t.node_description, node_type: t.node_type, status: t.status, completed_at: t.completed_at }));
+                                  if (steps.length === 0) {
+                                    return <p className="text-sm text-muted-foreground dark:text-muted-foreground">No steps recorded yet</p>;
+                                  }
+                                  return (
+                                    <div className="space-y-2">
+                                      {steps.map((step, idx) => (
+                                        <div
+                                          key={step.node_key}
+                                          className="flex items-center gap-3"
+                                        >
+                                          {/* Status indicator */}
+                                          <div className="flex flex-col items-center">
+                                            <div className={`w-3 h-3 rounded-full ${getTokenStatusColor(step.status)}`} />
+                                            {idx < steps.length - 1 && (
+                                              <div className="w-0.5 h-6 bg-muted dark:bg-slate-700 mt-1" />
                                             )}
                                           </div>
-                                          <div className="flex items-center gap-2">
-                                            <Badge
-                                              variant="outline"
-                                              className={
-                                                token.status === "completed" ? "border-green-500 text-green-600 dark:text-green-400" :
-                                                token.status === "active" ? "border-blue-500 text-blue-600 dark:text-blue-400" :
-                                                token.status === "failed" ? "border-red-500 text-red-600 dark:text-red-400" :
-                                                "border-yellow-500 text-yellow-600 dark:text-yellow-400"
-                                              }
-                                            >
-                                              {token.status}
-                                            </Badge>
-                                            {token.completed_at && (
-                                              <span className="text-xs text-muted-foreground dark:text-muted-foreground">
-                                                {formatDistanceToNow(new Date(token.completed_at), { addSuffix: true })}
+                                          {/* Step info */}
+                                          <div className="flex-1 flex items-center justify-between py-1">
+                                            <div>
+                                              <span className="text-sm font-medium">{step.node_name}</span>
+                                              <span className="text-xs text-muted-foreground dark:text-muted-foreground ml-2">
+                                                ({step.node_type})
                                               </span>
-                                            )}
+                                              {step.node_description && (
+                                                <p className="text-xs text-muted-foreground mt-0.5">{step.node_description}</p>
+                                              )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <Badge
+                                                variant="outline"
+                                                className={
+                                                  step.status === "completed" ? "border-green-500 text-green-600 dark:text-green-400" :
+                                                  step.status === "active" ? "border-blue-500 text-blue-600 dark:text-blue-400" :
+                                                  step.status === "failed" ? "border-red-500 text-red-600 dark:text-red-400" :
+                                                  "border-yellow-500 text-yellow-600 dark:text-yellow-400"
+                                                }
+                                              >
+                                                {step.status}
+                                              </Badge>
+                                              {step.completed_at && (
+                                                <span className="text-xs text-muted-foreground dark:text-muted-foreground">
+                                                  {formatDistanceToNow(new Date(step.completed_at), { addSuffix: true })}
+                                                </span>
+                                              )}
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                               </div>
 
                               {/* Tasks */}

@@ -186,14 +186,17 @@ module Api
       end
 
       def serialize_instance_full(instance)
+        tokens = instance.bpmn_tokens.includes(:current_node)
+        tasks = BpmnTaskInstance.joins(:bpmn_token)
+                  .where(bpmn_tokens: { bpmn_process_instance_id: instance.id })
+                  .includes(:bpmn_node, :assigned_to)
+                  .order(created_at: :desc)
+
         serialize_instance(instance).merge(
           variables: instance.variables,
-          tokens: instance.bpmn_tokens.includes(:current_node).map { |t| serialize_token(t) },
-          tasks: BpmnTaskInstance.joins(:bpmn_token)
-                   .where(bpmn_tokens: { bpmn_process_instance_id: instance.id })
-                   .includes(:bpmn_node, :assigned_to)
-                   .order(created_at: :desc)
-                   .map { |t| serialize_task(t) },
+          tokens: tokens.map { |t| serialize_token(t) },
+          tasks: tasks.map { |t| serialize_task(t) },
+          process_nodes: serialize_process_nodes(instance, tokens, tasks),
           current_nodes: instance.current_nodes.map(&:display_name)
         )
       end
@@ -230,6 +233,58 @@ module Api
           error_message: task.error_message,
           created_at: task.created_at
         }
+      end
+
+      # Build full workflow step list from process definition nodes.
+      # Tokens only show current positions; this shows ALL steps with status
+      # derived from tasks and tokens so completed workflows show their full history.
+      def serialize_process_nodes(instance, tokens, tasks)
+        process = instance.bpmn_process
+        nodes = process.bpmn_nodes.order(:position_x)
+
+        # Build lookup maps for status
+        token_by_node = tokens.index_by(&:current_node_id)
+        task_status_by_node = {}
+        tasks.each do |t|
+          # Keep the most relevant status per node (completed > failed > in_progress > pending)
+          existing = task_status_by_node[t.bpmn_node_id]
+          task_status_by_node[t.bpmn_node_id] = t unless existing && status_priority(existing.status) > status_priority(t.status)
+        end
+
+        nodes.map do |node|
+          token = token_by_node[node.id]
+          task = task_status_by_node[node.id]
+
+          # Determine step status from token or task
+          step_status = if token
+                          token.status
+                        elsif task
+                          task.status
+                        elsif instance.status == "completed"
+                          "completed"
+                        else
+                          "pending"
+                        end
+
+          {
+            node_id: node.id,
+            node_key: node.node_key,
+            node_name: node.display_name,
+            node_description: node.description,
+            node_type: node.node_type,
+            status: step_status,
+            completed_at: token&.completed_at || task&.completed_at
+          }
+        end
+      end
+
+      def status_priority(status)
+        case status
+        when "completed" then 4
+        when "failed" then 3
+        when "in_progress", "active" then 2
+        else 1
+        end
       end
     end
   end
