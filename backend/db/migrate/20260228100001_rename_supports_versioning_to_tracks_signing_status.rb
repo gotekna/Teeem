@@ -2,7 +2,13 @@
 
 class RenameSupportsVersioningToTracksSigningStatus < ActiveRecord::Migration[7.1]
   def change
-    rename_column :document_types, :supports_versioning, :tracks_signing_status
-    rename_index :document_types, "index_document_types_on_supports_versioning", "index_document_types_on_tracks_signing_status"
+    # Idempotent: column may already be renamed from partial run
+    if column_exists?(:document_types, :supports_versioning)
+      rename_column :document_types, :supports_versioning, :tracks_signing_status
+    end
+
+    # Index rename skipped: PostgreSQL indexes reference column positions, not names.
+    # The existing index works fine with the renamed column. Cosmetic rename was
+    # causing PG::UndefinedTable in release phase (Feb 2026).
   end
 end
