@@ -48,6 +48,7 @@ export function RfqAttachmentPreview({
 }: RfqAttachmentPreviewProps) {
   const [grouped, setGrouped] = useState<RfqGroupedDocs | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const prevKeyRef = useRef<string>("");
   const onDocumentsLoadedRef = useRef(onDocumentsLoaded);
   onDocumentsLoadedRef.current = onDocumentsLoaded;
@@ -63,26 +64,37 @@ export function RfqAttachmentPreview({
     prevKeyRef.current = key;
 
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
       for (const id of documentTypeIds) {
         params.append("document_type_ids[]", String(id));
       }
+      const url = `/api/v1/jobs/${jobId}/rfq_documents?${params.toString()}`;
+      console.log("[RfqAttachmentPreview] Fetching:", url, "typeIds:", documentTypeIds);
+
       const res = await api.get<{
         success: boolean;
         data: RfqGroupedDocs;
-      }>(`/api/v1/jobs/${jobId}/rfq_documents?${params.toString()}`);
+      }>(url);
 
-      console.log("[RfqAttachmentPreview] API response:", res);
+      console.log("[RfqAttachmentPreview] API response:", JSON.stringify(res));
 
       if (res?.data) {
+        // Log which types have matches
+        const summary = Object.entries(res.data).map(([k, v]) => `${k}:${(v as RfqDocument[]).length}`).join(", ");
+        console.log("[RfqAttachmentPreview] Grouped summary:", summary);
         setGrouped(res.data);
         onDocumentsLoadedRef.current?.(res.data);
       } else {
-        console.warn("[RfqAttachmentPreview] No data in response:", res);
+        const msg = `No data in response: ${JSON.stringify(res)}`;
+        console.warn("[RfqAttachmentPreview]", msg);
+        setError(msg);
       }
     } catch (err) {
-      console.error("[RfqAttachmentPreview] Failed to fetch:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[RfqAttachmentPreview] Failed to fetch:", msg, err);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -119,6 +131,13 @@ export function RfqAttachmentPreview({
         RFQ Attachments
         {loading && <Spinner className="h-3 w-3 ml-1" />}
       </Label>
+
+      {/* Error display */}
+      {error && (
+        <div className="mt-1 p-2 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded text-[10px] text-red-600 dark:text-red-400">
+          API Error: {error}
+        </div>
+      )}
 
       {/* Types WITH files - will be attached */}
       {withFiles.length > 0 && (

@@ -463,6 +463,7 @@ module Api
           has_file: revision.has_file?,
           storage_file_id: revision.storage_reference,
           storage_reference: revision.storage_reference,
+          notes: revision.notes,
           micro_thumbnail_base64: revision.micro_thumbnail_base64,
           thumbnail_file_id: revision.thumbnail_file_id
         }

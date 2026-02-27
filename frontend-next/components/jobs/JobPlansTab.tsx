@@ -52,7 +52,7 @@ import { UI_ANIMATION_STANDARD_MS, POLLING_DELAY_MS } from "@/lib/constants/time
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
-import { DocumentListView } from "@/components/ui/document-list-view";
+import { DocumentListView, RevisionHistoryItem } from "@/components/ui/document-list-view";
 import { Spinner } from "@/components/ui/spinner";
 // Layout mode is handled by parent page wrapper (TabbedDetailPage)
 // This tab uses EdgeToEdgeTabContent for internal padding
@@ -164,6 +164,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   // Adjust Revision dialog state
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [revisionValue, setRevisionValue] = useState("");
+  const [revisionNotes, setRevisionNotes] = useState("");
   const [savingRevision, setSavingRevision] = useState(false);
 
   // Drag and drop state
@@ -637,7 +638,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     try {
       const response = (await api.patch(
         `/api/v1/jobs/${jobId}/job_plans/${selectedPlan.id}/revisions/${selectedPlan.current_revision.id}`,
-        { revision: { revision: revisionValue.trim().toUpperCase() } }
+        { revision: { revision: revisionValue.trim().toUpperCase(), notes: revisionNotes.trim() || null } }
       )) as { success: boolean; error?: string };
 
       if (response.success) {
@@ -662,6 +663,25 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       setSavingRevision(false);
     }
   };
+
+  // Fetch revision history for a plan (used by DocumentListView expansion)
+  const fetchPlanRevisions = useCallback(async (plan: JobPlan): Promise<RevisionHistoryItem[]> => {
+    const response = (await api.get(
+      `/api/v1/jobs/${jobId}/job_plans/${plan.id}/revisions`
+    )) as { success: boolean; data?: Revision[] };
+
+    if (!response.success || !response.data) return [];
+
+    return response.data.map((rev) => ({
+      id: rev.id,
+      label: `Rev ${rev.revision}`,
+      date: rev.revision_date || rev.issued_date || null,
+      by: rev.issued_by?.name || null,
+      notes: rev.notes || null,
+      isCurrent: plan.current_revision?.id === rev.id,
+      hasFile: rev.has_file,
+    }));
+  }, [jobId]);
 
   // Save new plan
   const handleSavePlan = async () => {
@@ -868,6 +888,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => {
                     setRevisionValue(selectedPlan.current_revision?.revision || "");
+                    setRevisionNotes(selectedPlan.current_revision?.notes || "");
                     setShowRevisionDialog(true);
                   }}>
                     <Pencil className="h-4 w-4 mr-2" />
@@ -919,6 +940,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           getExternalUrl={(p) => p.current_revision?.storage_web_url || null}
           getRevision={(p) => p.current_revision?.revision_label || null}
           getThumbnailUrl={(p) => getThumbnailUrl(p.current_revision)}
+          fetchRevisions={fetchPlanRevisions}
           onRename={handleRename}
           onApprove={handleSetOnIssue}
           onReprocess={handleReprocess}
@@ -968,21 +990,35 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               Set the revision letter for {selectedPlan?.display_name}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label>Revision Letter</Label>
-            <Input
-              value={revisionValue}
-              onChange={(e) => setRevisionValue(e.target.value.toUpperCase())}
-              placeholder="e.g., A, B, J"
-              maxLength={5}
-              className="mt-2 font-mono text-lg"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && revisionValue.trim()) {
-                  handleSaveRevision();
-                }
-              }}
-            />
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Revision Letter</Label>
+              <Input
+                value={revisionValue}
+                onChange={(e) => setRevisionValue(e.target.value.toUpperCase())}
+                placeholder="e.g., A, B, J"
+                maxLength={5}
+                className="mt-2 font-mono text-lg"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label>Notes (optional)</Label>
+              <Input
+                value={revisionNotes}
+                onChange={(e) => setRevisionNotes(e.target.value)}
+                placeholder="e.g., Updated floor plan dimensions"
+                className="mt-2"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && revisionValue.trim()) {
+                    handleSaveRevision();
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Describe what changed in this revision
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRevisionDialog(false)}>

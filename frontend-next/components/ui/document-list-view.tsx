@@ -43,6 +43,7 @@ export interface RevisionHistoryItem {
   label: string;       // "Rev A", "Rev J"
   date: string | null;  // e.g. "2026-02-18"
   by: string | null;    // Who made the change
+  notes: string | null; // User notes or AI summary of changes
   isCurrent: boolean;
   hasFile: boolean;
 }
@@ -511,6 +512,32 @@ export function DocumentListView<T extends DocumentItem>({
     }
   };
 
+  // Toggle revision history expansion for a document
+  const toggleRevisionHistory = useCallback(async (doc: T) => {
+    const docId = getDocumentId(doc);
+    if (expandedDocId === docId) {
+      setExpandedDocId(null);
+      return;
+    }
+    setExpandedDocId(docId);
+    if (!revisionCache[docId] && fetchRevisions) {
+      setRevisionLoading(docId);
+      try {
+        const revisions = await fetchRevisions(doc);
+        setRevisionCache(prev => ({ ...prev, [docId]: revisions }));
+      } catch (err) {
+        console.error("Error fetching revisions:", err);
+      } finally {
+        setRevisionLoading(null);
+      }
+    }
+  }, [expandedDocId, revisionCache, fetchRevisions, getDocumentId]);
+
+  // Remeasure virtualiser rows when expansion state changes
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [expandedDocId, revisionCache, rowVirtualizer]);
+
   // Reprocess handler
   const handleReprocess = async () => {
     if (!selectedDocument || !onReprocess) return;
@@ -602,6 +629,9 @@ export function DocumentListView<T extends DocumentItem>({
               const isSelected = selectedDocument
                 ? getDocumentId(selectedDocument) === id
                 : false;
+              const isExpanded = expandedDocId === id;
+              const revisions = revisionCache[id];
+              const isLoadingRevisions = revisionLoading === id;
 
               return (
                 <div
@@ -610,38 +640,113 @@ export function DocumentListView<T extends DocumentItem>({
                   data-index={virtualRow.index}
                   ref={rowVirtualizer.measureElement}
                   className={cn(
-                    "absolute top-0 left-0 w-full flex items-center gap-2 px-3 py-2 border-b cursor-pointer hover:bg-muted/50 transition-colors",
+                    "absolute top-0 left-0 w-full border-b",
                     isSelected && "bg-muted",
                     isInDragRange(id) && "bg-blue-100 dark:bg-blue-900/30"
                   )}
                   style={{
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
-                  onClick={() => setSelectedDocument(doc)}
                 >
-                  {enableSelection && (
-                    <div
-                      className="flex items-center justify-center p-1 -m-1 select-none"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        handleSelectMouseDown(id, e);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Checkbox
-                        checked={selectedIds.includes(id)}
-                        className="pointer-events-none"
-                      />
+                  {/* Document row */}
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors",
+                    )}
+                    onClick={() => setSelectedDocument(doc)}
+                  >
+                    {enableSelection && (
+                      <div
+                        className="flex items-center justify-center p-1 -m-1 select-none"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          handleSelectMouseDown(id, e);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Checkbox
+                          checked={selectedIds.includes(id)}
+                          className="pointer-events-none"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{name}</p>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{name}</p>
+                    {revision && fetchRevisions && (
+                      <button
+                        className="shrink-0 flex items-center gap-0.5 hover:opacity-70 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleRevisionHistory(doc);
+                        }}
+                      >
+                        <Badge variant="outline" className="text-xs font-mono px-1.5 py-0">
+                          {revision}
+                        </Badge>
+                        {isExpanded
+                          ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                          : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                        }
+                      </button>
+                    )}
+                    {revision && !fetchRevisions && (
+                      <Badge variant="outline" className="shrink-0 text-xs font-mono px-1.5 py-0">
+                        {revision}
+                      </Badge>
+                    )}
                   </div>
-                  {revision && (
-                    <Badge variant="outline" className="shrink-0 text-xs font-mono px-1.5 py-0">
-                      {revision}
-                    </Badge>
+
+                  {/* Revision history sub-rows */}
+                  {isExpanded && (
+                    <div className="bg-muted/20 border-t">
+                      {isLoadingRevisions && (
+                        <div className="flex items-center gap-2 px-6 py-1.5">
+                          <Spinner size={12} />
+                          <span className="text-xs text-muted-foreground">Loading history...</span>
+                        </div>
+                      )}
+                      {revisions?.map((rev) => (
+                        <div
+                          key={rev.id}
+                          className={cn(
+                            "flex items-start gap-2 px-6 py-1.5 text-xs cursor-pointer hover:bg-muted/50 transition-colors",
+                            rev.isCurrent && "bg-primary/5"
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRevisionClick?.(doc, rev);
+                          }}
+                        >
+                          <Badge
+                            variant={rev.isCurrent ? "default" : "outline"}
+                            className="shrink-0 text-[10px] font-mono px-1 py-0"
+                          >
+                            {rev.label}
+                          </Badge>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              {rev.date && (
+                                <span>{new Date(rev.date).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}</span>
+                              )}
+                              {rev.by && (
+                                <>
+                                  <span className="text-muted-foreground/50">&middot;</span>
+                                  <span className="truncate">{rev.by}</span>
+                                </>
+                              )}
+                            </div>
+                            {rev.notes && (
+                              <p className="text-muted-foreground/70 truncate mt-0.5">{rev.notes}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {revisions && revisions.length === 0 && (
+                        <div className="px-6 py-1.5 text-xs text-muted-foreground">No revision history</div>
+                      )}
+                    </div>
                   )}
                 </div>
               );
