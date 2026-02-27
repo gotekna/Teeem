@@ -193,7 +193,7 @@ module Api
         end
       end
 
-      # SSoT: Uses WarehouseDocumentCreator standard service
+      # SSoT: Uses WarehouseDocumentCreator.create_or_version! for auto-versioning
       def create_corporate_document(key, filename, content_type, file_size, metadata, provider)
         # Get company from metadata or current user's default
         company_id = metadata[:company_id] || metadata["company_id"]
@@ -203,7 +203,7 @@ module Api
         # Move to permanent location with content-hash deduplication
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
-        doc = WarehouseDocumentCreator.create!(
+        doc = WarehouseDocumentCreator.create_or_version!(
           filename: filename,
           source_type: "corporate",
           linkable: company,
@@ -218,7 +218,7 @@ module Api
           user: current_user
         )
 
-        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
+        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name, versionLetter: doc.version_letter } }
       end
 
       def create_user_document(key, filename, content_type, file_size, metadata, provider)
@@ -238,7 +238,7 @@ module Api
         { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.ui_name } }
       end
 
-      # SSoT: Uses WarehouseDocumentCreator standard service
+      # SSoT: Uses WarehouseDocumentCreator.create_or_version! for auto-versioning
       def create_job_document(key, filename, content_type, file_size, metadata, provider)
         job_id = metadata[:job_id] || metadata["job_id"]
         job = Job.find_by(id: job_id)
@@ -246,7 +246,7 @@ module Api
 
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
-        doc = WarehouseDocumentCreator.create!(
+        doc = WarehouseDocumentCreator.create_or_version!(
           filename: filename,
           source_type: "job",
           linkable: job,
@@ -261,9 +261,11 @@ module Api
           user: current_user
         )
 
-        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
+        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name, versionLetter: doc.version_letter } }
       end
 
+      # SSoT: Uses WarehouseDocumentCreator.create_or_version! for auto-versioning
+      # Replaces inline version detection that was duplicated here
       def create_library_document(key, filename, content_type, file_size, metadata, provider)
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
@@ -274,44 +276,23 @@ module Api
         raw_expiry = metadata[:expiry_date] || metadata["expiry_date"]
         parsed_expiry = raw_expiry.present? ? Date.parse(raw_expiry.to_s) : nil rescue nil
 
-        # Version detection: check for existing doc with same filename in same folder
-        existing = WarehouseDocument.where(
-          original_filename: filename,
-          warehouse_folder_id: wf_id,
+        doc = WarehouseDocumentCreator.create_or_version!(
+          filename: filename,
           source_type: "library",
-          is_latest_version: true
-        ).first if wf_id.present?
+          storage_blob: blob,
+          file_size: file_size,
+          content_type: content_type,
+          warehouse_folder_id: wf_id,
+          folder_path: f_path,
+          expiry_date: parsed_expiry,
+          metadata: {
+            "document_type" => metadata[:document_type] || metadata["document_type"] || "library",
+            "source" => "manual"
+          },
+          user: current_user
+        )
 
-        if existing
-          # Create new version of existing document
-          doc = existing.create_new_version(
-            blob: blob,
-            file_size: file_size,
-            content_type: content_type,
-            original_filename: filename,
-            warehouse_folder_id: wf_id,
-            folder_path: f_path,
-            expiry_date: parsed_expiry
-          )
-        else
-          doc = WarehouseDocumentCreator.create!(
-            filename: filename,
-            source_type: "library",
-            storage_blob: blob,
-            file_size: file_size,
-            content_type: content_type,
-            warehouse_folder_id: wf_id,
-            folder_path: f_path,
-            expiry_date: parsed_expiry,
-            metadata: {
-              "document_type" => metadata[:document_type] || metadata["document_type"] || "library",
-              "source" => "manual"
-            },
-            user: current_user
-          )
-        end
-
-        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
+        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name, versionLetter: doc.version_letter } }
       end
 
       def find_or_create_blob(temp_key, filename, content_type, file_size, provider)

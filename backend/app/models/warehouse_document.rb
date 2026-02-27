@@ -349,6 +349,33 @@ class WarehouseDocument < ApplicationRecord
   # Phase 6: Version Tracking
   # ========================================
 
+  # Convert version number (1-based) to letter: 1=A, 2=B, 26=Z, 27=AA, 28=AB...
+  def self.number_to_letter(n)
+    return "A" if n.nil? || n < 1
+
+    result = ""
+    while n > 0
+      n -= 1
+      result = (65 + (n % 26)).chr + result
+      n /= 26
+    end
+    result
+  end
+
+  # Convert version letter to number: A=1, B=2, Z=26, AA=27, AB=28...
+  def self.letter_to_number(letter)
+    return 1 if letter.blank?
+
+    letter.upcase.chars.reduce(0) { |sum, c| sum * 26 + (c.ord - 64) }
+  end
+
+  # Get next version letter: A->B, Z->AA, AZ->BA
+  def self.next_letter(current)
+    return "A" if current.blank?
+
+    number_to_letter(letter_to_number(current) + 1)
+  end
+
   # Get all versions of this document (including self)
   def versions
     return WarehouseDocument.none unless version_group_id.present?
@@ -374,15 +401,19 @@ class WarehouseDocument < ApplicationRecord
 
   # Create a new version of this document
   # @param blob [StorageBlob] The storage blob for the new version
+  # @param version_letter [String, nil] Explicit version letter (for AI-detected plan revisions)
   # @param attributes [Hash] Additional attributes for the new version
   # @return [WarehouseDocument] The newly created version
-  def create_new_version(blob:, **attributes)
+  def create_new_version(blob:, version_letter: nil, **attributes)
     # Ensure we have a version group
     group_id = version_group_id || SecureRandom.uuid
     update!(version_group_id: group_id, is_latest_version: false) if version_group_id.nil?
 
     # Mark all existing versions as not latest
     versions.update_all(is_latest_version: false)
+
+    next_number = (versions.maximum(:version_number) || 0) + 1
+    next_letter = version_letter || self.class.number_to_letter(next_number)
 
     # Inherit folder/type fields from current version (overridable via attributes)
     inherited = {
@@ -398,7 +429,8 @@ class WarehouseDocument < ApplicationRecord
       storage_blob: blob,
       parent_document: self,
       version_group_id: group_id,
-      version_number: (versions.maximum(:version_number) || 0) + 1,
+      version_number: next_number,
+      version_letter: next_letter,
       is_latest_version: true,
       tenant_id: tenant_id,
       linkable: linkable,

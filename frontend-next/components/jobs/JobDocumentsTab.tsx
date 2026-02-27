@@ -173,6 +173,7 @@ interface LegacyItem {
   // Version chain fields (Draft/Signed versioning)
   version_status?: "draft" | "signed" | "superseded";
   version_number?: number;
+  version_letter?: string; // Version letter (A, B, C... AA, AB...)
   parent_document_id?: number | null;
   is_versionable?: boolean;
   has_signed_version?: boolean;
@@ -182,6 +183,7 @@ interface LegacyItem {
     id: number;
     version_status: string;
     version_number: number;
+    version_letter?: string;
     file_name: string;
   }>;
 }
@@ -2408,8 +2410,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                     <div className="w-5" /> // Spacer for alignment
                                   )}
                                   <File className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-                                  <div className="min-w-0">
+                                  <div className="min-w-0 flex items-center gap-1.5">
                                     <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
+                                    {item.version_letter && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-mono shrink-0">
+                                        {item.version_letter}
+                                      </Badge>
+                                    )}
                                     {item.original_name && item.name !== item.original_name && (
                                       <span className="text-xs text-muted-foreground line-through block">{item.original_name}</span>
                                     )}

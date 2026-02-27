@@ -130,6 +130,7 @@ class WarehouseDocumentCreator
       file_size: file_size || storage_blob&.file_size,
       content_type: content_type || storage_blob&.content_type,
       parent_document: parent_document,
+      version_letter: "A",
       metadata: doc_metadata
     }
     attrs[:folder_path] = folder_path if folder_path.present?
@@ -232,11 +233,104 @@ class WarehouseDocumentCreator
     end
   end
 
+  # Create a new WarehouseDocument, or create a new version if a document with the
+  # same filename already exists in the same context (folder + linkable + source_type).
+  #
+  # SSoT for version detection across ALL upload paths. This is THE ONE method
+  # that decides whether an upload is a new document or a new version.
+  #
+  # @param filename [String] Required. The original filename.
+  # @param source_type [String] Required. e.g., "job", "corporate", "library"
+  # @param version_letter [String, nil] Explicit version letter (for AI-detected plan revisions)
+  # @param linkable [ActiveRecord::Base, nil] Job, Contact, Corporate, etc.
+  # @param warehouse_folder_id [Integer, nil] WarehouseFolder ID
+  # @param storage_blob [StorageBlob, nil] Pre-created blob
+  # @param (remaining params same as create!)
+  #
+  # @return [WarehouseDocument] The created or versioned document
+  #
+  def self.create_or_version!(
+    filename:,
+    source_type:,
+    version_letter: nil,
+    linkable: nil,
+    storage_blob: nil,
+    warehouse_folder_id: nil,
+    warehouse_folder_document_type_id: nil,
+    file_size: nil,
+    content_type: nil,
+    metadata: {},
+    user: nil,
+    expiry_date: nil,
+    folder_path: nil
+  )
+    existing = find_existing_for_versioning(filename, source_type, linkable, warehouse_folder_id)
+
+    if existing
+      # Create new version of existing document
+      next_letter = version_letter || WarehouseDocument.next_letter(existing.version_letter)
+
+      existing.create_new_version(
+        blob: storage_blob,
+        version_letter: next_letter,
+        file_size: file_size || storage_blob&.file_size,
+        content_type: content_type || storage_blob&.content_type,
+        original_filename: filename,
+        warehouse_folder_id: warehouse_folder_id || existing.warehouse_folder_id,
+        expiry_date: expiry_date
+      )
+    else
+      # First upload — version A (or explicit letter for plans)
+      create!(
+        filename: filename,
+        source_type: source_type,
+        linkable: linkable,
+        storage_blob: storage_blob,
+        warehouse_folder_id: warehouse_folder_id,
+        warehouse_folder_document_type_id: warehouse_folder_document_type_id,
+        file_size: file_size,
+        content_type: content_type,
+        metadata: metadata,
+        user: user,
+        folder_path: folder_path,
+        expiry_date: expiry_date
+      )
+    end
+  end
+
   # ════════════════════════════════════════════════════════════════════
   # Private helpers
   # ════════════════════════════════════════════════════════════════════
 
   private
+
+  # Find an existing latest-version document with the same filename in the same context.
+  # Match criteria: original_filename + warehouse_folder_id + linkable + source_type + is_latest_version
+  #
+  # @param filename [String] The original filename
+  # @param source_type [String] Document source type
+  # @param linkable [ActiveRecord::Base, nil] Job, Contact, etc.
+  # @param warehouse_folder_id [Integer, nil] WarehouseFolder ID
+  # @return [WarehouseDocument, nil]
+  def self.find_existing_for_versioning(filename, source_type, linkable, warehouse_folder_id)
+    scope = WarehouseDocument.where(
+      original_filename: filename,
+      source_type: source_type,
+      is_latest_version: true
+    )
+
+    if linkable
+      scope = scope.where(linkable_type: linkable.class.name, linkable_id: linkable.id)
+    else
+      scope = scope.where(linkable_type: nil)
+    end
+
+    if warehouse_folder_id.present?
+      scope = scope.where(warehouse_folder_id: warehouse_folder_id)
+    end
+
+    scope.first
+  end
 
   # Look up the primary WarehouseFolderDocumentType from a WarehouseFolder ID.
   # This is THE ONE way to get the document type configuration for an upload.

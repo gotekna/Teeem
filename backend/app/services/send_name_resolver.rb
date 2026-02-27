@@ -201,6 +201,7 @@ class SendNameResolver
     context[:ui_name] = warehouse_document.ui_name
     context[:original_filename] = warehouse_document.original_filename
     context[:folder] = warehouse_document.folder_path
+    context[:version_letter] = warehouse_document.version_letter
 
     # SSoT (Feb 2026): Extract tokens from linkable (photos link to Job directly)
     linkable = warehouse_document.linkable
@@ -447,12 +448,24 @@ class SendNameResolver
          .strip
   end
 
-  # Full sanitization + extension handling
+  # Full sanitization + extension handling + version suffix
   def sanitize_and_ensure_extension(name, source)
     name = full_sanitize(name)
     name = truncate_filename(name)
     name = ensure_extension(name, source)
+    name = append_version_suffix(name, source)
     name
+  end
+
+  # Append version letter suffix before extension: "Floor Plan.pdf" → "Floor Plan-A.pdf"
+  # Only applies to WarehouseDocuments with a version_letter set.
+  def append_version_suffix(name, source)
+    return name unless source.is_a?(WarehouseDocument)
+    return name unless source.version_letter.present?
+
+    ext = File.extname(name)
+    base = File.basename(name, ext)
+    "#{base}-#{source.version_letter}#{ext}"
   end
 
   # Full sanitization for 100% accurate filenames

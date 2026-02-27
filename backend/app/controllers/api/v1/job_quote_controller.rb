@@ -215,24 +215,58 @@ module Api
       #
       # When document_type_ids[] is provided, returns documents grouped by document type ID.
       # Types with no matching files return empty arrays.
+      #
+      # Matching strategy (in order):
+      #   1. WFDT link: warehouse_folder_document_type → document_type_id
+      #   2. Filename match: original_filename ILIKE '%DocumentTypeName%'
+      # This handles both classified docs and bulk-imported docs without WFDT.
       def rfq_documents
-        documents = WarehouseDocument.where(
-          documentable_type: 'Job',
-          documentable_id: @job.id
-        ).includes(:storage_blob, :warehouse_folder_document_type)
-         .where.not(storage_blobs: { id: nil })
-         .order(:ui_name)
+        # Query both documentable and linkable (docs use either depending on creation path)
+        documents = WarehouseDocument
+          .where(
+            "((documentable_type = 'Job' AND documentable_id = :jid) OR (linkable_type = 'Job' AND linkable_id = :jid))",
+            jid: @job.id
+          )
+          .includes(:storage_blob, :warehouse_folder_document_type)
+          .where.not(storage_blobs: { id: nil })
+          .order(:ui_name)
 
         if params[:document_type_ids].present?
           type_ids = Array(params[:document_type_ids]).map(&:to_i)
-          wfdt_ids = WarehouseFolderDocumentType.where(document_type_id: type_ids).pluck(:id)
-          matched = documents.where(warehouse_folder_document_type_id: wfdt_ids)
+          doc_types = DocumentType.where(id: type_ids).index_by(&:id)
+
+          # Pre-fetch WFDT mappings
+          wfdt_map = WarehouseFolderDocumentType
+            .where(document_type_id: type_ids)
+            .pluck(:id, :document_type_id)
+            .to_h  # { wfdt_id => document_type_id }
 
           by_type = {}
           type_ids.each { |tid| by_type[tid] = [] }
-          matched.each do |doc|
-            dt_id = doc.warehouse_folder_document_type&.document_type_id
-            by_type[dt_id] << rfq_doc_json(doc) if dt_id && by_type.key?(dt_id)
+
+          # Load all docs once (these are already job-scoped, typically <200)
+          all_docs = documents.to_a
+
+          all_docs.each do |doc|
+            # Strategy 1: Match via WFDT link
+            if doc.warehouse_folder_document_type_id && wfdt_map[doc.warehouse_folder_document_type_id]
+              dt_id = wfdt_map[doc.warehouse_folder_document_type_id]
+              by_type[dt_id] << rfq_doc_json(doc) if by_type.key?(dt_id)
+              next
+            end
+
+            # Strategy 2: Match original_filename against document type names
+            fname = (doc.original_filename || doc.ui_name || '').downcase
+            next if fname.blank?
+
+            type_ids.each do |tid|
+              dt_name = doc_types[tid]&.name
+              next unless dt_name
+              if fname.include?(dt_name.downcase)
+                by_type[tid] << rfq_doc_json(doc)
+                break  # One doc → one type (first match wins)
+              end
+            end
           end
 
           render json: { success: true, data: by_type }
