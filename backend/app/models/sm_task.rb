@@ -15,6 +15,20 @@ class SmTask < ApplicationRecord
 
   self.table_name = "sm_tasks"
 
+  # Safe belongs_to associations for Foundation API eager loading
+  # Prevents duplicate rows from has_many JOINs (task_photos, comments, etc.)
+  # Used by records_controller#apply_eager_loading
+  def self.safe_eager_load_associations
+    [
+      :job, :sm_schedule_master, :tender, :parent_task,
+      :sm_stage_ref, :sm_trade_ref, :cost_centre_ref,
+      :assigned_user, :supplier, :po_supplier, :checklist,
+      :warehouse_folder, :hold_reason, :created_by, :updated_by,
+      :start_workflow, :complete_workflow, :completion_document_type,
+      :case_record, :saas_customer
+    ]
+  end
+
   # Virtual attribute for delegation response (set in controller, used in callback)
   attr_accessor :delegation_response
 

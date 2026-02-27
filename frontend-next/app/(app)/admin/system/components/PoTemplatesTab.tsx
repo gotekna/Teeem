@@ -168,7 +168,7 @@ export function PoTemplatesTab() {
     if (lookupsLoaded) return;
     try {
       const [smRes, contactsRes, pcRes] = await Promise.all([
-        api.get<{ success: boolean; data: { records: Array<{ id: number; name: string }> } }>(
+        api.get<{ success: boolean; records: Array<{ id: number; name: string }> }>(
           "/api/v1/foundations/sm-schedule-master/records?per_page=500"
         ),
         api.get<{ success: boolean; data: Array<{ id: number; display_name: string }> }>(
@@ -179,7 +179,7 @@ export function PoTemplatesTab() {
         ),
       ]);
       setSmMasterRows(
-        (smRes?.data?.records || []).map((r) => ({ id: r.id, name: r.name }))
+        (smRes?.records || []).map((r) => ({ id: r.id, name: r.name }))
       );
       setSuppliers(
         (contactsRes?.data || []).map((c) => ({ id: c.id, displayName: c.display_name }))
