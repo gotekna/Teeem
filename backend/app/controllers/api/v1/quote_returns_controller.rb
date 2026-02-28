@@ -361,8 +361,10 @@ module Api
 
       # Lightweight CC line context for allocation UI (no supplier arrays)
       def build_parent_line_context(cc_line, cqs = nil)
-        # Find existing POs for each child line from ANY supplier's allocations
-        children_ids = cc_line.children.pluck(:id)
+        children = cc_line.children.order(:position)
+        children_ids = children.map(&:id)
+
+        # Strategy 1: Find POs via allocations (CC-level accept flow)
         po_by_line = {}
         if children_ids.any?
           CustomQuoteAllocation
@@ -370,8 +372,19 @@ module Api
             .where.not(purchase_order_id: nil)
             .includes(purchase_order: [:quote_warehouse_document, :purchase_order_documents])
             .each do |alloc|
-              # Keep first PO found per line (there should only be one)
               po_by_line[alloc.custom_quote_line_id] ||= alloc.purchase_order
+            end
+        end
+
+        # Strategy 2: Find POs via sm_task_id match (fallback for POs created outside allocation flow)
+        task_ids = children.filter_map(&:sm_task_id)
+        po_by_task = {}
+        if task_ids.any?
+          PurchaseOrder
+            .where(sm_task_id: task_ids)
+            .includes(:quote_warehouse_document, :purchase_order_documents)
+            .each do |po|
+              po_by_task[po.sm_task_id] ||= po
             end
         end
 
@@ -381,8 +394,8 @@ module Api
           quoteLevel: cc_line.quote_level,
           tenderDescription: cc_line.tender_description,
           budgetAmount: cc_line.budget_amount&.to_f,
-          children: cc_line.children.order(:position).map { |child|
-            po = po_by_line[child.id]
+          children: children.map { |child|
+            po = po_by_line[child.id] || (child.sm_task_id ? po_by_task[child.sm_task_id] : nil)
             child_data = {
               id: child.id,
               name: child.name,
