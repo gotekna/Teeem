@@ -2675,6 +2675,7 @@ module Api
           verifiedAt: wd.metadata&.dig("verified_at"),
           # Version tracking
           versionNumber: wd.version_number || 1,
+          versionLetter: wd.version_letter || "A",
           versionGroupId: wd.version_group_id,
           versionCount: wd.version_group_id ? (version_counts[wd.version_group_id] || 1) : 1,
           # Expiry date

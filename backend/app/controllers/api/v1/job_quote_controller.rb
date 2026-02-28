@@ -400,8 +400,8 @@ module Api
           folder: doc.folder_path,
           contentType: doc.storage_blob&.content_type,
           size: doc.storage_blob&.file_size,
-          versionLetter: doc.version_letter,
-          versionNumber: doc.version_number
+          versionLetter: doc.version_letter || "A",
+          versionNumber: doc.version_number || 1
         }
       end
 

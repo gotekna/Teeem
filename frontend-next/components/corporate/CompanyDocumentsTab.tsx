@@ -39,6 +39,10 @@ interface CompanyDocument {
   document_date?: string;
   created_at?: string;
   file_url?: string;
+  version_letter?: string;
+  version_number?: number;
+  version_group_id?: string;
+  version_count?: number;
   user_validated_at?: string;
   ai_verification_status?: "pending" | "processing" | "verified" | "mismatch" | "error";
   ai_suggested_name?: string;
@@ -91,9 +95,10 @@ function mapToLibraryDocument(doc: CompanyDocument): LibraryDocument {
     verified: !!(doc.user_validated_at || doc.ai_verification_status === "verified"),
     verifiedBy: doc.user_validated_by_name || null,
     verifiedAt: doc.user_validated_at || null,
-    versionNumber: 1,
-    versionGroupId: null,
-    versionCount: 1,
+    versionNumber: doc.version_number || 1,
+    versionLetter: doc.version_letter || "A",
+    versionGroupId: doc.version_group_id || null,
+    versionCount: doc.version_count || 1,
     expiryDate: null,
     isExpired: false,
     isExpiringSoon: false,

@@ -80,6 +80,7 @@ export interface LibraryDocument {
   verifiedBy: string | null;
   verifiedAt: string | null;
   versionNumber: number;
+  versionLetter: string | null;
   versionGroupId: string | null;
   versionCount: number;
   expiryDate: string | null;
@@ -213,9 +214,9 @@ function SortableDocumentRow({
       <p className="text-sm font-medium truncate flex-1 min-w-0 text-left">
         {doc.displayName || doc.originalFilename || `Document ${doc.id}`}
       </p>
-      {showVersionBadge && doc.versionCount > 1 && (
+      {showVersionBadge && (doc.versionLetter || doc.versionCount > 1) && (
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
-          v{doc.versionNumber}
+          Rev {doc.versionLetter || doc.versionNumber}
         </Badge>
       )}
       {showExpiryBadge && doc.expiryDate && (
@@ -241,7 +242,7 @@ function SortableDocumentRow({
         {doc.fileSize > 0 && <span>{formatFileSize(doc.fileSize)}</span>}
         {doc.createdAt && <span>{formatDate(doc.createdAt)}</span>}
         {showVersionBadge && doc.versionCount > 1 && (
-          <span className="inline-flex items-center gap-1">
+          <span className="inline-flex items-center gap-1" title={`${doc.versionCount} versions`}>
             <History className="h-3 w-3" />
             {doc.versionCount}
           </span>
@@ -637,9 +638,9 @@ export function StandardDocumentList({
                     <p className="text-sm font-medium truncate">
                       {previewDoc.displayName || previewDoc.originalFilename}
                     </p>
-                    {showVersionBadge && previewDoc.versionCount > 1 && (
+                    {showVersionBadge && (previewDoc.versionLetter || previewDoc.versionCount > 1) && (
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
-                        v{previewDoc.versionNumber}
+                        Rev {previewDoc.versionLetter || previewDoc.versionNumber}
                       </Badge>
                     )}
                   </div>
@@ -801,7 +802,7 @@ export function StandardDocumentList({
                               variant={isCurrent ? "default" : "secondary"}
                               className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold"
                             >
-                              v{ver.versionNumber}
+                              Rev {ver.versionLetter || ver.versionNumber}
                             </Badge>
                             <span className="truncate flex-1">
                               {ver.originalFilename || ver.displayName}

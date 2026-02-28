@@ -50,8 +50,18 @@ module Api
         companies_by_id = Corporate.where(id: company_ids).index_by(&:id) if company_ids.any?
         companies_by_id ||= {}
 
+        # Preload version counts for documents that have version groups
+        version_group_ids = docs.filter_map(&:version_group_id).uniq
+        version_counts = if version_group_ids.any?
+          WarehouseDocument.where(version_group_id: version_group_ids)
+            .group(:version_group_id).count
+        else
+          {}
+        end
+
         documents = docs.map do |doc|
           company = companies_by_id[doc.metadata&.dig("company_id")&.to_i]
+          vc = doc.version_group_id ? (version_counts[doc.version_group_id] || 1) : 1
 
           {
             id: doc.id,
@@ -68,6 +78,10 @@ module Api
             document_date: doc.metadata&.dig("document_date"),
             financial_years: doc.metadata&.dig("financial_years"),
             file_url: "/api/v1/company_documents/#{doc.id}/download",
+            version_letter: doc.version_letter || "A",
+            version_number: doc.version_number || 1,
+            version_group_id: doc.version_group_id,
+            version_count: vc,
             company_id: company&.id,
             company: company ? { id: company.id, name: company.name, code: company.company_code } : nil,
             ai_verification_status: doc.metadata&.dig("ai_verification_status"),

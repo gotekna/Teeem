@@ -49,6 +49,8 @@ interface RfqDocument {
   folder: string | null;
   contentType: string | null;
   size: number | null;
+  versionLetter: string | null;
+  versionNumber: number | null;
 }
 
 interface EmailPreview {
@@ -368,6 +370,9 @@ export function SendRFQDialog({
                       />
                       <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <span className="text-sm truncate flex-1">{doc.name}</span>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
+                        Rev {doc.versionLetter || "A"}
+                      </Badge>
                       {doc.size && (
                         <span className="text-xs text-muted-foreground shrink-0">
                           {(doc.size / 1024).toFixed(0)}KB
