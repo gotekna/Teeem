@@ -73,7 +73,9 @@ class BpmnProcessInstance < ApplicationRecord
   end
 
   # Variable management
-  alias_method :process_variables, :variables
+  def process_variables
+    variables
+  end
 
   def get_variable(key)
     variables&.dig(key.to_s)
