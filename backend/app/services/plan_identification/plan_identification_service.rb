@@ -107,6 +107,7 @@ module PlanIdentification
         sheet_name: sheet_info[:name],
         sheet_date: sheet_info[:date],
         sheet_issue: sheet_info[:issue],
+        revision_letter: sheet_info[:revision_letter],
         match_reason: pipeline_result[:method],
         ai_invoked: pipeline_result[:ai].present?,
         log_id: pipeline_result[:log_id]
@@ -157,6 +158,7 @@ module PlanIdentification
         sheet_name: ai_result.sheet_name,
         sheet_date: ai_result.sheet_date,
         sheet_issue: ai_result.sheet_issue,
+        revision_letter: ai_result.revision_letter,
         match_reason: pattern_result.reason,
         ai_invoked: true
       )

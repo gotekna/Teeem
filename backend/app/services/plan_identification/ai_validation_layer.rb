@@ -17,7 +17,7 @@ module PlanIdentification
 
     class ExtractionResult
       attr_accessor :sheet_number, :sheet_name, :sheet_date, :sheet_issue,
-                    :plan_type, :confidence, :reasoning
+                    :revision_letter, :plan_type, :confidence, :reasoning
 
       def initialize(attrs = {})
         attrs.each do |key, value|
@@ -36,6 +36,7 @@ module PlanIdentification
           sheet_name: sheet_name,
           sheet_date: sheet_date,
           sheet_issue: sheet_issue,
+          revision_letter: revision_letter,
           plan_type_id: plan_type&.id,
           confidence: confidence,
           reasoning: reasoning
@@ -189,6 +190,7 @@ module PlanIdentification
           "sheet_name": "The drawing type/title (e.g., 'Perspective', 'Ground Floor Plan', 'Elevation 1')",
           "sheet_date": "The date on the drawing (e.g., '15/12/2025')",
           "sheet_issue": "The issue/revision status (e.g., 'Working Drawings', 'For Construction', 'Contract Drawings')",
+          "revision_letter": "The revision/version letter (e.g., 'A', 'B', 'C', 'J', '1', '2')",
           "suggested_plan_type": "Best match from this list: #{plan_type_list}",
           "confidence": 85,
           "reasoning": "Brief explanation of why you chose this plan type"
@@ -200,6 +202,10 @@ module PlanIdentification
         - sheet_number: Just the number/code (e.g., "01", "03a", "A3", "101-KIT")
         - sheet_date: Look for "Date:" field
         - sheet_issue: Look for "Issue:" field (e.g., "Working Drawings", "Contract Drawings", "For Construction")
+        - revision_letter: Look for "Rev", "Revision", "Rev.", "REV" followed by a letter or number.
+          Common locations: title block revision field, revision triangle/cloud, bottom-right corner.
+          Return JUST the letter/number (e.g., "A", "J", "2"), not the full text.
+          If revision status says "Preliminary" or "Draft" with no letter, return null.
         - suggested_plan_type: Pick the BEST match from the list provided
         - confidence: 0-100 how confident you are in the plan type match
         - Return null for fields you cannot find
@@ -248,6 +254,7 @@ module PlanIdentification
         sheet_name: response[:sheet_name]&.strip,
         sheet_date: response[:sheet_date]&.strip,
         sheet_issue: response[:sheet_issue]&.strip,
+        revision_letter: response[:revision_letter]&.strip&.upcase,
         plan_type: plan_type,
         confidence: response[:confidence] || 0,
         reasoning: response[:reasoning]

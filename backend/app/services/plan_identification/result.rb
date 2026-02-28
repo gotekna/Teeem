@@ -8,6 +8,7 @@ module PlanIdentification
                   :confidence, :status, :audit_record,
                   :display_name, :short_name,
                   :sheet_number, :sheet_name, :sheet_date, :sheet_issue,
+                  :revision_letter,
                   :match_reason, :ai_invoked, :log_id
 
     def initialize(attrs = {})
@@ -45,6 +46,7 @@ module PlanIdentification
         sheet_name: sheet_name,
         sheet_date: sheet_date,
         sheet_issue: sheet_issue,
+        revision_letter: revision_letter,
         match_reason: match_reason,
         ai_invoked: ai_invoked,
         log_id: log_id

@@ -70,11 +70,21 @@ class PlanAiAnalysisJob < ApplicationJob
         display_name: new_display_name
       )
 
+      # Update revision letter if AI detected one
+      if result.revision_letter.present?
+        current_rev = plan.current_revision
+        if current_rev && current_rev.revision != result.revision_letter
+          Rails.logger.info "[PlanAiAnalysisJob] Updating revision letter: #{current_rev.revision} → #{result.revision_letter}"
+          current_rev.update!(revision: result.revision_letter)
+        end
+      end
+
       tab_name = result.job_plan_tab&.name || "none"
       Rails.logger.info(
         "[PlanAiAnalysisJob] Updated plan #{job_plan_id}: #{new_display_name} " \
         "(type: #{result.plan_type&.name || 'none'}, tab: #{tab_name}, " \
-        "variant: #{variant_suffix || 'none'}, confidence: #{result.confidence}%)"
+        "variant: #{variant_suffix || 'none'}, confidence: #{result.confidence}%, " \
+        "revision: #{result.revision_letter || 'not detected'})"
       )
 
       # Record identification for audit trail

@@ -141,7 +141,8 @@ class AiProcessingPipeline
       sheet_number: result.sheet_number,
       sheet_name: result.sheet_name,
       sheet_date: result.sheet_date,
-      sheet_issue: result.sheet_issue
+      sheet_issue: result.sheet_issue,
+      revision_letter: result.revision_letter
     }
   end
 
@@ -231,7 +232,8 @@ class AiProcessingPipeline
           number: ai_result[:sheet_number],
           name: ai_result[:sheet_name],
           date: ai_result[:sheet_date],
-          issue: ai_result[:sheet_issue]
+          issue: ai_result[:sheet_issue],
+          revision_letter: ai_result[:revision_letter]
         },
         duration_ms: @log.ai_duration_ms
       } : nil,
