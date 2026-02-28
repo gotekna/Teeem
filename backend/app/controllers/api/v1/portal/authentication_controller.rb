@@ -2,7 +2,7 @@ module Api
   module V1
     module Portal
       class AuthenticationController < ApplicationController
-        skip_before_action :authorize_request, only: [ :login, :signup, :forgot_password, :reset_password ]
+        skip_before_action :authorize_request, only: [ :login, :signup, :forgot_password, :reset_password, :me ]
 
         # POST /api/v1/portal/auth/login
         def login

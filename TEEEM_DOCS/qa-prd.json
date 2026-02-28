@@ -2310,7 +2310,7 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 9,
+          "iteration": 18,
           "note": "redirects to /portal/view/setup"
         },
         "/portal/login": {
@@ -2318,14 +2318,14 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 9
+          "iteration": 18
         },
         "/portal/dashboard": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 9,
+          "iteration": 18,
           "note": "redirects to login"
         },
         "/portal/jobs": {
@@ -2333,7 +2333,7 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 9,
+          "iteration": 18,
           "note": "redirects to login"
         },
         "/portal/invoices": {
@@ -2341,7 +2341,7 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 9,
+          "iteration": 18,
           "note": "redirects to login"
         },
         "/portal/quotes": {
@@ -2349,7 +2349,7 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 9,
+          "iteration": 18,
           "note": "redirects to login"
         },
         "/portal/schedule": {
@@ -2357,7 +2357,7 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 9,
+          "iteration": 18,
           "note": "redirects to login"
         },
         "/portal/settings": {
@@ -2365,7 +2365,7 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 9,
+          "iteration": 18,
           "note": "redirects to login"
         }
       }

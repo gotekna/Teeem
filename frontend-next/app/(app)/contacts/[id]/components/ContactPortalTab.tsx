@@ -38,12 +38,12 @@ export function ContactPortalTab({ contact }: ContactPortalTabProps) {
     setOpeningPortal(true);
     setMessage(null);
     try {
-      const response = await api.post(`/api/v1/portal/auth/impersonate/${contact.id}`);
-      if (response?.data?.success && response.data.token) {
+      const response = await api.post<{ success: boolean; token: string; error?: string }>(`/api/v1/portal/auth/impersonate/${contact.id}`);
+      if (response?.success && response.token) {
         // Open portal login page with token param - it will auto-authenticate
-        window.open(`/portal/login?token=${response.data.token}`, "_blank");
+        window.open(`/portal/login?token=${response.token}`, "_blank");
       } else {
-        setMessage({ type: "error", text: response?.data?.error || "Failed to open portal." });
+        setMessage({ type: "error", text: response?.error || "Failed to open portal." });
       }
     } catch (err: any) {
       setMessage({ type: "error", text: err.response?.data?.error || "Failed to open portal. Please try again." });

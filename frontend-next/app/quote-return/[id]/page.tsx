@@ -128,6 +128,7 @@ function QuoteReturnContent() {
   const [createdPOs, setCreatedPOs] = useState<Array<{ id: number; poNumber: string; budget: number | null; status: string }>>([]);
   // PO line allocation state (CC-level only)
   const [allocations, setAllocations] = useState<Record<number, string>>({});
+  const [pctMode, setPctMode] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     const ctx = decodeHash();
@@ -505,28 +506,37 @@ function QuoteReturnContent() {
                             +rest
                           </button>
                         )}
-                        <div className="relative w-28 shrink-0">
+                        <div className="relative w-24 shrink-0">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            {pctMode[child.id] ? "%" : "$"}
+                          </span>
                           <Input
-                            type="text"
+                            type="number"
                             inputMode="decimal"
-                            value={allocations[child.id] || ""}
+                            value={pctMode[child.id] ? (pct > 0 ? String(pct) : "") : (allocations[child.id] || "")}
                             onChange={(e) => {
-                              const raw = e.target.value;
-                              if (raw.endsWith("%")) {
-                                const p = parseFloat(raw.slice(0, -1)) || 0;
+                              const val = e.target.value;
+                              if (pctMode[child.id]) {
+                                const p = parseFloat(val) || 0;
                                 const dollarAmt = Math.round((p / 100) * priceNum * 100) / 100;
                                 setAllocations((prev) => ({ ...prev, [child.id]: dollarAmt > 0 ? String(dollarAmt) : "" }));
                               } else {
-                                setAllocations((prev) => ({ ...prev, [child.id]: raw }));
+                                setAllocations((prev) => ({ ...prev, [child.id]: val }));
                               }
                             }}
-                            className="text-sm h-7 px-2"
-                            placeholder="$0 or 50%"
+                            className="pl-5 text-sm h-7"
+                            placeholder="0"
+                            step={pctMode[child.id] ? "1" : "0.01"}
                           />
                         </div>
-                        <span className="text-xs text-muted-foreground w-8 text-right shrink-0">
-                          {pct}%
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPctMode((prev) => ({ ...prev, [child.id]: !prev[child.id] }))}
+                          className="text-xs w-8 text-right shrink-0 cursor-pointer hover:text-foreground text-muted-foreground"
+                          title={pctMode[child.id] ? "Switch to $" : "Switch to %"}
+                        >
+                          {pctMode[child.id] ? formatCurrency(amt) : `${pct}%`}
+                        </button>
                       </div>
                       {po && (
                         <div className="ml-1 pl-2 border-l-2 border-muted text-[11px] text-muted-foreground space-y-0.5">
