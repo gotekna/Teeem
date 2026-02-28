@@ -505,7 +505,7 @@ function QuoteReturnContent() {
                             +rest
                           </button>
                         )}
-                        <div className="relative w-24 shrink-0">
+                        <div className="relative w-[5.5rem] shrink-0">
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
                           <Input
                             type="number"
@@ -519,9 +519,22 @@ function QuoteReturnContent() {
                             step="0.01"
                           />
                         </div>
-                        <span className="text-xs text-muted-foreground w-8 text-right shrink-0">
-                          {pct}%
-                        </span>
+                        <div className="relative w-14 shrink-0">
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            value={pct > 0 ? String(pct) : ""}
+                            onChange={(e) => {
+                              const p = parseFloat(e.target.value) || 0;
+                              const dollarAmt = Math.round((p / 100) * priceNum * 100) / 100;
+                              setAllocations((prev) => ({ ...prev, [child.id]: dollarAmt > 0 ? String(dollarAmt) : "" }));
+                            }}
+                            className="pr-4 text-sm h-7 text-right px-1"
+                            placeholder="0"
+                            step="1"
+                          />
+                          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                        </div>
                       </div>
                       {po && (
                         <div className="ml-1 pl-2 border-l-2 border-muted text-[11px] text-muted-foreground space-y-0.5">

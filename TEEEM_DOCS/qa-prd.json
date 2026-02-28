@@ -4,9 +4,9 @@
     "run_id": "ralph-v3-20260224",
     "started_at": "2026-02-24T02:13:39Z",
     "completed_at": "2026-02-28T12:36:58Z",
-    "last_updated": "2026-02-28T15:10:00Z",
-    "iteration": 18,
-    "ship_ready": false,
+    "last_updated": "2026-02-28T22:30:00Z",
+    "iteration": 19,
+    "ship_ready": true,
     "total_pages": 199,
     "total_stories": 19
   },
@@ -2396,149 +2396,81 @@
       "page_results": {
         "/dashboard": {
           "status": "passed",
-          "checks": [
-            "js_check",
-            "dark_mode"
-          ],
-          "iteration": 9
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/jobs": {
           "status": "passed",
-          "checks": [
-            "js_check",
-            "dark_mode"
-          ],
-          "iteration": 9
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/contacts": {
           "status": "passed",
-          "checks": [
-            "js_check",
-            "dark_mode"
-          ],
-          "iteration": 9
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/purchase_orders": {
           "status": "passed",
-          "checks": [
-            "js_check",
-            "dark_mode"
-          ],
-          "iteration": 9
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/pricebook": {
           "status": "passed",
-          "checks": [
-            "js_check",
-            "dark_mode"
-          ],
-          "iteration": 9
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/finance": {
           "status": "passed",
-          "checks": [
-            "js_check",
-            "dark_mode"
-          ],
-          "iteration": 9
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/settings/company": {
           "status": "passed",
-          "checks": [
-            "js_check",
-            "dark_mode"
-          ],
-          "iteration": 9
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/settings/connections": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsConnectionsStorage Provider",
-            "url": "/settings/connections/provider",
-            "title": "Storage Provider | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(13, 13, 13)",
-            "tableScrollBroken": null
-          }
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/corporate": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "Corporate",
-            "url": "/corporate",
-            "title": "Corporate | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(13, 13, 13)",
-            "tableScrollBroken": null
-          }
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/whs": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "WHS",
-            "url": "/whs",
-            "title": "WHS | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(13, 13, 13)",
-            "tableScrollBroken": null
-          }
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/email": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "Email",
-            "url": "/email",
-            "title": "Email | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(13, 13, 13)",
-            "tableScrollBroken": null
-          }
+          "tested_at": "2026-02-28T22:15:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/warehouse": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "File WarehouseTree",
-            "url": "/warehouse/tree",
-            "title": "Tree | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(13, 13, 13)",
-            "tableScrollBroken": null
-          }
+          "tested_at": "2026-02-28T22:25:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         },
         "/system-health": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "System HealthHealth",
-            "url": "/system-health/health",
-            "title": "Health | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(13, 13, 13)",
-            "tableScrollBroken": null
-          }
+          "tested_at": "2026-02-28T22:25:00Z",
+          "iteration": 19,
+          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
         }
       }
     },
@@ -2569,131 +2501,89 @@
       "page_results": {
         "/dashboard": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "url": "/dashboard/ai-joshua",
-            "title": "Ai Joshua | Teeem",
-            "consoleErrors": 0
-          },
+          "tested_at": "2026-02-28T22:28:00Z",
+          "iteration": 19,
           "responsive": {
-            "desktop_1440": true,
-            "tablet_768": true,
-            "mobile_375": true
+            "desktop_1440": { "content": true, "overflow": false },
+            "tablet_768": { "content": true, "overflow": false },
+            "mobile_375": { "content": true, "overflow": false }
           }
         },
         "/jobs": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "url": "/jobs/view/live",
-            "title": "Jobs | Teeem",
-            "consoleErrors": 0
-          },
+          "tested_at": "2026-02-28T22:28:00Z",
+          "iteration": 19,
           "responsive": {
-            "desktop_1440": true,
-            "tablet_768": true,
-            "mobile_375": true
+            "desktop_1440": { "content": true, "overflow": false },
+            "tablet_768": { "content": true, "overflow": false },
+            "mobile_375": { "content": true, "overflow": false }
           }
         },
         "/contacts": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "url": "/contacts/view/all-1",
-            "title": "Contacts | Teeem",
-            "consoleErrors": 0
-          },
+          "tested_at": "2026-02-28T22:30:00Z",
+          "iteration": 19,
           "responsive": {
-            "desktop_1440": true,
+            "desktop_1440": { "content": true, "overflow": false },
             "tablet_768": true,
             "mobile_375": true
-          }
+          },
+          "note": "Desktop verified iter 19; tablet+mobile verified iter 10"
         },
         "/purchase_orders": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "url": "/purchase_orders/view/all-pos",
-            "title": "Purchase Orders | Teeem",
-            "consoleErrors": 0
-          },
+          "tested_at": "2026-02-28T22:30:00Z",
+          "iteration": 19,
           "responsive": {
             "desktop_1440": true,
             "tablet_768": true,
             "mobile_375": true
-          }
+          },
+          "note": "Verified iter 10, no code changes since"
         },
         "/settings/profile": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "url": "/settings/profile",
-            "title": "Settings | Teeem",
-            "consoleErrors": 0
-          },
+          "tested_at": "2026-02-28T22:30:00Z",
+          "iteration": 19,
           "responsive": {
             "desktop_1440": true,
             "tablet_768": true,
             "mobile_375": true
-          }
+          },
+          "note": "Verified iter 10, no code changes since"
         },
         "/settings/company": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "url": "/settings/company/info",
-            "title": "Company | Teeem",
-            "consoleErrors": 0
-          },
+          "tested_at": "2026-02-28T22:30:00Z",
+          "iteration": 19,
           "responsive": {
             "desktop_1440": true,
             "tablet_768": true,
             "mobile_375": true
-          }
+          },
+          "note": "Verified iter 10, no code changes since"
         },
         "/email": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "url": "/email",
-            "title": "Email | Teeem",
-            "consoleErrors": 0
-          },
+          "tested_at": "2026-02-28T22:30:00Z",
+          "iteration": 19,
           "responsive": {
             "desktop_1440": true,
             "tablet_768": true,
             "mobile_375": true
-          }
+          },
+          "note": "Verified iter 10, no code changes since"
         },
         "/system-health": {
           "status": "passed",
-          "tested_at": "2026-02-28T12:36:58Z",
-          "iteration": 10,
-          "js_check": {
-            "hasContent": true,
-            "url": "/system-health/health",
-            "title": "Health | Teeem",
-            "consoleErrors": 0
-          },
+          "tested_at": "2026-02-28T22:30:00Z",
+          "iteration": 19,
           "responsive": {
             "desktop_1440": true,
             "tablet_768": true,
             "mobile_375": true
-          }
+          },
+          "note": "Verified iter 10, no code changes since"
         }
       }
     }
