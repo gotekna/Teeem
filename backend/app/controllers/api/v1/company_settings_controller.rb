@@ -157,7 +157,7 @@ module Api
         base[:forced_signature_style] = settings.forced_signature_style
 
         # PO Conditions of Acceptance (customizable per tenant)
-        base[:po_conditions] = settings.po_conditions.presence || default_po_conditions(settings.company_name)
+        base[:po_conditions] = settings.po_conditions.presence || default_po_conditions_with_placeholders
 
         base
       end
@@ -174,15 +174,14 @@ module Api
         }
       end
 
-      def default_po_conditions(company_name = nil)
-        name = company_name.presence || "the Company"
+      def default_po_conditions_with_placeholders
         [
           "If the purchase order is incorrect, please contact our office immediately.",
           "If additional work/items are required, then a NEW order number must be received.",
           "The correct purchase order number and job address MUST be included on your tax invoice. Tax invoices without these details will be returned to the supplier for correction.",
           "Processing of order will acknowledge acceptance of these conditions.",
-          "In the instance the work is not completed by the original supplier in the specified timeframe, '#{name}' reserves the right to engage another supplier to complete the work. The new supplier will be paid from the original purchase order amount and any balance of funds will then be paid to the original supplier.",
-          "Please ensure invoice is made out to #{name}.",
+          "In the instance the work is not completed by the original supplier in the specified timeframe, '{company_name}' reserves the right to engage another supplier to complete the work. The new supplier will be paid from the original purchase order amount and any balance of funds will then be paid to the original supplier.",
+          "Please ensure invoice is made out to {company_name}.",
           "This purchase order is issued pursuant to the terms of the subcontract agreement. By accepting this purchase order you confirm that you agree to these subcontract terms."
         ]
       end

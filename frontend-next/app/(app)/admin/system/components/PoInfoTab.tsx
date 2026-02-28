@@ -93,9 +93,7 @@ export function PoInfoTab() {
   };
 
   const resetConditions = () => {
-    const companyName = settings?.company_name || "the Company";
-    const defaults = DEFAULT_PO_CONDITIONS.map(c => c.replace(/\{company_name\}/g, companyName));
-    setConditions(defaults);
+    setConditions([...DEFAULT_PO_CONDITIONS]);
     setDirty(true);
   };
 
