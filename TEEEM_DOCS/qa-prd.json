@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260224",
     "started_at": "2026-02-24T02:13:39Z",
     "completed_at": "2026-02-28T12:36:58Z",
-    "last_updated": "2026-02-28T12:36:58Z",
-    "iteration": 10,
+    "last_updated": "2026-02-28T13:05:14Z",
+    "iteration": 11,
     "ship_ready": true,
     "total_pages": 199,
     "total_stories": 19
@@ -89,8 +89,8 @@
       "page_results": {
         "/dashboard": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -104,8 +104,8 @@
         },
         "/tasks": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -119,8 +119,8 @@
         },
         "/agent-tasks": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -134,8 +134,8 @@
         },
         "/notebooks": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -170,8 +170,8 @@
       "page_results": {
         "/jobs": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -185,8 +185,8 @@
         },
         "/jobs/new": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -200,8 +200,8 @@
         },
         "/jobs/photos": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -238,8 +238,8 @@
       "page_results": {
         "/contacts": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -253,8 +253,8 @@
         },
         "/contacts/new": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -268,8 +268,8 @@
         },
         "/contacts/duplicates": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -283,8 +283,8 @@
         },
         "/contacts/quality-review": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -317,8 +317,8 @@
       "page_results": {
         "/purchase_orders": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -328,14 +328,12 @@
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
             "tableScrollBroken": false
-          },
-          "finding_id": "finding-001",
-          "finding_resolved": "false_positive - virtual scroll manages own container"
+          }
         },
         "/purchase_orders/new": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -375,25 +373,23 @@
       "page_results": {
         "/pricebook": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
-            "breadcrumb": "PricebookLoad",
-            "url": "/pricebook/view/load",
+            "breadcrumb": "PricebookCategory",
+            "url": "/pricebook/view/category",
             "title": "Pricebook | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
             "tableScrollBroken": false
-          },
-          "finding_id": "finding-002",
-          "finding_resolved": "false_positive - virtual scroll manages own container"
+          }
         },
         "/pricebook/colour-swatches": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -407,8 +403,8 @@
         },
         "/pricebook/health": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -422,50 +418,48 @@
         },
         "/recipes": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
-            "breadcrumb": "RecipesSetup",
-            "url": "/recipes/view/setup",
+            "breadcrumb": "Recipes",
+            "url": "/recipes",
             "title": "Recipes | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": false
+            "tableScrollBroken": null
           }
         },
         "/estimates": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
-            "breadcrumb": "EstimatesSetup",
-            "url": "/estimates/view/setup",
-            "title": "Estimates | Teeem",
+            "breadcrumb": "EstimatesSetup 4",
+            "url": "/estimates/view/setup-4",
+            "title": "Setup 4 | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": false
+            "tableScrollBroken": null
           }
         },
         "/price_histories": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:19:52Z",
-          "iteration": 1,
+          "tested_at": "2026-02-28T13:05:14Z",
+          "iteration": 11,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
-            "breadcrumb": "Price HistoriesDefault View 1",
-            "url": "/price_histories/view/default-view-1",
+            "breadcrumb": "Price HistoriesSetup",
+            "url": "/price_histories/view/setup",
             "title": "Price Histories | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": false
-          },
-          "finding_id": "finding-003",
-          "finding_resolved": "false_positive - virtual scroll manages own container"
+            "tableScrollBroken": null
+          }
         }
       }
     },

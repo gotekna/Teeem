@@ -114,8 +114,6 @@ function QuoteReturnContent() {
   const [createdPOs, setCreatedPOs] = useState<Array<{ id: number; poNumber: string; budget: number | null; status: string }>>([]);
   // PO line allocation state (CC-level only)
   const [allocations, setAllocations] = useState<Record<number, string>>({});
-  const [inputModes, setInputModes] = useState<Record<number, "$" | "%">>({});
-  const [percentInputs, setPercentInputs] = useState<Record<number, string>>({});
 
   useEffect(() => {
     const ctx = decodeHash();
@@ -456,8 +454,6 @@ function QuoteReturnContent() {
                 {qr.parentLine.children.map((child) => {
                   const amt = parseFloat(allocations[child.id] || "0") || 0;
                   const pct = priceNum > 0 ? Math.round((amt / priceNum) * 100) : 0;
-                  const isPercent = inputModes[child.id] === "%";
-                  const pctInputVal = percentInputs[child.id] ?? "";
                   return (
                     <div key={child.id} className="flex items-center gap-2">
                       {qr.purchaseOrderId ? (
@@ -484,44 +480,21 @@ function QuoteReturnContent() {
                         </button>
                       )}
                       <div className="relative w-24 shrink-0">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          {isPercent ? "%" : "$"}
-                        </span>
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
                         <Input
                           type="number"
-                          value={isPercent ? pctInputVal : (allocations[child.id] || "")}
+                          value={allocations[child.id] || ""}
                           onChange={(e) => {
-                            const val = e.target.value;
-                            if (isPercent) {
-                              setPercentInputs((prev) => ({ ...prev, [child.id]: val }));
-                              const p = parseFloat(val) || 0;
-                              const dollarAmt = Math.round((p / 100) * priceNum * 100) / 100;
-                              setAllocations((prev) => ({ ...prev, [child.id]: dollarAmt > 0 ? String(dollarAmt) : "" }));
-                            } else {
-                              setAllocations((prev) => ({ ...prev, [child.id]: val }));
-                            }
+                            setAllocations((prev) => ({ ...prev, [child.id]: e.target.value }));
                           }}
                           className="pl-5 text-sm h-7"
                           placeholder="0"
-                          step={isPercent ? "1" : "0.01"}
+                          step="0.01"
                         />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInputModes((prev) => {
-                            const next = prev[child.id] === "%" ? "$" : "%";
-                            if (next === "%") {
-                              setPercentInputs((p) => ({ ...p, [child.id]: pct > 0 ? String(pct) : "" }));
-                            }
-                            return { ...prev, [child.id]: next };
-                          });
-                        }}
-                        className="text-xs text-muted-foreground w-10 text-right shrink-0 hover:text-foreground cursor-pointer"
-                        title={`Click to enter as ${isPercent ? "$" : "%"}`}
-                      >
-                        {isPercent ? formatCurrency(amt) : `${pct}%`}
-                      </button>
+                      <span className="text-xs text-muted-foreground w-8 text-right shrink-0">
+                        {pct}%
+                      </span>
                     </div>
                   );
                 })}
