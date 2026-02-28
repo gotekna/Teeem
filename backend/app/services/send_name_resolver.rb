@@ -84,10 +84,8 @@ class SendNameResolver
     if template.present?
       expanded = expand_template(template, context)
       if expanded.present? && meaningful_filename?(expanded)
-        # Append auto-number if template didn't include {Number} — prevents duplicates
-        if !template.match?(/\{?\{?Number\}?\}?/i) && context[:number].present?
-          return "#{expanded} #{context[:number]}"
-        end
+        # SSoT: Template is the authority for naming. If template doesn't include
+        # {Number}, we respect that decision. Only templates with {Number} get numbering.
         return expanded
       end
     end
