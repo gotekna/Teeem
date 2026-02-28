@@ -219,7 +219,8 @@ export function PoTemplateSelector() {
       }
 
       const html = await api.getText(
-        `/api/v1/purchase_orders/template_preview?${params.toString()}`
+        `/api/v1/purchase_orders/template_preview?${params.toString()}`,
+        { dedupe: false }
       );
       setPreviewHtml(html);
     } catch (error) {
@@ -684,6 +685,7 @@ export function PoTemplateSelector() {
               ) : (
                 <div className="h-full overflow-auto bg-white dark:bg-muted">
                   <iframe
+                    key={`${selectedVariantKey}-${selectedPoId}`}
                     srcDoc={previewHtml}
                     className="w-full h-full border-0"
                     title={`Preview: ${selectedVariant?.name || ""}`}
