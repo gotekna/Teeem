@@ -10,7 +10,7 @@
 # Usage:
 #   RecomputeDocumentPathsJob.perform_later("Job", job.id)
 #   RecomputeDocumentPathsJob.perform_later("Contact", contact.id)
-#   RecomputeDocumentPathsJob.perform_later("CorporateCompany", company.id)
+#   RecomputeDocumentPathsJob.perform_later("Corporate", company.id)
 #
 class RecomputeDocumentPathsJob < ApplicationJob
   queue_as :default

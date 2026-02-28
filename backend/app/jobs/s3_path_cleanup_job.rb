@@ -48,7 +48,12 @@ class S3PathCleanupJob < ApplicationJob
     return true if path.blank?
 
     # Get configured folder names from WarehouseProvider
-    config = WarehouseProvider.instance
+    # Use safe fallback defaults if no tenant context (e.g., called from class method or rails runner)
+    begin
+      config = WarehouseProvider.instance
+    rescue TenantErrors::TenantNotFoundError
+      config = nil
+    end
     jobs_folder = config&.path_for(:jobs) || "Jobs"
     corporate_folder = config&.path_for(:corporate) || "Corporate"
     people_folder = config&.path_for(:people) || "People"
@@ -154,7 +159,13 @@ class S3PathCleanupJob < ApplicationJob
   # Build clean path for document using SSoT from WarehouseProvider
   # SSoT (Jan 2026): Uses WarehouseDocument source_type to determine path structure
   def build_clean_path(document)
-    config = WarehouseProvider.instance
+    # Derive tenant from document for WarehouseProvider lookup
+    tenant = ActsAsTenant.current_tenant || document.tenant
+    config = if tenant
+               ActsAsTenant.with_tenant(tenant) { WarehouseProvider.instance }
+             else
+               WarehouseProvider.instance rescue nil
+             end
     raise ArgumentError, "WarehouseProvider required for path generation" unless config
 
     source_type = document.source_type

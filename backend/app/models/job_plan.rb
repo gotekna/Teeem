@@ -10,6 +10,10 @@
 # - on_issue counts maintained by callbacks (see update_on_issue_counts)
 #
 class JobPlan < ApplicationRecord
+  # Convenience alias: display_name is the SSoT column, but .name is expected by
+  # scripts and generic code that iterates models
+  alias_attribute :name, :display_name
+
   belongs_to :job, counter_cache: :plans_count
   belongs_to :job_plan_tab, optional: true, counter_cache: :plans_count
   belongs_to :plan_type, optional: true

@@ -6334,6 +6334,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "current_revision_id"
     t.boolean "is_combined_pdf", default: false, null: false
     t.integer "revisions_count", default: 0, null: false
+    t.integer "sort_order", default: 0, null: false
     t.index ["current_revision_id"], name: "index_job_plans_on_current_revision_id"
     t.index ["job_id", "plan_type_id", "variant_suffix"], name: "idx_job_plans_unique_per_job", unique: true
     t.index ["job_id"], name: "index_job_plans_on_job_id"

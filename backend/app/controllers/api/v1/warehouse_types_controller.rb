@@ -1029,7 +1029,7 @@ module Api
         target_wt_code = case target_linkable_type
                          when "Job" then "job"
                          when "Contact" then "contact"
-                         when "CorporateCompany" then "corporate"
+                         when "CorporateCompany", "Corporate" then "corporate"
                          else return {}
                          end
 
@@ -1092,8 +1092,8 @@ module Api
             tokens[:ContactName] = contact.display_name.presence || "Contact-#{contact.id}"
             tokens[:ContactId] = contact.id
           end
-        when "CorporateCompany"
-          cc = CorporateCompany.find_by(id: linkable_id)
+        when "CorporateCompany", "Corporate"
+          cc = Corporate.find_by(id: linkable_id)
           if cc
             tokens[:CompanyCode] = cc.company_code
             tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
@@ -1126,7 +1126,7 @@ module Api
           resolve_context_for_job(entity_id)
         when "Contact"
           resolve_context_for_contact(entity_id)
-        when "CorporateCompany"
+        when "CorporateCompany", "Corporate"
           resolve_context_for_corporate(entity_id)
         else
           {}
