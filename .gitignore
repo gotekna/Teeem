@@ -76,3 +76,4 @@ David
 # Working files
 *.csv
 .claude/pr-progress.json
+.claude/worktrees/
