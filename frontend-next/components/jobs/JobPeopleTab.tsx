@@ -145,14 +145,26 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const [hasSearched, setHasSearched] = useState(false); // Track if a search has completed
   const [error, setError] = useState<string | null>(null);
   const [expandedContacts, setExpandedContacts] = useState<Set<number>>(new Set());
+  const [showAllUsers, setShowAllUsers] = useState(false);
 
   const isInternalRole = (role: string) => (INTERNAL_ROLES as readonly string[]).includes(role);
+
+  // Map job roles to matching system roles for smart filtering
+  const ROLE_SYSTEM_ROLE_MAP: Record<string, string[]> = {
+    supervisor: ["supervisor", "admin", "product_owner"],
+    estimator: ["estimator", "admin", "product_owner"],
+  };
 
   useEffect(() => {
     loadContacts();
     loadUsers();
      
   }, [jobId]);
+
+  // Reset "show all" when role selection changes
+  useEffect(() => {
+    setShowAllUsers(false);
+  }, [addingRole]);
 
   // Auto-focus search input when adding
   useEffect(() => {
@@ -420,21 +432,30 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
       )}
 
       {/* Internal Team User Selection */}
-      {addingRole && isInternalRole(addingRole) && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-base">Select {getRoleConfig(addingRole).label}</CardTitle>
-            <Button variant="ghost" size="icon" onClick={() => setAddingRole(null)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1">
-              {users
-                .filter(
-                  (user) => !contacts.some((c) => c.user_id === user.id && c.role === addingRole)
-                )
-                .map((user) => (
+      {addingRole && isInternalRole(addingRole) && (() => {
+        const matchingSystemRoles = ROLE_SYSTEM_ROLE_MAP[addingRole];
+        const hasRoleFilter = !!matchingSystemRoles;
+        const availableUsers = users.filter(
+          (user) => !contacts.some((c) => c.user_id === user.id && c.role === addingRole)
+        );
+        const filteredUsers = hasRoleFilter && !showAllUsers
+          ? availableUsers.filter((user) =>
+              user.role_names?.some((r) => matchingSystemRoles.includes(r))
+            )
+          : availableUsers;
+        const hiddenCount = availableUsers.length - filteredUsers.length;
+
+        return (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-base">Select {getRoleConfig(addingRole).label}</CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setAddingRole(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                {filteredUsers.map((user) => (
                   <button
                     key={user.id}
                     onClick={() => handleAddUser(user.id)}
@@ -446,17 +467,37 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                     )}
                   </button>
                 ))}
-              {users.filter(
-                (user) => !contacts.some((c) => c.user_id === user.id && c.role === addingRole)
-              ).length === 0 && (
-                <div className="text-sm text-muted-foreground text-center py-2">
-                  All users have already been assigned this role
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                {filteredUsers.length === 0 && !showAllUsers && hasRoleFilter && (
+                  <div className="text-sm text-muted-foreground text-center py-2">
+                    No users with the {getRoleConfig(addingRole).label} role
+                  </div>
+                )}
+                {filteredUsers.length === 0 && (showAllUsers || !hasRoleFilter) && (
+                  <div className="text-sm text-muted-foreground text-center py-2">
+                    All users have already been assigned this role
+                  </div>
+                )}
+                {hasRoleFilter && hiddenCount > 0 && !showAllUsers && (
+                  <button
+                    onClick={() => setShowAllUsers(true)}
+                    className="w-full text-center text-sm text-primary hover:underline py-2 mt-1"
+                  >
+                    Show all users ({hiddenCount} more)
+                  </button>
+                )}
+                {hasRoleFilter && showAllUsers && (
+                  <button
+                    onClick={() => setShowAllUsers(false)}
+                    className="w-full text-center text-sm text-muted-foreground hover:underline py-2 mt-1"
+                  >
+                    Show only {getRoleConfig(addingRole).label.toLowerCase()}s
+                  </button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* People by Role Group */}
       {ROLE_GROUPS.map((group) => {
