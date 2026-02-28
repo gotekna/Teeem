@@ -223,7 +223,7 @@ function SsotTemplatesPanel() {
       if (previewJobId) {
         params.job_id = String(previewJobId);
       }
-      const html = await api.getText(`/api/v1/tekna_documents/${template.template_key}/preview`, {
+      const html = await api.getText(`/api/v1/teeem_template_documents/${template.template_key}/preview`, {
         params,
       });
       setPreviewHtml(html);
@@ -245,7 +245,7 @@ function SsotTemplatesPanel() {
 
   // Group SSoT templates by layout
   const templateGroups = React.useMemo(() => {
-    const branded = ssotTemplates.filter(t => t.layout === "tekna");
+    const branded = ssotTemplates.filter(t => t.layout === "teeem");
     const qbcc = ssotTemplates.filter(t => t.layout === "qbcc_official");
     const cloud = ssotTemplates.filter(t => t.template_type === "sharepoint_fetch");
 
@@ -285,7 +285,7 @@ function SsotTemplatesPanel() {
     if (qbccRequired) {
       return <Badge variant="destructive" className="text-xs">QBCC</Badge>;
     }
-    if (layout === "tekna") {
+    if (layout === "teeem") {
       return <Badge className="bg-blue-600 text-white text-xs">TEEEM</Badge>;
     }
     if (layout === "none") {
@@ -463,7 +463,7 @@ function SsotTemplatesPanel() {
                   </CardTitle>
                   {selectedTemplate && (
                     <CardDescription className="text-xs">
-                      {selectedTemplate.template_key} &bull; {selectedTemplate.layout === "tekna" ? "Teeem Branded" : selectedTemplate.layout === "qbcc_official" ? "QBCC Official" : "Passthrough"}
+                      {selectedTemplate.template_key} &bull; {selectedTemplate.layout === "teeem" ? "Teeem Branded" : selectedTemplate.layout === "qbcc_official" ? "QBCC Official" : "Passthrough"}
                       {selectedJob && ` &bull; ${selectedJob.job_code || selectedJob.name}`}
                     </CardDescription>
                   )}
@@ -485,7 +485,7 @@ function SsotTemplatesPanel() {
                       size="sm"
                       onClick={() => {
                         const jobParam = selectedJobId ? `&job_id=${selectedJobId}` : "";
-                        window.open(`${apiUrl}/api/v1/tekna_documents/${selectedTemplate.template_key}/preview?format=html${jobParam}`, '_blank');
+                        window.open(`${apiUrl}/api/v1/teeem_template_documents/${selectedTemplate.template_key}/preview?format=html${jobParam}`, '_blank');
                       }}
                     >
                       <Eye className="h-4 w-4 mr-1" />

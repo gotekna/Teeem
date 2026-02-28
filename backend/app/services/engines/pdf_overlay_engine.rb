@@ -12,7 +12,7 @@ module Engines
   # - Page stamping
   #
   # ============================================================================
-  # SSoT: Official PDF templates stored in app/views/tekna_documents/templates/qbcc/
+  # SSoT: Official PDF templates stored in app/views/teeem_template_documents/templates/qbcc/
   # ============================================================================
   #
   class PdfOverlayEngine
@@ -203,7 +203,7 @@ module Engines
     private
 
     def resolve_pdf_path
-      base_path = Rails.root.join("app/views/tekna_documents/templates/qbcc")
+      base_path = Rails.root.join("app/views/teeem_template_documents/templates/qbcc")
 
       case template_key
       when :qbcc_contract

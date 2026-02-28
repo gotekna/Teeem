@@ -90,7 +90,7 @@ export async function enqueuePdfGeneration(
  * Returns the download URL when complete.
  *
  * Usage:
- *   const url = await generateAndDownloadPdf("tekna_document", { template_key: "specifications", job_id: 123 });
+ *   const url = await generateAndDownloadPdf("teeem_document", { template_key: "specifications", job_id: 123 });
  *   window.open(url, "_blank");
  */
 export async function generateAndDownloadPdf(

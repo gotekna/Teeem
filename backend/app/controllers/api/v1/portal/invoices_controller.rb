@@ -61,22 +61,47 @@ module Api
           }
         end
 
+        # GET /api/v1/portal/invoices/search_purchase_orders?q=...
+        # Search subcontractor's POs by PO number or job name
+        def search_purchase_orders
+          pos = current_contact.purchase_orders
+                               .includes(:job)
+                               .where.not(status: "cancelled")
+                               .order(created_at: :desc)
+                               .limit(20)
+
+          if params[:q].present?
+            q = "%#{params[:q]}%"
+            pos = pos.joins(:job).where(
+              "purchase_orders.purchase_order_number ILIKE :q OR jobs.name ILIKE :q",
+              q: q
+            )
+          end
+
+          data = pos.map do |po|
+            already_invoiced = SubcontractorInvoice.already_invoiced_for_po(po.id)
+            remaining = (po.total || 0) - already_invoiced
+
+            {
+              id: po.id,
+              po_number: po.purchase_order_number,
+              job_name: po.job&.name,
+              job_code: po.job&.job_code,
+              total: po.total,
+              already_invoiced: already_invoiced,
+              remaining_amount: remaining,
+              payment_terms_days: parse_payment_terms(current_contact.payment_terms),
+              status: po.status
+            }
+          end
+
+          render json: { success: true, data: data }
+        end
+
         # POST /api/v1/portal/invoices
         # Create a new invoice for a purchase order
         def create
           purchase_order = current_contact.purchase_orders.find(params[:purchase_order_id])
-
-          # Validate job is completed
-          unless purchase_order.completed_at.present?
-            render_error("Cannot invoice incomplete jobs", status: :unprocessable_entity)
-            return
-          end
-
-          # Check for existing invoice
-          if purchase_order.subcontractor_invoices.any?
-            render_error("Purchase order already has an invoice", status: :unprocessable_entity)
-            return
-          end
 
           # Validate amount
           amount = params[:amount].to_f
@@ -85,38 +110,79 @@ module Api
             return
           end
 
-          if amount > purchase_order.total
-            render_error("Invoice amount cannot exceed PO total of $#{purchase_order.total}", status: :unprocessable_entity)
+          # Check against remaining PO balance (allows multiple partial invoices)
+          already_invoiced = SubcontractorInvoice.already_invoiced_for_po(purchase_order.id)
+          remaining = (purchase_order.total || 0) - already_invoiced
+
+          if amount > remaining
+            render_error("Invoice amount cannot exceed remaining PO balance of $#{'%.2f' % remaining}", status: :unprocessable_entity)
             return
           end
 
-          # Create invoice
-          invoice = purchase_order.subcontractor_invoices.build(
-            contact: current_contact,
-            amount: amount,
-            status: "pending"
-          )
+          completion_pct = (params[:completion_percentage] || 100).to_i
+          unless completion_pct.between?(1, 100)
+            render_error("Completion percentage must be between 1 and 100", status: :unprocessable_entity)
+            return
+          end
 
-          # Link to accounting integration if available
-          accounting_integration = current_contact.accounting_integrations.active.first
-          invoice.accounting_integration = accounting_integration if accounting_integration
+          ActiveRecord::Base.transaction do
+            # Handle invoice file upload (optional)
+            blob = nil
+            if params[:invoice_file].present?
+              uploaded = params[:invoice_file]
+              blob = StorageBlob.find_or_create_for_content!(
+                uploaded.read,
+                filename: uploaded.original_filename,
+                content_type: uploaded.content_type
+              )
+            end
 
-          if invoice.save
-            # Trigger async sync if accounting connected
-            # TODO: Enqueue AccountingSyncJob.perform_later(invoice.id)
+            # Create SM task if partial completion
+            sm_task = nil
+            if completion_pct < 100 && params[:remaining_work_description].present?
+              sm_task = create_remaining_work_task(
+                purchase_order,
+                params[:remaining_work_description],
+                completion_pct
+              )
+            end
 
-            render json: {
-              success: true,
-              message: "Invoice created successfully",
-              data: invoice_json(invoice),
-              will_auto_sync: accounting_integration.present?
-            }, status: :created
-          else
-            render json: {
-              success: false,
-              error: "Failed to create invoice",
-              errors: invoice.errors.full_messages
-            }, status: :unprocessable_entity
+            # Create invoice
+            invoice = purchase_order.subcontractor_invoices.build(
+              contact: current_contact,
+              amount: amount,
+              status: "pending",
+              completion_percentage: completion_pct,
+              remaining_work_description: params[:remaining_work_description],
+              invoice_file_blob: blob,
+              sm_task: sm_task
+            )
+
+            # Link to accounting integration if available
+            accounting_integration = current_contact.accounting_integrations&.active&.first
+            invoice.accounting_integration = accounting_integration if accounting_integration
+
+            if invoice.save
+              payment_terms = parse_payment_terms(current_contact.payment_terms)
+              estimated_due = Time.current + payment_terms.days
+
+              render json: {
+                success: true,
+                message: "Invoice created successfully",
+                data: invoice_json(invoice).merge(
+                  payment_terms_days: payment_terms,
+                  estimated_due_date: estimated_due.strftime("%Y-%m-%d"),
+                  sm_task_created: sm_task.present?
+                ),
+                will_auto_sync: accounting_integration.present?
+              }, status: :created
+            else
+              render json: {
+                success: false,
+                error: "Failed to create invoice",
+                errors: invoice.errors.full_messages
+              }, status: :unprocessable_entity
+            end
           end
         end
 
@@ -232,7 +298,8 @@ module Api
             created_at: invoice.created_at,
             purchase_order_id: invoice.purchase_order_id,
             po_number: invoice.purchase_order.po_number,
-            construction_name: invoice.purchase_order.job.job_name,
+            construction_name: invoice.purchase_order.job&.name,
+            completion_percentage: invoice.completion_percentage,
             days_outstanding: invoice.paid_at ? nil : (Time.current - invoice.created_at).to_i / 1.day,
             can_edit: invoice.pending?,
             can_delete: invoice.pending? || invoice.failed?,
@@ -249,6 +316,51 @@ module Api
           end
 
           (total_days.to_f / paid_invoices.count).round(1)
+        end
+
+        # Parse payment terms string (e.g., "30 days", "Net 30") into integer days
+        def parse_payment_terms(terms_string)
+          return 30 unless terms_string.present?
+
+          match = terms_string.match(/(\d+)/)
+          match ? match[1].to_i : 30
+        end
+
+        # Create an SmTask for the job's supervisor to follow up on remaining work
+        def create_remaining_work_task(purchase_order, description, completion_pct)
+          job = purchase_order.job
+          return nil unless job
+
+          # Find next available task number for this job
+          max_task_number = SmTask.where(job_id: job.id).maximum(:task_number) || 0
+          next_task_number = max_task_number + 1
+
+          # Find the next available sequence order
+          max_sequence = SmTask.where(job_id: job.id).maximum(:sequence_order) || 0
+          next_sequence = max_sequence + 1
+
+          task = SmTask.new(
+            job: job,
+            task_number: next_task_number,
+            name: "Complete remaining work - #{purchase_order.purchase_order_number}",
+            description: "#{completion_pct}% complete. Remaining work: #{description}\n\nSubmitted via subcontractor portal invoice.",
+            sequence_order: next_sequence,
+            start_date: Date.current,
+            end_date: Date.current + 7.days,
+            duration_days: 7,
+            status: "not_started",
+            require_photo: true,
+            submitted_via_portal: true,
+            supplier_id: current_contact.id,
+            assigned_user_id: job.supervisor_id,
+            source_type: "portal"
+          )
+
+          # Set tenant if available
+          task.tenant_id = job.tenant_id if job.respond_to?(:tenant_id)
+
+          task.save!
+          task
         end
       end
     end

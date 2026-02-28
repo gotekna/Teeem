@@ -18,7 +18,7 @@ module Bpmn
     #   - pdf_overlay: PDF form filling (future HIA support)
     #
     # Note: Word templates were removed in December 2024.
-    # Use TeknaDocumentGenerator for new document generation.
+    # Use TeeemDocumentGenerator for new document generation.
     #
     class GenerateDocumentTask < BaseTask
       def execute

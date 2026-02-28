@@ -9,8 +9,8 @@
 # We use TWO template types. Word templates were DEPRECATED and removed.
 #
 # 1. HTML TEMPLATES (template_type: "html")
-#    - For Tekna-branded documents (Welcome Letter, Colour Selections, etc.)
-#    - Stored locally in app/views/tekna_documents/templates/
+#    - For Teeem-branded documents (Welcome Letter, Colour Selections, etc.)
+#    - Stored locally in app/views/teeem_template_documents/templates/
 #    - Rendered with ERB, converted to PDF via Grover (Puppeteer)
 #    - Full control over styling and layout
 #
@@ -49,7 +49,7 @@ class DocumentTemplate < ApplicationRecord
   OUTPUT_FORMATS = %w[docx pdf both].freeze
 
   # ACTIVE template types (use these):
-  #   - html        → Tekna-branded documents, full control
+  #   - html        → Teeem-branded documents, full control
   #   - pdf_overlay → QBCC/HIA legal documents, form filling only
   #
   # DEPRECATED (kept for migration, DO NOT use for new templates):
@@ -58,7 +58,7 @@ class DocumentTemplate < ApplicationRecord
   TEMPLATE_TYPES = %w[word html pdf_overlay sharepoint_fetch].freeze
   ACTIVE_TEMPLATE_TYPES = %w[html pdf_overlay].freeze
   LEGAL_SOURCES = %w[qbcc hia].freeze
-  LAYOUTS = %w[tekna qbcc_official hia_official none].freeze
+  LAYOUTS = %w[teeem qbcc_official hia_official none].freeze
 
   # Phase 3: Universal warehouse metadata (SSoT for ui_name, download_name, folder)
   has_one :warehouse_document, as: :documentable, dependent: :destroy
@@ -86,7 +86,7 @@ class DocumentTemplate < ApplicationRecord
   scope :needs_migration, -> { where(template_type: %w[word sharepoint_fetch]) }
 
   scope :legal_templates, -> { where(is_legal_format: true) }
-  scope :tekna_branded, -> { where(is_legal_format: false) }
+  scope :teeem_branded, -> { where(is_legal_format: false) }
 
   # Check if template is linked to storage (provider-agnostic)
   def storage_linked?

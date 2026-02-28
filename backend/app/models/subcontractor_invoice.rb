@@ -3,13 +3,19 @@ class SubcontractorInvoice < ApplicationRecord
   belongs_to :purchase_order
   belongs_to :contact
   belongs_to :accounting_integration, optional: true
+  belongs_to :invoice_file_blob, class_name: "StorageBlob", optional: true
+  belongs_to :sm_task, optional: true
 
   # Enums
+  # SSoT: Statuses used by portal controller (pending/synced/failed) + original (draft/sent/paid/overdue/cancelled)
   enum :status, {
     draft: "draft",
+    pending: "pending",
     sent: "sent",
+    synced: "synced",
     paid: "paid",
     overdue: "overdue",
+    failed: "failed",
     cancelled: "cancelled"
   }
 
@@ -18,7 +24,8 @@ class SubcontractorInvoice < ApplicationRecord
   validates :contact_id, presence: true
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :status, presence: true
-  validate :amount_not_exceeds_po_amount
+  validates :completion_percentage, numericality: { only_integer: true, greater_than_or_equal_to: 1, less_than_or_equal_to: 100 }, allow_nil: true
+  validate :amount_not_exceeds_remaining
 
   # Callbacks
   after_create :sync_to_accounting_system, if: :should_auto_sync?
@@ -26,7 +33,7 @@ class SubcontractorInvoice < ApplicationRecord
 
   # Scopes
   scope :unsent, -> { where(status: "draft") }
-  scope :pending_payment, -> { where(status: "sent") }
+  scope :pending_payment, -> { where(status: "pending") }
   scope :paid, -> { where(status: "paid") }
   scope :overdue, -> { where(status: "overdue") }
   scope :recent, -> { order(created_at: :desc) }
@@ -62,7 +69,13 @@ class SubcontractorInvoice < ApplicationRecord
   end
 
   def payment_terms_days
-    contact.default_payment_terms || 30
+    # Contact.payment_terms is a string like "30 days" or "Net 30" — parse the number
+    terms = contact&.payment_terms
+    return 30 unless terms.present?
+
+    # Extract the first number from the string
+    match = terms.match(/(\d+)/)
+    match ? match[1].to_i : 30
   end
 
   def due_date
@@ -89,13 +102,23 @@ class SubcontractorInvoice < ApplicationRecord
     end
   end
 
+  # Amount already invoiced against this PO (excluding this invoice)
+  def self.already_invoiced_for_po(purchase_order_id, exclude_id: nil)
+    scope = where(purchase_order_id: purchase_order_id).where.not(status: "cancelled")
+    scope = scope.where.not(id: exclude_id) if exclude_id
+    scope.sum(:amount)
+  end
+
   private
 
-  def amount_not_exceeds_po_amount
+  def amount_not_exceeds_remaining
     return unless purchase_order && amount
 
-    if amount > purchase_order.total
-      errors.add(:amount, "cannot exceed purchase order amount of #{purchase_order.total}")
+    already_invoiced = self.class.already_invoiced_for_po(purchase_order_id, exclude_id: id)
+    remaining = purchase_order.total - already_invoiced
+
+    if amount > remaining
+      errors.add(:amount, "cannot exceed remaining PO balance of #{remaining}")
     end
   end
 

@@ -236,12 +236,12 @@ export default function BpmnJsDesigner({
     return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, []);
 
-  // Fetch Tekna document templates
+  // Fetch Teeem document templates
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
         const response = await api.get<{ success: boolean; data: DocumentTemplate[] }>(
-          "/api/v1/tekna_documents/templates"
+          "/api/v1/teeem_template_documents/templates"
         );
         if (response?.success && response.data) {
           setTemplates(response.data);
@@ -836,7 +836,7 @@ export default function BpmnJsDesigner({
       });
       return;
     }
-    window.open(`${getApiBaseUrl()}/api/v1/tekna_documents/preview?template_key=${templateKey}&job_id=${selectedJobId}`, "_blank");
+    window.open(`${getApiBaseUrl()}/api/v1/teeem_template_documents/preview?template_key=${templateKey}&job_id=${selectedJobId}`, "_blank");
   }, [selectedJobId, toast]);
 
   return (
@@ -1358,13 +1358,13 @@ export default function BpmnJsDesigner({
                           <div className="mt-2 space-y-2">
                             <p className="text-xs text-muted-foreground">
                               <FileText className="h-3 w-3 inline mr-1" />
-                              {selectedTemplate.category} • {selectedTemplate.layout === "tekna" ? "Teeem Branded" : "QBCC Official"}
+                              {selectedTemplate.category} • {selectedTemplate.layout === "teeem" ? "Teeem Branded" : "QBCC Official"}
                             </p>
                             <Button
                               variant="outline"
                               size="sm"
                               className="w-full"
-                              onClick={() => window.open(`${getApiBaseUrl()}/api/v1/tekna_documents/${selectedTemplate.key}/preview?format=html`, '_blank')}
+                              onClick={() => window.open(`${getApiBaseUrl()}/api/v1/teeem_template_documents/${selectedTemplate.key}/preview?format=html`, '_blank')}
                             >
                               <Eye className="h-4 w-4 mr-2" />
                               Preview Template

@@ -4,7 +4,7 @@ require "grover"
 
 # TenderDocumentPdfGenerator - Generates professional tender PDFs from TenderDocument records.
 #
-# Uses TeknaTemplateRenderer to render ERB templates with the Tekna branded layout,
+# Uses TeeemTemplateRenderer to render ERB templates with the Teeem branded layout,
 # then Grover to convert to PDF.
 #
 # Usage:
@@ -15,7 +15,7 @@ require "grover"
 #
 class TenderDocumentPdfGenerator
   TEMPLATE_PATH = "templates/tender_document"
-  LAYOUT_PATH = "layouts/tekna"
+  LAYOUT_PATH = "layouts/teeem"
 
   def initialize(tender_document)
     @doc = tender_document
@@ -40,7 +40,7 @@ class TenderDocumentPdfGenerator
   private
 
   def render_html
-    renderer = TeknaTemplateRenderer.new
+    renderer = TeeemTemplateRenderer.new
     renderer.render(
       template_path: TEMPLATE_PATH,
       layout: LAYOUT_PATH,

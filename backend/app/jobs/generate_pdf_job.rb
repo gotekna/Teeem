@@ -6,7 +6,7 @@ require "grover"
 # Background job for PDF generation. Runs on the worker dyno where Grover/HexaPDF are available.
 #
 # Supports all PDF generator types:
-#   - tekna_document: TeknaDocumentGenerator (Grover)
+#   - tekna_document: TeeemDocumentGenerator (Grover)
 #   - invoice: InvoicePdfGenerator (Grover)
 #   - bank_report: BankTransactionReportService (HexaPDF)
 #   - contract_overlay: Engines::PdfOverlayEngine (HexaPDF)
@@ -57,8 +57,8 @@ class GeneratePdfJob < ApplicationJob
     type = pdf_gen.generator_type
 
     case type
-    when "tekna_document"
-      generate_tekna_document(params)
+    when "teeem_document"
+      generate_teeem_document(params)
     when "invoice"
       generate_invoice(params)
     when "bank_report"
@@ -78,14 +78,14 @@ class GeneratePdfJob < ApplicationJob
     end
   end
 
-  def generate_tekna_document(params)
+  def generate_teeem_document(params)
     template_key = params[:template_key].to_sym
     job = params[:job_id].present? ? Job.find(params[:job_id]) : nil
     contact = params[:contact_id].present? ? Contact.find(params[:contact_id]) : nil
     purchase_order = params[:purchase_order_id].present? ? PurchaseOrder.find(params[:purchase_order_id]) : nil
     extra_data = (params[:extra_data] || {}).deep_symbolize_keys
 
-    generator = TeknaDocumentGenerator.new(template_key)
+    generator = TeeemDocumentGenerator.new(template_key)
     generator.generate(
       job: job,
       contact: contact,

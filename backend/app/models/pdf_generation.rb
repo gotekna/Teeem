@@ -13,7 +13,7 @@ class PdfGeneration < ApplicationRecord
   # Constants
   STATUSES = %w[pending processing completed failed].freeze
   GENERATOR_TYPES = %w[
-    tekna_document
+    teeem_document
     invoice
     bank_report
     contract_overlay

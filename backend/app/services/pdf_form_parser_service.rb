@@ -6,9 +6,9 @@ require "hexapdf"
 # Used by PDF Field Editor to show clickable hotspots for mapping data fields
 class PdfFormParserService
   PDF_TEMPLATES = {
-    "qbcc_contract" => "app/views/tekna_documents/templates/qbcc/qbcc_contract.pdf",
-    "qbcc_consumer_guide" => "app/views/tekna_documents/templates/qbcc/qbcc_consumer_guide.pdf",
-    "qbcc_general_conditions" => "app/views/tekna_documents/templates/qbcc/qbcc_general_conditions.pdf"
+    "qbcc_contract" => "app/views/teeem_template_documents/templates/qbcc/qbcc_contract.pdf",
+    "qbcc_consumer_guide" => "app/views/teeem_template_documents/templates/qbcc/qbcc_consumer_guide.pdf",
+    "qbcc_general_conditions" => "app/views/teeem_template_documents/templates/qbcc/qbcc_general_conditions.pdf"
   }.freeze
 
   def self.parse(template_key)

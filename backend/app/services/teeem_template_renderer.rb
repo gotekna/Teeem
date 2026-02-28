@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
-# TeknaTemplateRenderer renders ERB templates with layout support for document generation.
+# TeeemTemplateRenderer renders ERB templates with layout support for document generation.
 #
 # Usage:
-#   renderer = TeknaTemplateRenderer.new
+#   renderer = TeeemTemplateRenderer.new
 #   html = renderer.render(
 #     template_path: "templates/welcome_letter",
-#     layout: "layouts/tekna",
+#     layout: "layouts/teeem",
 #     locals: { job: job_context, company: company_context, ... }
 #   )
 #
-class TeknaTemplateRenderer
-  VIEWS_PATH = Rails.root.join("app/views/tekna_documents")
+class TeeemTemplateRenderer
+  VIEWS_PATH = Rails.root.join("app/views/teeem_template_documents")
 
   def initialize
     @partials_cache = {}
@@ -205,23 +205,23 @@ class TeknaTemplateRenderer
     # ===== CSS Helpers =====
 
     def design_tokens_css
-      TeknaDesignTokens.document_css
+      TeeemDesignTokens.document_css
     end
 
-    def tekna_header_css
-      TeknaDesignTokens.tekna_header_css
+    def teeem_header_css
+      TeeemDesignTokens.teeem_header_css
     end
 
-    def tekna_footer_css
-      TeknaDesignTokens.tekna_footer_css
+    def teeem_footer_css
+      TeeemDesignTokens.teeem_footer_css
     end
 
     def qbcc_notice_css
-      TeknaDesignTokens.qbcc_notice_css
+      TeeemDesignTokens.qbcc_notice_css
     end
 
     def signature_css
-      TeknaDesignTokens.signature_css
+      TeeemDesignTokens.signature_css
     end
 
     # ===== Date Helpers =====

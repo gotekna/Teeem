@@ -19,7 +19,7 @@
 #   }
 #
 # Note: Word templates were removed in December 2024.
-# Use TeknaDocumentGenerator for new document generation.
+# Use TeeemDocumentGenerator for new document generation.
 #
 class UnifiedDocumentGenerator
   class GenerationError < StandardError; end
@@ -37,7 +37,7 @@ class UnifiedDocumentGenerator
   def generate(job: nil, contact: nil, invoice: nil, claim_stage: nil, extra_data: {})
     result = case template.template_type
     when "word", "sharepoint_fetch"
-      raise UnsupportedTypeError, "Word templates are no longer supported. Use TeknaDocumentGenerator instead."
+      raise UnsupportedTypeError, "Word templates are no longer supported. Use TeeemDocumentGenerator instead."
     when "html"
       generate_html(job: job, contact: contact, extra_data: extra_data)
     when "pdf_overlay"
@@ -53,7 +53,7 @@ class UnifiedDocumentGenerator
   def generate_and_upload(job: nil, contact: nil, extra_data: {}, destination_folder:)
     case template.template_type
     when "word", "sharepoint_fetch"
-      raise UnsupportedTypeError, "Word templates are no longer supported. Use TeknaDocumentGenerator instead."
+      raise UnsupportedTypeError, "Word templates are no longer supported. Use TeeemDocumentGenerator instead."
     when "html"
       # Generate HTML template then upload manually
       result = generate_html(job: job, contact: contact, extra_data: extra_data)

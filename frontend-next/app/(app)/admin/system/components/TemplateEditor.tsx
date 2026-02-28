@@ -173,7 +173,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
   const loadPreview = async () => {
     setPreviewLoading(true);
     try {
-      const html = await api.getText(`/api/v1/tekna_documents/${templateKey}/preview`, {
+      const html = await api.getText(`/api/v1/teeem_template_documents/${templateKey}/preview`, {
         params: { format: "html" }
       });
       setPreviewHtml(html);
@@ -249,7 +249,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open(`${apiUrl}/api/v1/tekna_documents/${templateKey}/preview?format=html`, '_blank')}
+            onClick={() => window.open(`${apiUrl}/api/v1/teeem_template_documents/${templateKey}/preview?format=html`, '_blank')}
           >
             <Eye className="h-4 w-4 mr-2" />
             Full Preview

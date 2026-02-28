@@ -47,9 +47,9 @@ class TenantSetting < ApplicationRecord
   }.freeze
 
   FRONTEND_ENVIRONMENT_URLS = {
-    "production" => "https://teeem.vercel.app",
-    "beta" => "https://teeem-beta.vercel.app",
-    "staging" => "https://teeem-staging.vercel.app"
+    "production" => "https://app.teeem.com.au",
+    "beta" => "https://beta.teeem.com.au",
+    "staging" => "https://staging.teeem.com.au"
   }.freeze
 
   # =============================================================================

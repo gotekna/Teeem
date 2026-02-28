@@ -125,12 +125,12 @@ module Api
       # GET /api/v1/jobs/:job_id/colour_selections/generate_pdf
       def generate_pdf
         if params[:format] == "html" || params[:preview]
-          generator = TeknaDocumentGenerator.new(:colour_selections)
+          generator = TeeemDocumentGenerator.new(:colour_selections)
           result = generator.generate(job: @job, html_only: true)
           render html: result[:html].html_safe
         else
           enqueue_pdf_and_respond(
-            generator_type: "tekna_document",
+            generator_type: "teeem_document",
             generator_params: { template_key: "colour_selections", job_id: @job.id }
           )
         end

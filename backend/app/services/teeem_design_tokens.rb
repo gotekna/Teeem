@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
-# TeknaDesignTokens provides SSoT design tokens for document generation.
+# TeeemDesignTokens provides SSoT design tokens for document generation.
 # Reads from exported JSON file synced from frontend globals.css.
 #
 # Usage:
-#   TeknaDesignTokens.font_family(:sans)  # => "Geist Sans, system-ui, ..."
-#   TeknaDesignTokens.font_size(:md)      # => "14px"
-#   TeknaDesignTokens.color(:textPrimary) # => "#121212"
-#   TeknaDesignTokens.document_css        # => Full CSS for documents
+#   TeeemDesignTokens.font_family(:sans)  # => "Geist Sans, system-ui, ..."
+#   TeeemDesignTokens.font_size(:md)      # => "14px"
+#   TeeemDesignTokens.color(:textPrimary) # => "#121212"
+#   TeeemDesignTokens.document_css        # => Full CSS for documents
 #
-class TeknaDesignTokens
-  TOKENS_FILE = Rails.root.join("lib/tekna_design_system/design_tokens.json")
+class TeeemDesignTokens
+  TOKENS_FILE = Rails.root.join("lib/teeem_design_system/design_tokens.json")
 
   class << self
     def tokens
@@ -129,7 +129,7 @@ class TeknaDesignTokens
           --doc-height: #{document_height};
           --doc-padding: #{document_padding};
 
-          /* Border Radius - Square corners (Tekna brand) */
+          /* Border Radius - Square corners (Teeem brand) */
           --radius: #{border_radius};
         }
 
@@ -171,7 +171,7 @@ class TeknaDesignTokens
           font-weight: var(--font-semibold);
         }
 
-        /* Tables - Tekna style (square corners) */
+        /* Tables - Teeem style (square corners) */
         table {
           width: 100%;
           border-collapse: collapse;
@@ -214,8 +214,8 @@ class TeknaDesignTokens
       CSS
     end
 
-    # Tekna branded header CSS (for Tekna documents)
-    def tekna_header_css
+    # Teeem branded header CSS (for Teeem documents)
+    def teeem_header_css
       <<~CSS
         .document-header {
           display: flex;
@@ -247,8 +247,8 @@ class TeknaDesignTokens
       CSS
     end
 
-    # Tekna branded footer CSS (for Tekna documents)
-    def tekna_footer_css
+    # Teeem branded footer CSS (for Teeem documents)
+    def teeem_footer_css
       <<~CSS
         .document-footer {
           position: absolute;

@@ -2,10 +2,10 @@
 
 require "grover"
 
-# TeknaDocumentGenerator generates branded PDF documents from HTML/ERB templates.
+# TeeemDocumentGenerator generates branded PDF documents from HTML/ERB templates.
 #
 # Usage:
-#   generator = TeknaDocumentGenerator.new(:welcome_letter)
+#   generator = TeeemDocumentGenerator.new(:welcome_letter)
 #   result = generator.generate(job: job)
 #   # result[:html] - Rendered HTML
 #   # result[:pdf_content] - PDF binary
@@ -14,21 +14,21 @@ require "grover"
 #   # Preview only (no PDF)
 #   html = generator.preview(job: job)
 #
-class TeknaDocumentGenerator
+class TeeemDocumentGenerator
   class GenerationError < StandardError; end
   class TemplateNotFoundError < StandardError; end
 
   # Template definitions
-  # layout: "tekna" = Tekna branded header/footer
+  # layout: "teeem" = Teeem branded header/footer
   # layout: "po" = A4 sizing only, no branded header/footer (PO templates are self-contained)
   # layout: "qbcc_official" = Plain layout matching official QBCC format
   TEMPLATES = {
-    # Tekna branded documents
+    # Teeem branded documents
     welcome_letter: {
       path: "templates/welcome_letter",
       category: "letter",
       requires: [ :job ],
-      layout: "tekna",
+      layout: "teeem",
       title: "Welcome Letter",
       output_filename: "{date}_welcome_letter_{job_name}"
     },
@@ -36,7 +36,7 @@ class TeknaDocumentGenerator
       path: "templates/specifications",
       category: "contract",
       requires: [ :job ],
-      layout: "tekna",
+      layout: "teeem",
       title: "Specifications",
       output_filename: "{date}_specifications_{job_name}"
     },
@@ -44,7 +44,7 @@ class TeknaDocumentGenerator
       path: "templates/colour_selections",
       category: "contract",
       requires: [ :job ],
-      layout: "tekna",
+      layout: "teeem",
       title: "Colour Selections",
       output_filename: "{date}_colour_selections_{job_name}"
     },
@@ -52,7 +52,7 @@ class TeknaDocumentGenerator
       path: "templates/owners_authority",
       category: "contract",
       requires: [ :job ],
-      layout: "tekna",
+      layout: "teeem",
       title: "Owner's Authority to Obtain Information",
       output_filename: "{date}_owners_authority_{job_name}"
     },
@@ -60,7 +60,7 @@ class TeknaDocumentGenerator
       path: "templates/spec_acknowledgement",
       category: "contract",
       requires: [ :job ],
-      layout: "tekna",
+      layout: "teeem",
       title: "Specification of Works Acknowledgement",
       output_filename: "{date}_spec_acknowledgement_{job_name}"
     },
@@ -68,7 +68,7 @@ class TeknaDocumentGenerator
       path: "templates/termite_protection",
       category: "contract",
       requires: [ :job ],
-      layout: "tekna",
+      layout: "teeem",
       title: "Termite Protection System",
       output_filename: "{date}_termite_protection_{job_name}"
     },
@@ -76,7 +76,7 @@ class TeknaDocumentGenerator
       path: "templates/variation",
       category: "contract",
       requires: [ :job ],
-      layout: "tekna",
+      layout: "teeem",
       title: "Contract Variation",
       output_filename: "{date}_variation_{variation_number}_{job_name}"
     },
@@ -84,7 +84,7 @@ class TeknaDocumentGenerator
       path: "templates/practical_completion",
       category: "certificate",
       requires: [ :job ],
-      layout: "tekna",
+      layout: "teeem",
       title: "Practical Completion Certificate",
       output_filename: "{date}_practical_completion_{job_name}"
     },
@@ -99,7 +99,7 @@ class TeknaDocumentGenerator
 
     # QBCC Official documents (PDF overlay - uses official QBCC PDFs)
     # These use the actual QBCC PDF templates with form filling/text overlay
-    # SSoT: PDF templates stored in app/views/tekna_documents/templates/qbcc/
+    # SSoT: PDF templates stored in app/views/teeem_template_documents/templates/qbcc/
     qbcc_contract: {
       source: :pdf_overlay,
       pdf_template: "qbcc_contract.pdf",
@@ -148,7 +148,7 @@ class TeknaDocumentGenerator
       path: "templates/deposit_claim_invoice",
       category: "invoice",
       requires: [ :job ],
-      layout: "tekna",
+      layout: "teeem",
       title: "Deposit Claim Invoice",
       output_filename: "{date}_deposit_invoice_{job_name}"
     }
@@ -218,7 +218,7 @@ class TeknaDocumentGenerator
   def preview_html(job: nil, contact: nil, purchase_order: nil, extra_data: {})
     validate_requirements!(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
     context = build_context(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
-    renderer = TeknaTemplateRenderer.new
+    renderer = TeeemTemplateRenderer.new
     renderer.render(
       template_path: template_config[:path],
       layout: "layouts/preview",
@@ -616,7 +616,7 @@ class TeknaDocumentGenerator
   end
 
   def render_template(context)
-    renderer = TeknaTemplateRenderer.new
+    renderer = TeeemTemplateRenderer.new
     layout = "layouts/#{template_config[:layout]}"
 
     # Custom PO variant: render from stored HTML instead of file
@@ -633,8 +633,18 @@ class TeknaDocumentGenerator
       context[:po_template_variant] = "classic"
     end
 
+    # For purchase orders, render the variant template directly instead of going
+    # through the router template (which uses partial rendering that drops content).
+    template_path = template_config[:path]
+    if template_key == :purchase_order
+      variant = context[:po_template_variant] || "classic"
+      valid_variants = %w[classic modern bold compact professional construction]
+      variant = "classic" unless valid_variants.include?(variant)
+      template_path = "templates/purchase_order/_#{variant}"
+    end
+
     renderer.render(
-      template_path: template_config[:path],
+      template_path: template_path,
       layout: layout,
       locals: context
     )

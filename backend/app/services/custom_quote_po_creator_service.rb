@@ -100,14 +100,15 @@ class CustomQuotePoCreatorService
       nil
     end
 
-    # Update existing PO with new supplier, budget, and add a line item
+    # Update existing PO with new supplier, budget, and replace line items with quote line
     def update_existing_po!(po, supplier, line, amount, user)
       po.update!(
         supplier: supplier.supplier,
         budget: amount
       )
 
-      # Add a line item with the quoted price from this supplier
+      # Remove existing line items and replace with the quoted price line
+      po.line_items.destroy_all
       add_quote_line_item!(po, supplier, line, amount)
 
       po

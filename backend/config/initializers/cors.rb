@@ -12,9 +12,12 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     # NOTE: Cannot use InfrastructureUrls here - not autoloaded yet at initializer time.
     # These must match TenantSetting::FRONTEND_ENVIRONMENT_URLS.
     origins(
-      "https://teeem.vercel.app",          # Production frontend
-      "https://teeem-beta.vercel.app",     # Beta frontend
-      "https://teeem-staging.vercel.app",  # Staging frontend
+      "https://app.teeem.com.au",          # Production frontend (custom domain)
+      "https://beta.teeem.com.au",         # Beta frontend (custom domain)
+      "https://staging.teeem.com.au",      # Staging frontend (custom domain)
+      "https://teeem.vercel.app",          # Production frontend (Vercel)
+      "https://teeem-beta.vercel.app",     # Beta frontend (Vercel)
+      "https://teeem-staging.vercel.app",  # Staging frontend (Vercel)
       "https://teeemrob.vercel.app",       # Rob's dev frontend
       "https://teeemsam.vercel.app",       # Sam's dev frontend
       "https://teeemjake.vercel.app",      # Jake's dev frontend

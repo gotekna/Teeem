@@ -37,7 +37,7 @@ require "grover"
 class DirectorChangeService
   class GenerationError < StandardError; end
 
-  TEMPLATE_BASE = "tekna_documents/templates/asic".freeze
+  TEMPLATE_BASE = "teeem_template_documents/templates/asic".freeze
 
   attr_reader :company, :ceasing_directors, :new_appointments, :user
 

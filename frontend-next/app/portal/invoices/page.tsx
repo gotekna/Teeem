@@ -21,10 +21,10 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { useToast } from "@/components/ui/use-toast";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { portalApi } from "@/lib/portal-api";
+import CreateInvoiceWizard from "@/components/portal/CreateInvoiceWizard";
 
 interface Invoice {
   id: number;
@@ -82,6 +82,7 @@ export default function PortalInvoices() {
 
   const activeTab = (activeTabRaw || "all") as TabKey;
 
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<InvoicesData>({
     pending: [],
@@ -197,7 +198,7 @@ export default function PortalInvoices() {
           </p>
         </div>
         <button
-          onClick={() => toast({ title: "Coming Soon", description: "Create invoice functionality coming soon" })}
+          onClick={() => setShowCreateWizard(true)}
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
         >
           <PlusIcon className="h-5 w-5 mr-2" />
@@ -410,6 +411,16 @@ export default function PortalInvoices() {
           </div>
         </div>
       )}
+
+      {/* Create Invoice Wizard */}
+      <CreateInvoiceWizard
+        isOpen={showCreateWizard}
+        onClose={() => setShowCreateWizard(false)}
+        onSuccess={() => {
+          setShowCreateWizard(false);
+          loadInvoices();
+        }}
+      />
     </div>
   );
 }

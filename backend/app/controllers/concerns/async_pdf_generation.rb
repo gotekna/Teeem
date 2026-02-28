@@ -7,7 +7,7 @@
 #
 #   def generate_pdf
 #     enqueue_pdf_and_respond(
-#       generator_type: "tekna_document",
+#       generator_type: "teeem_document",
 #       generator_params: { template_key: "specifications", job_id: @job.id }
 #     )
 #   end

@@ -704,16 +704,16 @@ module Api
         if params[:format] == "html" || params[:preview]
           # Use generate() with html_only to get full template rendering (styles, wrapper divs)
           # PO templates use the "po" layout (A4 sizing, no branded header/footer)
-          generator = TeknaDocumentGenerator.new(:purchase_order)
+          generator = TeeemDocumentGenerator.new(:purchase_order)
           result = generator.generate(purchase_order: @purchase_order, html_only: true)
           render html: result[:html].html_safe
         else
           enqueue_pdf_and_respond(
-            generator_type: "tekna_document",
+            generator_type: "teeem_document",
             generator_params: { template_key: "purchase_order", purchase_order_id: @purchase_order.id }
           )
         end
-      rescue TeknaDocumentGenerator::GenerationError => e
+      rescue TeeemDocumentGenerator::GenerationError => e
         render json: { error: e.message }, status: :unprocessable_entity
       rescue => e
         render json: { error: "Failed to generate PDF: #{e.message}" }, status: :internal_server_error
@@ -755,7 +755,7 @@ module Api
         end
 
         # Generate PDF
-        generator = TeknaDocumentGenerator.new(:purchase_order)
+        generator = TeeemDocumentGenerator.new(:purchase_order)
         result = generator.generate(purchase_order: @purchase_order)
 
         # Build filename: {JobName}_{PONumber}_{SmTaskName}.pdf
@@ -796,7 +796,7 @@ module Api
           download_url: warehouse_doc.download_url,
           message: "PDF saved to #{job&.job_code || 'Job'}/Purchase Orders"
         }
-      rescue TeknaDocumentGenerator::GenerationError => e
+      rescue TeeemDocumentGenerator::GenerationError => e
         render_error(e.message, status: :unprocessable_entity)
       rescue => e
         Rails.logger.error "[PO SavePDF] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
@@ -821,7 +821,7 @@ module Api
         end
 
         # Generate PDF
-        generator = TeknaDocumentGenerator.new(:purchase_order)
+        generator = TeeemDocumentGenerator.new(:purchase_order)
         result = generator.generate(purchase_order: @purchase_order)
 
         # Build filename
@@ -900,7 +900,7 @@ module Api
           purchase_order: @purchase_order.as_json(include: :line_items),
           document_id: warehouse_doc.id
         }
-      rescue TeknaDocumentGenerator::GenerationError => e
+      rescue TeeemDocumentGenerator::GenerationError => e
         render_error(e.message, status: :unprocessable_entity)
       rescue => e
         Rails.logger.error "[PO SendEmail] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
@@ -920,7 +920,7 @@ module Api
 
         settings = TenantSetting.instance
         sample_context = build_sample_context_for_export(settings, variant)
-        renderer = TeknaTemplateRenderer.new
+        renderer = TeeemTemplateRenderer.new
 
         # Render the template content with sample data (no layout yet)
         if variant == "custom"
@@ -987,7 +987,7 @@ module Api
 
         if po
           # Render real PO with preview layout (lightweight, no A4 sizing or branded header/footer)
-          generator = TeknaDocumentGenerator.new(:purchase_order)
+          generator = TeeemDocumentGenerator.new(:purchase_order)
           html = generator.preview_html(
             purchase_order: po,
             extra_data: { po_template_variant: variant }
@@ -1141,7 +1141,7 @@ module Api
           is_qbcc_document: false
         }
 
-        renderer = TeknaTemplateRenderer.new
+        renderer = TeeemTemplateRenderer.new
         renderer.render(
           template_path: "templates/purchase_order",
           layout: "layouts/preview",

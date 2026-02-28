@@ -557,8 +557,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Tekna Document Templates (HTML → PDF generation)
-      resources :tekna_documents, only: [] do
+      # Teeem Document Templates (HTML → PDF generation)
+      resources :teeem_template_documents, only: [] do
         collection do
           get :templates
         end
@@ -804,12 +804,12 @@ Rails.application.routes.draw do
       end
 
       # Document Templates for mail merge
-      # SSoT: TeknaDocumentGenerator::TEMPLATES is the source of truth (Dec 2024)
+      # SSoT: TeeemDocumentGenerator::TEMPLATES is the source of truth (Dec 2024)
       resources :document_templates, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           get :categories
           get :sharepoint_files
-          get :ssot  # SSoT templates from TeknaDocumentGenerator
+          get :ssot  # SSoT templates from TeeemDocumentGenerator
           get "ssot/:template_key", to: "document_templates#ssot_show", as: :ssot_template
           put "ssot/:template_key", to: "document_templates#ssot_update"
           # Layout endpoints for editor
@@ -4645,6 +4645,7 @@ Rails.application.routes.draw do
           end
           collection do
             get :stats
+            get :search_purchase_orders
           end
         end
 

@@ -2,7 +2,7 @@
 
 module Api
   module V1
-    class TeknaDocumentsController < ApplicationController
+    class TeeemTemplateDocumentsController < ApplicationController
       include AsyncPdfGeneration
 
       # Allow unauthenticated access for viewing templates and previews
@@ -10,10 +10,10 @@ module Api
       before_action :set_job, only: [ :preview, :generate ]
       before_action :set_contact, only: [ :preview, :generate ]
 
-      # GET /api/v1/tekna_documents/templates
+      # GET /api/v1/teeem_template_documents/templates
       # Lists all available document templates
       def templates
-        templates = TeknaDocumentGenerator::TEMPLATES.map do |key, config|
+        templates = TeeemDocumentGenerator::TEMPLATES.map do |key, config|
           {
             key: key.to_s,
             name: key.to_s.titleize,
@@ -26,16 +26,16 @@ module Api
         render json: { success: true, data: templates }
       end
 
-      # GET /api/v1/tekna_documents/:id/preview
+      # GET /api/v1/teeem_template_documents/:id/preview
       # Returns HTML preview for a template
       def preview
         template_key = params[:id].to_sym
 
-        unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
+        unless TeeemDocumentGenerator::TEMPLATES.key?(template_key)
           return render_error("Template not found: #{params[:id]}", status: :not_found)
         end
 
-        generator = TeknaDocumentGenerator.new(template_key)
+        generator = TeeemDocumentGenerator.new(template_key)
         html = generator.preview(
           job: @job,
           contact: @contact,
@@ -48,21 +48,21 @@ module Api
           render json: { success: true, data: { html: html } }
         end
       rescue StandardError => e
-        Rails.logger.error("TeknaDocuments preview error: #{e.message}")
+        Rails.logger.error("TeeemTemplateDocuments preview error: #{e.message}")
         render_error(e.message, status: :unprocessable_entity)
       end
 
-      # POST /api/v1/tekna_documents/:id/generate
+      # POST /api/v1/teeem_template_documents/:id/generate
       # Enqueues async PDF generation and returns job status
       def generate
         template_key = params[:id].to_sym
 
-        unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
+        unless TeeemDocumentGenerator::TEMPLATES.key?(template_key)
           return render_error("Template not found: #{params[:id]}", status: :not_found)
         end
 
         enqueue_pdf_and_respond(
-          generator_type: "tekna_document",
+          generator_type: "teeem_document",
           generator_params: {
             template_key: template_key.to_s,
             job_id: @job&.id,
@@ -72,17 +72,17 @@ module Api
         )
       end
 
-      # POST /api/v1/tekna_documents/:id/generate_and_send
+      # POST /api/v1/teeem_template_documents/:id/generate_and_send
       # Enqueues async PDF generation (and optional e-signature send)
       def generate_and_send
         template_key = params[:id].to_sym
 
-        unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
+        unless TeeemDocumentGenerator::TEMPLATES.key?(template_key)
           return render_error("Template not found: #{params[:id]}", status: :not_found)
         end
 
         enqueue_pdf_and_respond(
-          generator_type: "tekna_document",
+          generator_type: "teeem_document",
           generator_params: {
             template_key: template_key.to_s,
             job_id: @job&.id,

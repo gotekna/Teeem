@@ -9,11 +9,11 @@ module Bpmn
     # e-signature request, and sends it to the specified signers.
     #
     # ============================================================================
-    # SSoT: Uses TeknaDocumentGenerator for document generation (Dec 2024)
+    # SSoT: Uses TeeemDocumentGenerator for document generation (Dec 2024)
     # ============================================================================
     #
     # Config options:
-    #   template_key: Key from TeknaDocumentGenerator::TEMPLATES (SSoT - PREFERRED)
+    #   template_key: Key from TeeemDocumentGenerator::TEMPLATES (SSoT - PREFERRED)
     #                 Examples: "welcome_letter", "specifications", "qbcc_contract"
     #   template_id: DEPRECATED - ID of the DocumentTemplate to use
     #   template_name: DEPRECATED - find template by name
@@ -46,7 +46,7 @@ module Bpmn
     #     "store_as_variable": "welcome_esign"
     #   }
     #
-    # Available template_keys (from TeknaDocumentGenerator::TEMPLATES):
+    # Available template_keys (from TeeemDocumentGenerator::TEMPLATES):
     #   - welcome_letter, specifications, colour_selections, owners_authority
     #   - spec_acknowledgement, termite_protection, variation, practical_completion
     #   - qbcc_contract, qbcc_consumer_guide, qbcc_general_conditions
@@ -62,11 +62,11 @@ module Bpmn
         end
 
         unless template_key
-          raise "template_key is required. Available: #{TeknaDocumentGenerator::TEMPLATES.keys.join(', ')}"
+          raise "template_key is required. Available: #{TeeemDocumentGenerator::TEMPLATES.keys.join(', ')}"
         end
 
         # Get template config for title
-        template_config = TeknaDocumentGenerator::TEMPLATES[template_key]
+        template_config = TeeemDocumentGenerator::TEMPLATES[template_key]
         template_title = template_config&.dig(:title) || template_key.to_s.titleize
 
         title = get_config("title", interpolate_value: true) || "#{template_title} - #{job.name}"
@@ -138,8 +138,8 @@ module Bpmn
         # Direct template_key (preferred)
         if @config["template_key"].present?
           key = @config["template_key"].to_sym
-          unless TeknaDocumentGenerator::TEMPLATES.key?(key)
-            raise "Unknown template_key: #{key}. Available: #{TeknaDocumentGenerator::TEMPLATES.keys.join(', ')}"
+          unless TeeemDocumentGenerator::TEMPLATES.key?(key)
+            raise "Unknown template_key: #{key}. Available: #{TeeemDocumentGenerator::TEMPLATES.keys.join(', ')}"
           end
           return key
         end
@@ -152,13 +152,13 @@ module Bpmn
             log_info("DEPRECATED: Mapped template_name '#{name}' to template_key '#{key}'. Update workflow to use template_key directly.")
             return key
           else
-            raise "Could not map template_name '#{name}' to a template_key. Available: #{TeknaDocumentGenerator::TEMPLATES.keys.join(', ')}"
+            raise "Could not map template_name '#{name}' to a template_key. Available: #{TeeemDocumentGenerator::TEMPLATES.keys.join(', ')}"
           end
         end
 
         # DEPRECATED: template_id is no longer supported
         if @config["template_id"].present?
-          raise "template_id is deprecated. Use template_key instead. Available: #{TeknaDocumentGenerator::TEMPLATES.keys.join(', ')}"
+          raise "template_id is deprecated. Use template_key instead. Available: #{TeeemDocumentGenerator::TEMPLATES.keys.join(', ')}"
         end
 
         nil
@@ -197,7 +197,7 @@ module Bpmn
 
         # Try converting name to key format (snake_case)
         possible_key = name.parameterize(separator: "_").to_sym
-        return possible_key if TeknaDocumentGenerator::TEMPLATES.key?(possible_key)
+        return possible_key if TeeemDocumentGenerator::TEMPLATES.key?(possible_key)
 
         nil
       end

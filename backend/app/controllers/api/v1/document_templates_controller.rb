@@ -2,16 +2,16 @@ class Api::V1::DocumentTemplatesController < ApplicationController
   before_action :set_document_template, only: [ :show, :update, :destroy, :preview, :link_sharepoint, :generate_and_send ]
 
   # ============================================================================
-  # SSoT: TeknaDocumentGenerator::TEMPLATES is the source of truth for templates
+  # SSoT: TeeemDocumentGenerator::TEMPLATES is the source of truth for templates
   # The DocumentTemplate model (database) is DEPRECATED - Dec 2024
   # ============================================================================
 
   # GET /api/v1/document_templates
-  # Returns templates from TeknaDocumentGenerator::TEMPLATES (SSoT)
+  # Returns templates from TeeemDocumentGenerator::TEMPLATES (SSoT)
   # Plus legacy database templates for backwards compatibility
   def index
-    # SSoT: TeknaDocumentGenerator templates (active)
-    ssot_templates = TeknaDocumentGenerator::TEMPLATES.map do |key, config|
+    # SSoT: TeeemDocumentGenerator templates (active)
+    ssot_templates = TeeemDocumentGenerator::TEMPLATES.map do |key, config|
       {
         id: "ssot_#{key}",
         template_key: key.to_s,
@@ -24,7 +24,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         requires: config[:requires],
         output_filename: config[:output_filename],
         qbcc_required: config[:qbcc_required] || false,
-        preview_url: "/api/v1/tekna_documents/#{key}/preview?format=html"
+        preview_url: "/api/v1/teeem_template_documents/#{key}/preview?format=html"
       }
     end
 
@@ -50,14 +50,14 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       data: all_templates,
       ssot_count: ssot_templates.count,
       legacy_count: legacy_templates.count,
-      message: "Templates now sourced from TeknaDocumentGenerator (SSoT). Database templates are deprecated."
+      message: "Templates now sourced from TeeemDocumentGenerator (SSoT). Database templates are deprecated."
     }
   end
 
   # GET /api/v1/document_templates/ssot
-  # Returns ONLY templates from TeknaDocumentGenerator::TEMPLATES
+  # Returns ONLY templates from TeeemDocumentGenerator::TEMPLATES
   def ssot
-    templates = TeknaDocumentGenerator::TEMPLATES.map do |key, config|
+    templates = TeeemDocumentGenerator::TEMPLATES.map do |key, config|
       {
         template_key: key.to_s,
         name: config[:title] || key.to_s.titleize,
@@ -68,7 +68,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         requires: config[:requires],
         output_filename: config[:output_filename],
         qbcc_required: config[:qbcc_required] || false,
-        preview_url: "/api/v1/tekna_documents/#{key}/preview?format=html"
+        preview_url: "/api/v1/teeem_template_documents/#{key}/preview?format=html"
       }
     end
 
@@ -93,22 +93,22 @@ class Api::V1::DocumentTemplatesController < ApplicationController
   def ssot_show
     key = params[:template_key].to_sym
 
-    unless TeknaDocumentGenerator::TEMPLATES.key?(key)
+    unless TeeemDocumentGenerator::TEMPLATES.key?(key)
       return render json: {
         success: false,
         error: "Template not found: #{params[:template_key]}",
-        available: TeknaDocumentGenerator::TEMPLATES.keys.map(&:to_s)
+        available: TeeemDocumentGenerator::TEMPLATES.keys.map(&:to_s)
       }, status: :not_found
     end
 
-    config = TeknaDocumentGenerator::TEMPLATES[key]
+    config = TeeemDocumentGenerator::TEMPLATES[key]
 
     # Read the template file content for editing
-    template_path = Rails.root.join("app/views/tekna_documents/#{config[:path]}.html.erb")
+    template_path = Rails.root.join("app/views/teeem_template_documents/#{config[:path]}.html.erb")
     template_content = File.exist?(template_path) ? File.read(template_path) : nil
 
     # Read the layout file content
-    layout_path = Rails.root.join("app/views/tekna_documents/layouts/#{config[:layout]}.html.erb")
+    layout_path = Rails.root.join("app/views/teeem_template_documents/layouts/#{config[:layout]}.html.erb")
     layout_content = File.exist?(layout_path) ? File.read(layout_path) : nil
 
     render json: {
@@ -123,7 +123,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         requires: config[:requires],
         output_filename: config[:output_filename],
         qbcc_required: config[:qbcc_required] || false,
-        preview_url: "/api/v1/tekna_documents/#{key}/preview?format=html",
+        preview_url: "/api/v1/teeem_template_documents/#{key}/preview?format=html",
         # For editor
         template_file_path: template_path.to_s,
         template_content: template_content,
@@ -140,11 +140,11 @@ class Api::V1::DocumentTemplatesController < ApplicationController
   def ssot_update
     key = params[:template_key].to_sym
 
-    unless TeknaDocumentGenerator::TEMPLATES.key?(key)
+    unless TeeemDocumentGenerator::TEMPLATES.key?(key)
       return render_error("Template not found: #{params[:template_key]}", status: :not_found)
     end
 
-    config = TeknaDocumentGenerator::TEMPLATES[key]
+    config = TeeemDocumentGenerator::TEMPLATES[key]
 
     # Don't allow editing SharePoint-sourced templates
     if config[:source] == :sharepoint
@@ -156,7 +156,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
 
     # Update template content if provided
     if params[:template_content].present?
-      template_path = Rails.root.join("app/views/tekna_documents/#{config[:path]}.html.erb")
+      template_path = Rails.root.join("app/views/teeem_template_documents/#{config[:path]}.html.erb")
 
       begin
         # Ensure directory exists
@@ -192,7 +192,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
   # GET /api/v1/document_templates/layouts
   # List all available layouts with their content
   def layouts
-    layouts_dir = Rails.root.join("app/views/tekna_documents/layouts")
+    layouts_dir = Rails.root.join("app/views/teeem_template_documents/layouts")
     layouts = []
 
     if Dir.exist?(layouts_dir)
@@ -220,7 +220,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
   # Get a specific layout's content
   def layout_show
     name = params[:name].to_s.gsub(/[^a-z0-9_-]/i, "")
-    layout_path = Rails.root.join("app/views/tekna_documents/layouts/#{name}.html.erb")
+    layout_path = Rails.root.join("app/views/teeem_template_documents/layouts/#{name}.html.erb")
 
     unless File.exist?(layout_path)
       return render_error("Layout not found: #{name}", status: :not_found)
@@ -235,7 +235,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         content: File.read(layout_path),
         description: layout_description(name),
         # Templates using this layout
-        templates_using: TeknaDocumentGenerator::TEMPLATES.select { |_, c| c[:layout] == name }.keys.map(&:to_s)
+        templates_using: TeeemDocumentGenerator::TEMPLATES.select { |_, c| c[:layout] == name }.keys.map(&:to_s)
       }
     }
   end
@@ -244,7 +244,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
   # Update a layout's content
   def layout_update
     name = params[:name].to_s.gsub(/[^a-z0-9_-]/i, "")
-    layout_path = Rails.root.join("app/views/tekna_documents/layouts/#{name}.html.erb")
+    layout_path = Rails.root.join("app/views/teeem_template_documents/layouts/#{name}.html.erb")
 
     unless File.exist?(layout_path)
       return render_error("Layout not found: #{name}", status: :not_found)
@@ -333,11 +333,11 @@ class Api::V1::DocumentTemplatesController < ApplicationController
 
   # GET /api/v1/document_templates/:id/preview
   # Preview the document with sample data
-  # DEPRECATED: Word templates removed Dec 2024. Use TeknaDocumentGenerator instead.
+  # DEPRECATED: Word templates removed Dec 2024. Use TeeemDocumentGenerator instead.
   def preview
     render json: {
       success: false,
-      errors: [ "Word template preview is no longer supported. Use TeknaDocumentGenerator templates instead." ]
+      errors: [ "Word template preview is no longer supported. Use TeeemDocumentGenerator templates instead." ]
     }, status: :gone
   end
 
@@ -676,7 +676,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
 
   # List all available layouts from the layouts directory
   def list_available_layouts
-    layouts_dir = Rails.root.join("app/views/tekna_documents/layouts")
+    layouts_dir = Rails.root.join("app/views/teeem_template_documents/layouts")
     return [] unless Dir.exist?(layouts_dir)
 
     Dir.glob("#{layouts_dir}/*.html.erb").map do |file|
@@ -687,8 +687,8 @@ class Api::V1::DocumentTemplatesController < ApplicationController
   # Get description for a layout
   def layout_description(name)
     case name
-    when "tekna"
-      "Tekna branded layout with logo, header and footer. Used for Welcome Letter, Specs, etc."
+    when "teeem"
+      "Teeem branded layout with logo, header and footer. Used for Welcome Letter, Specs, etc."
     when "qbcc_official"
       "Plain layout matching official QBCC document format. No branding."
     when "none"

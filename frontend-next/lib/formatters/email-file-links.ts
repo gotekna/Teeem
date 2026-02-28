@@ -99,8 +99,8 @@ export function formatZipAndClosing(options: {
  * Used at the bottom of all outgoing emails (after signature).
  */
 export function formatTeeemFooter(): string {
-  const teeemLogoUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-28.png';
-  const teeemLogoSmallUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-10.png';
+  const teeemLogoUrl = 'https://app.teeem.com.au/icons/teeem-logo-28.png';
+  const teeemLogoSmallUrl = 'https://app.teeem.com.au/icons/teeem-logo-10.png';
 
   let html = '\n<br><br>\n';
   html += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';

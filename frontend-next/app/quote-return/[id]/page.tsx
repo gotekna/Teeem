@@ -2,12 +2,13 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { FileText, Sparkles, Loader2, Check, X, Paperclip, SplitSquareHorizontal, ExternalLink } from "lucide-react";
+import { FileText, Sparkles, Loader2, Check, X, Paperclip, SplitSquareHorizontal, ExternalLink, ArrowRight, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { DocumentViewer } from "@/components/ui/document-viewer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { format, parseISO } from "date-fns";
 import { DATE_DISPLAY } from "@/lib/constants/date-formats";
@@ -76,6 +77,12 @@ interface QuoteReturnContext {
         plansCount: number;
         hasQuoteAttached: boolean;
         status: string | null;
+        lineItems?: Array<{
+          description: string;
+          quantity: number;
+          unitPrice: number;
+          total: number;
+        }>;
       };
     }>;
   } | null;
@@ -126,6 +133,7 @@ function QuoteReturnContent() {
   const [rejecting, setRejecting] = useState(false);
   const [actionResult, setActionResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [createdPOs, setCreatedPOs] = useState<Array<{ id: number; poNumber: string; budget: number | null; status: string }>>([]);
+  const [showPreview, setShowPreview] = useState(false);
   // PO line allocation state (CC-level only)
   const [allocations, setAllocations] = useState<Record<number, string>>({});
 
@@ -349,6 +357,7 @@ function QuoteReturnContent() {
   const isCCLevel = qr.parentLine?.quoteLevel === "cost_centre" && (qr.parentLine?.children?.length ?? 0) > 0;
   const canAct = qr.status === "sent" || qr.status === "responded";
   const hasTenderDesc = !!tender?.requested.description;
+  const hasExistingPOs = isCCLevel && !!qr.parentLine?.children?.some(c => c.po?.lineItems?.length);
 
   return (
     <div className="h-dvh flex bg-background overflow-hidden">
@@ -736,16 +745,18 @@ function QuoteReturnContent() {
               {!actionResult?.type && (
                 <div className="flex gap-2">
                   <Button
-                    onClick={handleAccept}
+                    onClick={() => hasExistingPOs ? setShowPreview(true) : handleAccept()}
                     disabled={accepting || rejecting || !qr.priceQuoted || (isCCLevel && (remaining < -0.01 || totalAllocated < 0.01))}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                   >
                     {accepting ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : hasExistingPOs ? (
+                      <Eye className="h-4 w-4 mr-1" />
                     ) : (
                       <Check className="h-4 w-4 mr-1" />
                     )}
-                    Accept &amp; Create PO
+                    {hasExistingPOs ? "Preview & Accept" : "Accept & Create PO"}
                   </Button>
                   <Button
                     variant="outline"
@@ -858,6 +869,112 @@ function QuoteReturnContent() {
             </div>
           )}
         </div>
+
+        {/* PO Before/After Preview Dialog */}
+        <Dialog open={showPreview} onOpenChange={setShowPreview}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                PO Changes Preview
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Accepting this quote will update the following Purchase Orders.
+                Existing line items will be replaced with the new quote line.
+              </p>
+
+              {qr.parentLine?.children?.filter(c => c.po).map((child) => {
+                const po = child.po!;
+                const newBudget = parseFloat(allocations[child.id] || "0") || 0;
+                return (
+                  <div key={child.id} className="rounded-lg border overflow-hidden">
+                    {/* PO Header */}
+                    <div className="bg-muted/50 px-4 py-2 flex items-center justify-between border-b">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{child.purchaseOrderNumber || child.name}</span>
+                        {child.name !== child.purchaseOrderNumber && (
+                          <span className="text-xs text-muted-foreground">{child.name}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-mono text-muted-foreground line-through">{formatCurrency(po.budget)}</span>
+                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="font-mono text-green-600 font-medium">{formatCurrency(newBudget)}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 divide-x">
+                      {/* Before column */}
+                      <div className="p-3">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Before</span>
+                        {po.lineItems && po.lineItems.length > 0 ? (
+                          <div className="mt-2 space-y-1.5">
+                            {po.lineItems.map((li, i) => (
+                              <div key={i} className="text-sm line-through text-muted-foreground opacity-70">
+                                <p className="truncate" title={li.description}>{li.description}</p>
+                                <p className="text-xs font-mono">
+                                  {li.quantity} x {formatCurrency(li.unitPrice)} = {formatCurrency(li.total)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-muted-foreground italic">No existing line items</p>
+                        )}
+                      </div>
+
+                      {/* After column */}
+                      <div className="p-3">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">After</span>
+                        <div className="mt-2 space-y-1.5">
+                          <div className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 rounded px-2 py-1.5">
+                            <p className="truncate font-medium" title={qr.supplierName || "Quote line"}>
+                              {qr.supplierName || "Quote line"} — {qr.itemName}
+                            </p>
+                            <p className="text-xs font-mono mt-0.5">
+                              1 x {formatCurrency(newBudget)} = {formatCurrency(newBudget)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {qr.warehouseDocumentId && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Quote document will be attached to each PO
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setShowPreview(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowPreview(false);
+                  handleAccept();
+                }}
+                disabled={accepting}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {accepting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Check className="h-4 w-4 mr-1" />
+                )}
+                Confirm &amp; Accept
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 }

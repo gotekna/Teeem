@@ -18,6 +18,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { getStorageItem, removeStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { ROUTES } from "@/lib/constants/route-paths";
+import { Toaster } from "@/components/ui/toaster";
 
 interface PortalUser {
   contact_name?: string;
@@ -257,6 +258,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           {children}
         </main>
       </div>
+
+      <Toaster />
     </div>
   );
 }

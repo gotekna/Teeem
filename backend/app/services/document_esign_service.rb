@@ -9,13 +9,13 @@ require "hexapdf"
 #
 # ============================================================================
 # SSoT:
-# - Uses TeknaDocumentGenerator for document generation (Dec 2024)
+# - Uses TeeemDocumentGenerator for document generation (Dec 2024)
 # - Uses DocumentProviderAware for provider-agnostic storage operations
 # ============================================================================
 #
 # Usage (NEW - template_key):
 #   service = DocumentEsignService.new(
-#     template_key: :welcome_letter,  # Uses TeknaDocumentGenerator (SSoT)
+#     template_key: :welcome_letter,  # Uses TeeemDocumentGenerator (SSoT)
 #     job: job,
 #     signers: [
 #       { contact: primary_contact, role: "client" },
@@ -51,7 +51,7 @@ class DocumentEsignService
     validate!
 
     # Step 1: Generate the main document
-    # SSoT: Uses TeknaDocumentGenerator (template_key required)
+    # SSoT: Uses TeeemDocumentGenerator (template_key required)
     generated = generate_document
 
     # Step 1b: Generate additional documents if specified
@@ -102,9 +102,9 @@ class DocumentEsignService
     raise Error, "Job is required" unless job
     raise Error, "At least one signer is required" if signers.empty?
 
-    # Validate template_key exists in TeknaDocumentGenerator
-    unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
-      available = TeknaDocumentGenerator::TEMPLATES.keys.join(", ")
+    # Validate template_key exists in TeeemDocumentGenerator
+    unless TeeemDocumentGenerator::TEMPLATES.key?(template_key)
+      available = TeeemDocumentGenerator::TEMPLATES.keys.join(", ")
       raise Error, "Unknown template_key: #{template_key}. Available: #{available}"
     end
 
@@ -117,13 +117,13 @@ class DocumentEsignService
     end
   end
 
-  # Generate document using SSoT (TeknaDocumentGenerator)
+  # Generate document using SSoT (TeeemDocumentGenerator)
   def generate_document
     raise Error, "template_key is required. Word templates are no longer supported." unless template_key
 
-    # SSoT: Use TeknaDocumentGenerator
-    Rails.logger.info "[DocumentEsignService] Generating document from TeknaDocumentGenerator: #{template_key}"
-    generator = TeknaDocumentGenerator.new(template_key)
+    # SSoT: Use TeeemDocumentGenerator
+    Rails.logger.info "[DocumentEsignService] Generating document from TeeemDocumentGenerator: #{template_key}"
+    generator = TeeemDocumentGenerator.new(template_key)
     result = generator.generate(job: job, extra_data: options[:extra_data] || {})
 
     {
@@ -136,7 +136,7 @@ class DocumentEsignService
   # Get template name for display
   def template_name
     if template_key
-      TeknaDocumentGenerator::TEMPLATES.dig(template_key, :title) || template_key.to_s.titleize
+      TeeemDocumentGenerator::TEMPLATES.dig(template_key, :title) || template_key.to_s.titleize
     else
       template&.name || "Unknown"
     end
@@ -235,7 +235,7 @@ class DocumentEsignService
   end
 
   # Generate additional documents from template keys
-  # SSoT: Uses TeknaDocumentGenerator for all additional documents
+  # SSoT: Uses TeeemDocumentGenerator for all additional documents
   def generate_additional_documents
     additional_keys = options[:additional_templates]
     return [] if additional_keys.blank?
@@ -243,14 +243,14 @@ class DocumentEsignService
     additional_keys.filter_map do |key|
       key_sym = key.to_sym
 
-      # Validate template exists in TeknaDocumentGenerator
-      unless TeknaDocumentGenerator::TEMPLATES.key?(key_sym)
-        Rails.logger.warn "[DocumentEsignService] Additional template not found in TeknaDocumentGenerator: #{key}"
+      # Validate template exists in TeeemDocumentGenerator
+      unless TeeemDocumentGenerator::TEMPLATES.key?(key_sym)
+        Rails.logger.warn "[DocumentEsignService] Additional template not found in TeeemDocumentGenerator: #{key}"
         next
       end
 
       Rails.logger.info "[DocumentEsignService] Generating additional document: #{key}"
-      generator = TeknaDocumentGenerator.new(key_sym)
+      generator = TeeemDocumentGenerator.new(key_sym)
       generated = generator.generate(job: job, extra_data: options[:extra_data] || {})
 
       # Return the PDF content

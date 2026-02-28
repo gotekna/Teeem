@@ -202,7 +202,7 @@ function ResetPasswordForm() {
               Bookmark the login page for easy access
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Press <kbd className="px-1 py-0.5 bg-background border rounded text-[10px] font-mono">{isMac ? "\u2318D" : "Ctrl+D"}</kbd> now, or save <span className="font-medium">teeem.vercel.app/login</span>
+              Press <kbd className="px-1 py-0.5 bg-background border rounded text-[10px] font-mono">{isMac ? "\u2318D" : "Ctrl+D"}</kbd> now, or save <span className="font-medium">app.teeem.com.au/login</span>
             </p>
           </div>
 

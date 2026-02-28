@@ -94,9 +94,11 @@ Rails.application.configure do
   # NOTE: Cannot use InfrastructureUrls here - not autoloaded yet at config time.
   # These must match TenantSetting::API_ENVIRONMENT_URLS/FRONTEND_ENVIRONMENT_URLS.
   config.action_cable.allowed_request_origins = [
+    "https://app.teeem.com.au",
     "https://teeem.vercel.app",
     "https://teeem-production-121159e1ff9d.herokuapp.com",
     %r{https://teeem.*\.vercel\.app},  # Preview deployments
+    %r{https://.*\.teeem\.com\.au},    # Custom domain subdomains
   ]
 
   # Enable DNS rebinding protection and other `Host` header attacks.

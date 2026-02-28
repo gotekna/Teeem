@@ -3,7 +3,7 @@
 require "grover"
 
 # Grover configuration for HTML → PDF conversion
-# Used by TeknaDocumentGenerator for Tekna document templates
+# Used by TeeemDocumentGenerator for Teeem document templates
 #
 # Grover uses Puppeteer (headless Chrome) for high-quality PDF rendering.
 # On Heroku, requires the puppeteer-heroku-buildpack:

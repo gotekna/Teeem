@@ -370,7 +370,7 @@ module Api
           CustomQuoteAllocation
             .where(custom_quote_line_id: children_ids)
             .where.not(purchase_order_id: nil)
-            .includes(purchase_order: [:quote_warehouse_document, :purchase_order_documents])
+            .includes(purchase_order: [:quote_warehouse_document, :purchase_order_documents, :line_items])
             .each do |alloc|
               po_by_line[alloc.custom_quote_line_id] ||= alloc.purchase_order
             end
@@ -382,7 +382,7 @@ module Api
         if task_ids.any?
           PurchaseOrder
             .where(sm_task_id: task_ids)
-            .includes(:quote_warehouse_document, :purchase_order_documents)
+            .includes(:quote_warehouse_document, :purchase_order_documents, :line_items)
             .each do |po|
               po_by_task[po.sm_task_id] ||= po
             end
@@ -410,7 +410,11 @@ module Api
                 description: po.description&.truncate(120),
                 plansCount: po.purchase_order_documents.size,
                 hasQuoteAttached: po.quote_warehouse_document_id.present?,
-                status: po.status
+                status: po.status,
+                lineItems: po.line_items.order(:line_number).map { |li|
+                  { description: li.description, quantity: li.quantity&.to_f,
+                    unitPrice: li.unit_price&.to_f, total: li.total_amount&.to_f }
+                }
               }
             end
             child_data

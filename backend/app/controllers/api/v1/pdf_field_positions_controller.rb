@@ -181,9 +181,9 @@ module Api
 
         # Map template key to file path
         template_paths = {
-          "qbcc_contract" => Rails.root.join("app/views/tekna_documents/templates/qbcc/qbcc_contract.pdf"),
-          "qbcc_consumer_guide" => Rails.root.join("app/views/tekna_documents/templates/qbcc/qbcc_consumer_guide.pdf"),
-          "qbcc_general_conditions" => Rails.root.join("app/views/tekna_documents/templates/qbcc/qbcc_general_conditions.pdf")
+          "qbcc_contract" => Rails.root.join("app/views/teeem_template_documents/templates/qbcc/qbcc_contract.pdf"),
+          "qbcc_consumer_guide" => Rails.root.join("app/views/teeem_template_documents/templates/qbcc/qbcc_consumer_guide.pdf"),
+          "qbcc_general_conditions" => Rails.root.join("app/views/teeem_template_documents/templates/qbcc/qbcc_general_conditions.pdf")
         }
 
         pdf_path = template_paths[template_key]

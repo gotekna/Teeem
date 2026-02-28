@@ -3919,7 +3919,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Fallback to simple query params for single files without Q&A context
       const viewerParams = new URLSearchParams({ url: openUrl, name: fileName, download: downloadUrl });
       if (typeHint) viewerParams.set('type', typeHint);
-      return `https://teeem.vercel.app/view?${viewerParams.toString()}`;
+      return `https://app.teeem.com.au/view?${viewerParams.toString()}`;
     };
 
     // Add greeting with recipient's name
