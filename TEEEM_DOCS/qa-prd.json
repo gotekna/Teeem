@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260224",
     "started_at": "2026-02-24T02:13:39Z",
     "completed_at": "2026-02-28T12:36:58Z",
-    "last_updated": "2026-02-28T13:05:14Z",
-    "iteration": 11,
+    "last_updated": "2026-02-28T13:08:34Z",
+    "iteration": 12,
     "ship_ready": true,
     "total_pages": 199,
     "total_stories": 19
@@ -493,8 +493,8 @@
       "page_results": {
         "/finance": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -508,8 +508,8 @@
         },
         "/finance/bills": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -518,13 +518,13 @@
             "title": "Bills | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": false
+            "tableScrollBroken": null
           }
         },
         "/finance/payments": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -538,8 +538,8 @@
         },
         "/finance/settings": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -553,8 +553,8 @@
         },
         "/financial": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -568,8 +568,8 @@
         },
         "/financial/reports": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -583,8 +583,8 @@
         },
         "/financial/transactions": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -593,15 +593,13 @@
             "title": "Xero | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": false
-          },
-          "finding_id": "finding-004",
-          "finding_resolved": "false_positive - XeroStatementView uses server pagination, 50 records fit in viewport"
+            "tableScrollBroken": null
+          }
         },
         "/financial/tas": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -615,8 +613,8 @@
         },
         "/accounts": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -630,8 +628,8 @@
         },
         "/xero": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -645,8 +643,8 @@
         },
         "/xero/sync": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -699,8 +697,8 @@
       "page_results": {
         "/corporate": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -714,8 +712,8 @@
         },
         "/corporate/structure": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -729,8 +727,8 @@
         },
         "/corporate/directors": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -744,8 +742,8 @@
         },
         "/corporate/shareholders": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -759,8 +757,8 @@
         },
         "/corporate/beneficiaries": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,
@@ -774,8 +772,8 @@
         },
         "/corporate/memberships": {
           "status": "passed",
-          "tested_at": "2026-02-24T02:26:26Z",
-          "iteration": 2,
+          "tested_at": "2026-02-28T13:08:34Z",
+          "iteration": 12,
           "js_check": {
             "hasContent": true,
             "isStillLoading": false,

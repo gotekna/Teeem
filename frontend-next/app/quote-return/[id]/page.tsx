@@ -380,7 +380,7 @@ function QuoteReturnContent() {
             </div>
             <div>
               <span className="text-muted-foreground text-xs">CC / Trade</span>
-              <p>{qr.parentName || "\u2014"}</p>
+              <p>{qr.parentName || qr.parentLine?.name || "\u2014"}</p>
             </div>
             <div>
               <span className="text-muted-foreground text-xs">
