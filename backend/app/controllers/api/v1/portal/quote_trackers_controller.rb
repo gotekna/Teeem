@@ -17,8 +17,12 @@ module Api
           quotes_by_status = { awaiting_response: [], responded: [], accepted: [], rejected: [] }
           builders = {}
 
-          # Find all Contact records matching this email across ALL tenants
-          contacts = ActsAsTenant.without_tenant { Contact.where(email: email).includes(:tenant) }
+          # Find all Contact records matching this email across ALL tenants.
+          # Contact doesn't have an email column directly - emails live in contact_emails table.
+          contact_ids = ActsAsTenant.without_tenant {
+            ContactEmail.where(email: email).pluck(:contact_id)
+          }
+          contacts = ActsAsTenant.without_tenant { Contact.where(id: contact_ids).includes(:tenant) }
 
           contacts.each do |contact|
             next unless contact.tenant&.active?
