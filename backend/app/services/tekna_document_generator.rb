@@ -20,6 +20,7 @@ class TeknaDocumentGenerator
 
   # Template definitions
   # layout: "tekna" = Tekna branded header/footer
+  # layout: "po" = A4 sizing only, no branded header/footer (PO templates are self-contained)
   # layout: "qbcc_official" = Plain layout matching official QBCC format
   TEMPLATES = {
     # Tekna branded documents
@@ -91,7 +92,7 @@ class TeknaDocumentGenerator
       path: "templates/purchase_order",
       category: "operations",
       requires: [ :purchase_order ],
-      layout: "tekna",
+      layout: "po",
       title: "Purchase Order",
       output_filename: "{job_name}_{po_number}_{task_name}"
     },

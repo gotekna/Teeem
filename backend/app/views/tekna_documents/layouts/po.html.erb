@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= @document_title || "Purchase Order" %></title>
+  <style>
+    /* A4 Page setup - no branded header/footer (PO templates are self-contained) */
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    html, body {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0;
+      padding: 0;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 15mm 18mm;
+      position: relative;
+      page-break-after: always;
+      background: white;
+    }
+
+    .page:last-child {
+      page-break-after: auto;
+    }
+
+    /* Print optimizations */
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <%= yield_content %>
+  </div>
+</body>
+</html>
