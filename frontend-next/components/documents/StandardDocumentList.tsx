@@ -881,7 +881,14 @@ export function StandardDocumentList({
                     const fileType = getFileType(previewDoc.originalFilename || "", previewDoc.mimeType);
                     if (fileType === "pdf") {
                       return (
-                        <PDFViewer url={previewUrl} className="h-full" />
+                        <PDFViewer
+                          url={previewUrl}
+                          className="h-full"
+                          markupContext={previewDoc ? {
+                            contextType: "warehouse_document",
+                            contextId: previewDoc.id,
+                          } : undefined}
+                        />
                       );
                     }
                     if (fileType === "image") {

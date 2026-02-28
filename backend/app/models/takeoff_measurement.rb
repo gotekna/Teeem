@@ -15,6 +15,7 @@ class TakeoffMeasurement < ApplicationRecord
   belongs_to :job, optional: true  # Optional for DocSort standalone takeoff
   belongs_to :job_plan, optional: true
   belongs_to :document_inbox, optional: true  # For standalone takeoff from Document Inbox
+  belongs_to :warehouse_document, optional: true  # For universal PDF markup on any document
   belongs_to :pricebook_item, class_name: "PricebookItem", optional: true
   belongs_to :job_colour_selection, optional: true
   belongs_to :synced_to_po, class_name: "PurchaseOrder", optional: true
@@ -37,10 +38,10 @@ class TakeoffMeasurement < ApplicationRecord
   validates :source, inclusion: { in: SOURCES }, allow_nil: true
   validate :job_or_document_inbox_present
 
-  # Custom validation: must belong to either a job or a document_inbox
+  # Custom validation: must belong to at least one context
   def job_or_document_inbox_present
-    return if job_id.present? || document_inbox_id.present?
-    errors.add(:base, "Measurement must belong to either a job or a document inbox")
+    return if job_id.present? || document_inbox_id.present? || warehouse_document_id.present?
+    errors.add(:base, "Measurement must belong to a job, document inbox, or warehouse document")
   end
 
   # Scopes

@@ -19,6 +19,17 @@ export interface FieldHighlight {
   id?: string;        // field identifier for tracking
 }
 
+/**
+ * Context for markup mode. When provided, a "Markup" toggle button appears
+ * in the PDF toolbar. Supports warehouse_document context for measurements.
+ */
+export interface MarkupContext {
+  /** The type of document being marked up */
+  contextType: "warehouse_document" | "document_inbox" | "job_plan";
+  /** The ID of the document in its context table */
+  contextId: number | string;
+}
+
 export interface PDFViewerProps {
   url: string;
   className?: string;
@@ -27,6 +38,10 @@ export interface PDFViewerProps {
   onError?: (error: Error) => void;
   fallbackUrl?: string;
   highlights?: FieldHighlight[];
+  /** When provided, enables the "Markup" toggle button for measurements */
+  markupContext?: MarkupContext;
+  /** Callback when markup mode is toggled on/off */
+  onMarkupToggle?: (active: boolean) => void;
 }
 
 // Loading component shown while PDF viewer loads

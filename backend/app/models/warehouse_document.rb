@@ -124,6 +124,11 @@ class WarehouseDocument < ApplicationRecord
   # Materialized Path (Feb 2026): FK to template folder for path versioning
   belongs_to :warehouse_folder, optional: true
 
+  # PDF Takeoff / Universal Markup (Feb 2026)
+  has_many :page_scales, dependent: :destroy
+  has_many :takeoff_measurements, dependent: :destroy
+  has_many :takeoff_layers, dependent: :destroy
+
   # ========================================
   # Validations
   # ========================================

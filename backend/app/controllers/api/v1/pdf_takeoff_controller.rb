@@ -12,6 +12,7 @@ module Api
     class PdfTakeoffController < ApplicationController
       before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement, :generate_po, :detect_scale, :detect_elements]
       before_action :set_document_inbox, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort, :detect_scale_docsort, :detect_elements_docsort, :layers_docsort, :create_layer_docsort]
+      before_action :set_warehouse_document, only: [:show_warehouse_document, :calibrate_warehouse_document, :clear_calibration_warehouse_document, :measurements_warehouse_document, :create_measurement_warehouse_document, :layers_warehouse_document, :create_layer_warehouse_document]
       before_action :set_job, only: [:layers, :create_layer]
 
       # GET /api/v1/pdf_takeoff/plans/:job_plan_id
@@ -837,10 +838,12 @@ module Api
         if layer.measurements.any?
           default_layer = if layer.job
             TakeoffLayer.default_layer_for(layer.job)
-          else
+          elsif layer.document_inbox
             TakeoffLayer.default_layer_for_docsort(layer.document_inbox)
+          elsif layer.warehouse_document
+            TakeoffLayer.default_layer_for_warehouse_document(layer.warehouse_document)
           end
-          layer.measurements.update_all(takeoff_layer_id: default_layer.id)
+          layer.measurements.update_all(takeoff_layer_id: default_layer.id) if default_layer
         end
 
         layer.destroy
@@ -907,6 +910,237 @@ module Api
         end
       end
 
+      # =============================================================================
+      # Warehouse Document Context (Universal PDF Markup)
+      # =============================================================================
+
+      # GET /api/v1/pdf_takeoff/warehouse_document/:warehouse_document_id
+      def show_warehouse_document
+        page_scales = @warehouse_document.page_scales.map do |ps|
+          {
+            id: ps.id,
+            page_number: ps.page_number,
+            scale_factor: ps.scale_factor,
+            scale_label: ps.display_scale,
+            calibrated: ps.calibrated?,
+            calibration_line: ps.line_coordinates,
+            reference_length_mm: ps.reference_length_mm
+          }
+        end
+
+        # Get download URL from storage blob
+        download_url = begin
+          @warehouse_document.storage_blob&.download_url
+        rescue StandardError => e
+          Rails.logger.error "[PdfTakeoff] Failed to get download_url for WarehouseDocument #{@warehouse_document.id}: #{e.message}"
+          nil
+        end
+
+        render json: {
+          success: true,
+          data: {
+            warehouse_document: {
+              id: @warehouse_document.id,
+              display_name: @warehouse_document.ui_name,
+              source_type: @warehouse_document.source_type,
+              content_type: @warehouse_document.storage_blob&.content_type
+            },
+            download_url: download_url,
+            page_scales: page_scales
+          }
+        }
+      end
+
+      # POST /api/v1/pdf_takeoff/warehouse_document/:warehouse_document_id/calibrate
+      def calibrate_warehouse_document
+        page_number = params[:page_number]&.to_i || 1
+
+        page_scale = PageScale.find_or_initialize_by(
+          warehouse_document: @warehouse_document,
+          page_number: page_number
+        )
+        page_scale.tenant = current_tenant
+
+        success = page_scale.set_calibration(
+          reference_mm: params[:reference_length_mm].to_f,
+          line_start: { x: params[:line_start_x].to_f, y: params[:line_start_y].to_f },
+          line_end: { x: params[:line_end_x].to_f, y: params[:line_end_y].to_f },
+          canvas_width: params[:canvas_width]&.to_f,
+          canvas_height: params[:canvas_height]&.to_f,
+          user: current_user
+        )
+
+        if success
+          render json: {
+            success: true,
+            data: {
+              page_scale: {
+                id: page_scale.id,
+                page_number: page_scale.page_number,
+                scale_factor: page_scale.scale_factor,
+                scale_label: page_scale.display_scale,
+                calibrated: true,
+                calibration_line: page_scale.line_coordinates,
+                reference_length_mm: page_scale.reference_length_mm
+              }
+            }
+          }
+        else
+          render_validation_errors(page_scale)
+        end
+      end
+
+      # DELETE /api/v1/pdf_takeoff/warehouse_document/:warehouse_document_id/calibrate
+      def clear_calibration_warehouse_document
+        page_number = params[:page_number]&.to_i || 1
+        page_scale = PageScale.find_by(warehouse_document: @warehouse_document, page_number: page_number)
+        if page_scale
+          page_scale.update!(
+            scale_factor: nil,
+            reference_length_mm: nil,
+            reference_length_px: nil,
+            calibration_line: nil,
+            calibrated_by: nil,
+            calibrated_at: nil
+          )
+        end
+        render json: { success: true }
+      end
+
+      # GET /api/v1/pdf_takeoff/warehouse_document/:warehouse_document_id/measurements
+      def measurements_warehouse_document
+        # Auto-assign unassigned measurements to default layer
+        unassigned = @warehouse_document.takeoff_measurements.from_pdf_takeoff.where(takeoff_layer_id: nil)
+        if unassigned.any?
+          default_layer = TakeoffLayer.default_layer_for_warehouse_document(@warehouse_document)
+          unassigned.update_all(takeoff_layer_id: default_layer.id)
+        end
+
+        scope = @warehouse_document.takeoff_measurements.from_pdf_takeoff
+
+        scope = scope.for_page(params[:page_number].to_i) if params[:page_number].present?
+        scope = scope.non_deductions unless params[:include_deductions] == "true"
+
+        measurements = scope.includes(:takeoff_layer, :pricebook_item, :deductions).map do |m|
+          measurement_json(m)
+        end
+
+        render json: {
+          success: true,
+          data: {
+            measurements: measurements,
+            summary: calculate_summary(scope)
+          }
+        }
+      end
+
+      # POST /api/v1/pdf_takeoff/warehouse_document/:warehouse_document_id/measurements
+      def create_measurement_warehouse_document
+        measurement = TakeoffMeasurement.new(measurement_params)
+        measurement.warehouse_document = @warehouse_document
+        measurement.source = "pdf_takeoff"
+        measurement.session_id ||= SecureRandom.uuid
+
+        m_params = params[:measurement] || {}
+        if m_params[:page_number].present? && m_params[:pixel_value].present?
+          if m_params[:measurement_type] == "count"
+            measurement.value = m_params[:pixel_value].to_f
+          else
+            page_scale = PageScale.find_by(warehouse_document: @warehouse_document, page_number: m_params[:page_number])
+            if page_scale&.calibrated?
+              measurement.value = convert_measurement(
+                m_params[:pixel_value].to_f,
+                m_params[:measurement_type],
+                page_scale
+              )
+            end
+          end
+        end
+
+        # Auto-assign to default layer if none specified
+        if measurement.takeoff_layer_id.blank?
+          default_layer = TakeoffLayer.default_layer_for_warehouse_document(@warehouse_document)
+          measurement.takeoff_layer_id = default_layer.id
+        end
+
+        # Set display label for counts
+        if measurement.measurement_type == "count" && measurement.display_label.blank?
+          max_label = @warehouse_document.takeoff_measurements
+                                       .where(measurement_type: "count")
+                                       .from_pdf_takeoff
+                                       .maximum(:display_label)&.to_i || 0
+          measurement.display_label = (max_label + 1).to_s
+        end
+
+        if measurement.save
+          render json: {
+            success: true,
+            data: {
+              measurement: measurement_json(measurement),
+              summary: calculate_summary(@warehouse_document.takeoff_measurements.from_pdf_takeoff)
+            }
+          }, status: :created
+        else
+          render_validation_errors(measurement)
+        end
+      end
+
+      # GET /api/v1/pdf_takeoff/warehouse_document/:warehouse_document_id/layers
+      def layers_warehouse_document
+        layers = @warehouse_document.takeoff_layers.ordered.map do |layer|
+          {
+            id: layer.id,
+            name: layer.name,
+            color: layer.color,
+            display_order: layer.display_order,
+            visible: layer.visible,
+            locked: layer.locked,
+            measurement_count: layer.measurement_count
+          }
+        end
+
+        # Create default layers if none exist
+        if layers.empty?
+          TakeoffLayer.create_defaults_for_warehouse_document(@warehouse_document)
+          layers = @warehouse_document.takeoff_layers.reload.ordered.map do |layer|
+            {
+              id: layer.id,
+              name: layer.name,
+              color: layer.color,
+              display_order: layer.display_order,
+              visible: layer.visible,
+              locked: layer.locked,
+              measurement_count: layer.measurement_count
+            }
+          end
+        end
+
+        render json: { success: true, data: { layers: layers } }
+      end
+
+      # POST /api/v1/pdf_takeoff/warehouse_document/:warehouse_document_id/layers
+      def create_layer_warehouse_document
+        layer = @warehouse_document.takeoff_layers.build(layer_params)
+        layer.tenant = current_tenant
+
+        if layer.save
+          render json: {
+            success: true,
+            data: {
+              id: layer.id,
+              name: layer.name,
+              color: layer.color,
+              display_order: layer.display_order,
+              visible: layer.visible,
+              locked: layer.locked,
+              measurement_count: 0
+            }
+          }, status: :created
+        else
+          render_validation_errors(layer)
+        end
+      end
+
       private
 
       def set_job_plan
@@ -917,6 +1151,14 @@ module Api
         @document_inbox = DocumentInbox.find(params[:document_inbox_id])
         # Verify tenant access
         unless @document_inbox.tenant_id == current_tenant.id
+          render_error("Access denied", status: :forbidden)
+        end
+      end
+
+      def set_warehouse_document
+        @warehouse_document = WarehouseDocument.find(params[:warehouse_document_id])
+        # Verify tenant access
+        unless @warehouse_document.tenant_id == current_tenant.id
           render_error("Access denied", status: :forbidden)
         end
       end

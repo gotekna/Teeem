@@ -22,22 +22,24 @@ class PageScale < ApplicationRecord
   belongs_to :job_plan, optional: true  # Optional for DocSort standalone takeoff
   belongs_to :job_plan_revision, optional: true
   belongs_to :document_inbox, optional: true  # For standalone takeoff from DocSort
+  belongs_to :warehouse_document, optional: true  # For universal PDF markup on any document
   belongs_to :calibrated_by, class_name: "User", optional: true
 
   # Validations
   validates :page_number, presence: true, numericality: { greater_than: 0 }
   validates :job_plan_id, uniqueness: { scope: :page_number, message: "already has a scale for this page" }, allow_nil: true
   validates :document_inbox_id, uniqueness: { scope: :page_number, message: "already has a scale for this page" }, allow_nil: true
+  validates :warehouse_document_id, uniqueness: { scope: :page_number, message: "already has a scale for this page" }, allow_nil: true
   validates :scale_factor, numericality: { greater_than: 0 }, allow_nil: true
   validates :reference_length_mm, numericality: { greater_than: 0 }, allow_nil: true
   validates :reference_length_px, numericality: { greater_than: 0 }, allow_nil: true
   validates :ai_confidence, numericality: { in: 0..1 }, allow_nil: true
   validate :job_plan_or_docsort_present
 
-  # Custom validation: must belong to either a job_plan or a document_inbox
+  # Custom validation: must belong to at least one context
   def job_plan_or_docsort_present
-    return if job_plan_id.present? || document_inbox_id.present?
-    errors.add(:base, "PageScale must belong to either a job_plan or a document_inbox")
+    return if job_plan_id.present? || document_inbox_id.present? || warehouse_document_id.present?
+    errors.add(:base, "PageScale must belong to a job_plan, document_inbox, or warehouse_document")
   end
 
   # Scopes
@@ -45,6 +47,7 @@ class PageScale < ApplicationRecord
   scope :uncalibrated, -> { where(scale_factor: nil) }
   scope :for_page, ->(page_num) { where(page_number: page_num) }
   scope :for_docsort, ->(document_inbox) { where(document_inbox: document_inbox) }
+  scope :for_warehouse_document, ->(warehouse_document) { where(warehouse_document: warehouse_document) }
 
   # Callbacks
   before_save :calculate_scale_factor, if: :should_calculate_scale?
@@ -61,6 +64,11 @@ class PageScale < ApplicationRecord
   # Find or create scale for a DocumentInbox page
   def self.for_docsort_page(document_inbox, page_number)
     find_or_initialize_by(document_inbox: document_inbox, page_number: page_number)
+  end
+
+  # Find or create scale for a WarehouseDocument page
+  def self.for_warehouse_document_page(warehouse_document, page_number)
+    find_or_initialize_by(warehouse_document: warehouse_document, page_number: page_number)
   end
 
   # =============================================================================

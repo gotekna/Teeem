@@ -20,12 +20,14 @@ class TakeoffLayer < ApplicationRecord
   belongs_to :tenant
   belongs_to :job, optional: true
   belongs_to :document_inbox, optional: true
+  belongs_to :warehouse_document, optional: true  # For universal PDF markup
   has_many :measurements, class_name: "TakeoffMeasurement", dependent: :nullify
 
   # Validations
   validates :name, presence: true
   validates :name, uniqueness: { scope: :job_id, message: "already exists for this job" }, if: :job_id?
   validates :name, uniqueness: { scope: :document_inbox_id, message: "already exists for this item" }, if: :document_inbox_id?
+  validates :name, uniqueness: { scope: :warehouse_document_id, message: "already exists for this document" }, if: :warehouse_document_id?
   validates :color, presence: true, format: { with: /\A#[0-9A-Fa-f]{6}\z/, message: "must be a valid hex color" }
   validates :display_order, presence: true, numericality: { only_integer: true }
   validate :must_belong_to_job_or_document_inbox
@@ -36,6 +38,7 @@ class TakeoffLayer < ApplicationRecord
   scope :ordered, -> { order(:display_order) }
   scope :for_job, ->(job) { where(job: job) }
   scope :for_document_inbox, ->(item) { where(document_inbox: item) }
+  scope :for_warehouse_document, ->(doc) { where(warehouse_document: doc) }
 
   # Callbacks
   before_validation :set_default_order, on: :create
@@ -88,6 +91,24 @@ class TakeoffLayer < ApplicationRecord
     end
   end
 
+  # Create default layers for a warehouse document
+  def self.create_defaults_for_warehouse_document(warehouse_document)
+    DEFAULT_LAYERS.each do |layer_attrs|
+      find_or_create_by!(warehouse_document: warehouse_document, name: layer_attrs[:name]) do |layer|
+        layer.color = layer_attrs[:color]
+        layer.display_order = layer_attrs[:display_order]
+      end
+    end
+  end
+
+  # Get or create the default layer for a warehouse document
+  def self.default_layer_for_warehouse_document(warehouse_document)
+    find_or_create_by!(warehouse_document: warehouse_document, name: "Measurements") do |layer|
+      layer.color = "#3B82F6"
+      layer.display_order = 0
+    end
+  end
+
   # Kept for backwards compatibility with existing job layers
   def self.general_layer_for(job)
     default_layer_for(job)
@@ -97,9 +118,9 @@ class TakeoffLayer < ApplicationRecord
   # Instance Methods
   # =============================================================================
 
-  # The parent owner (job or docsort item)
+  # The parent owner (job, docsort item, or warehouse document)
   def owner
-    job || document_inbox
+    job || document_inbox || warehouse_document
   end
 
   # Count of measurements in this layer
@@ -133,18 +154,25 @@ class TakeoffLayer < ApplicationRecord
   private
 
   def must_belong_to_job_or_document_inbox
-    if job_id.blank? && document_inbox_id.blank?
-      errors.add(:base, "Must belong to either a job or a docsort item")
+    context_ids = [job_id, document_inbox_id, warehouse_document_id].compact
+    if context_ids.empty?
+      errors.add(:base, "Must belong to a job, docsort item, or warehouse document")
     end
-    if job_id.present? && document_inbox_id.present?
-      errors.add(:base, "Cannot belong to both a job and a docsort item")
+    if context_ids.size > 1
+      errors.add(:base, "Cannot belong to multiple contexts simultaneously")
     end
   end
 
   def set_default_order
     return if display_order.present?
 
-    scope = job_id ? self.class.where(job_id: job_id) : self.class.where(document_inbox_id: document_inbox_id)
+    scope = if job_id
+              self.class.where(job_id: job_id)
+            elsif document_inbox_id
+              self.class.where(document_inbox_id: document_inbox_id)
+            else
+              self.class.where(warehouse_document_id: warehouse_document_id)
+            end
     max_order = scope.maximum(:display_order) || -1
     self.display_order = max_order + 1
   end

@@ -952,6 +952,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           loading={loading}
           emptyMessage="Drop a PDF here or click Add Plan to get started"
           autoSelectFirst
+          markupContextType="warehouse_document"
           // MASTERPIECE: Infinite scroll props
           onLoadMore={loadMorePlans}
           hasMore={hasMore}

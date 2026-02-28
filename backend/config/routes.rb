@@ -2734,6 +2734,15 @@ Rails.application.routes.draw do
         get "document_inbox/:document_inbox_id/layers", action: :layers_docsort
         post "document_inbox/:document_inbox_id/layers", action: :create_layer_docsort
 
+        # Warehouse Document universal markup (any PDF with a WarehouseDocument record)
+        get "warehouse_document/:warehouse_document_id", action: :show_warehouse_document
+        post "warehouse_document/:warehouse_document_id/calibrate", action: :calibrate_warehouse_document
+        delete "warehouse_document/:warehouse_document_id/calibrate", action: :clear_calibration_warehouse_document
+        get "warehouse_document/:warehouse_document_id/measurements", action: :measurements_warehouse_document
+        post "warehouse_document/:warehouse_document_id/measurements", action: :create_measurement_warehouse_document
+        get "warehouse_document/:warehouse_document_id/layers", action: :layers_warehouse_document
+        post "warehouse_document/:warehouse_document_id/layers", action: :create_layer_warehouse_document
+
         # Measurement operations
         patch "measurements/:id", action: :update_measurement
         delete "measurements/:id", action: :delete_measurement

@@ -769,6 +769,10 @@ export default function DocsortPage() {
                   url={`${getApiBaseUrl()}/api/v1/document_inboxes/${selectedItem.id}/download`}
                   className="flex-1"
                   showThumbnails={false}
+                  markupContext={{
+                    contextType: "document_inbox",
+                    contextId: selectedItem.id,
+                  }}
                 />
               ) : selectedItem.content_type?.startsWith("image/") ? (
                 <div className="flex items-center justify-center flex-1 p-4 overflow-auto">

@@ -7160,6 +7160,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "document_inbox_id"
+    t.bigint "warehouse_document_id"
     t.index ["calibrated_by_id"], name: "index_page_scales_on_calibrated_by_id"
     t.index ["document_inbox_id"], name: "index_page_scales_on_document_inbox_id"
     t.index ["job_plan_id", "page_number"], name: "index_page_scales_on_job_plan_id_and_page_number", unique: true
@@ -7167,6 +7168,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["job_plan_revision_id", "page_number"], name: "index_page_scales_on_job_plan_revision_id_and_page_number"
     t.index ["job_plan_revision_id"], name: "index_page_scales_on_job_plan_revision_id"
     t.index ["tenant_id"], name: "index_page_scales_on_tenant_id"
+    t.index ["warehouse_document_id", "page_number"], name: "index_page_scales_on_warehouse_doc_and_page", unique: true, where: "(warehouse_document_id IS NOT NULL)"
+    t.index ["warehouse_document_id"], name: "index_page_scales_on_warehouse_document_id"
   end
 
   create_table "pay_now_requests", force: :cascade do |t|
@@ -9937,6 +9940,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "document_inbox_id"
+    t.bigint "warehouse_document_id"
     t.index ["document_inbox_id", "display_order"], name: "index_takeoff_layers_on_docsort_item_id_and_order"
     t.index ["document_inbox_id", "name"], name: "index_takeoff_layers_on_document_inbox_id_and_name", unique: true, where: "(document_inbox_id IS NOT NULL)"
     t.index ["document_inbox_id"], name: "index_takeoff_layers_on_document_inbox_id"
@@ -9944,6 +9948,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["job_id", "name"], name: "index_takeoff_layers_on_job_id_and_name", unique: true
     t.index ["job_id"], name: "index_takeoff_layers_on_job_id"
     t.index ["tenant_id"], name: "index_takeoff_layers_on_tenant_id"
+    t.index ["warehouse_document_id", "name"], name: "index_takeoff_layers_on_warehouse_doc_and_name", unique: true, where: "(warehouse_document_id IS NOT NULL)"
+    t.index ["warehouse_document_id"], name: "index_takeoff_layers_on_warehouse_document_id"
   end
 
   create_table "takeoff_measurements", force: :cascade do |t|
@@ -9972,6 +9978,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "color"
     t.bigint "document_inbox_id"
     t.bigint "takeoff_room_slot_id"
+    t.bigint "warehouse_document_id"
     t.index ["category"], name: "index_takeoff_measurements_on_category"
     t.index ["document_inbox_id"], name: "index_takeoff_measurements_on_document_inbox_id"
     t.index ["is_deduction"], name: "index_takeoff_measurements_on_is_deduction"
@@ -9989,6 +9996,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["synced_to_po_id"], name: "index_takeoff_measurements_on_synced_to_po_id"
     t.index ["takeoff_layer_id"], name: "index_takeoff_measurements_on_takeoff_layer_id"
     t.index ["takeoff_room_slot_id"], name: "index_takeoff_measurements_on_takeoff_room_slot_id"
+    t.index ["warehouse_document_id"], name: "index_takeoff_measurements_on_warehouse_document_id"
   end
 
   create_table "takeoff_room_instances", force: :cascade do |t|
@@ -12316,6 +12324,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "page_scales", "job_plans"
   add_foreign_key "page_scales", "tenants"
   add_foreign_key "page_scales", "users", column: "calibrated_by_id"
+  add_foreign_key "page_scales", "warehouse_documents"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
   add_foreign_key "pay_now_requests", "payments"
@@ -12595,6 +12604,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "takeoff_layers", "document_inboxes"
   add_foreign_key "takeoff_layers", "jobs"
   add_foreign_key "takeoff_layers", "tenants"
+  add_foreign_key "takeoff_layers", "warehouse_documents"
   add_foreign_key "takeoff_measurements", "document_inboxes"
   add_foreign_key "takeoff_measurements", "job_colour_selections"
   add_foreign_key "takeoff_measurements", "job_plans"
@@ -12604,6 +12614,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "takeoff_measurements", "takeoff_layers"
   add_foreign_key "takeoff_measurements", "takeoff_measurements", column: "parent_measurement_id"
   add_foreign_key "takeoff_measurements", "takeoff_room_slots"
+  add_foreign_key "takeoff_measurements", "warehouse_documents"
   add_foreign_key "takeoff_room_instances", "document_inboxes"
   add_foreign_key "takeoff_room_instances", "job_plans"
   add_foreign_key "takeoff_room_instances", "jobs"

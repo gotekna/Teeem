@@ -12,31 +12,45 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Pencil,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "./button";
 import { getCachedPdf, cachePdf } from "@/lib/pdf-cache";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { api } from "@/lib/api";
+import { usePdfPanZoom } from "@/hooks/usePdfPanZoom";
+import dynamic from "next/dynamic";
+
+// Lazy-load markup overlay (pulls in Fabric.js ~500KB + TakeoffCanvas)
+const PdfMarkupOverlay = dynamic(
+  () => import("./pdf-markup-overlay").then((mod) => mod.PdfMarkupOverlay),
+  { ssr: false }
+);
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface RenderedPage {
+  pageNumber: number;
+  canvas: HTMLCanvasElement;
+  width: number;   // Logical width (CSS pixels, without DPR)
+  height: number;  // Logical height (CSS pixels, without DPR)
+}
 
 /**
- * PDF Viewer Implementation - Fast Cached iframe Version
+ * PDF Viewer Implementation - Canvas-based with Markup Support
  *
  * Architecture:
  * 1. Check browser cache for PDF blob (instant if cached)
- * 2. If not cached, fetch from server with auth
+ * 2. If not cached, fetch from server with auth + progress tracking
  * 3. Cache the blob for future instant loads
- * 4. Display in iframe using browser's native PDF viewer
+ * 4. Render pages to canvas via PDF.js for Fabric.js overlay compatibility
+ * 5. Use usePdfPanZoom hook for zoom/pan/ctrl+scroll/fit-to-view
  *
- * Benefits over react-pdf:
- * - 10-50x faster on repeat views (cached)
- * - Native browser zoom, search, print controls
- * - Lower memory usage
- * - Simpler code
- *
- * Trade-offs:
- * - No custom highlight overlays (use react-pdf for that)
- * - Less programmatic control over rendering
+ * Phase 1: Canvas rendering + zoom/pan (replaces iframe)
+ * Phase 2: Optional markup mode with TakeoffCanvas overlay
  */
 export function PDFViewerImpl({
   url,
@@ -44,55 +58,71 @@ export function PDFViewerImpl({
   onError,
   fallbackUrl,
   highlights = [],
+  markupContext,
+  onMarkupToggle,
 }: PDFViewerProps) {
-  const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
+  // PDF data
+  const [pdfBytes, setPdfBytes] = React.useState<Uint8Array | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [isCached, setIsCached] = React.useState(false);
-  const [pageCount, setPageCount] = React.useState<number>(1);
-  const [currentPage, setCurrentPage] = React.useState<number>(1);
-  const [displayedPage, setDisplayedPage] = React.useState<number>(1);
-  const [isPageTransitioning, setIsPageTransitioning] = React.useState(false);
-  const [containerKey, setContainerKey] = React.useState<number>(0);
-  // Zoom state: 100 = 100%, "page-fit" = fit to width
-  const [zoom, setZoom] = React.useState<number | "page-fit">("page-fit");
-  // Download progress (0-100) - null when not tracking (e.g., cached or unknown size)
   const [downloadProgress, setDownloadProgress] = React.useState<number | null>(null);
-  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Page rendering
+  const [pages, setPages] = React.useState<RenderedPage[]>([]);
+  const [currentPageNumber, setCurrentPageNumber] = React.useState(1);
+  const [isRenderingPages, setIsRenderingPages] = React.useState(false);
+
+  // Markup mode
+  const [markupActive, setMarkupActive] = React.useState(false);
 
   // Store onError in ref to avoid re-fetching when callback changes
   const onErrorRef = React.useRef(onError);
   onErrorRef.current = onError;
 
-  // Helper to get page count from PDF blob using PDF.js (via react-pdf)
-  const getPageCount = async (blob: Blob): Promise<number> => {
-    try {
-      // Dynamically import pdfjs from react-pdf
-      const { pdfjs } = await import("react-pdf");
-      pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+  // Retry key to force re-fetch
+  const [retryKey, setRetryKey] = React.useState(0);
 
-      const arrayBuffer = await blob.arrayBuffer();
-      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-      return pdf.numPages;
-    } catch {
-      // If PDF.js fails, assume single page
-      return 1;
-    }
-  };
+  // Current page data
+  const currentPage = React.useMemo(
+    () => pages.find((p) => p.pageNumber === currentPageNumber) || null,
+    [pages, currentPageNumber]
+  );
+  const pageCount = pages.length;
 
-  // Load PDF with caching
+  // Pan/zoom — SSoT hook
+  const {
+    zoom,
+    effectiveMaxZoom,
+    onZoomChange,
+    onFitToView,
+    zoomToRect,
+    containerRef,
+    isPanning,
+    isSpaceHeld,
+  } = usePdfPanZoom({
+    pageWidth: currentPage?.width ?? 0,
+    pageHeight: currentPage?.height ?? 0,
+    fitOnMount: true,
+  });
+
+  // Canvas ref for displaying the rendered page
+  const displayCanvasRef = React.useRef<HTMLCanvasElement>(null);
+
+  // =============================================================================
+  // Step 1: Fetch PDF bytes (with caching + progress)
+  // =============================================================================
+
   React.useEffect(() => {
     let mounted = true;
-    let currentBlobUrl: string | null = null;
 
     const loadPdf = async () => {
       setIsLoading(true);
       setLoadError(null);
       setIsCached(false);
-      setCurrentPage(1);
-      setDisplayedPage(1);
-      setIsPageTransitioning(false);
-      setPageCount(1);
+      setPdfBytes(null);
+      setPages([]);
+      setCurrentPageNumber(1);
       setDownloadProgress(null);
 
       try {
@@ -101,26 +131,20 @@ export function PDFViewerImpl({
         // 1. Check browser cache first (INSTANT if cached)
         const cached = await getCachedPdf(url);
         if (cached && mounted) {
-          // Ensure correct MIME type even for cached blobs
           blob = cached.type === "application/pdf"
             ? cached
             : new Blob([cached], { type: "application/pdf" });
-          currentBlobUrl = URL.createObjectURL(blob);
-          setBlobUrl(currentBlobUrl);
           setIsCached(true);
 
-          // Get page count async (non-blocking)
-          getPageCount(blob).then(pages => {
-            if (mounted) setPageCount(pages);
-          });
-
-          setIsLoading(false);
+          const arrayBuffer = await blob.arrayBuffer();
+          if (mounted) {
+            setPdfBytes(new Uint8Array(arrayBuffer));
+            setIsLoading(false);
+          }
           return;
         }
 
         // 2. Determine the fetch URL
-        // SMART DETECTION: If this is our backend streaming URL, upgrade to presigned URL
-        // This avoids double transfer (S3 → Rails → Browser) for much faster PDF loading
         let fetchUrl = url;
         let isPresignedS3 = url.includes("X-Amz-Signature=") || url.includes("wasabisys.com");
 
@@ -131,9 +155,6 @@ export function PDFViewerImpl({
             const fileId = urlObj.searchParams.get("file_id");
 
             if (fileId) {
-              // Fetch presigned URL from backend (skips Rails streaming) - returns JSON
-              // skipAuthRedirect: A 401 from storage endpoints means "storage not connected",
-              // not "session expired". Without this, storage errors trigger logout.
               const presignedResponse = await api.get<{ success: boolean; url: string }>(
                 `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
                 { skipAuthRedirect: true }
@@ -141,22 +162,20 @@ export function PDFViewerImpl({
 
               if (presignedResponse?.success && presignedResponse.url) {
                 fetchUrl = presignedResponse.url;
-                isPresignedS3 = true;  // Now we have a presigned URL
+                isPresignedS3 = true;
               }
             }
-          } catch (e) {
+          } catch {
             // Fall back to original URL on any error
           }
         }
 
-        // 3. Build headers for the fetch
+        // 3. Build headers
         const headers: Record<string, string> = {
           Accept: "application/pdf",
         };
 
-        // Only add auth for our backend URLs, not for presigned S3 URLs
         if (!isPresignedS3) {
-          // SSoT: Use storage-utils for token retrieval (with prefix, matching api.ts)
           const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
           if (token) {
             headers["Authorization"] = `Bearer ${token}`;
@@ -164,174 +183,196 @@ export function PDFViewerImpl({
         }
 
         // 4. Fetch the PDF with progress tracking
-        // Keep as raw fetch - this fetches the actual PDF blob from presigned S3 URL (external)
-        // or streams from backend. Not a JSON API response.
         const response = await fetch(fetchUrl, {
-          // Don't send credentials for cross-origin presigned URLs
           credentials: isPresignedS3 ? "omit" : "include",
-          // Must use "cors" mode for cross-origin requests (backend is different origin)
           mode: "cors",
           headers,
         });
 
         if (!response.ok) {
-          const errorText = await response
-            .text()
-            .catch(() => response.statusText);
+          const errorText = await response.text().catch(() => response.statusText);
           throw new Error(`Failed to fetch PDF: ${errorText}`);
         }
 
-        // Track download progress using ReadableStream
+        // Track download progress
         const contentLength = response.headers.get("Content-Length");
         const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
-
         let rawBlob: Blob;
 
-        // Only track progress if we know the total size and have a readable stream
         if (totalBytes > 0 && response.body) {
           const reader = response.body.getReader();
           const chunks: Uint8Array[] = [];
           let receivedBytes = 0;
 
-          // Read chunks and update progress
           while (true) {
             const { done, value } = await reader.read();
-
             if (done) break;
-
             chunks.push(value);
             receivedBytes += value.length;
-
-            // Update progress (only if still mounted)
             if (mounted) {
-              const progress = Math.round((receivedBytes / totalBytes) * 100);
-              setDownloadProgress(progress);
+              setDownloadProgress(Math.round((receivedBytes / totalBytes) * 100));
             }
           }
-
-          // Combine chunks into a single blob
           rawBlob = new Blob(chunks as BlobPart[]);
         } else {
-          // Fallback: no progress tracking (unknown size or no stream support)
           rawBlob = await response.blob();
         }
 
-        // Ensure correct MIME type for PDF display in iframe
-        // Some servers return application/octet-stream which causes browser to download
         blob = rawBlob.type === "application/pdf"
           ? rawBlob
           : new Blob([rawBlob], { type: "application/pdf" });
 
-        // 5. Cache for next time (async, don't wait)
-        cachePdf(url, blob).catch(() => {
-          // Ignore cache errors - not critical
-        });
+        // 5. Cache for next time
+        cachePdf(url, blob).catch(() => {});
 
-        // 6. Create blob URL and display IMMEDIATELY
+        // 6. Convert to bytes for pdfjs
         if (mounted) {
-          currentBlobUrl = URL.createObjectURL(blob);
-          setBlobUrl(currentBlobUrl);
-          setIsLoading(false);  // Show PDF NOW
-
-          // Get page count in background (non-blocking)
-          getPageCount(blob).then(pages => {
-            if (mounted) setPageCount(pages);
-          });
+          const arrayBuffer = await blob.arrayBuffer();
+          setPdfBytes(new Uint8Array(arrayBuffer));
+          setIsLoading(false);
         }
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to load PDF";
+        const errorMessage = err instanceof Error ? err.message : "Failed to load PDF";
         console.error("Failed to load PDF:", err);
-
         if (mounted) {
           setLoadError(errorMessage);
           setIsLoading(false);
-          if (onErrorRef.current) {
-            onErrorRef.current(new Error(errorMessage));
-          }
+          onErrorRef.current?.(new Error(errorMessage));
         }
       }
     };
 
     loadPdf();
+    return () => { mounted = false; };
+  }, [url, retryKey]);
 
-    // Cleanup: revoke blob URL to free memory
-    return () => {
-      mounted = false;
-      if (currentBlobUrl) {
-        URL.revokeObjectURL(currentBlobUrl);
+  // =============================================================================
+  // Step 2: Render PDF pages to canvas via PDF.js
+  // =============================================================================
+
+  React.useEffect(() => {
+    if (!pdfBytes) return;
+    let cancelled = false;
+
+    const renderPages = async () => {
+      setIsRenderingPages(true);
+      try {
+        const { pdfjs } = await import("react-pdf");
+        pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+        const pdfDoc = await pdfjs.getDocument({ data: pdfBytes }).promise;
+        if (cancelled) return;
+
+        const rendered: RenderedPage[] = [];
+        const dpr = window.devicePixelRatio || 1;
+        // Render at 2x base for crisp display (same as useTakeoffPdf)
+        const renderScale = 2 * dpr;
+
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+          const page = await pdfDoc.getPage(i);
+          const viewport = page.getViewport({ scale: renderScale });
+
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d")!;
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          await page.render({
+            canvasContext: context,
+            viewport,
+            canvas,
+          }).promise;
+
+          // Logical dimensions (CSS pixels) — without DPR multiplier
+          const baseViewport = page.getViewport({ scale: 2 });
+          rendered.push({
+            pageNumber: i,
+            canvas,
+            width: baseViewport.width,
+            height: baseViewport.height,
+          });
+
+          if (cancelled) return;
+        }
+
+        setPages(rendered);
+        setCurrentPageNumber(1);
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : "Failed to render PDF";
+        console.error("Failed to render PDF pages:", err);
+        setLoadError(message);
+        onErrorRef.current?.(new Error(message));
+      } finally {
+        if (!cancelled) setIsRenderingPages(false);
       }
     };
-  }, [url]);
 
-  // Retry handler
-  const handleRetry = React.useCallback(() => {
-    setLoadError(null);
-    setIsLoading(true);
-    // Re-trigger effect by clearing blob URL
-    setBlobUrl(null);
-  }, []);
+    renderPages();
+    return () => { cancelled = true; };
+  }, [pdfBytes]);
 
-  // Handle new page iframe load - complete the crossfade
-  // MUST be defined before any early returns to maintain consistent hook count
-  const handleNewPageLoad = React.useCallback(() => {
-    // Small delay to ensure iframe has rendered content
-    setTimeout(() => {
-      setDisplayedPage(currentPage);
-      setIsPageTransitioning(false);
-    }, 50);
+  // =============================================================================
+  // Step 3: Paint current page canvas to display canvas
+  // =============================================================================
+
+  React.useEffect(() => {
+    const displayCanvas = displayCanvasRef.current;
+    if (!displayCanvas || !currentPage) return;
+
+    const ctx = displayCanvas.getContext("2d");
+    if (!ctx) return;
+
+    // Match display canvas to source dimensions
+    displayCanvas.width = currentPage.canvas.width;
+    displayCanvas.height = currentPage.canvas.height;
+
+    // Draw the rendered PDF page
+    ctx.drawImage(currentPage.canvas, 0, 0);
   }, [currentPage]);
 
-  // ResizeObserver to re-fit PDF when container size changes
-  React.useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !blobUrl) return;
+  // =============================================================================
+  // Handlers
+  // =============================================================================
 
-    let resizeTimeout: NodeJS.Timeout | null = null;
-    let lastWidth = container.clientWidth;
-    let lastHeight = container.clientHeight;
+  const handleRetry = React.useCallback(() => {
+    setLoadError(null);
+    setRetryKey((k) => k + 1);
+  }, []);
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        // Only trigger if size changed significantly (>5px threshold to avoid micro-changes)
-        if (Math.abs(width - lastWidth) > 5 || Math.abs(height - lastHeight) > 5) {
-          lastWidth = width;
-          lastHeight = height;
-          // Debounce to avoid excessive re-renders during resize drag
-          if (resizeTimeout) clearTimeout(resizeTimeout);
-          resizeTimeout = setTimeout(() => {
-            // Increment key to force iframe remount, which re-applies page-fit zoom
-            setContainerKey((k) => k + 1);
-          }, 150);
-        }
-      }
-    });
+  const goToPage = React.useCallback((page: number) => {
+    if (page >= 1 && page <= pageCount) {
+      setCurrentPageNumber(page);
+    }
+  }, [pageCount]);
 
-    observer.observe(container);
+  const prevPage = React.useCallback(() => goToPage(currentPageNumber - 1), [currentPageNumber, goToPage]);
+  const nextPage = React.useCallback(() => goToPage(currentPageNumber + 1), [currentPageNumber, goToPage]);
 
-    return () => {
-      observer.disconnect();
-      if (resizeTimeout) clearTimeout(resizeTimeout);
-    };
-  }, [blobUrl]);
+  const handleMarkupToggle = React.useCallback(() => {
+    const next = !markupActive;
+    setMarkupActive(next);
+    onMarkupToggle?.(next);
+  }, [markupActive, onMarkupToggle]);
 
-  // Loading state with progress indicator
-  if (isLoading) {
+  // Zoom display label
+  const zoomPercent = Math.round(zoom * 100);
+
+  // =============================================================================
+  // Render: Loading
+  // =============================================================================
+
+  if (isLoading || (isRenderingPages && pages.length === 0)) {
     return (
-      <div
-        className={cn(
-          "flex flex-col items-center justify-center h-full",
-          className
-        )}
-      >
+      <div className={cn("flex flex-col items-center justify-center h-full", className)}>
         <Spinner size={32} className="mb-2" />
         <p className="text-sm text-muted-foreground">
           {downloadProgress !== null
             ? `Downloading PDF... ${downloadProgress}%`
-            : "Loading PDF..."}
+            : isRenderingPages
+              ? "Rendering pages..."
+              : "Loading PDF..."}
         </p>
-        {/* Progress bar when downloading */}
         {downloadProgress !== null && (
           <div className="w-48 h-1.5 bg-muted rounded-full mt-2 overflow-hidden">
             <div
@@ -344,20 +385,16 @@ export function PDFViewerImpl({
     );
   }
 
-  // Error state
-  if (loadError || !blobUrl) {
+  // =============================================================================
+  // Render: Error
+  // =============================================================================
+
+  if (loadError || !currentPage) {
     return (
-      <div
-        className={cn(
-          "flex flex-col items-center justify-center h-full text-muted-foreground p-8",
-          className
-        )}
-      >
+      <div className={cn("flex flex-col items-center justify-center h-full text-muted-foreground p-8", className)}>
         <FileText className="h-16 w-16 mb-4" />
         <p className="text-lg font-medium mb-2">Failed to load PDF</p>
-        <p className="text-sm text-center mb-4">
-          {loadError || "Unknown error"}
-        </p>
+        <p className="text-sm text-center mb-4">{loadError || "Unknown error"}</p>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={handleRetry}>
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -376,101 +413,49 @@ export function PDFViewerImpl({
     );
   }
 
-  // Page navigation handlers with crossfade transition
-  const goToPage = (page: number) => {
-    if (page >= 1 && page <= pageCount && page !== currentPage && !isPageTransitioning) {
-      setIsPageTransitioning(true);
-      setCurrentPage(page);
-    }
-  };
+  // =============================================================================
+  // Render: PDF Canvas
+  // =============================================================================
 
-  const prevPage = () => goToPage(currentPage - 1);
-  const nextPage = () => goToPage(currentPage + 1);
-
-  // Zoom handlers
-  const ZOOM_LEVELS = [50, 75, 100, 125, 150, 200];
-  const zoomIn = () => {
-    if (zoom === "page-fit") {
-      setZoom(100);
-    } else {
-      const currentIndex = ZOOM_LEVELS.indexOf(zoom);
-      if (currentIndex < ZOOM_LEVELS.length - 1) {
-        setZoom(ZOOM_LEVELS[currentIndex + 1]);
-      }
-    }
-  };
-  const zoomOut = () => {
-    if (zoom === "page-fit") {
-      setZoom(75);
-    } else {
-      const currentIndex = ZOOM_LEVELS.indexOf(zoom);
-      if (currentIndex > 0) {
-        setZoom(ZOOM_LEVELS[currentIndex - 1]);
-      }
-    }
-  };
-  const fitToWidth = () => setZoom("page-fit");
-
-  // Build zoom string for iframe
-  const zoomParam = zoom === "page-fit" ? "page-fit" : zoom.toString();
-
-  // Build iframe URLs with zoom and hidden toolbar for max PDF size
-  const displayedIframeSrc = blobUrl ? `${blobUrl}#page=${displayedPage}&zoom=${zoomParam}&toolbar=0&navpanes=0` : "";
-  const newPageIframeSrc = blobUrl ? `${blobUrl}#page=${currentPage}&zoom=${zoomParam}&toolbar=0&navpanes=0` : "";
-
-  // Success state - iframe with native PDF viewer
   return (
-    <div ref={containerRef} className={cn("h-full w-full relative overflow-hidden", className)}>
-      {/* Floating controls: page navigation + zoom */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
-        {/* Page navigation - only show for multi-page PDFs */}
+    <div className={cn("h-full w-full relative overflow-hidden flex flex-col", className)}>
+      {/* Floating controls — hidden when markup toolbar is active */}
+      <div className={cn("absolute top-3 left-3 z-10 flex items-center gap-2", markupActive && "hidden")}>
+        {/* Page navigation */}
         {pageCount > 1 && (
           <div className="flex items-center gap-1 bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-1 py-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={prevPage}
-              disabled={currentPage <= 1}
-            >
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={prevPage} disabled={currentPageNumber <= 1}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm font-medium min-w-[80px] text-center">
-              {currentPage} / {pageCount}
+              {currentPageNumber} / {pageCount}
             </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={nextPage}
-              disabled={currentPage >= pageCount}
-            >
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={nextPage} disabled={currentPageNumber >= pageCount}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         )}
 
-        {/* Zoom controls - always visible */}
+        {/* Zoom controls */}
         <div className="flex items-center gap-1 bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-1 py-0.5">
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={zoomOut}
-            disabled={zoom !== "page-fit" && zoom <= ZOOM_LEVELS[0]}
+            onClick={() => onZoomChange(zoom * 0.8)}
             title="Zoom out"
           >
             <ZoomOut className="h-4 w-4" />
           </Button>
           <span className="text-sm font-medium min-w-[50px] text-center">
-            {zoom === "page-fit" ? "Fit" : `${zoom}%`}
+            {zoomPercent}%
           </span>
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={zoomIn}
-            disabled={zoom !== "page-fit" && zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+            onClick={() => onZoomChange(zoom * 1.25)}
+            disabled={zoom >= effectiveMaxZoom}
             title="Zoom in"
           >
             <ZoomIn className="h-4 w-4" />
@@ -479,14 +464,32 @@ export function PDFViewerImpl({
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs font-medium"
-            onClick={fitToWidth}
-            disabled={zoom === "page-fit"}
+            onClick={onFitToView}
             title="Fit page to view"
           >
             <Maximize2 className="h-3.5 w-3.5 mr-1" />
             Fit
           </Button>
         </div>
+
+        {/* Markup toggle — only when context provided */}
+        {markupContext && (
+          <Button
+            variant={markupActive ? "default" : "ghost"}
+            size="sm"
+            className={cn(
+              "h-7 px-2 text-xs font-medium",
+              markupActive
+                ? "bg-primary text-primary-foreground"
+                : "bg-background/90 backdrop-blur-sm border shadow-sm"
+            )}
+            onClick={handleMarkupToggle}
+            title="Toggle markup tools"
+          >
+            <Pencil className="h-3.5 w-3.5 mr-1" />
+            Markup
+          </Button>
+        )}
       </div>
 
       {/* Cache indicator (dev only) */}
@@ -496,30 +499,53 @@ export function PDFViewerImpl({
         </div>
       )}
 
-      {/* Crossfade PDF page navigation - two stacked iframes */}
-      {/* Base iframe: shows currently displayed page */}
-      <iframe
-        key={`${containerKey}-displayed-${displayedPage}`}
-        src={displayedIframeSrc}
-        className="absolute inset-0 h-full border-0"
-        style={{ width: 'calc(100% + 17px)' }}
-        title="PDF Viewer"
-      />
+      {/* Scrollable canvas container — usePdfPanZoom manages zoom/pan here */}
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-auto bg-muted/20 relative"
+        style={{ cursor: isPanning ? "grabbing" : isSpaceHeld ? "grab" : "default" }}
+      >
+        <div
+          className="relative mx-auto"
+          style={{
+            width: currentPage.width * zoom,
+            height: currentPage.height * zoom,
+            // Add padding around the page for scroll space
+            margin: "4px auto",
+          }}
+        >
+          {/* PDF canvas — rendered at high-res, displayed at logical × zoom size */}
+          <canvas
+            ref={displayCanvasRef}
+            className="block ring-1 ring-border/50 shadow-sm rounded-sm"
+            style={{
+              width: currentPage.width * zoom,
+              height: currentPage.height * zoom,
+            }}
+          />
 
-      {/* Transition iframe: loads new page on top, fades in when ready */}
-      {isPageTransitioning && currentPage !== displayedPage && (
-        <iframe
-          key={`${containerKey}-loading-${currentPage}`}
-          src={newPageIframeSrc}
-          className="absolute inset-0 h-full border-0 transition-opacity duration-150 ease-in-out opacity-100"
-          style={{ width: 'calc(100% + 17px)', backgroundColor: 'var(--background)' }}
-          title="PDF Viewer Loading"
-          onLoad={handleNewPageLoad}
-        />
-      )}
-
-      {/* Note: highlights prop is ignored in iframe mode.
-          For highlights support, use the react-pdf based viewer. */}
+          {/* Markup overlay — TakeoffCanvas + TakeoffToolbar */}
+          {markupActive && markupContext && (
+            <div className="absolute inset-0 z-10">
+              <PdfMarkupOverlay
+                markupContext={markupContext}
+                pdfPageCanvas={currentPage.canvas}
+                pageNumber={currentPageNumber}
+                pageWidth={currentPage.width}
+                pageHeight={currentPage.height}
+                zoom={zoom}
+                maxZoom={effectiveMaxZoom}
+                onZoomChange={onZoomChange}
+                onFitToView={onFitToView}
+                onZoomToRect={zoomToRect}
+                isPanning={isPanning}
+                isSpaceHeld={isSpaceHeld}
+                containerRef={containerRef}
+              />
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

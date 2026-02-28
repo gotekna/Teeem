@@ -1436,7 +1436,14 @@ export default function AllDocumentsPage() {
                   previewDocument.fileName?.toLowerCase().endsWith(".pdf") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".pdf") ? (
                   // PDF preview (check mime type OR file extension)
-                  <PDFViewer url={previewDocument.fileUrl} className="h-full" />
+                  <PDFViewer
+                    url={previewDocument.fileUrl}
+                    className="h-full"
+                    markupContext={{
+                      contextType: "warehouse_document",
+                      contextId: previewDocument.id,
+                    }}
+                  />
                 ) : previewDocument.mimeType?.includes("wordprocessingml") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".docx") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".docx") ? (

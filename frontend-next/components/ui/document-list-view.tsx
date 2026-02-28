@@ -63,6 +63,9 @@ export interface DocumentListViewProps<T extends DocumentItem> {
   // Thumbnail for instant preview (PNG/JPEG image)
   getThumbnailUrl?: (doc: T) => string | null;
 
+  // Markup mode - enables TakeoffCanvas measurement tools on PDFs
+  markupContextType?: "warehouse_document" | "document_inbox" | "job_plan";
+
   // Actions
   onRename?: (doc: T, newName: string) => Promise<void>;
   onApprove?: (doc: T) => Promise<void>;
@@ -183,6 +186,8 @@ export function DocumentListView<T extends DocumentItem>({
   // Revision history
   fetchRevisions,
   onRevisionClick,
+  // Markup mode
+  markupContextType,
   // MASTERPIECE: Infinite scroll
   onLoadMore,
   hasMore = false,
@@ -832,6 +837,10 @@ export function DocumentListView<T extends DocumentItem>({
               url={previewUrl}
               fallbackUrl={externalUrl || undefined}
               className="h-full"
+              markupContext={markupContextType && selectedDocument ? {
+                contextType: markupContextType,
+                contextId: getDocumentId(selectedDocument),
+              } : undefined}
             />
             {/* Fullscreen button */}
             <Button
@@ -916,6 +925,10 @@ export function DocumentListView<T extends DocumentItem>({
               url={previewUrl}
               fallbackUrl={externalUrl || undefined}
               className="h-full"
+              markupContext={markupContextType && selectedDocument ? {
+                contextType: markupContextType,
+                contextId: getDocumentId(selectedDocument),
+              } : undefined}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
