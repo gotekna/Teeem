@@ -63,7 +63,21 @@ interface QuoteReturnContext {
     quoteLevel: string;
     tenderDescription: string | null;
     budgetAmount: number | null;
-    children: Array<{ id: number; name: string; budgetAmount: number | null; purchaseOrderId?: number | null; purchaseOrderNumber?: string | null }>;
+    children: Array<{
+      id: number;
+      name: string;
+      budgetAmount: number | null;
+      purchaseOrderId?: number | null;
+      purchaseOrderNumber?: string | null;
+      po?: {
+        budget: number | null;
+        total: number | null;
+        description: string | null;
+        plansCount: number;
+        hasQuoteAttached: boolean;
+        status: string | null;
+      };
+    }>;
   } | null;
 }
 
@@ -459,52 +473,72 @@ function QuoteReturnContent() {
                 </p>
               )}
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {qr.parentLine.children.map((child) => {
                   const amt = parseFloat(allocations[child.id] || "0") || 0;
                   const pct = priceNum > 0 ? Math.round((amt / priceNum) * 100) : 0;
+                  const po = child.po;
                   return (
-                    <div key={child.id} className="flex items-center gap-2">
-                      {child.purchaseOrderId ? (
-                        <a
-                          href={`/purchase_orders/${child.purchaseOrderId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm flex-1 truncate text-blue-600 hover:underline"
-                          title={`${child.name} — ${child.purchaseOrderNumber || 'PO'}`}
-                        >
-                          {child.name}
-                          <ExternalLink className="inline h-3 w-3 ml-1 opacity-50" />
-                        </a>
-                      ) : (
-                        <span className="text-sm flex-1 truncate" title={child.name}>{child.name}</span>
-                      )}
-                      {remaining > 0.01 && (
-                        <button
-                          type="button"
-                          onClick={() => handleAllocateRemaining(child.id)}
-                          className="text-[10px] text-blue-600 hover:text-blue-800 shrink-0 cursor-pointer"
-                          title={`Allocate remaining ${formatCurrency(remaining)} to this line`}
-                        >
-                          +rest
-                        </button>
-                      )}
-                      <div className="relative w-24 shrink-0">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
-                        <Input
-                          type="number"
-                          value={allocations[child.id] || ""}
-                          onChange={(e) => {
-                            setAllocations((prev) => ({ ...prev, [child.id]: e.target.value }));
-                          }}
-                          className="pl-5 text-sm h-7"
-                          placeholder="0"
-                          step="0.01"
-                        />
+                    <div key={child.id} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        {child.purchaseOrderId ? (
+                          <a
+                            href={`/purchase_orders/${child.purchaseOrderId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm flex-1 truncate text-blue-600 hover:underline"
+                            title={`${child.name} — ${child.purchaseOrderNumber || 'PO'}`}
+                          >
+                            {child.name}
+                            <ExternalLink className="inline h-3 w-3 ml-1 opacity-50" />
+                          </a>
+                        ) : (
+                          <span className="text-sm flex-1 truncate" title={child.name}>{child.name}</span>
+                        )}
+                        {remaining > 0.01 && (
+                          <button
+                            type="button"
+                            onClick={() => handleAllocateRemaining(child.id)}
+                            className="text-[10px] text-blue-600 hover:text-blue-800 shrink-0 cursor-pointer"
+                            title={`Allocate remaining ${formatCurrency(remaining)} to this line`}
+                          >
+                            +rest
+                          </button>
+                        )}
+                        <div className="relative w-24 shrink-0">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                          <Input
+                            type="number"
+                            value={allocations[child.id] || ""}
+                            onChange={(e) => {
+                              setAllocations((prev) => ({ ...prev, [child.id]: e.target.value }));
+                            }}
+                            className="pl-5 text-sm h-7"
+                            placeholder="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-8 text-right shrink-0">
+                          {pct}%
+                        </span>
                       </div>
-                      <span className="text-xs text-muted-foreground w-8 text-right shrink-0">
-                        {pct}%
-                      </span>
+                      {po && (
+                        <div className="ml-1 pl-2 border-l-2 border-muted text-[11px] text-muted-foreground space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono">{child.purchaseOrderNumber}</span>
+                            <span>Budget: {formatCurrency(po.budget)}</span>
+                            {po.plansCount > 0 && (
+                              <span className="text-blue-600">{po.plansCount} plan{po.plansCount !== 1 ? "s" : ""}</span>
+                            )}
+                            {po.hasQuoteAttached && (
+                              <span className="text-green-600">Quote attached</span>
+                            )}
+                          </div>
+                          {po.description && (
+                            <p className="truncate opacity-70">{po.description}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

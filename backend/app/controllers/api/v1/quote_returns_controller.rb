@@ -364,7 +364,7 @@ module Api
         # Pre-load allocations for this supplier to find existing POs per child line
         alloc_by_line = {}
         if cqs
-          cqs.allocations.includes(:purchase_order).each do |alloc|
+          cqs.allocations.includes(purchase_order: [:quote_warehouse_document, :purchase_order_documents]).each do |alloc|
             alloc_by_line[alloc.custom_quote_line_id] = alloc
           end
         end
@@ -377,13 +377,25 @@ module Api
           budgetAmount: cc_line.budget_amount&.to_f,
           children: cc_line.children.order(:position).map { |child|
             alloc = alloc_by_line[child.id]
-            {
+            po = alloc&.purchase_order
+            child_data = {
               id: child.id,
               name: child.name,
               budgetAmount: child.budget_amount&.to_f,
-              purchaseOrderId: alloc&.purchase_order_id,
-              purchaseOrderNumber: alloc&.purchase_order&.purchase_order_number
+              purchaseOrderId: po&.id,
+              purchaseOrderNumber: po&.purchase_order_number
             }
+            if po
+              child_data[:po] = {
+                budget: po.budget&.to_f,
+                total: po.total&.to_f,
+                description: po.description&.truncate(120),
+                plansCount: po.purchase_order_documents.size,
+                hasQuoteAttached: po.quote_warehouse_document_id.present?,
+                status: po.status
+              }
+            end
+            child_data
           }
         }
       end
