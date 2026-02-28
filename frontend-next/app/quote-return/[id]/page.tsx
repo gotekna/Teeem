@@ -54,6 +54,7 @@ interface QuoteReturnContext {
   quoteNumber: string | null;
   validTo: string | null;
   warehouseDocumentId: number | null;
+  purchaseOrderId: number | null;
   purchaseOrderNumber: string | null;
   responseNotes: string | null;
   parentLine: {
@@ -244,6 +245,26 @@ function QuoteReturnContent() {
     });
     setAllocations(newAllocations);
   }, [qr?.parentLine?.children, priceNum]);
+
+  const handleAllocateRemaining = useCallback((targetChildId?: number) => {
+    if (!qr?.parentLine?.children?.length || remaining < 0.01) return;
+    const children = qr.parentLine.children;
+
+    if (targetChildId != null) {
+      // Add remaining to the specific line
+      const current = parseFloat(allocations[targetChildId] || "0") || 0;
+      const newVal = Math.round((current + remaining) * 100) / 100;
+      setAllocations((prev) => ({ ...prev, [targetChildId]: String(newVal) }));
+      return;
+    }
+
+    // Find first child with $0 allocation, or use last child
+    const emptyChild = children.find((c) => !parseFloat(allocations[c.id] || "0"));
+    const target = emptyChild || children[children.length - 1];
+    const current = parseFloat(allocations[target.id] || "0") || 0;
+    const newVal = Math.round((current + remaining) * 100) / 100;
+    setAllocations((prev) => ({ ...prev, [target.id]: String(newVal) }));
+  }, [qr?.parentLine?.children, remaining, allocations]);
 
   const handleAccept = useCallback(async () => {
     if (!qr || accepting) return;
@@ -439,7 +460,29 @@ function QuoteReturnContent() {
                   const pctInputVal = percentInputs[child.id] ?? "";
                   return (
                     <div key={child.id} className="flex items-center gap-2">
-                      <span className="text-sm flex-1 truncate" title={child.name}>{child.name}</span>
+                      {qr.purchaseOrderId ? (
+                        <a
+                          href={`/purchase_orders/${qr.purchaseOrderId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm flex-1 truncate text-blue-600 hover:underline"
+                          title={child.name}
+                        >
+                          {child.name}
+                        </a>
+                      ) : (
+                        <span className="text-sm flex-1 truncate" title={child.name}>{child.name}</span>
+                      )}
+                      {remaining > 0.01 && (
+                        <button
+                          type="button"
+                          onClick={() => handleAllocateRemaining(child.id)}
+                          className="text-[10px] text-blue-600 hover:text-blue-800 shrink-0 cursor-pointer"
+                          title={`Allocate remaining ${formatCurrency(remaining)} to this line`}
+                        >
+                          +rest
+                        </button>
+                      )}
                       <div className="relative w-24 shrink-0">
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                           {isPercent ? "%" : "$"}
@@ -492,14 +535,25 @@ function QuoteReturnContent() {
               </div>
               <div className="flex justify-between text-xs">
                 <span>Remaining:</span>
-                <span
-                  className={`font-medium font-mono ${
-                    remaining < -0.01 ? "text-red-600" : remaining > 0.01 ? "text-amber-600" : "text-green-600"
-                  }`}
-                >
-                  {formatCurrency(Math.abs(remaining))}
-                  {remaining < -0.01 ? " over" : remaining > 0.01 ? " unallocated" : ""}
-                </span>
+                {remaining > 0.01 ? (
+                  <button
+                    type="button"
+                    onClick={() => handleAllocateRemaining()}
+                    className="font-medium font-mono text-amber-600 hover:text-amber-800 hover:underline cursor-pointer"
+                    title="Click to allocate to first empty line"
+                  >
+                    {formatCurrency(remaining)} unallocated
+                  </button>
+                ) : (
+                  <span
+                    className={`font-medium font-mono ${
+                      remaining < -0.01 ? "text-red-600" : "text-green-600"
+                    }`}
+                  >
+                    {formatCurrency(Math.abs(remaining))}
+                    {remaining < -0.01 ? " over" : ""}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -524,7 +578,21 @@ function QuoteReturnContent() {
                   <tbody>
                     {qr.parentLine.children.map((child) => (
                       <tr key={child.id} className="border-b last:border-0">
-                        <td className="px-3 py-1.5">{child.name}</td>
+                        <td className="px-3 py-1.5">
+                          {qr.purchaseOrderId ? (
+                            <a
+                              href={`/purchase_orders/${qr.purchaseOrderId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline inline-flex items-center gap-1"
+                            >
+                              {child.name}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            child.name
+                          )}
+                        </td>
                         <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">
                           {formatCurrency(child.budgetAmount)}
                         </td>
