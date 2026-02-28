@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,10 +12,41 @@ import { setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 export default function PortalLogin() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Handle token-based auto-login (admin impersonation)
+  useEffect(() => {
+    const token = searchParams.get("token");
+    if (!token) return;
+
+    const autoLogin = async () => {
+      setLoading(true);
+      try {
+        // Store token
+        setStorageItem(STORAGE_KEYS.PORTAL_TOKEN, token);
+        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+        // Fetch user info to validate token and get user data
+        const response = await axios.get("/api/v1/portal/auth/me");
+        if (response?.data?.success && response.data.user) {
+          setStorageItem(STORAGE_KEYS.PORTAL_USER, response.data.user);
+          router.push("/portal/dashboard");
+        } else {
+          setError("Invalid or expired token");
+          setLoading(false);
+        }
+      } catch {
+        setError("Invalid or expired token");
+        setLoading(false);
+      }
+    };
+
+    autoLogin();
+  }, [searchParams, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

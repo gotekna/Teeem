@@ -505,17 +505,23 @@ function QuoteReturnContent() {
                             +rest
                           </button>
                         )}
-                        <div className="relative w-24 shrink-0">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                        <div className="relative w-28 shrink-0">
                           <Input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={allocations[child.id] || ""}
                             onChange={(e) => {
-                              setAllocations((prev) => ({ ...prev, [child.id]: e.target.value }));
+                              const raw = e.target.value;
+                              if (raw.endsWith("%")) {
+                                const p = parseFloat(raw.slice(0, -1)) || 0;
+                                const dollarAmt = Math.round((p / 100) * priceNum * 100) / 100;
+                                setAllocations((prev) => ({ ...prev, [child.id]: dollarAmt > 0 ? String(dollarAmt) : "" }));
+                              } else {
+                                setAllocations((prev) => ({ ...prev, [child.id]: raw }));
+                              }
                             }}
-                            className="pl-5 text-sm h-7"
-                            placeholder="0"
-                            step="0.01"
+                            className="text-sm h-7 px-2"
+                            placeholder="$0 or 50%"
                           />
                         </div>
                         <span className="text-xs text-muted-foreground w-8 text-right shrink-0">

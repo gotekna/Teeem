@@ -129,6 +129,53 @@ module Api
           render_error("An error occurred", status: :internal_server_error)
         end
 
+        # POST /api/v1/portal/auth/impersonate/:contact_id
+        # Admin-only: Generate portal JWT for a contact (requires normal admin auth)
+        def impersonate
+          # This action uses normal admin auth (authorize_request), not portal auth
+          # The skip_before_action above skips authorize_request for login/signup/etc,
+          # but impersonate is NOT in that list, so authorize_request runs automatically
+
+          unless current_user&.admin?
+            render_error("Admin access required", status: :forbidden)
+            return
+          end
+
+          contact = Contact.find_by(id: params[:contact_id])
+          unless contact
+            render_error("Contact not found", status: :not_found)
+            return
+          end
+
+          portal_user = contact.portal_user
+          unless portal_user&.active?
+            render_error("Contact does not have an active portal account", status: :unprocessable_entity)
+            return
+          end
+
+          # Generate portal JWT token (same format as login)
+          token = JsonWebToken.encode(portal_user_id: portal_user.id)
+
+          subcontractor_account = portal_user.subcontractor_account
+
+          render json: {
+            success: true,
+            token: token,
+            impersonating: true,
+            user: {
+              id: portal_user.id,
+              email: portal_user.email,
+              contact_id: portal_user.contact_id,
+              contact_name: portal_user.contact.display_name,
+              company_name: portal_user.contact.company_name,
+              portal_type: portal_user.portal_type,
+              kudos_score: subcontractor_account&.kudos_score,
+              account_tier: subcontractor_account&.account_tier,
+              last_login_at: portal_user.last_login_at
+            }
+          }, status: :ok
+        end
+
         # GET /api/v1/portal/auth/me
         def me
           # This uses the authorize_portal_user from BaseController

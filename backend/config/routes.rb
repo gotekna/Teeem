@@ -4599,6 +4599,7 @@ Rails.application.routes.draw do
         post "auth/reset_password", to: "authentication#reset_password"
         post "auth/validate_reset_token", to: "authentication#validate_reset_token"
         get "auth/me", to: "authentication#me"
+        post "auth/impersonate/:contact_id", to: "authentication#impersonate"
 
         # Quote requests (subcontractor view)
         resources :quote_requests, only: [ :index, :show ] do

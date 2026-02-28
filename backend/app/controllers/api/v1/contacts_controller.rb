@@ -638,7 +638,7 @@ module Api
             contact_groups: {},
             portal_user: {}
           },
-          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name ]
+          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name, :email ]
         )
 
         # If contact is a supplier, add pricebook items and purchase orders

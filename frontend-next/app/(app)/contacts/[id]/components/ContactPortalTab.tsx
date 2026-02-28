@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, Mail, Key, CheckCircle, XCircle, Send } from "lucide-react";
+import { Lock, Mail, Key, CheckCircle, XCircle, Send, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { api } from "@/lib/api";
 import type { Contact } from "../types";
 
 // =============================================================================
@@ -13,6 +14,7 @@ import type { Contact } from "../types";
 // =============================================================================
 // Manages customer portal access for this contact:
 // - View portal access status
+// - Open portal as contact (admin impersonation)
 // - Send portal invitation
 // - Reset password
 // Visibility: Always visible
@@ -24,12 +26,31 @@ interface ContactPortalTabProps {
 
 export function ContactPortalTab({ contact }: ContactPortalTabProps) {
   const [sending, setSending] = useState(false);
+  const [openingPortal, setOpeningPortal] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Check if contact has portal access
   const hasPortalAccess = contact.portal_enabled || false;
   const portalEmail = contact.email;
   const lastLogin = contact.portal_last_login;
+
+  const handleOpenPortal = async () => {
+    setOpeningPortal(true);
+    setMessage(null);
+    try {
+      const response = await api.post(`/api/v1/portal/auth/impersonate/${contact.id}`);
+      if (response?.data?.success && response.data.token) {
+        // Open portal login page with token param - it will auto-authenticate
+        window.open(`/portal/login?token=${response.data.token}`, "_blank");
+      } else {
+        setMessage({ type: "error", text: response?.data?.error || "Failed to open portal." });
+      }
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.response?.data?.error || "Failed to open portal. Please try again." });
+    } finally {
+      setOpeningPortal(false);
+    }
+  };
 
   const handleSendInvitation = async () => {
     if (!portalEmail) {
@@ -79,7 +100,7 @@ export function ContactPortalTab({ contact }: ContactPortalTabProps) {
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Status</span>
             {hasPortalAccess ? (
-              <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300">
+              <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
                 <CheckCircle className="h-3 w-3 mr-1" />
                 Active
               </Badge>
@@ -133,6 +154,16 @@ export function ContactPortalTab({ contact }: ContactPortalTabProps) {
           )}
 
           <div className="flex flex-wrap gap-3">
+            {hasPortalAccess && (
+              <Button
+                onClick={handleOpenPortal}
+                disabled={openingPortal}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                {openingPortal ? "Opening..." : `Open Portal as ${contact.display_name || "Contact"}`}
+              </Button>
+            )}
+
             {!hasPortalAccess ? (
               <Button
                 onClick={handleSendInvitation}

@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260224",
     "started_at": "2026-02-24T02:13:39Z",
     "completed_at": "2026-02-28T12:36:58Z",
-    "last_updated": "2026-02-28T13:18:12Z",
-    "iteration": 14,
+    "last_updated": "2026-02-28T14:55:00Z",
+    "iteration": 17,
     "ship_ready": false,
     "total_pages": 199,
     "total_stories": 19
@@ -1598,70 +1598,70 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         },
         "/settings/connections/provider": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         },
         "/settings/connections/integrations": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         },
         "/settings/connections/migration": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         },
         "/settings/connections/costs": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         },
         "/settings/connections/backups": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         },
         "/settings/integrations": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         },
         "/settings/integrations/xero": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         },
         "/settings/integrations/microsoft": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         },
         "/settings/integrations/cloudflare": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 5
+          "iteration": 15
         }
       }
     },
@@ -1694,49 +1694,49 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/operations/po-templates": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/operations/claim-templates": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/tables": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/training": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/meeting-types": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/public-holidays": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         }
       }
     },
@@ -1782,140 +1782,140 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/roles": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/corporate": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/system": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/developer": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/documents": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/email-reseller": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/email-reseller/subscriptions": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/email-reseller/migrations": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/email-reseller/reports": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/settings/email-reseller/settings": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/admin/tenants": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/admin/referrers": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 6
+          "iteration": 15
         },
         "/admin/saas-customers": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 15
         },
         "/admin/support-tickets": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 15
         },
         "/admin/site-presence": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 15
         },
         "/admin/system/teeem-xl/list": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 15
         },
         "/admin/system/teeem-word/list": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 15
         },
         "/admin/system/teeem-powerpoint/list": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 15
         },
         "/admin/system/teeem-pdf/list": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 15
         }
       }
     },
@@ -1946,35 +1946,35 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/data-warehouse": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/my-docs": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/docsort": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/import": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         }
       }
     },
@@ -2005,42 +2005,42 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/schedule-templates": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/sm_tasks": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/task-templates": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/calendar": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/site-presence/live": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         }
       }
     },
@@ -2096,189 +2096,189 @@
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/leads/emails": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 7
+          "iteration": 16
         },
         "/quote-requests": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 16
         },
         "/cases": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 16
         },
         "/cases/new": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 16
         },
         "/email": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 16
         },
         "/email/rules": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 16
         },
         "/email/settings": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 16
         },
         "/meetings": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 16
         },
         "/meetings/new": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/chat": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/training": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/plans": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/workflows": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/workflows/processes": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/designer": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/designer/new": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/e-signature": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/e-signature/prepare": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/support": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/feature-requests": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/system-health": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 8
+          "iteration": 17
         },
         "/system-performance": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 9
+          "iteration": 17
         },
         "/design-system": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 9
+          "iteration": 17
         },
         "/missing": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 9
+          "iteration": 17
         },
         "/profile": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 9
+          "iteration": 17
         },
         "/company-groups": {
           "status": "passed",
           "checks": [
             "js_check"
           ],
-          "iteration": 9
+          "iteration": 17
         }
       }
     },
