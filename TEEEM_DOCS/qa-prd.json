@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260224",
     "started_at": "2026-02-24T02:13:39Z",
     "completed_at": "2026-02-28T12:36:58Z",
-    "last_updated": "2026-02-28T14:55:00Z",
-    "iteration": 17,
+    "last_updated": "2026-02-28T15:10:00Z",
+    "iteration": 18,
     "ship_ready": false,
     "total_pages": 199,
     "total_stories": 19
@@ -1215,7 +1215,7 @@
       "title": "Company Settings",
       "icon": "save",
       "description": "Company settings with 9 tabs and their sub-tabs",
-      "status": "in_progress",
+      "status": "completed",
       "page_manifest": [
         "/settings/company",
         "/settings/company/info",
