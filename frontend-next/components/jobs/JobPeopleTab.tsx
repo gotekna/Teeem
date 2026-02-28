@@ -149,10 +149,14 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
 
   const isInternalRole = (role: string) => (INTERNAL_ROLES as readonly string[]).includes(role);
 
-  // Map job roles to matching system roles for smart filtering
+  // Map job roles to matching user roles for smart filtering
+  // Only shows users with the specific role assigned
   const ROLE_SYSTEM_ROLE_MAP: Record<string, string[]> = {
-    supervisor: ["supervisor", "admin", "product_owner"],
-    estimator: ["estimator", "admin", "product_owner"],
+    supervisor: ["supervisor"],
+    site_coordinator: ["site_coordinator"],
+    estimator: ["estimator"],
+    internal_sales: ["sales"],
+    coordinator: ["client_coordinator"],
   };
 
   useEffect(() => {

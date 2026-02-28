@@ -288,13 +288,15 @@ module Api
         line = cqs.custom_quote_line
         updates = {}
         updates[:quote_warehouse_document_id] = cqs.warehouse_document_id if cqs.warehouse_document_id.present?
-        updates[:special_instructions] = line.tender_description if line.tender_description.present?
 
-        # Append tender description to PO description if requested
+        # Add tender description as a $0 line item (not in notes) so it prints on the PO
         if include_tender_description && line.tender_description.present?
-          existing = po.description.to_s
-          tender_desc = line.tender_description.truncate(2000)
-          updates[:description] = existing.present? ? "#{existing}\n\n#{tender_desc}" : tender_desc
+          po.line_items.create!(
+            description: line.tender_description.truncate(2000),
+            quantity: 1,
+            unit_price: 0,
+            gst_code: 'GST'
+          )
         end
 
         po.update!(updates) if updates.any?

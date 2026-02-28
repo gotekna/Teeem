@@ -468,7 +468,10 @@ class TeeemDocumentGenerator
     end
 
     # Build line items with colour from pricebook (SSoT)
-    line_items = po.line_items.includes(:pricebook_item).map do |item|
+    # Filter out lines with no quantity (placeholder/notes-only rows)
+    line_items = po.line_items.includes(:pricebook_item)
+      .reject { |item| item.quantity.blank? || item.quantity.zero? }
+      .map do |item|
       {
         id: item.id,
         description: item.description,

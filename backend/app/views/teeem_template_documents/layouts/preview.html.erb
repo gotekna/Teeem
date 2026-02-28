@@ -7,16 +7,8 @@
     *, *::before, *::after { box-sizing: border-box; }
   </style>
 </head>
-<%# ⚠️ DO NOT SIMPLIFY - Body IS the A4 page (2026-03-01)
-    ════════════════════════════════════════════
-    Why: Template content includes inline <style> blocks (266+ lines).
-    When wrapped in a <div>, the browser's HTML parser (in iframe srcDoc)
-    restructures the DOM — the wrapper div gets "closed" and all styled
-    content falls OUTSIDE it, appearing on the grey body background.
-    ❌ WRONG: <div class="a4-page"><%= yield_content %></div>
-    ✅ CORRECT: <body> itself is styled as the A4 page — no wrapper div.
-    The <style> block is valid directly inside <body> and won't break parsing.
-    ════════════════════════════════════════════ -%>
+<!-- Body IS the A4 page. DO NOT wrap yield_content in a div.
+     Inline style blocks inside a wrapper div break iframe DOM parsing. -->
 <body style="width: 210mm; min-height: 297mm; padding: 15mm 18mm; margin: 10px auto; background: white; border: 1px solid #000; font-family: Arial, sans-serif;">
   <%= yield_content %>
 </body>
