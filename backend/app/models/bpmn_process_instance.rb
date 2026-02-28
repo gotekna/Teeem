@@ -4,6 +4,7 @@ class BpmnProcessInstance < ApplicationRecord
   belongs_to :workflow_instance, optional: true
   belongs_to :subject, polymorphic: true
   has_many :bpmn_tokens, dependent: :destroy
+  has_many :bpmn_task_instances, through: :bpmn_tokens
 
   # Constants
   STATUSES = %w[active completed cancelled error suspended].freeze
@@ -72,6 +73,8 @@ class BpmnProcessInstance < ApplicationRecord
   end
 
   # Variable management
+  alias_method :process_variables, :variables
+
   def get_variable(key)
     variables&.dig(key.to_s)
   end

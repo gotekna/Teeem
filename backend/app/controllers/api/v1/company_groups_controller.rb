@@ -90,28 +90,54 @@ module Api
 
       # GET /api/v1/company_groups/:id/structure
       def structure
-        # Get top-level companies (no consolidation parent) in this group
-        # Uses consolidation_parent_id for financial grouping hierarchy
-        # Exclude Trust entities that have a Trustee company (they'll be shown under the Trustee)
-        all_top_level = @company_group.corporate_companies.where(consolidation_parent_id: nil).order(:name)
+        # Pre-load ALL companies in this group to avoid N+1 in recursive tree building
+        all_companies = @company_group.corporate_companies.order(:name).to_a
+        companies_by_id = all_companies.index_by(&:id)
 
-        # Find trusts/superfunds that have a trustee company in this group
-        # Match by Trust/Superfund's name (not trust_name field) since trustee's trust_name = Trust's name
-        # TODO: Could optimize with SQL join instead of loading into memory
-        trusts_with_trustees = @company_group.corporate_companies
-          .where(entity_type: [ "Trust", "Superfund" ])
-          .select { |trust| @company_group.corporate_companies.exists?(is_trustee: true, trust_name: trust.name) }
-          .map(&:id)
+        # Pre-load all shareholdings and investments for companies in this group
+        company_ids = all_companies.map(&:id)
+        all_shareholdings = CorporateShareholding.where(company_id: company_ids).includes(:shareholder).group_by(&:company_id)
+        all_investments = CorporateShareholding.where(shareholder_type: "Corporate", shareholder_id: company_ids).includes(:corporate).group_by(&:shareholder_id)
 
-        # Exclude those trusts from top level (they'll appear under their trustee)
-        top_level = all_top_level.where.not(id: trusts_with_trustees)
+        # Pre-load children lookup (consolidated_children by parent_id)
+        children_by_parent = all_companies.select(&:consolidation_parent_id).group_by(&:consolidation_parent_id)
+
+        # Pre-load trust entities by name for trustee lookups
+        trusts_by_name = all_companies
+          .select { |c| c.entity_type.in?(%w[Trust Superfund]) }
+          .index_by(&:name)
+
+        # Build pre-loaded context hash to pass through recursion
+        preloaded = {
+          shareholdings: all_shareholdings,
+          investments: all_investments,
+          children_by_parent: children_by_parent,
+          trusts_by_name: trusts_by_name
+        }
+
+        # Find trusts/superfunds that have a trustee company (in-memory, no queries)
+        trustee_trust_names = all_companies.select(&:is_trustee).map(&:trust_name).compact.to_set
+        trusts_with_trustees_ids = all_companies
+          .select { |c| c.entity_type.in?(%w[Trust Superfund]) && trustee_trust_names.include?(c.name) }
+          .map(&:id).to_set
+
+        # Top-level = no parent AND not a trust shown under its trustee
+        top_level = all_companies.select { |c| c.consolidation_parent_id.nil? && !trusts_with_trustees_ids.include?(c.id) }
 
         # SSoT: Get people in this group via memberships
-        people = @company_group.contact_memberships
-          .people
-          .active
-          .includes(:contact)
-          .map { |m| serialize_person_membership(m) }
+        # Pre-load directorships and shareholdings for all people to avoid N+1 in get_person_roles
+        people_memberships = @company_group.contact_memberships.people.active.includes(:contact)
+        contact_ids = people_memberships.map(&:contact_id).compact.uniq
+        @directorships_by_contact = CorporateDirector
+          .where(contact_id: contact_ids)
+          .includes(:corporate)
+          .group_by(&:contact_id)
+        @shareholdings_by_contact = CorporateShareholding
+          .where(shareholder_type: "Contact", shareholder_id: contact_ids)
+          .includes(:corporate)
+          .group_by(&:shareholder_id)
+
+        people = people_memberships.map { |m| serialize_person_membership(m) }
 
         render json: {
           success: true,
@@ -120,13 +146,13 @@ module Api
               id: @company_group.id,
               name: @company_group.name
             },
-            companies: top_level.map { |c| build_hierarchy_tree(c, @company_group) },
+            companies: top_level.map { |c| build_hierarchy_tree(c, @company_group, preloaded) },
             people: people,
             stats: {
-              total_companies: @company_group.corporate_companies.count,
+              total_companies: all_companies.count,
               top_level_count: top_level.count,
-              trustees_count: @company_group.corporate_companies.where(is_trustee: true).count,
-              trusts_count: @company_group.corporate_companies.where(entity_type: "Trust").count,
+              trustees_count: all_companies.count(&:is_trustee),
+              trusts_count: all_companies.count { |c| c.entity_type == "Trust" },
               people_count: people.count
             }
           }
@@ -248,62 +274,37 @@ module Api
       end
 
       # SSoT: Get all roles a person has in a company group
+      # Uses pre-loaded @directorships_by_contact and @shareholdings_by_contact when available
       def get_person_roles(contact, company_group_id)
         roles = []
 
         # Get directorship/officer roles (director, secretary, corporate_officer, public_officer)
-        contact.corporate_directorships.includes(:corporate).each do |dir|
+        directorships = @directorships_by_contact&.dig(contact.id) || contact.corporate_directorships.includes(:corporate)
+        directorships.each do |dir|
           next unless dir.corporate&.company_group_id == company_group_id
 
           position = dir.position.to_s
 
-          # Add director role if position includes director or is chairman
           if position.include?("director") || position == "chairman"
-            roles << {
-              type: "director",
-              company_id: dir.company_id,
-              company_name: dir.corporate.name,
-              position: dir.position,
-              is_current: dir.is_current
-            }
+            roles << { type: "director", company_id: dir.company_id, company_name: dir.corporate.name, position: dir.position, is_current: dir.is_current }
           end
 
-          # Add secretary role if position includes secretary
           if position.include?("secretary")
-            roles << {
-              type: "secretary",
-              company_id: dir.company_id,
-              company_name: dir.corporate.name,
-              position: dir.position,
-              is_current: dir.is_current
-            }
+            roles << { type: "secretary", company_id: dir.company_id, company_name: dir.corporate.name, position: dir.position, is_current: dir.is_current }
           end
 
-          # Add corporate_officer role if position includes corporate_officer
           if position.include?("corporate_officer")
-            roles << {
-              type: "corporate_officer",
-              company_id: dir.company_id,
-              company_name: dir.corporate.name,
-              position: dir.position,
-              is_current: dir.is_current
-            }
+            roles << { type: "corporate_officer", company_id: dir.company_id, company_name: dir.corporate.name, position: dir.position, is_current: dir.is_current }
           end
 
-          # Add public_officer role if position includes public_officer
           if position.include?("public_officer")
-            roles << {
-              type: "public_officer",
-              company_id: dir.company_id,
-              company_name: dir.corporate.name,
-              position: dir.position,
-              is_current: dir.is_current
-            }
+            roles << { type: "public_officer", company_id: dir.company_id, company_name: dir.corporate.name, position: dir.position, is_current: dir.is_current }
           end
         end
 
         # Get shareholder roles
-        contact.corporate_shareholdings.includes(:corporate).each do |sh|
+        shareholdings = @shareholdings_by_contact&.dig(contact.id) || contact.corporate_shareholdings.includes(:corporate)
+        shareholdings.each do |sh|
           next unless sh.corporate&.company_group_id == company_group_id
           roles << {
             type: "shareholder",
@@ -317,10 +318,9 @@ module Api
         roles
       end
 
-      def build_hierarchy_tree(company, company_group = nil)
-        # Get shareholdings where this company is owned
-        shareholders = company.corporate_shareholdings.includes(:shareholder).map do |sh|
-          # Use centralized DisplayValueResolver (SSoT for display values)
+      def build_hierarchy_tree(company, company_group = nil, preloaded = {})
+        # Use pre-loaded shareholdings (no DB query)
+        shareholders = (preloaded[:shareholdings]&.dig(company.id) || []).map do |sh|
           shareholder_name = DisplayValueResolver.resolve(sh.shareholder)
           {
             id: sh.id,
@@ -334,8 +334,8 @@ module Api
           }
         end
 
-        # Get investments (companies this company owns)
-        investments = company.investments.includes(:corporate).map do |inv|
+        # Use pre-loaded investments (no DB query)
+        investments = (preloaded[:investments]&.dig(company.id) || []).map do |inv|
           {
             company_id: inv.company_id,
             company_name: inv.corporate&.name,
@@ -344,18 +344,15 @@ module Api
           }
         end
 
-        # Build children list - use consolidated_children (financial consolidation hierarchy)
-        children = company.consolidated_children
-          .where(company_group_id: company_group&.id)
-          .order(:name)
-          .map { |s| build_hierarchy_tree(s, company_group) }
+        # Use pre-loaded children (no DB query, recursive)
+        child_companies = (preloaded[:children_by_parent]&.dig(company.id) || []).sort_by(&:name)
+        children = child_companies.map { |s| build_hierarchy_tree(s, company_group, preloaded) }
 
         # If this company is a trustee, add the Trust/Superfund entity as a child
-        # Match by Trust/Superfund's name (the trustee's trust_name = Trust entity's name)
-        if company.is_trustee && company.trust_name.present? && company_group
-          trust_entity = company_group.corporate_companies.where(entity_type: [ "Trust", "Superfund" ]).find_by(name: company.trust_name)
+        # Uses pre-loaded trusts_by_name (no DB query)
+        if company.is_trustee && company.trust_name.present? && preloaded[:trusts_by_name]
+          trust_entity = preloaded[:trusts_by_name][company.trust_name]
           if trust_entity
-            # Add the trust at the beginning of children
             trust_node = {
               id: trust_entity.id,
               name: trust_entity.name,
@@ -370,7 +367,7 @@ module Api
               shareholders: [],
               investments: [],
               children: [],
-              is_trust_of_trustee: true  # Flag to indicate this is the trust managed by the parent trustee
+              is_trust_of_trustee: true
             }
             children.unshift(trust_node)
           end

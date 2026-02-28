@@ -20,7 +20,7 @@ const DEFAULT_API_URL = (process.env.NEXT_PUBLIC_API_URL || PRODUCTION_API_URL).
 
 // Check if running in dev mode (localhost or dev backends with "-dev" in URL)
 // Dev frontends skip the production router and login directly to their own backend
-const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev') || DEFAULT_API_URL.includes('localhost');
+const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev') || DEFAULT_API_URL.includes('localhost') || DEFAULT_API_URL.includes('127.0.0.1');
 
 /**
  * Get the current API base URL
@@ -34,6 +34,11 @@ export const getApiBaseUrl = () => {
       // Trim to prevent %20 (encoded space) in URL causing DNS failures
       return storedUrl.trim();
     }
+  }
+  // Server-side: prefer BACKEND_URL (direct Rails connection) over NEXT_PUBLIC_API_URL
+  // This prevents route handlers from calling themselves when NEXT_PUBLIC_API_URL points to localhost:3000
+  if (typeof window === 'undefined' && process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL;
   }
   return DEFAULT_API_URL;
 };

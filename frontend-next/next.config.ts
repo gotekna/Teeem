@@ -32,6 +32,17 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   // Empty turbopack config to silence warning (PDF viewer uses dynamic import with ssr: false)
   turbopack: {},
+  // Allow preview panel (127.0.0.1) to make cross-origin requests to dev server (localhost)
+  allowedDevOrigins: ["127.0.0.1"],
+  // Proxy API calls to backend in development (enables preview panel + avoids CORS)
+  async rewrites() {
+    if (process.env.NODE_ENV !== "development") return [];
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+    return [
+      { source: "/api/:path*", destination: `${backendUrl}/api/:path*` },
+      { source: "/cable", destination: `${backendUrl}/cable` },
+    ];
+  },
   env: {
     NEXT_PUBLIC_GIT_COMMIT: gitCommitHash,
     NEXT_PUBLIC_BUILD_NUMBER: commitCount,

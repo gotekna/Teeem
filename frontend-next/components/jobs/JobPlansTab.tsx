@@ -630,28 +630,42 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Adjust revision letter for the selected plan
+  // Adjust revision letter for selected plan(s) - supports bulk update
   const handleSaveRevision = async () => {
-    if (!selectedPlan?.current_revision || !revisionValue.trim()) return;
+    if (!revisionValue.trim()) return;
+
+    // Determine which plans to update
+    const plansToUpdate = selectedPlanIds.length > 0
+      ? plans.filter(p => selectedPlanIds.includes(p.id) && p.current_revision)
+      : selectedPlan?.current_revision ? [selectedPlan] : [];
+
+    if (plansToUpdate.length === 0) return;
 
     setSavingRevision(true);
     try {
-      const response = (await api.patch(
-        `/api/v1/jobs/${jobId}/job_plans/${selectedPlan.id}/revisions/${selectedPlan.current_revision.id}`,
-        { revision: { revision: revisionValue.trim().toUpperCase(), notes: revisionNotes.trim() || null } }
-      )) as { success: boolean; error?: string };
+      const results = await Promise.allSettled(
+        plansToUpdate.map(plan =>
+          api.patch(
+            `/api/v1/jobs/${jobId}/job_plans/${plan.id}/revisions/${plan.current_revision!.id}`,
+            { revision: { revision: revisionValue.trim().toUpperCase(), notes: revisionNotes.trim() || null } }
+          )
+        )
+      );
 
-      if (response.success) {
-        toast({ title: "Success", description: `Revision updated to ${revisionValue.trim().toUpperCase()}` });
-        setShowRevisionDialog(false);
-        fetchPlans();
+      const succeeded = results.filter(r => r.status === "fulfilled" && (r.value as { success: boolean }).success).length;
+      const failed = plansToUpdate.length - succeeded;
+
+      if (failed === 0) {
+        toast({ title: "Success", description: `Revision updated to ${revisionValue.trim().toUpperCase()} on ${succeeded} plan${succeeded !== 1 ? "s" : ""}` });
       } else {
         toast({
-          title: "Error",
-          description: response.error || "Failed to update revision",
+          title: "Partial Update",
+          description: `${succeeded} updated, ${failed} failed`,
           variant: "destructive",
         });
       }
+      setShowRevisionDialog(false);
+      fetchPlans();
     } catch (err) {
       console.error("Error updating revision:", err);
       toast({
@@ -883,16 +897,22 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   Download {selectedPlanIds.length > 1 ? `(${selectedPlanIds.length})` : "Selected"}
                 </DropdownMenuItem>
               )}
-              {selectedPlan?.current_revision && (
+              {(selectedPlanIds.length > 0 || selectedPlan?.current_revision) && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => {
-                    setRevisionValue(selectedPlan.current_revision?.revision || "");
-                    setRevisionNotes(selectedPlan.current_revision?.notes || "");
+                    // Pre-fill from focused plan if single, blank if bulk
+                    if (selectedPlanIds.length <= 1 && selectedPlan?.current_revision) {
+                      setRevisionValue(selectedPlan.current_revision.revision || "");
+                      setRevisionNotes(selectedPlan.current_revision.notes || "");
+                    } else {
+                      setRevisionValue("");
+                      setRevisionNotes("");
+                    }
                     setShowRevisionDialog(true);
                   }}>
                     <Pencil className="h-4 w-4 mr-2" />
-                    Adjust Revision ({selectedPlan.current_revision.revision_label})
+                    Adjust Revision {selectedPlanIds.length > 1 ? `(${selectedPlanIds.length} plans)` : selectedPlan?.current_revision ? `(${selectedPlan.current_revision.revision_label})` : ""}
                   </DropdownMenuItem>
                 </>
               )}
@@ -988,7 +1008,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           <DialogHeader>
             <DialogTitle>Adjust Revision</DialogTitle>
             <DialogDescription>
-              Set the revision letter for {selectedPlan?.display_name}
+              {selectedPlanIds.length > 1
+                ? `Set the revision letter for ${selectedPlanIds.length} selected plans`
+                : `Set the revision letter for ${selectedPlan?.display_name}`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

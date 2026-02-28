@@ -72,7 +72,7 @@ class ProcessNewEntityEmailsJob < ApplicationJob
       extra_query: ->(address) {
         SyncedEmail
           .where("? = ANY(to_emails)", address)
-          .where.not(id: EmailCaseProposal.select(:synced_email_id))
+          .where.not(id: EmailCaseProposal.select(:email_warehouse_id))
           .where("created_at > ?", 7.days.ago)
           .order(received_at: :desc)
       },

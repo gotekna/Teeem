@@ -109,6 +109,10 @@ export function PDFViewerImpl({
   // Canvas ref for displaying the rendered page
   const displayCanvasRef = React.useRef<HTMLCanvasElement>(null);
 
+  // Right-click area zoom (works without markup mode)
+  const [zoomRect, setZoomRect] = React.useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const zoomDragRef = React.useRef<{ startX: number; startY: number } | null>(null);
+
   // =============================================================================
   // Step 1: Fetch PDF bytes (with caching + progress)
   // =============================================================================
@@ -355,6 +359,70 @@ export function PDFViewerImpl({
     onMarkupToggle?.(next);
   }, [markupActive, onMarkupToggle]);
 
+  // Right-click area zoom handlers (only active when markup is NOT active)
+  const handleZoomContextMenu = React.useCallback((e: React.MouseEvent) => {
+    if (markupActive) return;
+    e.preventDefault();
+  }, [markupActive]);
+
+  const handleZoomMouseDown = React.useCallback((e: React.MouseEvent) => {
+    if (markupActive || e.button !== 2) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    // Position in page coordinates (unzoomed)
+    const pageX = (e.clientX - rect.left + container.scrollLeft) / zoom;
+    const pageY = (e.clientY - rect.top + container.scrollTop) / zoom;
+    zoomDragRef.current = { startX: pageX, startY: pageY };
+    setZoomRect(null);
+  }, [markupActive, zoom, containerRef]);
+
+  const handleZoomMouseMove = React.useCallback((e: React.MouseEvent) => {
+    if (!zoomDragRef.current || markupActive) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const pageX = (e.clientX - rect.left + container.scrollLeft) / zoom;
+    const pageY = (e.clientY - rect.top + container.scrollTop) / zoom;
+
+    const { startX, startY } = zoomDragRef.current;
+    const x = Math.min(startX, pageX);
+    const y = Math.min(startY, pageY);
+    const w = Math.abs(pageX - startX);
+    const h = Math.abs(pageY - startY);
+
+    setZoomRect({ x, y, w, h });
+  }, [markupActive, zoom, containerRef]);
+
+  const handleZoomMouseUp = React.useCallback((e: React.MouseEvent) => {
+    if (!zoomDragRef.current || markupActive || e.button !== 2) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const pageX = (e.clientX - rect.left + container.scrollLeft) / zoom;
+    const pageY = (e.clientY - rect.top + container.scrollTop) / zoom;
+
+    const { startX, startY } = zoomDragRef.current;
+    const w = Math.abs(pageX - startX);
+    const h = Math.abs(pageY - startY);
+
+    // Only zoom if drag was significant (>10px in page coords)
+    if (w > 10 && h > 10) {
+      zoomToRect({
+        x: Math.min(startX, pageX),
+        y: Math.min(startY, pageY),
+        width: w,
+        height: h,
+      });
+    }
+
+    zoomDragRef.current = null;
+    setZoomRect(null);
+  }, [markupActive, zoom, containerRef, zoomToRect]);
+
   // Zoom display label
   const zoomPercent = Math.round(zoom * 100);
 
@@ -504,6 +572,10 @@ export function PDFViewerImpl({
         ref={containerRef}
         className="flex-1 overflow-auto bg-muted/20 relative"
         style={{ cursor: isPanning ? "grabbing" : isSpaceHeld ? "grab" : "default" }}
+        onContextMenu={handleZoomContextMenu}
+        onMouseDown={handleZoomMouseDown}
+        onMouseMove={handleZoomMouseMove}
+        onMouseUp={handleZoomMouseUp}
       >
         <div
           className="relative mx-auto"
@@ -523,6 +595,19 @@ export function PDFViewerImpl({
               height: currentPage.height * zoom,
             }}
           />
+
+          {/* Right-click area zoom selection overlay */}
+          {zoomRect && !markupActive && (
+            <div
+              className="absolute border-2 border-blue-500 bg-blue-500/15 pointer-events-none z-20"
+              style={{
+                left: zoomRect.x * zoom,
+                top: zoomRect.y * zoom,
+                width: zoomRect.w * zoom,
+                height: zoomRect.h * zoom,
+              }}
+            />
+          )}
 
           {/* Markup overlay — TakeoffCanvas + TakeoffToolbar */}
           {markupActive && markupContext && (

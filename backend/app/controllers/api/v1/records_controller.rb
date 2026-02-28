@@ -1237,10 +1237,13 @@ module Api
 
       def set_foundation
         # Support both ID and slug
+        # FRC (Feb 2026): Include lookup_foundation to avoid N+1 in record_to_json.
+        # Without this, @foundation.columns.includes(:lookup_foundation) fires per-record
+        # (303x column queries on purchase_orders with 100 records).
         @foundation = if params[:foundation_id].to_i.to_s == params[:foundation_id]
-          Foundation.includes(:columns).find(params[:foundation_id])
+          Foundation.includes(columns: :lookup_foundation).find(params[:foundation_id])
         else
-          Foundation.includes(:columns).find_by!(slug: params[:foundation_id])
+          Foundation.includes(columns: :lookup_foundation).find_by!(slug: params[:foundation_id])
         end
       rescue ActiveRecord::RecordNotFound
         render_error("Foundation not found", status: :not_found)
@@ -1507,16 +1510,17 @@ module Api
               is_numeric = value.is_a?(Integer) || (value.is_a?(String) && value.match?(/\A\d+\z/))
               numeric_id = is_numeric ? value.to_i : nil
 
-              # Use lookup_cache if available (keyed by numeric ID), fall back to database query
-              related_record = numeric_id ? lookup_cache&.dig(column.id, numeric_id) : nil
+              # Use lookup_cache if available (by ID or by name), fall back to database query
+              col_cache = lookup_cache&.dig(column.id)
+              related_record = if col_cache
+                numeric_id ? col_cache.dig(:by_id, numeric_id) : col_cache.dig(:by_name, value)
+              end
 
               if related_record.nil? && column.lookup_foundation.present?
                 lookup_model = column.lookup_foundation.dynamic_model
                 if is_numeric
-                  # Numeric ID - look up by id
                   related_record = lookup_model.find_by(id: numeric_id)
                 else
-                  # String value - look up by name column (e.g., "accounts_department" -> Role.name)
                   related_record = lookup_model.find_by(name: value)
                 end
               end
@@ -1598,7 +1602,7 @@ module Api
 
         # First pass: collect all base column values
         record_data = {}
-        @foundation.columns.includes(:lookup_foundation).each do |column|
+        @foundation.columns.each do |column|
           begin
             # Check if the column actually exists on the model
             if record.respond_to?(column.column_name)
@@ -1616,7 +1620,7 @@ module Api
         # Second pass: build JSON with computed formula values
         formula_evaluator = FormulaEvaluator.new(@foundation)
 
-        @foundation.columns.includes(:lookup_foundation).each do |column|
+        @foundation.columns.each do |column|
           value = record_data[column.column_name]
 
           # Handle computed/formula columns - compute the value
@@ -1632,9 +1636,9 @@ module Api
           elsif column.column_type == "lookup" && value.present?
             begin
               # Use cached lookup data if available, fall back to database query if not found
-              # Try both integer and string keys for cache lookup (Foundation records may store either)
               lookup_id = value.is_a?(Integer) ? value : value.to_i
-              related_record = lookup_cache&.dig(column.id, lookup_id) || lookup_cache&.dig(column.id, value)
+              col_cache = lookup_cache&.dig(column.id)
+              related_record = col_cache&.dig(:by_id, lookup_id) || col_cache&.dig(:by_name, value.to_s)
               if related_record.nil? && column.lookup_foundation.present?
                 related_record = column.lookup_foundation.dynamic_model.find_by(id: value)
               end
@@ -1704,10 +1708,9 @@ module Api
 
       def build_lookup_cache(records)
         # Preload all lookup data to prevent N+1 queries
-        # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1).
-        # Note: lookup_foundation is accessed below but not eager-loaded via includes(:columns)
-        # in set_foundation. The .includes(:lookup_foundation) would fire a query anyway,
-        # so we pre-filter in Ruby and let Rails lazy-load only the lookup_foundation association.
+        # FRC (Feb 2026): lookup_foundation is now eager-loaded via includes(columns: :lookup_foundation)
+        # in set_foundation. This cache handles batch lookup by ID for numeric lookup columns.
+        # String-value lookups (e.g., role names) still fall back to individual queries in record_to_json.
         lookup_columns = @foundation.columns.select { |c| c.column_type == "lookup" }
         lookup_cache = {}
 
@@ -1723,13 +1726,21 @@ module Api
           end.uniq
           next if lookup_ids.empty?
 
-          # Batch load all related records
+          # Batch load all related records (by ID for numeric, by name for string values)
           begin
-            related_records = column.lookup_foundation.dynamic_model.where(id: lookup_ids)
-            lookup_cache[column.id] = related_records.index_by(&:id)
+            numeric_ids = lookup_ids.select { |v| v.is_a?(Integer) || (v.is_a?(String) && v.match?(/\A\d+\z/)) }.map(&:to_i)
+            string_values = lookup_ids.reject { |v| v.is_a?(Integer) || (v.is_a?(String) && v.match?(/\A\d+\z/)) }
+
+            model = column.lookup_foundation.dynamic_model
+            by_id = numeric_ids.any? ? model.where(id: numeric_ids).index_by(&:id) : {}
+
+            # Also pre-load by name for string-value lookups (e.g., role names, stage names)
+            by_name = string_values.any? ? model.where(name: string_values).index_by(&:name) : {}
+
+            lookup_cache[column.id] = { by_id: by_id, by_name: by_name }
           rescue => e
             Rails.logger.error "Error preloading lookup data for #{column.column_name}: #{e.message}"
-            lookup_cache[column.id] = {}
+            lookup_cache[column.id] = { by_id: {}, by_name: {} }
           end
         end
 
