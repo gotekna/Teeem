@@ -8,7 +8,6 @@ import {
   TrophyIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { portalApi } from "@/lib/portal-api";
 
@@ -25,11 +24,12 @@ interface Job {
   construction: Construction;
 }
 
-interface Quote {
-  id: number;
-  title: string;
-  days_waiting: number;
-  construction: Construction;
+interface AwaitingQuote {
+  id: string;
+  builder: string;
+  jobName: string | null;
+  itemName: string | null;
+  daysWaiting: number | null;
 }
 
 interface KudosData {
@@ -46,7 +46,7 @@ export default function PortalDashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentJobs, setRecentJobs] = useState<Job[]>([]);
-  const [pendingQuotes, setPendingQuotes] = useState<Quote[]>([]);
+  const [pendingQuotes, setPendingQuotes] = useState<AwaitingQuote[]>([]);
   const [kudosScore, setKudosScore] = useState<KudosData | null>(null);
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function PortalDashboard() {
       // Load dashboard data in parallel
       const [jobsRes, quotesRes, kudosRes] = await Promise.all([
         portalApi.get("/api/v1/portal/jobs"),
-        portalApi.get("/api/v1/portal/quote_requests"),
+        portalApi.get("/api/v1/portal/quote_trackers"),
         portalApi.get("/api/v1/portal/kudos"),
       ]);
 
@@ -71,7 +71,7 @@ export default function PortalDashboard() {
       }
 
       if (quotesRes.data.success) {
-        setPendingQuotes(quotesRes.data.data.pending.slice(0, 5));
+        setPendingQuotes((quotesRes.data.data.awaiting_response || []).slice(0, 5));
       }
 
       if (kudosRes.data.success) {
@@ -162,45 +162,52 @@ export default function PortalDashboard() {
         ))}
       </div>
 
-      {/* Pending Quotes */}
+      {/* Awaiting Quotes */}
       {pendingQuotes.length > 0 && (
         <div className="bg-card shadow rounded-lg">
-          <div className="px-4 py-5 sm:px-6 border-b border-border dark:border-border">
+          <div className="px-4 py-5 sm:px-6 border-b border-border">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-medium text-foreground dark:text-white">
-                Pending Quote Requests
+                Awaiting Your Quote
               </h2>
               <Link
-                href="/portal/quotes"
+                href="/portal/quotes/awaiting"
                 className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300"
               >
                 View all
               </Link>
             </div>
           </div>
-          <ul role="list" className="divide-y divide-border dark:divide-border">
+          <ul role="list" className="divide-y divide-border">
             {pendingQuotes.map((quote) => (
-              <li key={quote.id} className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-muted">
-                <Link href={`/portal/quotes/${quote.id}`} className="block">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
+              <li key={quote.id} className="px-4 py-4 sm:px-6 hover:bg-muted">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-foreground dark:text-white truncate">
-                        {quote.title}
+                        {quote.jobName || "Unknown Job"}
                       </p>
-                      <p className="text-sm text-muted-foreground dark:text-muted-foreground">
-                        {quote.construction.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground dark:text-muted-foreground mt-1">
-                        Waiting {quote.days_waiting} days
-                      </p>
-                    </div>
-                    <div className="ml-4 flex-shrink-0">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300">
-                        Respond Now
+                      <span className="text-xs text-muted-foreground">
+                        {quote.builder}
                       </span>
                     </div>
+                    {quote.itemName && (
+                      <p className="text-sm text-muted-foreground truncate">
+                        {quote.itemName}
+                      </p>
+                    )}
+                    {quote.daysWaiting != null && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Waiting {quote.daysWaiting} days
+                      </p>
+                    )}
                   </div>
-                </Link>
+                  <div className="ml-4 flex-shrink-0">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300">
+                      Awaiting
+                    </span>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>

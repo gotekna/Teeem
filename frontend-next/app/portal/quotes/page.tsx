@@ -2,81 +2,129 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   ClockIcon,
   CheckCircleIcon,
   XCircleIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { portalApi } from "@/lib/portal-api";
 
-interface Construction {
+interface QuoteRecord {
+  id: string;
+  source: "quote_tracker" | "custom_quote";
+  builder: string;
+  builderId: number;
+  jobName: string | null;
+  itemName: string | null;
+  priceQuoted: number | null;
+  quoteNumber: string | null;
+  sentAt: string | null;
+  dateReceived: string | null;
+  validTo: string | null;
+  status: string;
+  daysWaiting: number | null;
+  isBestPrice: boolean;
+  purchaseOrderId: number | null;
+  timeframe: string | null;
+  responseNotes: string | null;
+}
+
+interface Builder {
   id: number;
   name: string;
 }
 
-interface QuoteRequest {
-  id: number;
-  title: string;
-  construction: Construction;
-  trade_category?: string;
-  budget_min?: number;
-  budget_max?: number;
+interface QuoteTrackersData {
+  builders: Builder[];
+  awaiting_response: QuoteRecord[];
+  responded: QuoteRecord[];
+  accepted: QuoteRecord[];
+  rejected: QuoteRecord[];
 }
 
-interface MyResponse {
-  status: string;
-  price?: number;
-  timeframe?: string;
+type TabKey = "awaiting_response" | "responded" | "accepted" | "rejected";
+
+const TAB_CONFIG = [
+  {
+    key: "awaiting_response" as TabKey,
+    urlSlug: "awaiting",
+    name: "Awaiting My Quote",
+    icon: ClockIcon,
+    activeColor: "border-yellow-500 text-yellow-600 dark:text-yellow-400",
+    badgeColor: "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400",
+  },
+  {
+    key: "responded" as TabKey,
+    urlSlug: "responded",
+    name: "Responded",
+    icon: DocumentTextIcon,
+    activeColor: "border-blue-500 text-blue-600 dark:text-blue-400",
+    badgeColor: "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400",
+  },
+  {
+    key: "accepted" as TabKey,
+    urlSlug: "accepted",
+    name: "Accepted",
+    icon: CheckCircleIcon,
+    activeColor: "border-green-500 text-green-600 dark:text-green-400",
+    badgeColor: "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400",
+  },
+  {
+    key: "rejected" as TabKey,
+    urlSlug: "rejected",
+    name: "Rejected",
+    icon: XCircleIcon,
+    activeColor: "border-border text-muted-foreground dark:text-muted-foreground",
+    badgeColor: "bg-muted text-muted-foreground",
+  },
+];
+
+const INACTIVE_TAB =
+  "border-transparent text-muted-foreground hover:text-foreground hover:border-border";
+const INACTIVE_BADGE = "bg-muted text-muted-foreground";
+
+function slugToKey(slug: string | null): TabKey {
+  const match = TAB_CONFIG.find((t) => t.urlSlug === slug);
+  return match?.key ?? "awaiting_response";
 }
 
-interface Quote {
-  quote_request: QuoteRequest;
-  my_response?: MyResponse;
-  days_waiting?: number;
+function keyToSlug(key: TabKey): string {
+  return TAB_CONFIG.find((t) => t.key === key)?.urlSlug ?? "awaiting";
 }
-
-interface QuotesData {
-  pending: Quote[];
-  submitted: Quote[];
-  accepted: Quote[];
-  rejected: Quote[];
-}
-
-type TabKey = keyof QuotesData;
 
 export default function PortalQuotes() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Path-based tab navigation
-  // Note: pathname can be null during SSR/hydration
-  const activeTabRaw = useMemo(() => {
+  const activeTabSlug = useMemo(() => {
     if (!pathname) return null;
     const parts = pathname.replace("/portal/quotes", "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname]);
 
   useEffect(() => {
-    if (activeTabRaw === null) {
-      router.replace("/portal/quotes/pending", { scroll: false });
+    if (activeTabSlug === null) {
+      router.replace("/portal/quotes/awaiting", { scroll: false });
     }
-  }, [activeTabRaw, router]);
+  }, [activeTabSlug, router]);
 
-  const setActiveTab = useCallback((tab: string) => {
-    router.push(`/portal/quotes/${tab}`, { scroll: false });
-  }, [router]);
+  const activeTab = slugToKey(activeTabSlug);
 
-  const activeTab = (activeTabRaw || "pending") as TabKey;
+  const setActiveTab = useCallback(
+    (key: TabKey) => {
+      router.push(`/portal/quotes/${keyToSlug(key)}`, { scroll: false });
+    },
+    [router]
+  );
 
   const [loading, setLoading] = useState(true);
-  const [quotes, setQuotes] = useState<QuotesData>({
-    pending: [],
-    submitted: [],
+  const [data, setData] = useState<QuoteTrackersData>({
+    builders: [],
+    awaiting_response: [],
+    responded: [],
     accepted: [],
     rejected: [],
   });
@@ -87,10 +135,9 @@ export default function PortalQuotes() {
 
   const loadQuotes = async () => {
     try {
-      const response = await portalApi.get("/api/v1/portal/quote_requests");
-
-      if (response?.data.success) {
-        setQuotes(response.data.data);
+      const response = await portalApi.get("/api/v1/portal/quote_trackers");
+      if (response?.data?.success) {
+        setData(response.data.data);
       }
     } catch (error) {
       console.error("Failed to load quotes:", error);
@@ -99,51 +146,8 @@ export default function PortalQuotes() {
     }
   };
 
-  const tabs = [
-    {
-      key: "pending" as TabKey,
-      name: "Pending",
-      count: quotes.pending.length,
-      icon: ClockIcon,
-      color: "yellow",
-    },
-    {
-      key: "submitted" as TabKey,
-      name: "Submitted",
-      count: quotes.submitted.length,
-      icon: DocumentTextIcon,
-      color: "blue",
-    },
-    {
-      key: "accepted" as TabKey,
-      name: "Accepted",
-      count: quotes.accepted.length,
-      icon: CheckCircleIcon,
-      color: "green",
-    },
-    {
-      key: "rejected" as TabKey,
-      name: "Rejected",
-      count: quotes.rejected.length,
-      icon: XCircleIcon,
-      color: "gray",
-    },
-  ];
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300";
-      case "submitted":
-        return "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300";
-      case "accepted":
-        return "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300";
-      case "rejected":
-        return "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground";
-      default:
-        return "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground";
-    }
-  };
+  const multiBuilder = data.builders.length > 1;
+  const currentQuotes = data[activeTab] || [];
 
   if (loading) {
     return (
@@ -153,44 +157,30 @@ export default function PortalQuotes() {
     );
   }
 
-  const currentQuotes = quotes[activeTab] || [];
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground dark:text-white">Quote Requests</h1>
-        <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
-          View and respond to quote requests from builders
+        <h1 className="text-2xl font-bold text-foreground dark:text-white">Quotes</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {multiBuilder
+            ? `Quotes from ${data.builders.map((b) => b.name).join(", ")}`
+            : "View and track your quotes"}
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-border dark:border-border">
+      <div className="border-b border-border">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-          {tabs.map((tab) => {
+          {TAB_CONFIG.map((tab) => {
             const isActive = activeTab === tab.key;
-            const colorClasses: Record<string, string> = {
-              yellow: isActive
-                ? "border-yellow-500 text-yellow-600 dark:text-yellow-400"
-                : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border",
-              blue: isActive
-                ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border",
-              green: isActive
-                ? "border-green-500 text-green-600 dark:text-green-400"
-                : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border",
-              gray: isActive
-                ? "border-border text-muted-foreground dark:text-muted-foreground"
-                : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border",
-            };
-
+            const count = (data[tab.key] || []).length;
             return (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`
-                  ${colorClasses[tab.color as keyof typeof colorClasses] || colorClasses.gray}
+                  ${isActive ? tab.activeColor : INACTIVE_TAB}
                   whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
                   flex items-center gap-2
                 `}
@@ -198,16 +188,11 @@ export default function PortalQuotes() {
                 <tab.icon className="h-5 w-5" />
                 {tab.name}
                 <span
-                  className={`
-                  ml-2 py-0.5 px-2.5 rounded-full text-xs font-medium
-                  ${
-                    isActive
-                      ? `bg-${tab.color}-100 dark:bg-${tab.color}-900/50 text-${tab.color}-600 dark:text-${tab.color}-400`
-                      : "bg-muted dark:bg-muted text-muted-foreground dark:text-muted-foreground"
-                  }
-                `}
+                  className={`ml-1 py-0.5 px-2.5 rounded-full text-xs font-medium ${
+                    isActive ? tab.badgeColor : INACTIVE_BADGE
+                  }`}
                 >
-                  {tab.count}
+                  {count}
                 </span>
               </button>
             );
@@ -219,142 +204,138 @@ export default function PortalQuotes() {
       {currentQuotes.length === 0 ? (
         <div className="bg-card rounded-lg shadow">
           <EmptyState
-            title={`No ${activeTab} quotes`}
-            description={activeTab === "pending"
-              ? "You don't have any pending quote requests at the moment."
-              : `No quotes in ${activeTab} status.`}
+            title={`No ${TAB_CONFIG.find((t) => t.key === activeTab)?.name?.toLowerCase() || ""} quotes`}
+            description={
+              activeTab === "awaiting_response"
+                ? "No builders are currently waiting for your quotes."
+                : `No quotes in this category.`
+            }
             icon={<DocumentTextIcon className="h-12 w-12" />}
           />
         </div>
       ) : (
         <div className="bg-card shadow rounded-lg overflow-hidden">
-          <ul role="list" className="divide-y divide-border dark:divide-border">
+          <ul role="list" className="divide-y divide-border">
             {currentQuotes.map((quote) => (
-              <li key={quote.quote_request.id} className="hover:bg-muted dark:hover:bg-muted">
-                <Link
-                  href={`/portal/quotes/${quote.quote_request.id}`}
-                  className="block px-4 py-4 sm:px-6"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3">
-                        <p className="text-base font-medium text-foreground dark:text-white truncate">
-                          {quote.quote_request.title}
-                        </p>
-                        {quote.my_response && (
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                              quote.my_response.status
-                            )}`}
-                          >
-                            {quote.my_response.status}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-2 flex flex-col sm:flex-row sm:flex-wrap sm:space-x-6">
-                        <div className="flex items-center text-sm text-muted-foreground dark:text-muted-foreground">
-                          <svg
-                            className="flex-shrink-0 mr-1.5 h-5 w-5 text-muted-foreground dark:text-muted-foreground"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth="1.5"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z"
-                            />
-                          </svg>
-                          {quote.quote_request.construction.name}
-                        </div>
-
-                        {quote.quote_request.trade_category && (
-                          <div className="flex items-center text-sm text-muted-foreground dark:text-muted-foreground">
-                            <svg
-                              className="flex-shrink-0 mr-1.5 h-5 w-5 text-muted-foreground dark:text-muted-foreground"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              strokeWidth="1.5"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"
-                              />
-                            </svg>
-                            {quote.quote_request.trade_category}
-                          </div>
-                        )}
-
-                        {quote.quote_request.budget_min &&
-                          quote.quote_request.budget_max && (
-                            <div className="flex items-center text-sm text-muted-foreground dark:text-muted-foreground">
-                              <svg
-                                className="flex-shrink-0 mr-1.5 h-5 w-5 text-muted-foreground dark:text-muted-foreground"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth="1.5"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                              </svg>
-                              ${quote.quote_request.budget_min.toLocaleString()} -
-                              ${quote.quote_request.budget_max.toLocaleString()}
-                            </div>
-                          )}
-                      </div>
-
-                      {quote.my_response && (
-                        <div className="mt-2 text-sm text-foreground dark:text-white">
-                          <span className="font-medium">Your quote:</span> $
-                          {quote.my_response.price?.toLocaleString()}
-                          {quote.my_response.timeframe && (
-                            <span className="ml-3 text-muted-foreground dark:text-muted-foreground">
-                              • Timeframe: {quote.my_response.timeframe}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="ml-5 flex-shrink-0 flex items-center gap-4">
-                      {activeTab === "pending" && (
-                        <div className="flex flex-col items-end">
-                          <span className="text-xs text-muted-foreground dark:text-muted-foreground">Waiting</span>
-                          <span className="text-sm font-medium text-foreground dark:text-white">
-                            {quote.days_waiting} days
-                          </span>
-                        </div>
-                      )}
-
-                      <svg
-                        className="h-5 w-5 text-muted-foreground dark:text-muted-foreground"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth="1.5"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M8.25 4.5l7.5 7.5-7.5 7.5"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </Link>
-              </li>
+              <QuoteRow
+                key={quote.id}
+                quote={quote}
+                activeTab={activeTab}
+                showBuilder={multiBuilder}
+              />
             ))}
           </ul>
         </div>
       )}
     </div>
   );
+}
+
+function QuoteRow({
+  quote,
+  activeTab,
+  showBuilder,
+}: {
+  quote: QuoteRecord;
+  activeTab: TabKey;
+  showBuilder: boolean;
+}) {
+  const isExpired = quote.validTo && new Date(quote.validTo) < new Date();
+
+  return (
+    <li className="px-4 py-4 sm:px-6 hover:bg-muted/50">
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          {/* Top line: builder badge + job name */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {showBuilder && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
+                {quote.builder}
+              </span>
+            )}
+            <p className="text-base font-medium text-foreground dark:text-white truncate">
+              {quote.jobName || "Unknown Job"}
+            </p>
+          </div>
+
+          {/* Item/task name */}
+          {quote.itemName && (
+            <p className="mt-1 text-sm text-muted-foreground truncate">
+              {quote.itemName}
+            </p>
+          )}
+
+          {/* Details row */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            {/* Price (responded/accepted/rejected) */}
+            {quote.priceQuoted != null && (
+              <span className="font-medium text-foreground dark:text-white">
+                ${quote.priceQuoted.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            )}
+
+            {/* Sent date */}
+            {quote.sentAt && (
+              <span>Sent {formatDate(quote.sentAt)}</span>
+            )}
+
+            {/* Received date */}
+            {quote.dateReceived && (
+              <span>Received {formatDate(quote.dateReceived)}</span>
+            )}
+
+            {/* Timeframe */}
+            {quote.timeframe && <span>{quote.timeframe}</span>}
+
+            {/* Valid to */}
+            {quote.validTo && (
+              <span className={isExpired ? "text-red-500 dark:text-red-400 font-medium" : ""}>
+                {isExpired ? "Expired" : `Valid to ${formatDate(quote.validTo)}`}
+              </span>
+            )}
+
+            {/* Best price badge */}
+            {quote.isBestPrice && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
+                Best Price
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Right side: days waiting or status indicator */}
+        <div className="ml-4 flex-shrink-0 flex items-center gap-3">
+          {activeTab === "awaiting_response" && quote.daysWaiting != null && (
+            <div className="flex flex-col items-end">
+              <span className="text-xs text-muted-foreground">Waiting</span>
+              <span className="text-sm font-medium text-foreground dark:text-white">
+                {quote.daysWaiting}d
+              </span>
+            </div>
+          )}
+
+          {activeTab === "accepted" && (
+            <CheckCircleIcon className="h-5 w-5 text-green-500" />
+          )}
+
+          {activeTab === "rejected" && (
+            <XCircleIcon className="h-5 w-5 text-muted-foreground" />
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
 }
