@@ -63,7 +63,7 @@ interface QuoteReturnContext {
     quoteLevel: string;
     tenderDescription: string | null;
     budgetAmount: number | null;
-    children: Array<{ id: number; name: string; budgetAmount: number | null }>;
+    children: Array<{ id: number; name: string; budgetAmount: number | null; purchaseOrderId?: number | null; purchaseOrderNumber?: string | null }>;
   } | null;
 }
 
@@ -465,15 +465,16 @@ function QuoteReturnContent() {
                   const pct = priceNum > 0 ? Math.round((amt / priceNum) * 100) : 0;
                   return (
                     <div key={child.id} className="flex items-center gap-2">
-                      {qr.purchaseOrderId ? (
+                      {child.purchaseOrderId ? (
                         <a
-                          href={`/purchase_orders/${qr.purchaseOrderId}`}
+                          href={`/purchase_orders/${child.purchaseOrderId}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm flex-1 truncate text-blue-600 hover:underline"
-                          title={child.name}
+                          title={`${child.name} — ${child.purchaseOrderNumber || 'PO'}`}
                         >
                           {child.name}
+                          <ExternalLink className="inline h-3 w-3 ml-1 opacity-50" />
                         </a>
                       ) : (
                         <span className="text-sm flex-1 truncate" title={child.name}>{child.name}</span>
@@ -561,9 +562,9 @@ function QuoteReturnContent() {
                     {qr.parentLine.children.map((child) => (
                       <tr key={child.id} className="border-b last:border-0">
                         <td className="px-3 py-1.5">
-                          {qr.purchaseOrderId ? (
+                          {child.purchaseOrderId ? (
                             <a
-                              href={`/purchase_orders/${qr.purchaseOrderId}`}
+                              href={`/purchase_orders/${child.purchaseOrderId}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:underline inline-flex items-center gap-1"

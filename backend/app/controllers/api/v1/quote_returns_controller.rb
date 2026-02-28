@@ -355,12 +355,20 @@ module Api
           purchaseOrderNumber: cqs.purchase_order&.purchase_order_number,
           confirmedBy: cqs.respond_to?(:confirmed_by) ? cqs.confirmed_by&.name : nil,
           confirmedAt: cqs.respond_to?(:confirmed_at) ? cqs.confirmed_at&.iso8601 : nil,
-          parentLine: build_parent_line_context(cc_line)
+          parentLine: build_parent_line_context(cc_line, cqs)
         }
       end
 
       # Lightweight CC line context for allocation UI (no supplier arrays)
-      def build_parent_line_context(cc_line)
+      def build_parent_line_context(cc_line, cqs = nil)
+        # Pre-load allocations for this supplier to find existing POs per child line
+        alloc_by_line = {}
+        if cqs
+          cqs.allocations.includes(:purchase_order).each do |alloc|
+            alloc_by_line[alloc.custom_quote_line_id] = alloc
+          end
+        end
+
         {
           id: cc_line.id,
           name: cc_line.name,
@@ -368,7 +376,14 @@ module Api
           tenderDescription: cc_line.tender_description,
           budgetAmount: cc_line.budget_amount&.to_f,
           children: cc_line.children.order(:position).map { |child|
-            { id: child.id, name: child.name, budgetAmount: child.budget_amount&.to_f }
+            alloc = alloc_by_line[child.id]
+            {
+              id: child.id,
+              name: child.name,
+              budgetAmount: child.budget_amount&.to_f,
+              purchaseOrderId: alloc&.purchase_order_id,
+              purchaseOrderNumber: alloc&.purchase_order&.purchase_order_number
+            }
           }
         }
       end
