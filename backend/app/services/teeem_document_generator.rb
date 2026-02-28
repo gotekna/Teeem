@@ -437,8 +437,32 @@ class TeeemDocumentGenerator
       logo_url: settings.logo_url,
 
       header_line: "#{settings.company_name} | ABN #{format_abn(settings.abn)} | QBCC #{settings.qbcc_license}",
-      footer_line: "#{format_phone(settings.phone)} | #{settings.email}"
+      footer_line: "#{format_phone(settings.phone)} | #{settings.email}",
+
+      po_conditions: po_conditions_for(settings)
     }
+  end
+
+  def po_conditions_for(settings)
+    if settings.po_conditions.present?
+      # Interpolate {company_name} placeholder in custom conditions
+      settings.po_conditions.map { |c| c.gsub("{company_name}", settings.company_name.to_s) }
+    else
+      default_po_conditions(settings.company_name)
+    end
+  end
+
+  def default_po_conditions(company_name)
+    name = company_name.presence || "the Company"
+    [
+      "If the purchase order is incorrect, please contact our office immediately.",
+      "If additional work/items are required, then a NEW order number must be received.",
+      "The correct purchase order number and job address MUST be included on your tax invoice. Tax invoices without these details will be returned to the supplier for correction.",
+      "Processing of order will acknowledge acceptance of these conditions.",
+      "In the instance the work is not completed by the original supplier in the specified timeframe, '#{name}' reserves the right to engage another supplier to complete the work. The new supplier will be paid from the original purchase order amount and any balance of funds will then be paid to the original supplier.",
+      "Please ensure invoice is made out to #{name}.",
+      "This purchase order is issued pursuant to the terms of the subcontract agreement. By accepting this purchase order you confirm that you agree to these subcontract terms."
+    ]
   end
 
   def build_purchase_order_context(po)

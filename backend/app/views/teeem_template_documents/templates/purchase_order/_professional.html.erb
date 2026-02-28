@@ -357,13 +357,9 @@
   <div class="conditions-section">
     <h4>Conditions of Acceptance</h4>
     <ol>
-      <li>If the purchase order is incorrect, please contact our office immediately.</li>
-      <li>If additional work/items are required, then a NEW order number must be received.</li>
-      <li>The correct purchase order number and job address MUST be included on your tax invoice.</li>
-      <li>Processing of order will acknowledge acceptance of these conditions.</li>
-      <li>In the instance the work is not completed by the original supplier in the specified timeframe, '<%= company[:company_name] %>' reserves the right to engage another supplier to complete the work.</li>
-      <li>Please ensure invoice is made out to <%= company[:company_name] %>.</li>
-      <li>This purchase order is issued pursuant to the terms of the subcontract agreement.</li>
+      <% (company[:po_conditions] || []).each do |condition| %>
+        <li><%= condition %></li>
+      <% end %>
     </ol>
   </div>
 </div>

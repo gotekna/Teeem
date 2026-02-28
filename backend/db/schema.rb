@@ -10346,6 +10346,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "slack_bot_token"
     t.string "slack_signing_secret"
     t.boolean "assistant_enabled", default: false
+    t.jsonb "po_conditions", comment: "Custom PO Conditions of Acceptance (array of strings)"
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"

@@ -30,6 +30,7 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { TemplateEditor } from "./TemplateEditor";
 import { PoTemplateSelector } from "./PoTemplateSelector";
 import { InvoiceTemplatesTab } from "./InvoiceTemplatesTab";
+import { PoInfoTab } from "./PoInfoTab";
 
 // SSoT Templates from the document generator (the source of truth)
 interface SsotTemplate {
@@ -82,6 +83,7 @@ const DEFAULT_BASE_PATH = "/settings/company/documents/document-templates";
 
 const TABS = [
   { id: "po-templates", label: "PO Templates" },
+  { id: "po-info", label: "PO Info" },
   { id: "claims", label: "Claims" },
   { id: "ssot", label: "SSoT Templates" },
 ];
@@ -129,6 +131,10 @@ export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab 
           <div className={expanded ? "flex-1 overflow-auto p-4" : ""}>
             <TabsContent value="po-templates" className="mt-4">
               <PoTemplateSelector />
+            </TabsContent>
+
+            <TabsContent value="po-info" className="mt-4">
+              <PoInfoTab />
             </TabsContent>
 
             <TabsContent value="claims" className="mt-4">

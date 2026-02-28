@@ -318,13 +318,9 @@
   <div class="conditions-section">
     <h4>CONDITIONS OF ACCEPTANCE</h4>
     <ol>
-      <li>If incorrect, contact our office immediately.</li>
-      <li>Additional work requires a NEW order number.</li>
-      <li>PO number and job address MUST be on your tax invoice.</li>
-      <li>Processing acknowledges acceptance of these conditions.</li>
-      <li>'<%= company[:company_name] %>' reserves the right to engage another supplier if work is not completed in the specified timeframe.</li>
-      <li>Invoice must be made out to <%= company[:company_name] %>.</li>
-      <li>This PO is pursuant to the subcontract agreement terms.</li>
+      <% (company[:po_conditions] || []).each do |condition| %>
+        <li><%= condition %></li>
+      <% end %>
     </ol>
   </div>
 </div>
