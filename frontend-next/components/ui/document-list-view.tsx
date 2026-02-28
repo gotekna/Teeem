@@ -882,6 +882,7 @@ export function DocumentListView<T extends DocumentItem>({
     const previewUrl = getPreviewUrl(selectedDocument);
     const externalUrl = getExternalUrl?.(selectedDocument);
     const name = getDocumentName(selectedDocument);
+    const fullscreenRevision = getRevision?.(selectedDocument);
 
     return (
       <div className="fixed inset-0 z-[100] bg-background flex flex-col">
@@ -890,6 +891,11 @@ export function DocumentListView<T extends DocumentItem>({
           <div className="flex items-center gap-3">
             <FileText className="h-5 w-5 text-muted-foreground" />
             <span className="font-medium truncate max-w-[600px]">{name}</span>
+            {fullscreenRevision && (
+              <Badge variant="outline" className="shrink-0 text-xs font-mono px-1.5 py-0">
+                {fullscreenRevision}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {externalUrl && (
