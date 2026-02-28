@@ -538,14 +538,19 @@ function QuoteReturnContent() {
                       </div>
                       {po && (
                         <div className="ml-1 pl-2 border-l-2 border-muted text-[11px] text-muted-foreground space-y-0.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono">{child.purchaseOrderNumber}</span>
-                            <span>Budget: {formatCurrency(po.budget)}</span>
+                            <span>Now: {formatCurrency(po.budget)}</span>
+                            {amt > 0 && amt !== po.budget && (
+                              <span className="text-amber-600 font-medium">&rarr; {formatCurrency(amt)}</span>
+                            )}
                             {po.plansCount > 0 && (
                               <span className="text-blue-600">{po.plansCount} plan{po.plansCount !== 1 ? "s" : ""}</span>
                             )}
-                            {po.hasQuoteAttached && (
+                            {po.hasQuoteAttached ? (
                               <span className="text-green-600">Quote attached</span>
+                            ) : (
+                              <span className="text-amber-500">No quote</span>
                             )}
                           </div>
                           {po.description && (

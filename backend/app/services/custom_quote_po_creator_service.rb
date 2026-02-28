@@ -50,8 +50,10 @@ class CustomQuotePoCreatorService
       pos
     end
 
-    # Create POs from allocations (for CC-level quotes)
-    # Each allocation points to a PO-level child line
+    # Create or update POs from allocations (for CC-level quotes)
+    # Each allocation points to a PO-level child line.
+    # If a PO already exists on the child line (via sm_task_id match),
+    # update it instead of creating a duplicate.
     #
     # @param supplier [CustomQuoteSupplier]
     # @param user [User]
@@ -63,7 +65,15 @@ class CustomQuotePoCreatorService
         po_line = allocation.custom_quote_line
         next unless po_line.po_line?
 
-        po = create_po!(supplier, po_line, allocation.allocated_amount, user)
+        # Check for existing PO on this child line (via sm_task_id or previous allocation)
+        existing_po = find_existing_po(po_line)
+
+        if existing_po
+          po = update_existing_po!(existing_po, supplier, po_line, allocation.allocated_amount, user)
+        else
+          po = create_po!(supplier, po_line, allocation.allocated_amount, user)
+        end
+
         allocation.update!(purchase_order: po)
         pos << po
       end
@@ -72,6 +82,36 @@ class CustomQuotePoCreatorService
     end
 
     private
+
+    # Find existing PO on a child line via sm_task_id or previous allocation
+    def find_existing_po(po_line)
+      # 1. Check previous allocations on this line
+      existing_alloc = CustomQuoteAllocation
+        .where(custom_quote_line_id: po_line.id)
+        .where.not(purchase_order_id: nil)
+        .first
+      return existing_alloc.purchase_order if existing_alloc&.purchase_order
+
+      # 2. Match by sm_task_id
+      if po_line.sm_task_id.present?
+        return PurchaseOrder.find_by(sm_task_id: po_line.sm_task_id)
+      end
+
+      nil
+    end
+
+    # Update existing PO with new supplier, budget, and add a line item
+    def update_existing_po!(po, supplier, line, amount, user)
+      po.update!(
+        supplier: supplier.supplier,
+        budget: amount
+      )
+
+      # Add a line item with the quoted price from this supplier
+      add_quote_line_item!(po, supplier, line, amount)
+
+      po
+    end
 
     def create_po!(supplier, line, amount, user)
       job = line.custom_quote.job
@@ -88,7 +128,25 @@ class CustomQuotePoCreatorService
       # Link PO to the job-level SmTask if available
       po_attrs[:sm_task] = line.sm_task if line.sm_task.present?
 
-      PurchaseOrder.create!(po_attrs)
+      po = PurchaseOrder.create!(po_attrs)
+
+      # Add a line item with the quoted price
+      add_quote_line_item!(po, supplier, line, amount)
+
+      po
+    end
+
+    # Add a PO line item from the quote
+    def add_quote_line_item!(po, supplier, line, amount)
+      description = line.name
+      description += " - #{supplier.supplier&.name}" if supplier.supplier&.name.present?
+
+      po.line_items.create!(
+        description: description,
+        quantity: 1,
+        unit_price: amount,
+        gst_code: 'GST'
+      )
     end
 
     def build_po_description(supplier, line)
