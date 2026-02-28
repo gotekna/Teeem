@@ -22,7 +22,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
       # Vercel preview deployments - explicit pattern for teeem-next project only
       # Format: teeem-next-<hash>-<team>.vercel.app (Vercel's project name format)
       /https:\/\/teeem-next-[a-z0-9]+-gotekna\.vercel\.app$/,
-      /http:\/\/localhost:(3000|3001|5173|5174|5175|5176|5177|5178|5179|5180|5181|5182|5183|5184|5185|5186)$/,  # Localhost ports 3000-3001 and 5173-5186
+      /http:\/\/(localhost|127\.0\.0\.1):\d+$/,  # Local development (any port)
       "https://tekna.com.au",              # Tekna Homes website (embedded login widget)
       "https://www.tekna.com.au"           # Tekna Homes www subdomain
     )
