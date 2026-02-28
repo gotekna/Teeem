@@ -126,7 +126,7 @@ module Api
       def generate_pdf
         if params[:format] == "html" || params[:preview]
           generator = TeeemDocumentGenerator.new(:colour_selections)
-          result = generator.generate(job: @job, html_only: true)
+          result = generator.generate(job: @job, html_only: true, preview: true)
           render html: result[:html].html_safe
         else
           enqueue_pdf_and_respond(

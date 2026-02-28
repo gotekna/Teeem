@@ -176,8 +176,13 @@ class TeeemDocumentGenerator
     end
   end
 
-  # Generate document and return hash with html and pdf_content
-  def generate(job: nil, contact: nil, purchase_order: nil, extra_data: {}, html_only: false)
+  # Generate document — THE ONE method for all HTML and PDF generation.
+  #
+  # @param html_only [Boolean] Skip PDF conversion, return HTML only
+  # @param preview [Boolean] Use lightweight preview layout (for iframe display).
+  #   The default layout (e.g. "po" for POs) uses A4 page sizing which breaks iframe rendering.
+  #   Preview layout has no A4 wrapper, no branded header/footer — designed for inline display.
+  def generate(job: nil, contact: nil, purchase_order: nil, extra_data: {}, html_only: false, preview: false)
     validate_requirements!(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
 
     # Handle storage-sourced documents (fetch existing file, don't generate)
@@ -191,8 +196,8 @@ class TeeemDocumentGenerator
     end
 
     context = build_context(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
-    html = render_template(context)
-    pdf_content = html_only ? nil : convert_to_pdf(html)
+    html = render_template(context, preview: preview)
+    pdf_content = html_only || preview ? nil : convert_to_pdf(html)
 
     {
       html: html,
@@ -204,26 +209,12 @@ class TeeemDocumentGenerator
     }
   end
 
-  # Generate HTML only (for preview)
+  # Generate HTML with sample data (for template admin preview)
   # When no job is provided, uses the first available job as sample data
   def preview(job: nil, contact: nil, extra_data: {})
-    # Use first job as sample if none provided
     job ||= Job.includes(:job_contacts => :contact).first
     context = build_context(job: job, contact: contact, extra_data: extra_data, preview_mode: true)
-    render_template(context)
-  end
-
-  # Generate HTML for inline/iframe preview (uses lightweight preview layout instead of tekna A4 layout)
-  # This avoids A4 page sizing (210mm width, 297mm min-height, branded header/footer) that breaks iframe display
-  def preview_html(job: nil, contact: nil, purchase_order: nil, extra_data: {})
-    validate_requirements!(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
-    context = build_context(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
-    renderer = TeeemTemplateRenderer.new
-    renderer.render(
-      template_path: template_config[:path],
-      layout: "layouts/preview",
-      locals: context
-    )
+    render_template(context, preview: true)
   end
 
   private
@@ -615,9 +606,10 @@ class TeeemDocumentGenerator
     }
   end
 
-  def render_template(context)
+  def render_template(context, preview: false)
     renderer = TeeemTemplateRenderer.new
-    layout = "layouts/#{template_config[:layout]}"
+    # Preview uses lightweight layout for iframe display; default uses template's configured layout for PDF
+    layout = preview ? "layouts/preview" : "layouts/#{template_config[:layout]}"
 
     # Custom PO variant: render from stored HTML instead of file
     if template_key == :purchase_order && context[:po_template_variant] == "custom"
@@ -634,7 +626,7 @@ class TeeemDocumentGenerator
     end
 
     # For purchase orders, render the variant template directly instead of going
-    # through the router template (which uses partial rendering that drops content).
+    # through the router template (which uses partial rendering).
     template_path = template_config[:path]
     if template_key == :purchase_order
       variant = context[:po_template_variant] || "classic"

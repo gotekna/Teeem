@@ -148,7 +148,7 @@ module Api
             responseNotes: cqs.response_notes,
             instructions: line&.rfq_instructions,
             documentName: doc&.ui_name || doc&.original_filename,
-            documentUrl: doc&.download_url(expires_in: 1.hour)
+            documentUrl: (doc&.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT) rescue nil)
           }
         end
 

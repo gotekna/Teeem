@@ -73,14 +73,21 @@ interface QuoteReturnContext {
       po?: {
         budget: number | null;
         total: number | null;
+        subtotal: number | null;
+        gstTotal: number | null;
         description: string | null;
+        supplierName: string | null;
         plansCount: number;
         hasQuoteAttached: boolean;
         status: string | null;
+        budgetLocked: boolean;
         lineItems?: Array<{
           description: string;
           quantity: number;
           unitPrice: number;
+          subtotal: number;
+          gstCode: string | null;
+          gst: number;
           total: number;
         }>;
       };
@@ -870,90 +877,197 @@ function QuoteReturnContent() {
           )}
         </div>
 
-        {/* PO Before/After Preview Dialog */}
+        {/* PO Before/After Preview Dialog — Full PO comparison */}
         <Dialog open={showPreview} onOpenChange={setShowPreview}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-[90vw] w-[1100px] max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Eye className="h-5 w-5" />
                 PO Changes Preview
               </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Accepting this quote will update the following Purchase Orders.
+              <p className="text-sm text-muted-foreground mt-1">
                 Existing line items will be replaced with the new quote line.
               </p>
+            </DialogHeader>
 
+            <div className="space-y-6">
               {qr.parentLine?.children?.filter(c => c.po).map((child) => {
                 const po = child.po!;
                 const newBudget = parseFloat(allocations[child.id] || "0") || 0;
+                const newGst = Math.round(newBudget * 0.1 * 100) / 100;
+                const newTotal = Math.round((newBudget + newGst) * 100) / 100;
+
                 return (
-                  <div key={child.id} className="rounded-lg border overflow-hidden">
-                    {/* PO Header */}
-                    <div className="bg-muted/50 px-4 py-2 flex items-center justify-between border-b">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{child.purchaseOrderNumber || child.name}</span>
-                        {child.name !== child.purchaseOrderNumber && (
-                          <span className="text-xs text-muted-foreground">{child.name}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="font-mono text-muted-foreground line-through">{formatCurrency(po.budget)}</span>
-                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="font-mono text-green-600 font-medium">{formatCurrency(newBudget)}</span>
-                      </div>
+                  <div key={child.id} className="space-y-3">
+                    {/* PO Title Bar */}
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-sm font-semibold">{child.purchaseOrderNumber}</h3>
+                      <span className="text-sm text-muted-foreground">{child.name}</span>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground ml-auto" />
                     </div>
 
-                    <div className="grid grid-cols-2 divide-x">
-                      {/* Before column */}
-                      <div className="p-3">
-                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Before</span>
-                        {po.lineItems && po.lineItems.length > 0 ? (
-                          <div className="mt-2 space-y-1.5">
-                            {po.lineItems.map((li, i) => (
-                              <div key={i} className="text-sm line-through text-muted-foreground opacity-70">
-                                <p className="truncate" title={li.description}>{li.description}</p>
-                                <p className="text-xs font-mono">
-                                  {li.quantity} x {formatCurrency(li.unitPrice)} = {formatCurrency(li.total)}
-                                </p>
-                              </div>
-                            ))}
+                    {/* Side-by-side PO cards */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* ─── CURRENT PO (Before) ─── */}
+                      <div className="rounded-lg border border-red-200 dark:border-red-900 overflow-hidden">
+                        <div className="bg-red-50 dark:bg-red-950/30 px-4 py-2 border-b border-red-200 dark:border-red-900">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-red-600 dark:text-red-400 uppercase tracking-wide">Current</span>
+                            <Badge variant="outline" className="text-[10px] h-5">{po.status || "draft"}</Badge>
                           </div>
-                        ) : (
-                          <p className="mt-2 text-xs text-muted-foreground italic">No existing line items</p>
-                        )}
+                        </div>
+                        <div className="p-4 space-y-3">
+                          {/* Summary row */}
+                          <div className="grid grid-cols-3 gap-3 text-sm">
+                            <div>
+                              <span className="text-xs text-muted-foreground">Total (Inc GST)</span>
+                              <p className="font-semibold font-mono">{formatCurrency(po.total)}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                Ex GST: {formatCurrency(po.subtotal)} GST: {formatCurrency(po.gstTotal)}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">Budget</span>
+                              <p className="font-semibold font-mono">{formatCurrency(po.budget)}</p>
+                              {po.budgetLocked && (
+                                <p className="text-[11px] text-amber-600">Locked</p>
+                              )}
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">Supplier</span>
+                              <p className="truncate">{po.supplierName || "\u2014"}</p>
+                            </div>
+                          </div>
+
+                          {/* Line Items Table */}
+                          <div className="rounded border overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-muted/50 border-b">
+                                  <th className="text-left px-2 py-1.5 font-medium text-muted-foreground">Description</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-12">Qty</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-20">Price</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-14">Tax</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-20">Subtotal</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-16">GST</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-20">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {po.lineItems && po.lineItems.length > 0 ? (
+                                  po.lineItems.map((li, i) => (
+                                    <tr key={i} className="border-b last:border-0 line-through text-muted-foreground opacity-60">
+                                      <td className="px-2 py-1.5 truncate max-w-[180px]" title={li.description}>{li.description}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono">{li.quantity}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(li.unitPrice)}</td>
+                                      <td className="px-2 py-1.5 text-right">{li.gstCode || "\u2014"}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(li.subtotal)}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(li.gst)}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono font-medium">{formatCurrency(li.total)}</td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <tr>
+                                    <td colSpan={7} className="px-2 py-3 text-center text-muted-foreground italic">No line items</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                              {po.lineItems && po.lineItems.length > 0 && (
+                                <tfoot>
+                                  <tr className="border-t bg-muted/30 line-through text-muted-foreground opacity-60">
+                                    <td colSpan={4} className="px-2 py-1.5 text-right text-xs font-medium">Totals</td>
+                                    <td className="px-2 py-1.5 text-right font-mono text-xs">{formatCurrency(po.subtotal)}</td>
+                                    <td className="px-2 py-1.5 text-right font-mono text-xs">{formatCurrency(po.gstTotal)}</td>
+                                    <td className="px-2 py-1.5 text-right font-mono text-xs font-medium">{formatCurrency(po.total)}</td>
+                                  </tr>
+                                </tfoot>
+                              )}
+                            </table>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* After column */}
-                      <div className="p-3">
-                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">After</span>
-                        <div className="mt-2 space-y-1.5">
-                          <div className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 rounded px-2 py-1.5">
-                            <p className="truncate font-medium" title={qr.supplierName || "Quote line"}>
-                              {qr.supplierName || "Quote line"} — {qr.itemName}
-                            </p>
-                            <p className="text-xs font-mono mt-0.5">
-                              1 x {formatCurrency(newBudget)} = {formatCurrency(newBudget)}
-                            </p>
+                      {/* ─── NEW PO (After) ─── */}
+                      <div className="rounded-lg border border-green-200 dark:border-green-900 overflow-hidden">
+                        <div className="bg-green-50 dark:bg-green-950/30 px-4 py-2 border-b border-green-200 dark:border-green-900">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">After Accept</span>
+                            <Badge variant="outline" className="text-[10px] h-5 border-green-300 text-green-700 dark:text-green-400">approved</Badge>
                           </div>
+                        </div>
+                        <div className="p-4 space-y-3">
+                          {/* Summary row */}
+                          <div className="grid grid-cols-3 gap-3 text-sm">
+                            <div>
+                              <span className="text-xs text-muted-foreground">Total (Inc GST)</span>
+                              <p className="font-semibold font-mono text-green-700 dark:text-green-400">{formatCurrency(newTotal)}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                Ex GST: {formatCurrency(newBudget)} GST: {formatCurrency(newGst)}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">Budget</span>
+                              <p className="font-semibold font-mono text-green-700 dark:text-green-400">{formatCurrency(newBudget)}</p>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">Supplier</span>
+                              <p className="truncate text-green-700 dark:text-green-400">{qr.supplierName || "\u2014"}</p>
+                            </div>
+                          </div>
+
+                          {/* Line Items Table */}
+                          <div className="rounded border border-green-200 dark:border-green-900 overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-green-50/50 dark:bg-green-950/20 border-b">
+                                  <th className="text-left px-2 py-1.5 font-medium text-muted-foreground">Description</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-12">Qty</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-20">Price</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-14">Tax</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-20">Subtotal</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-16">GST</th>
+                                  <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-20">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr className="border-b last:border-0 text-green-700 dark:text-green-400 bg-green-50/30 dark:bg-green-950/10">
+                                  <td className="px-2 py-1.5 truncate max-w-[180px] font-medium" title={`${qr.supplierName} \u2014 ${qr.itemName}`}>
+                                    {qr.supplierName} &mdash; {qr.itemName}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right font-mono">1</td>
+                                  <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(newBudget)}</td>
+                                  <td className="px-2 py-1.5 text-right">GST 10%</td>
+                                  <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(newBudget)}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(newGst)}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono font-medium">{formatCurrency(newTotal)}</td>
+                                </tr>
+                              </tbody>
+                              <tfoot>
+                                <tr className="border-t bg-green-50/50 dark:bg-green-950/20">
+                                  <td colSpan={4} className="px-2 py-1.5 text-right text-xs font-medium">Totals</td>
+                                  <td className="px-2 py-1.5 text-right font-mono text-xs">{formatCurrency(newBudget)}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono text-xs">{formatCurrency(newGst)}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono text-xs font-medium text-green-700 dark:text-green-400">{formatCurrency(newTotal)}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+
+                          {qr.warehouseDocumentId && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-green-600">
+                              <Paperclip className="h-3 w-3" />
+                              Quote document attached
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
                 );
               })}
-
-              {qr.warehouseDocumentId && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Paperclip className="h-3.5 w-3.5" />
-                  Quote document will be attached to each PO
-                </div>
-              )}
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
               <Button variant="outline" onClick={() => setShowPreview(false)}>
                 Cancel
               </Button>

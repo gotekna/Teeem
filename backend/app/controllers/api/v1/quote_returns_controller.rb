@@ -370,7 +370,7 @@ module Api
           CustomQuoteAllocation
             .where(custom_quote_line_id: children_ids)
             .where.not(purchase_order_id: nil)
-            .includes(purchase_order: [:quote_warehouse_document, :purchase_order_documents, :line_items])
+            .includes(purchase_order: [:quote_warehouse_document, :purchase_order_documents, :line_items, :supplier])
             .each do |alloc|
               po_by_line[alloc.custom_quote_line_id] ||= alloc.purchase_order
             end
@@ -382,7 +382,7 @@ module Api
         if task_ids.any?
           PurchaseOrder
             .where(sm_task_id: task_ids)
-            .includes(:quote_warehouse_document, :purchase_order_documents, :line_items)
+            .includes(:quote_warehouse_document, :purchase_order_documents, :line_items, :supplier)
             .each do |po|
               po_by_task[po.sm_task_id] ||= po
             end
@@ -404,16 +404,26 @@ module Api
               purchaseOrderNumber: po&.purchase_order_number
             }
             if po
+              ordered_items = po.line_items.sort_by(&:line_number)
+              subtotal = ordered_items.sum { |li| (li.quantity || 0) * (li.unit_price || 0) }
+              gst_total = ordered_items.sum { |li| li.tax_amount || 0 }
               child_data[:po] = {
                 budget: po.budget&.to_f,
                 total: po.total&.to_f,
-                description: po.description&.truncate(120),
+                subtotal: subtotal.to_f,
+                gstTotal: gst_total.to_f,
+                description: po.description,
+                supplierName: po.supplier&.display_name,
                 plansCount: po.purchase_order_documents.size,
                 hasQuoteAttached: po.quote_warehouse_document_id.present?,
                 status: po.status,
-                lineItems: po.line_items.order(:line_number).map { |li|
+                budgetLocked: po.budget_locked_at.present?,
+                lineItems: ordered_items.map { |li|
+                  line_subtotal = (li.quantity || 0) * (li.unit_price || 0)
                   { description: li.description, quantity: li.quantity&.to_f,
-                    unitPrice: li.unit_price&.to_f, total: li.total_amount&.to_f }
+                    unitPrice: li.unit_price&.to_f, subtotal: line_subtotal.to_f,
+                    gstCode: li.gst_code, gst: (li.tax_amount || 0).to_f,
+                    total: li.total_amount&.to_f }
                 }
               }
             end

@@ -875,17 +875,11 @@ export default function PurchaseOrderDetailPage() {
 
     try {
       setLoadingPreview(true);
-      // Use api.getText() for HTML preview
+      // Backend returns HTML with lightweight preview layout (no A4 page wrapper)
       const html = await api.getText(`/api/v1/purchase_orders/${recordId}/generate_pdf`, {
         params: { format: 'html' }
       });
-      // Inject style to constrain content to fit within iframe and prevent overflow
-      // NOTE: Do NOT use global img{max-width:100%;height:auto} - it overrides template logo sizing
-      const previewStyle = '<style>*{box-sizing:border-box}html,body{width:100%;max-width:100%;margin:0;padding:0;overflow-x:hidden}.page{width:100%;max-width:100%;box-sizing:border-box;overflow:hidden}</style>';
-      const styledHtml = html.includes('</head>')
-        ? html.replace('</head>', `${previewStyle}</head>`)
-        : `${previewStyle}${html}`;
-      setPreviewHtml(styledHtml);
+      setPreviewHtml(html);
       setPreviewModalOpen(true);
     } catch (err) {
       console.error("Failed to load preview:", err);

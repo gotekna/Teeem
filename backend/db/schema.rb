@@ -9654,13 +9654,20 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "completion_percentage", default: 100
+    t.text "remaining_work_description"
+    t.string "error_message"
+    t.bigint "invoice_file_blob_id"
+    t.bigint "sm_task_id"
     t.index ["accounting_integration_id"], name: "index_subcontractor_invoices_on_accounting_integration_id"
     t.index ["contact_id", "status"], name: "index_subcontractor_invoices_on_contact_id_and_status"
     t.index ["contact_id"], name: "index_subcontractor_invoices_on_contact_id"
     t.index ["external_invoice_id"], name: "index_subcontractor_invoices_on_external_invoice_id"
+    t.index ["invoice_file_blob_id"], name: "index_subcontractor_invoices_on_invoice_file_blob_id"
     t.index ["paid_at"], name: "index_subcontractor_invoices_on_paid_at"
     t.index ["purchase_order_id", "status"], name: "index_subcontractor_invoices_on_purchase_order_id_and_status"
     t.index ["purchase_order_id"], name: "index_subcontractor_invoices_on_purchase_order_id"
+    t.index ["sm_task_id"], name: "index_subcontractor_invoices_on_sm_task_id"
     t.index ["status"], name: "index_subcontractor_invoices_on_status"
   end
 
@@ -12590,6 +12597,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
+  add_foreign_key "subcontractor_invoices", "sm_tasks"
+  add_foreign_key "subcontractor_invoices", "storage_blobs", column: "invoice_file_blob_id"
   add_foreign_key "supervisor_checklist_templates", "tenants", on_delete: :cascade
   add_foreign_key "sync_exclusion_rules", "tenants", on_delete: :cascade
   add_foreign_key "sync_exclusion_rules", "users"

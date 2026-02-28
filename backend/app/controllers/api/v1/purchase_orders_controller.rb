@@ -702,10 +702,9 @@ module Api
       # Generate PDF for this purchase order with colour selections from job (SSoT)
       def generate_pdf
         if params[:format] == "html" || params[:preview]
-          # Use generate() with html_only to get full template rendering (styles, wrapper divs)
-          # PO templates use the "po" layout (A4 sizing, no branded header/footer)
+          # preview: true → lightweight layout for iframe display (no A4 page wrapper)
           generator = TeeemDocumentGenerator.new(:purchase_order)
-          result = generator.generate(purchase_order: @purchase_order, html_only: true)
+          result = generator.generate(purchase_order: @purchase_order, html_only: true, preview: true)
           render html: result[:html].html_safe
         else
           enqueue_pdf_and_respond(
@@ -986,13 +985,15 @@ module Api
         end
 
         if po
-          # Render real PO with preview layout (lightweight, no A4 sizing or branded header/footer)
+          # preview: true → lightweight layout for iframe display (no A4 page wrapper)
           generator = TeeemDocumentGenerator.new(:purchase_order)
-          html = generator.preview_html(
+          result = generator.generate(
             purchase_order: po,
+            html_only: true,
+            preview: true,
             extra_data: { po_template_variant: variant }
           )
-          render html: html.html_safe
+          render html: result[:html].html_safe
         else
           render html: build_sample_po_preview(variant).html_safe
         end
