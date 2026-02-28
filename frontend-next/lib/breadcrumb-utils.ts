@@ -82,6 +82,14 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/settings/system": "System",
   "/settings/developer": "Developer",
 
+  // System Health
+  "/system-health": "System Health",
+  "/system-health/health": "Data Health",
+  "/system-health/performance": "Performance",
+  "/system-health/sentry": "Sentry",
+  "/system-health/qa-prd": "QA PRD",
+  "/system-health/qa-findings": "QA Findings",
+
   // Other
   "/xero": "Xero",
   "/data-warehouse": "Data Warehouse",
@@ -108,6 +116,7 @@ const ROUTE_ICONS: Record<string, string> = {
   "/warehouse": "Warehouse",
   "/admin": "Settings",
   "/settings": "Settings",
+  "/system-health": "Heart",
   "/xero": "Link",
   "/data-warehouse": "Database",
   "/training": "GraduationCap",
@@ -493,22 +502,44 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
 };
 
 /**
+ * Pages that use URL path segments as flat tabs (not hierarchy).
+ * Children of these pages replace each other in breadcrumb instead of accumulating.
+ * e.g., /system-health/health → /system-health/performance replaces, doesn't accumulate.
+ *
+ * Only add pages where path children are genuinely flat alternatives (tabs),
+ * NOT where they represent nested navigation hierarchy (like /settings).
+ */
+const TABBED_PAGES: string[] = [
+  "/system-health",
+  "/dashboard",
+  "/training",
+  "/workflows",
+  "/financial",
+  "/design-system",
+  "/meetings",
+  "/library",
+  "/docs",
+];
+
+/**
  * Check if two pathnames are sibling tabs (same parent entity, different tab)
  * e.g., /jobs/123/overview and /jobs/123/plans are siblings
- * e.g., /settings/users and /settings/profile are siblings
- * e.g., /settings/company/info and /settings/company/connections are siblings
- * e.g., /settings/company/connections/provider and /settings/company/connections/migration are siblings
+ * e.g., /system-health/health and /system-health/performance are siblings
  * Used to replace tab in breadcrumb instead of adding new item
  */
 export function isSiblingTab(path1: string, path2: string): boolean {
   const segments1 = path1.split('/').filter(Boolean);
   const segments2 = path2.split('/').filter(Boolean);
 
-  // SSoT (Feb 2026): Breadcrumb trail accumulates ALL tab navigation.
-  // Previously, Settings and warehouse tabs were detected as "siblings"
-  // and REPLACED the last breadcrumb instead of accumulating. This created
-  // an SSoT violation where Dashboard showed a trail but Settings didn't.
-  // Now ALL pages use the same accumulating trail behavior (like Dashboard).
+  // Check for tabbed pages (non-entity pages with URL path tabs)
+  // These are flat alternatives at the same level, not hierarchy
+  if (segments1.length >= 2 && segments2.length >= 2 && segments1.length === segments2.length) {
+    const parent1 = '/' + segments1.slice(0, -1).join('/');
+    const parent2 = '/' + segments2.slice(0, -1).join('/');
+    if (parent1 === parent2 && TABBED_PAGES.includes(parent1)) {
+      return true;
+    }
+  }
 
   // Only detect entity/id/tab patterns as siblings
   // e.g., /jobs/123/overview and /jobs/123/schedule are the same entity
