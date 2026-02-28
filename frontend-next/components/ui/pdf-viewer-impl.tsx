@@ -60,6 +60,7 @@ export function PDFViewerImpl({
   highlights = [],
   markupContext,
   onMarkupToggle,
+  label,
 }: PDFViewerProps) {
   // PDF data
   const [pdfBytes, setPdfBytes] = React.useState<Uint8Array | null>(null);
@@ -557,6 +558,13 @@ export function PDFViewerImpl({
             <Pencil className="h-3.5 w-3.5 mr-1" />
             Markup
           </Button>
+        )}
+
+        {/* Document label (e.g., revision badge) */}
+        {label && (
+          <div className="bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-2 py-0.5">
+            <span className="text-xs font-mono font-medium">{label}</span>
+          </div>
         )}
       </div>
 

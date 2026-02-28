@@ -837,6 +837,7 @@ export function DocumentListView<T extends DocumentItem>({
               url={previewUrl}
               fallbackUrl={externalUrl || undefined}
               className="h-full"
+              label={selectedDocument ? getRevision?.(selectedDocument) || undefined : undefined}
               markupContext={markupContextType && selectedDocument ? {
                 contextType: markupContextType,
                 contextId: getDocumentId(selectedDocument),
@@ -931,6 +932,7 @@ export function DocumentListView<T extends DocumentItem>({
               url={previewUrl}
               fallbackUrl={externalUrl || undefined}
               className="h-full"
+              label={fullscreenRevision || undefined}
               markupContext={markupContextType && selectedDocument ? {
                 contextType: markupContextType,
                 contextId: getDocumentId(selectedDocument),

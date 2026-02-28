@@ -42,6 +42,8 @@ export interface PDFViewerProps {
   markupContext?: MarkupContext;
   /** Callback when markup mode is toggled on/off */
   onMarkupToggle?: (active: boolean) => void;
+  /** Optional label shown in the floating toolbar (e.g., revision badge) */
+  label?: string;
 }
 
 // Loading component shown while PDF viewer loads
