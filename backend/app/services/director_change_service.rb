@@ -605,10 +605,12 @@ class DirectorChangeService
     total_pages = signed_pdf.pages.count
 
     asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
+    meeting_date = determine_meeting_date
     base_metadata = {
       form_type: "form_484",
       e_signature_request_id: e_signature_request.id,
-      signed_at: e_signature_request.completed_at
+      signed_at: e_signature_request.completed_at,
+      date: meeting_date.iso8601
     }
 
     # Build page assignments in deterministic document order.
@@ -668,12 +670,16 @@ class DirectorChangeService
 
     if ceasing_directors.any? && new_appointments.any? && remaining_pages.size >= 2
       midpoint = remaining_pages.size / 2
-      page_assignments << { pages: remaining_pages[0...midpoint], abbr: "F484", name: "#{f484_name} - Cessation", metadata: base_metadata.merge(form_subtype: "cessation", person_name: ceasing_names) }
-      page_assignments << { pages: remaining_pages[midpoint..], abbr: "F484", name: "#{f484_name} - Appointment", metadata: base_metadata.merge(form_subtype: "appointment", person_name: appointment_names) }
+      cessation_date = ceasing_directors.first[:cessation_date]
+      appointment_date = new_appointments.first[:appointment_date]
+      page_assignments << { pages: remaining_pages[0...midpoint], abbr: "F484", name: "#{f484_name} #{ceasing_names}", metadata: base_metadata.merge(form_subtype: "cessation", person_name: ceasing_names, date: cessation_date.iso8601) }
+      page_assignments << { pages: remaining_pages[midpoint..], abbr: "F484", name: "#{f484_name} #{appointment_names}", metadata: base_metadata.merge(form_subtype: "appointment", person_name: appointment_names, date: appointment_date.iso8601) }
     elsif ceasing_directors.any? && remaining_pages.any?
-      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} - Cessation", metadata: base_metadata.merge(form_subtype: "cessation", person_name: ceasing_names) }
+      cessation_date = ceasing_directors.first[:cessation_date]
+      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} #{ceasing_names}", metadata: base_metadata.merge(form_subtype: "cessation", person_name: ceasing_names, date: cessation_date.iso8601) }
     elsif new_appointments.any? && remaining_pages.any?
-      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} - Appointment", metadata: base_metadata.merge(form_subtype: "appointment", person_name: appointment_names) }
+      appointment_date = new_appointments.first[:appointment_date]
+      page_assignments << { pages: remaining_pages, abbr: "F484", name: "#{f484_name} #{appointment_names}", metadata: base_metadata.merge(form_subtype: "appointment", person_name: appointment_names, date: appointment_date.iso8601) }
     end
 
     # Certificate of Completion is always the last page of the signed PDF.
