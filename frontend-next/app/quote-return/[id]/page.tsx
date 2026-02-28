@@ -374,14 +374,23 @@ function QuoteReturnContent() {
               <span className="text-muted-foreground text-xs">Supplier</span>
               <p className="font-medium">{qr.supplierName || "Unknown"}</p>
             </div>
-            <div>
-              <span className="text-muted-foreground text-xs">Item / Task</span>
-              <p className="font-medium">{qr.itemName || "\u2014"}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground text-xs">CC / Trade</span>
-              <p>{qr.parentName || qr.parentLine?.name || "\u2014"}</p>
-            </div>
+            {isCCLevel ? (
+              <div className="col-span-2">
+                <span className="text-muted-foreground text-xs">Cost Centre</span>
+                <p className="font-medium">{qr.itemName || "\u2014"}</p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <span className="text-muted-foreground text-xs">Item / Task</span>
+                  <p className="font-medium">{qr.itemName || "\u2014"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">CC / Trade</span>
+                  <p>{qr.parentName || "\u2014"}</p>
+                </div>
+              </>
+            )}
             <div>
               <span className="text-muted-foreground text-xs">
                 Price Ex GST {extraction ? "(AI)" : ""}
