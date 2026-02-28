@@ -955,6 +955,7 @@ Rails.application.routes.draw do
         member do
           get :confirm_details
           post :accept
+          post :set
           post :reject
           post :extract
         end

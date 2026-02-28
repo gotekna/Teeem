@@ -110,6 +110,7 @@ export interface PurchaseOrder {
 export const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
   { value: "pending", label: "Pending" },
+  { value: "pending_quote", label: "Pending Quote" },
   { value: "approved", label: "Approved" },
   { value: "sent", label: "Sent" },
   { value: "received", label: "Received" },
@@ -121,6 +122,7 @@ export const STATUS_OPTIONS = [
 export const STATUS_BADGE_VARIANTS: Record<string, string> = {
   draft: "bg-muted text-foreground border-border",
   pending: "bg-status-warning text-status-warning-foreground border-yellow-300",
+  pending_quote: "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border-amber-300",
   approved: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300",
   sent: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300",
   received: "bg-status-success text-status-success-foreground border-green-300",

@@ -13,7 +13,7 @@ module Api
   module V1
     class QuoteReturnsController < ApplicationController
       before_action :set_job, only: [:index]
-      before_action :set_return_record, only: [:confirm_details, :accept, :reject, :extract]
+      before_action :set_return_record, only: [:confirm_details, :accept, :set, :reject, :extract]
 
       # GET /api/v1/jobs/:job_id/quote_returns
       # Returns unified list of all quote returns for a job
@@ -95,6 +95,24 @@ module Api
           accept_quote_tracker!(@record, notes)
         else
           accept_custom_quote_supplier!(@record, notes,
+            include_tender_description: include_tender_desc,
+            allocations: params[:allocations])
+        end
+      rescue => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/quote_returns/:id/set
+      # Sets quote data on PO(s) without finalizing — PO goes to pending_quote status.
+      # Quote return stays open so other supplier quotes can still be compared.
+      def set
+        notes = params[:confirmationNotes]
+        include_tender_desc = ActiveModel::Type::Boolean.new.cast(params[:includeTenderDescription])
+
+        if @source == :qt
+          set_quote_tracker!(@record, notes)
+        else
+          set_custom_quote_supplier!(@record, notes,
             include_tender_description: include_tender_desc,
             allocations: params[:allocations])
         end
@@ -261,6 +279,60 @@ module Api
         }
       end
 
+      # ─── Set Logic (same as accept but pending_quote status) ────
+
+      def set_quote_tracker!(qt, notes)
+        po = nil
+        ActiveRecord::Base.transaction do
+          po = qt.accept_and_create_po!(current_user)
+
+          # Enhance PO without finalizing — leaves status as pending_quote
+          enhance_po_from_qt!(po, qt, finalize: false)
+        end
+
+        render json: {
+          success: true,
+          message: "Quote set on PO #{po.purchase_order_number} (Pending Quote).",
+          data: {
+            purchaseOrders: [{
+              id: po.id,
+              poNumber: po.purchase_order_number,
+              budget: po.budget&.to_f,
+              status: po.status
+            }]
+          }
+        }
+      end
+
+      def set_custom_quote_supplier!(cqs, notes, include_tender_description: false, allocations: nil)
+        pos = nil
+        ActiveRecord::Base.transaction do
+          if allocations.present?
+            save_allocations!(cqs, allocations)
+          end
+
+          pos = CustomQuotePoCreatorService.accept!(supplier: cqs, user: current_user)
+
+          # Enhance POs without finalizing — leaves status as pending_quote
+          pos.each { |po| enhance_po_from_cqs!(po, cqs, include_tender_description: include_tender_description, finalize: false) }
+        end
+
+        render json: {
+          success: true,
+          message: "Quote set on #{pos.size} PO#{'s' if pos.size > 1} (Pending Quote).",
+          data: {
+            purchaseOrders: pos.map { |po|
+              {
+                id: po.id,
+                poNumber: po.purchase_order_number,
+                budget: po.budget&.to_f,
+                status: po.status
+              }
+            }
+          }
+        }
+      end
+
       # ─── Allocation Saving ─────────────────────────────────────────────
 
       def save_allocations!(cqs, allocs)
@@ -277,14 +349,19 @@ module Api
 
       # ─── PO Enhancement ──────────────────────────────────────────────
 
-      def enhance_po_from_qt!(po, qt)
+      def enhance_po_from_qt!(po, qt, finalize: true)
         updates = {}
         updates[:special_instructions] = qt.quote_request_instructions if qt.quote_request_instructions.present?
         po.update!(updates) if updates.any?
-        po.approve!(current_user.id)
+
+        if finalize
+          po.approve!(current_user.id)
+        else
+          po.update!(status: 'pending_quote')
+        end
       end
 
-      def enhance_po_from_cqs!(po, cqs, include_tender_description: false)
+      def enhance_po_from_cqs!(po, cqs, include_tender_description: false, finalize: true)
         line = cqs.custom_quote_line
         updates = {}
         updates[:quote_warehouse_document_id] = cqs.warehouse_document_id if cqs.warehouse_document_id.present?
@@ -300,7 +377,12 @@ module Api
         end
 
         po.update!(updates) if updates.any?
-        po.approve!(current_user.id)
+
+        if finalize
+          po.approve!(current_user.id)
+        else
+          po.update!(status: 'pending_quote')
+        end
       end
 
       # ─── JSON Serializers ────────────────────────────────────────────

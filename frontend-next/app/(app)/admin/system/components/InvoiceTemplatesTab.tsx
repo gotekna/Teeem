@@ -30,29 +30,9 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-/** Wraps HTML content in an A4-aspect page container for full-preview new tabs */
-function openA4Preview(html: string, title?: string) {
-  const pageHtml = `<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<title>${title || "Preview"}</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #e5e5e5; display: flex; justify-content: center; padding: 20px 0; min-height: 100vh; }
-  .a4-page { width: 210mm; min-height: 297mm; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15); padding: 0; overflow: auto; }
-  @media print { body { padding: 0; background: white; } .a4-page { box-shadow: none; width: 100%; } }
-  @media (max-width: 240mm) { .a4-page { width: 100%; } }
-</style>
-</head><body>
-<div class="a4-page" id="content"></div>
-<script>
-  var content = document.getElementById('content');
-  var shadow = content.attachShadow({ mode: 'open' });
-  shadow.innerHTML = ${JSON.stringify(html)};
-</script>
-</body></html>`;
-
-  const blob = new Blob([pageHtml], { type: "text/html" });
+/** Opens backend-generated preview HTML in a new tab (SSoT: backend layout is the source of truth) */
+function openA4Preview(html: string) {
+  const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const newWindow = window.open(url, "_blank");
   if (newWindow) {
@@ -345,7 +325,7 @@ export function InvoiceTemplatesTab() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => openA4Preview(previewHtml, `Claim Preview: ${selectedTemplate.name}`)}
+                    onClick={() => openA4Preview(previewHtml)}
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Full Preview
@@ -366,7 +346,7 @@ export function InvoiceTemplatesTab() {
               ) : (
                 <div
                   className="h-full overflow-auto bg-white dark:bg-muted cursor-pointer"
-                  onDoubleClick={() => openA4Preview(previewHtml, `Claim Preview: ${selectedTemplate?.name || ""}`)}
+                  onDoubleClick={() => openA4Preview(previewHtml)}
                   title="Double-click to open full preview"
                 >
                   <iframe

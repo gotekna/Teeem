@@ -528,8 +528,8 @@ class TeeemDocumentGenerator
       line_items: line_items,
       line_items_count: line_items.size,
 
-      # Task reference (SSoT: from linked SmTask)
-      ted_task: po.sm_task&.name
+      # Task name (SSoT: from linked SmTask, fallback to PO description)
+      task_name: po.sm_task&.name || po.description
     }
   end
 

@@ -1116,7 +1116,7 @@ module Api
               { description: "Delivery & Crane Unload", quantity: 1, unit_price: 1_330.50, total: 1_330.5, total_formatted: "$1,330.50", unit_price_formatted: "$1,330.50", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "DEL-CRANE" },
             ],
             line_items_count: 8,
-            ted_task: "Slab Preparation"
+            task_name: "Slab Preparation"
           },
           job: {
             name: "Smith Residence - New Home Build",
@@ -1232,7 +1232,7 @@ module Api
               { description: "{{item.description}}", quantity: "{{item.qty}}", unit_price: 0, total: 0, total_formatted: "{{item.total}}", unit_price_formatted: "{{item.rate}}", gst_code: "{{item.tax}}", colour: "{{item.colour}}", colour_code: "{{item.colour_code}}", colour_brand: nil, pricebook_code: "{{item.code}}" },
             ],
             line_items_count: 3,
-            ted_task: "{{purchase_order.task_name}}"
+            task_name: "{{purchase_order.task_name}}"
           },
           job: {
             name: "{{job.name}}",
@@ -1355,7 +1355,7 @@ module Api
           {{purchase_order.gst}}                    →  <%%= purchase_order[:gst] %>
           {{purchase_order.total}}                  →  <%%= purchase_order[:total] %>
           {{purchase_order.budget}}                 →  <%%= purchase_order[:budget] %>
-          {{purchase_order.task_name}}              →  <%%= purchase_order[:ted_task] %>
+          {{purchase_order.task_name}}              →  <%%= purchase_order[:task_name] %>
 
         SUPPLIER:
           {{supplier.name}}     →  <%%= purchase_order[:supplier][:name] %>

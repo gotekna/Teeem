@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { FileText, Sparkles, Loader2, Check, X, Paperclip, SplitSquareHorizontal, ExternalLink, ArrowRight, Eye } from "lucide-react";
+import { FileText, Sparkles, Loader2, Check, X, Paperclip, SplitSquareHorizontal, ExternalLink, ArrowRight, Eye, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,10 +137,12 @@ function QuoteReturnContent() {
   const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
   const [includeTenderDesc, setIncludeTenderDesc] = useState(true);
   const [accepting, setAccepting] = useState(false);
+  const [setting, setSetting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [actionResult, setActionResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [createdPOs, setCreatedPOs] = useState<Array<{ id: number; poNumber: string; budget: number | null; status: string }>>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"accept" | "set">("accept");
   // PO line allocation state (CC-level only)
   const [allocations, setAllocations] = useState<Record<number, string>>({});
 
@@ -324,6 +326,37 @@ function QuoteReturnContent() {
       setAccepting(false);
     }
   }, [qr, returnId, includeTenderDesc, accepting, allocations]);
+
+  const handleSet = useCallback(async () => {
+    if (!qr || setting) return;
+    setSetting(true);
+    setActionResult(null);
+    try {
+      const isCCLvl = qr.parentLine?.quoteLevel === "cost_centre" && (qr.parentLine?.children?.length ?? 0) > 0;
+      const allocationData = isCCLvl
+        ? Object.entries(allocations)
+            .filter(([, val]) => parseFloat(val) > 0)
+            .map(([lineId, val]) => ({ lineId: Number(lineId), amount: parseFloat(val) }))
+        : undefined;
+
+      const res = await api.post<{ success: boolean; message: string; data?: { purchaseOrders: Array<{ id: number; poNumber: string; budget: number | null; status: string }> } }>(
+        `/api/v1/quote_returns/${returnId}/set`,
+        {
+          includeTenderDescription: includeTenderDesc,
+          allocations: allocationData,
+        }
+      );
+      const msg = (res as { message: string })?.message || "Quote set on PO";
+      const pos = (res as { data?: { purchaseOrders: Array<{ id: number; poNumber: string; budget: number | null; status: string }> } })?.data?.purchaseOrders || [];
+      setCreatedPOs(pos);
+      setActionResult({ type: "success", message: msg });
+      // Don't change quote status — leave it open for other quotes
+    } catch (err) {
+      setActionResult({ type: "error", message: `Set failed: ${err}` });
+    } finally {
+      setSetting(false);
+    }
+  }, [qr, returnId, includeTenderDesc, setting, allocations]);
 
   const handleReject = useCallback(async () => {
     if (!qr || rejecting) return;
@@ -724,7 +757,7 @@ function QuoteReturnContent() {
                       onChange={(e) => setIncludeTenderDesc(e.target.checked)}
                       className="mt-0.5 rounded border-gray-300"
                     />
-                    <span>Add tender description to PO description</span>
+                    <span>Add tender description to PO line</span>
                   </label>
                 )}
 
@@ -750,33 +783,64 @@ function QuoteReturnContent() {
 
               {/* Buttons */}
               {!actionResult?.type && (
-                <div className="flex gap-2">
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        if (hasExistingPOs) {
+                          setPreviewMode("accept");
+                          setShowPreview(true);
+                        } else {
+                          handleAccept();
+                        }
+                      }}
+                      disabled={accepting || setting || rejecting || !qr.priceQuoted || (isCCLevel && (remaining < -0.01 || totalAllocated < 0.01))}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {accepting ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : hasExistingPOs ? (
+                        <Eye className="h-4 w-4 mr-1" />
+                      ) : (
+                        <Check className="h-4 w-4 mr-1" />
+                      )}
+                      {hasExistingPOs ? "Preview & Accept" : "Accept & Create PO"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleReject}
+                      disabled={accepting || setting || rejecting}
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      {rejecting ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : (
+                        <X className="h-4 w-4 mr-1" />
+                      )}
+                      Reject
+                    </Button>
+                  </div>
                   <Button
-                    onClick={() => hasExistingPOs ? setShowPreview(true) : handleAccept()}
-                    disabled={accepting || rejecting || !qr.priceQuoted || (isCCLevel && (remaining < -0.01 || totalAllocated < 0.01))}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    variant="outline"
+                    onClick={() => {
+                      if (hasExistingPOs) {
+                        setPreviewMode("set");
+                        setShowPreview(true);
+                      } else {
+                        handleSet();
+                      }
+                    }}
+                    disabled={accepting || setting || rejecting || !qr.priceQuoted || (isCCLevel && (remaining < -0.01 || totalAllocated < 0.01))}
+                    className="w-full border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
                   >
-                    {accepting ? (
+                    {setting ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-1" />
                     ) : hasExistingPOs ? (
                       <Eye className="h-4 w-4 mr-1" />
                     ) : (
-                      <Check className="h-4 w-4 mr-1" />
+                      <Clock className="h-4 w-4 mr-1" />
                     )}
-                    {hasExistingPOs ? "Preview & Accept" : "Accept & Create PO"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleReject}
-                    disabled={accepting || rejecting}
-                    className="text-red-600 border-red-200 hover:bg-red-50"
-                  >
-                    {rejecting ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                    ) : (
-                      <X className="h-4 w-4 mr-1" />
-                    )}
-                    Reject
+                    {hasExistingPOs ? "Preview & Set (Pending)" : "Set on PO (Pending)"}
                   </Button>
                 </div>
               )}
@@ -991,8 +1055,16 @@ function QuoteReturnContent() {
                       <div className="rounded-lg border border-green-200 dark:border-green-900 overflow-hidden">
                         <div className="bg-green-50 dark:bg-green-950/30 px-4 py-2 border-b border-green-200 dark:border-green-900">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">After Accept</span>
-                            <Badge variant="outline" className="text-[10px] h-5 border-green-300 text-green-700 dark:text-green-400">approved</Badge>
+                            <span className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">
+                              {previewMode === "set" ? "After Set" : "After Accept"}
+                            </span>
+                            <Badge variant="outline" className={`text-[10px] h-5 ${
+                              previewMode === "set"
+                                ? "border-amber-300 text-amber-700 dark:text-amber-400"
+                                : "border-green-300 text-green-700 dark:text-green-400"
+                            }`}>
+                              {previewMode === "set" ? "pending quote" : "approved"}
+                            </Badge>
                           </div>
                         </div>
                         <div className="p-4 space-y-3">
@@ -1071,21 +1143,39 @@ function QuoteReturnContent() {
               <Button variant="outline" onClick={() => setShowPreview(false)}>
                 Cancel
               </Button>
-              <Button
-                onClick={() => {
-                  setShowPreview(false);
-                  handleAccept();
-                }}
-                disabled={accepting}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                {accepting ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <Check className="h-4 w-4 mr-1" />
-                )}
-                Confirm &amp; Accept
-              </Button>
+              {previewMode === "set" ? (
+                <Button
+                  onClick={() => {
+                    setShowPreview(false);
+                    handleSet();
+                  }}
+                  disabled={setting}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {setting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : (
+                    <Clock className="h-4 w-4 mr-1" />
+                  )}
+                  Confirm &amp; Set (Pending)
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setShowPreview(false);
+                    handleAccept();
+                  }}
+                  disabled={accepting}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {accepting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : (
+                    <Check className="h-4 w-4 mr-1" />
+                  )}
+                  Confirm &amp; Accept
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

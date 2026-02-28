@@ -273,8 +273,8 @@
   <div class="po-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
     <div class="po-header-left">
       <div class="po-title">Purchase Order</div>
-      <% if purchase_order[:ted_task].present? %>
-        <div class="po-task-name"><%= purchase_order[:ted_task] %></div>
+      <% if purchase_order[:task_name].present? %>
+        <div class="po-task-name"><%= purchase_order[:task_name] %></div>
       <% end %>
     </div>
     <div class="po-header-right">

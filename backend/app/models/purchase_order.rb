@@ -119,7 +119,7 @@ class PurchaseOrder < ApplicationRecord
   validates :purchase_order_number, presence: true, uniqueness: { scope: :tenant_id }, on: :update
   validates :job_id, presence: true
   validates :status, presence: true, inclusion: {
-    in: %w[draft pending approved sent received invoiced paid cancelled]
+    in: %w[draft pending pending_quote approved sent received invoiced paid cancelled]
   }
   validates :payment_status, allow_nil: true, inclusion: {
     in: %w[pending part_payment complete manual_review]
@@ -129,6 +129,7 @@ class PurchaseOrder < ApplicationRecord
   enum :status, {
     draft: "draft",
     pending: "pending",
+    pending_quote: "pending_quote",
     approved: "approved",
     sent: "sent",
     received: "received",
@@ -164,7 +165,7 @@ class PurchaseOrder < ApplicationRecord
   scope :by_construction, ->(job_id) { where(job_id: job_id) if job_id.present? }
   scope :recent, -> { order(created_at: :desc) }
   scope :overdue, -> { where("required_date < ? AND status NOT IN (?)", TenantSetting.today, [ "received", "cancelled" ]) }
-  scope :pending_approval, -> { where(status: "pending") }
+  scope :pending_approval, -> { where(status: %w[pending pending_quote]) }
   scope :for_schedule, -> { where(creates_schedule_tasks: true) }
   scope :visible_to_suppliers, -> { where(visible_to_supplier: true) }
   scope :by_supplier, ->(supplier_id) { where(supplier_id: supplier_id) if supplier_id.present? }
@@ -268,7 +269,7 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def can_approve?
-    status == "pending"
+    %w[pending pending_quote].include?(status)
   end
 
   def can_cancel?

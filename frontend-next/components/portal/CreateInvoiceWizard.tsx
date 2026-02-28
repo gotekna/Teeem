@@ -163,7 +163,7 @@ export default function CreateInvoiceWizard({
   // Navigation
   const canProceed = (): boolean => {
     switch (step) {
-      case 0: return true; // Upload is optional
+      case 0: return invoiceFile !== null;
       case 1: return selectedPO !== null;
       case 2: {
         const amt = parseFloat(amount);
@@ -296,7 +296,7 @@ export default function CreateInvoiceWizard({
           {step === 0 && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Upload your invoice PDF or image. This is optional — you can skip this step.
+                Upload your invoice PDF or image to proceed.
               </p>
               <div
                 className={`
@@ -664,7 +664,7 @@ export default function CreateInvoiceWizard({
               disabled={!canProceed()}
               className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {step === 0 && !invoiceFile ? "Skip" : "Next"}
+              Next
               <ArrowRightIcon className="h-4 w-4" />
             </button>
           ) : (
