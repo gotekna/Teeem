@@ -702,11 +702,11 @@ module Api
       # Generate PDF for this purchase order with colour selections from job (SSoT)
       def generate_pdf
         if params[:format] == "html" || params[:preview]
-          # Use preview_html for iframe preview (lightweight layout, no branded header/footer)
-          # PO templates are self-contained with their own headers
+          # Use generate() with html_only to get full template rendering (styles, wrapper divs)
+          # PO templates use the "po" layout (A4 sizing, no branded header/footer)
           generator = TeknaDocumentGenerator.new(:purchase_order)
-          html = generator.preview_html(purchase_order: @purchase_order)
-          render html: html.html_safe
+          result = generator.generate(purchase_order: @purchase_order, html_only: true)
+          render html: result[:html].html_safe
         else
           enqueue_pdf_and_respond(
             generator_type: "tekna_document",
