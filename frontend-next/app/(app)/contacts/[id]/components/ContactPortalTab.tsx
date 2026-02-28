@@ -46,7 +46,7 @@ export function ContactPortalTab({ contact }: ContactPortalTabProps) {
         setMessage({ type: "error", text: response?.error || "Failed to open portal." });
       }
     } catch (err: any) {
-      setMessage({ type: "error", text: err.response?.data?.error || "Failed to open portal. Please try again." });
+      setMessage({ type: "error", text: err.message || "Failed to open portal. Please try again." });
     } finally {
       setOpeningPortal(false);
     }
