@@ -361,12 +361,18 @@ module Api
 
       # Lightweight CC line context for allocation UI (no supplier arrays)
       def build_parent_line_context(cc_line, cqs = nil)
-        # Pre-load allocations for this supplier to find existing POs per child line
-        alloc_by_line = {}
-        if cqs
-          cqs.allocations.includes(purchase_order: [:quote_warehouse_document, :purchase_order_documents]).each do |alloc|
-            alloc_by_line[alloc.custom_quote_line_id] = alloc
-          end
+        # Find existing POs for each child line from ANY supplier's allocations
+        children_ids = cc_line.children.pluck(:id)
+        po_by_line = {}
+        if children_ids.any?
+          CustomQuoteAllocation
+            .where(custom_quote_line_id: children_ids)
+            .where.not(purchase_order_id: nil)
+            .includes(purchase_order: [:quote_warehouse_document, :purchase_order_documents])
+            .each do |alloc|
+              # Keep first PO found per line (there should only be one)
+              po_by_line[alloc.custom_quote_line_id] ||= alloc.purchase_order
+            end
         end
 
         {
@@ -376,8 +382,7 @@ module Api
           tenderDescription: cc_line.tender_description,
           budgetAmount: cc_line.budget_amount&.to_f,
           children: cc_line.children.order(:position).map { |child|
-            alloc = alloc_by_line[child.id]
-            po = alloc&.purchase_order
+            po = po_by_line[child.id]
             child_data = {
               id: child.id,
               name: child.name,
