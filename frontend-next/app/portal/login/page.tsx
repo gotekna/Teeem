@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import axios from "axios";
+import { getApiBaseUrl } from "@/lib/api";
 import { setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 export default function PortalLogin() {
@@ -34,14 +34,19 @@ function PortalLoginContent() {
     const autoLogin = async () => {
       setLoading(true);
       try {
-        // Store token
+        // Store token so the api helper uses it for auth
         setStorageItem(STORAGE_KEYS.PORTAL_TOKEN, token);
-        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
         // Fetch user info to validate token and get user data
-        const response = await axios.get("/api/v1/portal/auth/me");
-        if (response?.data?.success && response.data.user) {
-          setStorageItem(STORAGE_KEYS.PORTAL_USER, response.data.user);
+        // Use custom fetch with portal token (api helper uses main auth token)
+        const baseUrl = getApiBaseUrl();
+        const response = await fetch(`${baseUrl}/api/v1/portal/auth/me`, {
+          headers: { "Authorization": `Bearer ${token}` },
+        });
+        const data = await response.json();
+
+        if (data?.success && data.user) {
+          setStorageItem(STORAGE_KEYS.PORTAL_USER, data.user);
           router.push("/portal/dashboard");
         } else {
           setError("Invalid or expired token");
@@ -62,28 +67,26 @@ function PortalLoginContent() {
     setLoading(true);
 
     try {
-      const response = await axios.post("/api/v1/portal/auth/login", {
-        email,
-        password,
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/v1/portal/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
+      const data = await response.json();
 
-      if (response?.data.success) {
+      if (data?.success) {
         // Store token and user data
-        setStorageItem(STORAGE_KEYS.PORTAL_TOKEN, response.data.token);
-        setStorageItem(STORAGE_KEYS.PORTAL_USER, response.data.user);
-
-        // Set axios default header
-        axios.defaults.headers.common[
-          "Authorization"
-        ] = `Bearer ${response.data.token}`;
+        setStorageItem(STORAGE_KEYS.PORTAL_TOKEN, data.token);
+        setStorageItem(STORAGE_KEYS.PORTAL_USER, data.user);
 
         // Redirect to dashboard
         router.push("/portal/dashboard");
       } else {
-        setError(response.data.error || "Login failed");
+        setError(data.error || "Login failed");
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || "Invalid email or password");
+      setError("Invalid email or password");
     } finally {
       setLoading(false);
     }
