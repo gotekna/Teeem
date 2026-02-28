@@ -7,6 +7,10 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   DocumentTextIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ArrowDownTrayIcon,
+  CalendarDaysIcon,
 } from "@heroicons/react/24/outline";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,6 +34,9 @@ interface QuoteRecord {
   purchaseOrderId: number | null;
   timeframe: string | null;
   responseNotes: string | null;
+  instructions: string | null;
+  documentName: string | null;
+  documentUrl: string | null;
 }
 
 interface Builder {
@@ -146,6 +153,31 @@ export default function PortalQuotes() {
     }
   };
 
+  const handleUpdateValidTo = async (quoteId: string, validTo: string | null) => {
+    try {
+      const res = await portalApi.patch(`/api/v1/portal/quote_trackers/${quoteId}`, {
+        valid_to: validTo,
+      });
+      if (res?.data?.success) {
+        // Update local state
+        setData((prev) => {
+          const updated = { ...prev };
+          for (const key of Object.keys(updated) as (TabKey | "builders")[]) {
+            if (key === "builders") continue;
+            const list = updated[key] as QuoteRecord[];
+            const idx = list.findIndex((q) => q.id === quoteId);
+            if (idx !== -1) {
+              list[idx] = { ...list[idx], validTo: res.data.data.validTo };
+            }
+          }
+          return updated;
+        });
+      }
+    } catch (error) {
+      console.error("Failed to update expiry date:", error);
+    }
+  };
+
   const multiBuilder = data.builders.length > 1;
   const currentQuotes = data[activeTab] || [];
 
@@ -222,6 +254,7 @@ export default function PortalQuotes() {
                 quote={quote}
                 activeTab={activeTab}
                 showBuilder={multiBuilder}
+                onUpdateValidTo={handleUpdateValidTo}
               />
             ))}
           </ul>
@@ -235,94 +268,231 @@ function QuoteRow({
   quote,
   activeTab,
   showBuilder,
+  onUpdateValidTo,
 }: {
   quote: QuoteRecord;
   activeTab: TabKey;
   showBuilder: boolean;
+  onUpdateValidTo: (quoteId: string, validTo: string | null) => Promise<void>;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [editingExpiry, setEditingExpiry] = useState(false);
+  const [expiryValue, setExpiryValue] = useState(quote.validTo || "");
+  const [saving, setSaving] = useState(false);
+
   const isExpired = quote.validTo && new Date(quote.validTo) < new Date();
+  const hasDetails = quote.instructions || quote.documentUrl || quote.responseNotes;
+
+  const handleSaveExpiry = async () => {
+    setSaving(true);
+    try {
+      await onUpdateValidTo(quote.id, expiryValue || null);
+      setEditingExpiry(false);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <li className="px-4 py-4 sm:px-6 hover:bg-muted/50">
-      <div className="flex items-center justify-between">
-        <div className="flex-1 min-w-0">
-          {/* Top line: builder badge + job name */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {showBuilder && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
-                {quote.builder}
-              </span>
-            )}
-            <p className="text-base font-medium text-foreground dark:text-white truncate">
-              {quote.jobName || "Unknown Job"}
-            </p>
-          </div>
-
-          {/* Item/task name */}
-          {quote.itemName && (
-            <p className="mt-1 text-sm text-muted-foreground truncate">
-              {quote.itemName}
-            </p>
-          )}
-
-          {/* Details row */}
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            {/* Price (responded/accepted/rejected) */}
-            {quote.priceQuoted != null && (
-              <span className="font-medium text-foreground dark:text-white">
-                ${quote.priceQuoted.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </span>
-            )}
-
-            {/* Sent date */}
-            {quote.sentAt && (
-              <span>Sent {formatDate(quote.sentAt)}</span>
-            )}
-
-            {/* Received date */}
-            {quote.dateReceived && (
-              <span>Received {formatDate(quote.dateReceived)}</span>
-            )}
-
-            {/* Timeframe */}
-            {quote.timeframe && <span>{quote.timeframe}</span>}
-
-            {/* Valid to */}
-            {quote.validTo && (
-              <span className={isExpired ? "text-red-500 dark:text-red-400 font-medium" : ""}>
-                {isExpired ? "Expired" : `Valid to ${formatDate(quote.validTo)}`}
-              </span>
-            )}
-
-            {/* Best price badge */}
-            {quote.isBestPrice && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
-                Best Price
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Right side: days waiting or status indicator */}
-        <div className="ml-4 flex-shrink-0 flex items-center gap-3">
-          {activeTab === "awaiting_response" && quote.daysWaiting != null && (
-            <div className="flex flex-col items-end">
-              <span className="text-xs text-muted-foreground">Waiting</span>
-              <span className="text-sm font-medium text-foreground dark:text-white">
-                {quote.daysWaiting}d
-              </span>
+    <li className="hover:bg-muted/50">
+      {/* Main row - clickable to expand */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left px-4 py-4 sm:px-6"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            {/* Top line: builder badge + job name */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {showBuilder && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
+                  {quote.builder}
+                </span>
+              )}
+              <p className="text-base font-medium text-foreground dark:text-white truncate">
+                {quote.jobName || "Unknown Job"}
+              </p>
             </div>
-          )}
 
-          {activeTab === "accepted" && (
-            <CheckCircleIcon className="h-5 w-5 text-green-500" />
-          )}
+            {/* Item/task name */}
+            {quote.itemName && (
+              <p className="mt-1 text-sm text-muted-foreground truncate">
+                {quote.itemName}
+              </p>
+            )}
 
-          {activeTab === "rejected" && (
-            <XCircleIcon className="h-5 w-5 text-muted-foreground" />
-          )}
+            {/* Details row */}
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              {quote.priceQuoted != null && (
+                <span className="font-medium text-foreground dark:text-white">
+                  ${quote.priceQuoted.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              )}
+
+              {quote.sentAt && <span>Sent {formatDate(quote.sentAt)}</span>}
+
+              {quote.dateReceived && <span>Received {formatDate(quote.dateReceived)}</span>}
+
+              {quote.timeframe && <span>{quote.timeframe}</span>}
+
+              {quote.validTo && (
+                <span className={isExpired ? "text-red-500 dark:text-red-400 font-medium" : ""}>
+                  {isExpired ? "Expired" : `Valid to ${formatDate(quote.validTo)}`}
+                </span>
+              )}
+
+              {quote.isBestPrice && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
+                  Best Price
+                </span>
+              )}
+
+              {quote.documentUrl && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                  <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
+                  Quote attached
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Right side */}
+          <div className="ml-4 flex-shrink-0 flex items-center gap-3">
+            {activeTab === "awaiting_response" && quote.daysWaiting != null && (
+              <div className="flex flex-col items-end">
+                <span className="text-xs text-muted-foreground">Waiting</span>
+                <span className="text-sm font-medium text-foreground dark:text-white">
+                  {quote.daysWaiting}d
+                </span>
+              </div>
+            )}
+
+            {activeTab === "accepted" && (
+              <CheckCircleIcon className="h-5 w-5 text-green-500" />
+            )}
+
+            {activeTab === "rejected" && (
+              <XCircleIcon className="h-5 w-5 text-muted-foreground" />
+            )}
+
+            {expanded ? (
+              <ChevronUpIcon className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronDownIcon className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
         </div>
-      </div>
+      </button>
+
+      {/* Expanded details */}
+      {expanded && (
+        <div className="px-4 pb-4 sm:px-6 border-t border-border bg-muted/30">
+          <div className="pt-4 space-y-4">
+            {/* Quote instructions / plan info */}
+            {quote.instructions && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                  Quote Instructions
+                </h4>
+                <p className="text-sm text-foreground dark:text-white whitespace-pre-wrap">
+                  {quote.instructions}
+                </p>
+              </div>
+            )}
+
+            {/* Response notes */}
+            {quote.responseNotes && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                  Your Notes
+                </h4>
+                <p className="text-sm text-foreground dark:text-white whitespace-pre-wrap">
+                  {quote.responseNotes}
+                </p>
+              </div>
+            )}
+
+            {/* Quote document download */}
+            {quote.documentUrl && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                  Quote Document
+                </h4>
+                <a
+                  href={quote.documentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4" />
+                  {quote.documentName || "Download quote"}
+                </a>
+              </div>
+            )}
+
+            {/* Expiry date - editable */}
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                <CalendarDaysIcon className="h-3.5 w-3.5 inline mr-1" />
+                Quote Valid To
+              </h4>
+              {editingExpiry ? (
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="date"
+                    value={expiryValue}
+                    onChange={(e) => setExpiryValue(e.target.value)}
+                    className="text-sm border border-border rounded px-2 py-1 bg-background text-foreground"
+                  />
+                  <button
+                    onClick={handleSaveExpiry}
+                    disabled={saving}
+                    className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingExpiry(false);
+                      setExpiryValue(quote.validTo || "");
+                    }}
+                    className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${isExpired ? "text-red-500 dark:text-red-400" : "text-foreground dark:text-white"}`}>
+                    {quote.validTo ? formatDate(quote.validTo) : "Not set"}
+                    {isExpired && " (Expired)"}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingExpiry(true);
+                    }}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {quote.validTo ? "Change" : "Set expiry"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Quote number */}
+            {quote.quoteNumber && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                  Quote Number
+                </h4>
+                <p className="text-sm text-foreground dark:text-white">{quote.quoteNumber}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </li>
   );
 }

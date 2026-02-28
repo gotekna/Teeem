@@ -17,20 +17,9 @@ module Api
           quotes_by_status = { awaiting_response: [], responded: [], accepted: [], rejected: [] }
           builders = {}
 
-          # Find all Contact records matching this email across ALL tenants.
-          # Contact doesn't have an email column directly - emails live in contact_emails table.
-          contact_ids = ActsAsTenant.without_tenant {
-            ContactEmail.where(email: email).pluck(:contact_id)
-          }
-          contacts = ActsAsTenant.without_tenant { Contact.where(id: contact_ids).includes(:tenant) }
-
-          contacts.each do |contact|
-            next unless contact.tenant&.active?
-
-            tenant = contact.tenant
+          each_supplier_contact do |contact, tenant|
             builders[tenant.id] ||= { id: tenant.id, name: tenant.name }
 
-            # Fetch QuoteTrackers where this contact is the supplier
             ActsAsTenant.with_tenant(tenant) do
               fetch_quote_trackers(contact, tenant, quotes_by_status)
               fetch_custom_quote_suppliers(contact, tenant, quotes_by_status)
@@ -46,7 +35,44 @@ module Api
           }
         end
 
+        # PATCH /api/v1/portal/quote_trackers/:id
+        #
+        # Allows supplier to update valid_to (expiry date) on their quotes.
+        # ID format: "qt_123" or "cqs_456" (prefixed to distinguish sources).
+        def update
+          source, record_id = parse_quote_id(params[:id])
+          return render json: { success: false, error: "Invalid quote ID" }, status: :bad_request unless record_id
+
+          record = find_owned_record(source, record_id)
+          return render json: { success: false, error: "Quote not found" }, status: :not_found unless record
+
+          valid_to = params[:valid_to]
+          if valid_to.present?
+            record.update!(valid_to: Date.parse(valid_to))
+          elsif params.key?(:valid_to)
+            record.update!(valid_to: nil)
+          end
+
+          render json: { success: true, data: { id: params[:id], validTo: record.valid_to&.to_s } }
+        rescue Date::Error
+          render json: { success: false, error: "Invalid date format" }, status: :unprocessable_entity
+        end
+
         private
+
+        # Iterate over all Contact records across tenants matching this portal user's email
+        def each_supplier_contact
+          email = current_portal_user.email
+          contact_ids = ActsAsTenant.without_tenant {
+            ContactEmail.where(email: email).pluck(:contact_id)
+          }
+          contacts = ActsAsTenant.without_tenant { Contact.where(id: contact_ids).includes(:tenant) }
+
+          contacts.each do |contact|
+            next unless contact.tenant&.active?
+            yield contact, contact.tenant
+          end
+        end
 
         def fetch_quote_trackers(contact, tenant, quotes_by_status)
           trackers = QuoteTracker
@@ -65,7 +91,7 @@ module Api
           suppliers = CustomQuoteSupplier
             .where(supplier_id: contact.id)
             .where.not(status: "draft")
-            .includes(custom_quote_line: { custom_quote: :job })
+            .includes(:warehouse_document, custom_quote_line: { custom_quote: :job })
 
           suppliers.each do |cqs|
             record = serialize_custom_quote_supplier(cqs, tenant)
@@ -92,13 +118,15 @@ module Api
             isBestPrice: qt.is_best_price,
             purchaseOrderId: qt.purchase_order_id,
             timeframe: qt.timeframe,
-            responseNotes: qt.response_notes
+            responseNotes: qt.response_notes,
+            instructions: qt.quote_request_instructions
           }
         end
 
         def serialize_custom_quote_supplier(cqs, tenant)
           line = cqs.custom_quote_line
           job = line&.custom_quote&.job
+          doc = cqs.warehouse_document
 
           {
             id: "cqs_#{cqs.id}",
@@ -117,7 +145,10 @@ module Api
             isBestPrice: cqs.is_best_price,
             purchaseOrderId: cqs.purchase_order_id,
             timeframe: cqs.timeframe,
-            responseNotes: cqs.response_notes
+            responseNotes: cqs.response_notes,
+            instructions: line&.rfq_instructions,
+            documentName: doc&.ui_name || doc&.original_filename,
+            documentUrl: doc&.download_url(expires_in: 1.hour)
           }
         end
 
@@ -128,6 +159,32 @@ module Api
           when "accepted" then :accepted
           when "rejected" then :rejected
           end
+        end
+
+        # Parse prefixed quote ID: "qt_123" → ["qt", 123], "cqs_456" → ["cqs", 456]
+        def parse_quote_id(id_str)
+          return [nil, nil] unless id_str.is_a?(String)
+          match = id_str.match(/\A(qt|cqs)_(\d+)\z/)
+          match ? [match[1], match[2].to_i] : [nil, nil]
+        end
+
+        # Find the record and verify the portal user owns it (is the supplier)
+        def find_owned_record(source, record_id)
+          record = nil
+
+          each_supplier_contact do |contact, tenant|
+            ActsAsTenant.with_tenant(tenant) do
+              record = case source
+              when "qt"
+                QuoteTracker.find_by(id: record_id, supplier_id: contact.id)
+              when "cqs"
+                CustomQuoteSupplier.find_by(id: record_id, supplier_id: contact.id)
+              end
+            end
+            break if record
+          end
+
+          record
         end
       end
     end
