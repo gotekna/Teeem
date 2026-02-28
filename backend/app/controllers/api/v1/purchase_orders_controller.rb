@@ -1007,7 +1007,6 @@ module Api
         pos = PurchaseOrder.where(job_id: params[:job_id])
                            .where.not(status: "cancelled")
                            .order(created_at: :desc)
-                           .limit(50)
                            .select(:id, :purchase_order_number, :description, :status, :created_at)
 
         render json: {

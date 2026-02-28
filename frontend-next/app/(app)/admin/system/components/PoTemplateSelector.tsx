@@ -134,8 +134,12 @@ export function PoTemplateSelector() {
 
       if (response?.success && response.data) {
         setPos(response.data);
-        // Auto-select first PO if available
-        if (response.data.length > 0) {
+        // Auto-select: last-used PO for this job, or fall back to first
+        const lastPoId = localStorage.getItem(`po-preview-last-po-${jobId}`);
+        const lastPo = lastPoId ? response.data.find(p => p.id === Number(lastPoId)) : null;
+        if (lastPo) {
+          setSelectedPoId(lastPo.id);
+        } else if (response.data.length > 0) {
           setSelectedPoId(response.data[0].id);
         } else {
           setSelectedPoId(null);
@@ -223,6 +227,9 @@ export function PoTemplateSelector() {
 
   const handlePoChange = (poId: number | null) => {
     setSelectedPoId(poId);
+    if (selectedJobId && poId) {
+      localStorage.setItem(`po-preview-last-po-${selectedJobId}`, String(poId));
+    }
     if (selectedVariantKey) {
       loadPreview(selectedVariantKey, selectedJobId, poId);
     }
