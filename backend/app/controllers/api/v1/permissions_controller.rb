@@ -52,7 +52,11 @@ module Api
       # GET /api/v1/permissions/roles
       def roles
         # FRC (Feb 2026): Batch load task counts to avoid N+1 (was 1 COUNT per role)
-        task_counts_by_role = SmTask.group(:role).count
+        # SmTask has no role column - join through assigned_user → roles
+        task_counts_by_role = SmTask
+          .joins(assigned_user: :roles)
+          .group("roles.name")
+          .count
 
         roles_data = Role.includes(:users).order(:position, :name).map do |role|
           {
