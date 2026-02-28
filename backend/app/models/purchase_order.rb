@@ -264,7 +264,7 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def can_edit?
-    %w[draft pending].include?(status)
+    !%w[cancelled paid].include?(status)
   end
 
   def can_approve?

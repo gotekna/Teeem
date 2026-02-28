@@ -278,16 +278,17 @@ module Api
       # ─── PO Enhancement ──────────────────────────────────────────────
 
       def enhance_po_from_qt!(po, qt)
-        updates = { status: 'approved' }
+        updates = {}
         updates[:special_instructions] = qt.quote_request_instructions if qt.quote_request_instructions.present?
-        po.update!(updates)
+        po.update!(updates) if updates.any?
+        po.approve!(current_user.id)
       end
 
       def enhance_po_from_cqs!(po, cqs, include_tender_description: false)
         line = cqs.custom_quote_line
-        updates = { status: 'approved' }
+        updates = {}
         updates[:quote_warehouse_document_id] = cqs.warehouse_document_id if cqs.warehouse_document_id.present?
-        updates[:special_instructions] = line.rfq_instructions if line.rfq_instructions.present?
+        updates[:special_instructions] = line.tender_description if line.tender_description.present?
 
         # Append tender description to PO description if requested
         if include_tender_description && line.tender_description.present?
@@ -296,7 +297,8 @@ module Api
           updates[:description] = existing.present? ? "#{existing}\n\n#{tender_desc}" : tender_desc
         end
 
-        po.update!(updates)
+        po.update!(updates) if updates.any?
+        po.approve!(current_user.id)
       end
 
       # ─── JSON Serializers ────────────────────────────────────────────

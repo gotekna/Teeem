@@ -29,6 +29,9 @@ const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev') || DEFAULT_API_URL.includes
  */
 export const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
+    // In dev mode: use page origin so requests stay same-origin (avoids CORS with 127.0.0.1 vs localhost)
+    // Next.js rewrites then proxy /api/* to the backend
+    if (IS_DEV_MODE) return window.location.origin;
     const storedUrl = getStorageItem<string | null>(STORAGE_KEYS.API_URL, null, false);
     if (storedUrl) {
       // Trim to prevent %20 (encoded space) in URL causing DNS failures
@@ -744,9 +747,9 @@ export const api = {
   async loginToProduction<T = unknown>(data: { user: { email: string; password: string; remember_me?: boolean } }): Promise<T | null> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = {};
 
-    // In dev mode: login directly to dev backend (skip production router)
+    // In dev mode: use page origin so Next.js rewrites proxy to backend (avoids CORS with 127.0.0.1 vs localhost)
     // In production mode: use production URL as the "router" for environment switching
-    const loginUrl = IS_DEV_MODE ? DEFAULT_API_URL : PRODUCTION_API_URL;
+    const loginUrl = IS_DEV_MODE && typeof window !== 'undefined' ? window.location.origin : PRODUCTION_API_URL;
     const response = await withRetry(
       () => fetchWithTimeout(`${loginUrl}/api/v1/auth/login`, {
         method: 'POST',
