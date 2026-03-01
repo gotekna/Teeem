@@ -173,8 +173,9 @@ class CreatePoStatusesAndConvertStatus < ActiveRecord::Migration[7.2]
       end
 
       # Update FoundationView filters that reference "status" → "po_status_id"
+      # Use raw SQL for safety — JSON structures vary and exec_query result types differ
       views = exec_query(
-        "SELECT id, filters FROM foundation_views WHERE foundation_id = #{po_foundation_id}"
+        "SELECT id, filters, tenant_id FROM foundation_views WHERE foundation_id = #{po_foundation_id}"
       )
 
       views.each do |view|
@@ -183,16 +184,14 @@ class CreatePoStatusesAndConvertStatus < ActiveRecord::Migration[7.2]
 
         begin
           filters = JSON.parse(filters_json)
+          next unless filters.is_a?(Array)
           changed = false
 
           filters.each do |filter|
-            next unless filter["column"] == "status"
+            next unless filter.is_a?(Hash) && filter["column"] == "status"
             filter["column"] = "po_status_id"
 
-            # Determine tenant_id from the view to look up correct po_status IDs
-            view_tenant_id = exec_query(
-              "SELECT tenant_id FROM foundation_views WHERE id = #{view["id"]} LIMIT 1"
-            ).rows.flatten.first
+            view_tenant_id = view["tenant_id"]
 
             if filter["value"].is_a?(String) && view_tenant_id
               status_id = exec_query(
@@ -219,8 +218,8 @@ class CreatePoStatusesAndConvertStatus < ActiveRecord::Migration[7.2]
               "UPDATE foundation_views SET filters = #{q(filters.to_json)} WHERE id = #{view["id"]}"
             )
           end
-        rescue JSON::ParserError
-          # Skip views with invalid JSON filters
+        rescue JSON::ParserError, TypeError, NoMethodError
+          # Skip views with invalid/unexpected filter structures
         end
       end
     end

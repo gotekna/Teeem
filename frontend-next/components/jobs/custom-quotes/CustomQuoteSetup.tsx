@@ -2,16 +2,20 @@
 
 import { Button } from "@/components/ui/button";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { Calendar, Plus, Save, Trash2, Upload } from "lucide-react";
+import { Calendar, Package, Plus, Save, Trash2, Upload } from "lucide-react";
 import type { CustomQuoteTemplate } from "./types";
+import type { PoTemplatePackSummary } from "./useCustomQuote";
 
 interface CustomQuoteSetupProps {
   jobId: string | number;
   templates: CustomQuoteTemplate[];
   templatesLoading: boolean;
+  packs: PoTemplatePackSummary[];
+  packsLoading: boolean;
   onApplyTemplate: (templateId: number) => void;
   onCreateBlank: () => void;
   onPopulateFromSchedule: () => void;
+  onApplyPack: (packId: number) => void;
   onSaveAsTemplate: () => void;
   onOverwriteTemplate: () => void;
   onDeleteQuote: () => void;
@@ -23,9 +27,12 @@ interface CustomQuoteSetupProps {
 export function CustomQuoteSetup({
   templates,
   templatesLoading,
+  packs,
+  packsLoading,
   onApplyTemplate,
   onCreateBlank,
   onPopulateFromSchedule,
+  onApplyPack,
   onSaveAsTemplate,
   onOverwriteTemplate,
   onDeleteQuote,
@@ -35,6 +42,11 @@ export function CustomQuoteSetup({
   const templateItems: ComboboxItem[] = templates.map((t) => ({
     id: String(t.id),
     label: `${t.name} (${t.lineCount} lines)`,
+  }));
+
+  const packItems: ComboboxItem[] = packs.map((p) => ({
+    id: String(p.id),
+    label: `${p.name} (${p.itemCount} POs)`,
   }));
 
   return (
@@ -48,6 +60,14 @@ export function CustomQuoteSetup({
             placeholder="Apply template..."
             className="w-64"
             disabled={templatesLoading}
+          />
+
+          <ComboboxDropdown
+            items={packItems}
+            onSelect={(item) => onApplyPack(Number(item.id))}
+            placeholder="From PO Pack..."
+            className="w-64"
+            disabled={packsLoading}
           />
 
           <Button size="sm" variant="outline" onClick={onCreateBlank}>

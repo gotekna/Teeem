@@ -8,7 +8,7 @@ import { CustomQuoteTree } from "./custom-quotes/CustomQuoteTree";
 import { SaveAsTemplateDialog } from "./custom-quotes/SaveAsTemplateDialog";
 import { SendCQRFQDialog } from "./custom-quotes/SendCQRFQDialog";
 import { RecordResponseDialog } from "./custom-quotes/RecordResponseDialog";
-import { useCustomQuote, useCustomQuoteTemplates } from "./custom-quotes/useCustomQuote";
+import { useCustomQuote, useCustomQuoteTemplates, usePoTemplatePacks } from "./custom-quotes/useCustomQuote";
 import { useSupplierDocumentUpload } from "./custom-quotes/useSupplierDocumentUpload";
 import type { QuoteLevel, CustomQuoteSupplierSummary, CustomQuoteLineNode } from "./custom-quotes/types";
 import {
@@ -58,6 +58,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   } = useCustomQuote(jobId);
 
   const { templates, loading: templatesLoading, fetchTemplates } = useCustomQuoteTemplates();
+  const { packs, loading: packsLoading, fetchPacks } = usePoTemplatePacks();
 
   const { uploading, uploadForSupplier } = useSupplierDocumentUpload();
 
@@ -76,7 +77,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   useEffect(() => {
     fetchQuotes();
     fetchTemplates();
-  }, [fetchQuotes, fetchTemplates]);
+    fetchPacks();
+  }, [fetchQuotes, fetchTemplates, fetchPacks]);
 
   // Auto-load the single quote for this job
   useEffect(() => {
@@ -98,6 +100,11 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
 
   const handlePopulateFromSchedule = useCallback(async () => {
     await createQuote(undefined, undefined, 'schedule_master');
+    await fetchQuotes();
+  }, [createQuote, fetchQuotes]);
+
+  const handleApplyPack = useCallback(async (packId: number) => {
+    await createQuote(undefined, undefined, undefined, packId);
     await fetchQuotes();
   }, [createQuote, fetchQuotes]);
 
@@ -274,9 +281,12 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
         jobId={jobId}
         templates={templates}
         templatesLoading={templatesLoading}
+        packs={packs}
+        packsLoading={packsLoading}
         onApplyTemplate={handleApplyTemplate}
         onCreateBlank={handleCreateBlank}
         onPopulateFromSchedule={handlePopulateFromSchedule}
+        onApplyPack={handleApplyPack}
         onSaveAsTemplate={() => setSaveTemplateOpen(true)}
         onOverwriteTemplate={handleOverwriteTemplate}
         onDeleteQuote={handleDeleteQuote}

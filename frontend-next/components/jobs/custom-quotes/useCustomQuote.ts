@@ -37,6 +37,39 @@ export function useCustomQuoteTemplates() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// PO Template Packs
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface PoTemplatePackSummary {
+  id: number;
+  name: string;
+  description: string | null;
+  itemCount: number;
+  estimatedTotal: number;
+}
+
+export function usePoTemplatePacks() {
+  const [packs, setPacks] = useState<PoTemplatePackSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchPacks = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.get<{ success: boolean; data: PoTemplatePackSummary[] }>(
+        "/api/v1/po_template_packs"
+      );
+      if (res?.data) setPacks(res.data);
+    } catch (err) {
+      console.error("[usePoTemplatePacks] fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { packs, loading, fetchPacks };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Document Types (for CC/PO line document type selector)
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -99,11 +132,11 @@ export function useCustomQuote(jobId: string | number) {
     }
   }, []);
 
-  const createQuote = useCallback(async (templateId?: number, name?: string, populateFrom?: string) => {
+  const createQuote = useCallback(async (templateId?: number, name?: string, populateFrom?: string, poTemplatePackId?: number) => {
     try {
       const res = await api.post<{ success: boolean; data: CustomQuoteData }>(
         `/api/v1/jobs/${jobId}/custom_quotes`,
-        { template_id: templateId, name, populate_from: populateFrom }
+        { template_id: templateId, name, populate_from: populateFrom, po_template_pack_id: poTemplatePackId }
       );
       if (res?.data) {
         setActiveQuote(res.data);

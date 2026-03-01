@@ -118,6 +118,14 @@ module Api
             user: current_user,
             name: params[:name]
           )
+        elsif params[:po_template_pack_id].present?
+          pack = PoTemplatePack.find(params[:po_template_pack_id])
+          custom_quote = CustomQuoteApplyService.populate_from_pack!(
+            pack: pack,
+            job: job,
+            user: current_user,
+            name: params[:name]
+          )
         else
           custom_quote = CustomQuote.create!(
             job: job,
