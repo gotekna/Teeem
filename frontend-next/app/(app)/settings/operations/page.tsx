@@ -15,6 +15,7 @@ import { SMTasksTab } from "@/app/(app)/admin/system/components/SMTasksTab";
 import { CostTab } from "@/app/(app)/admin/system/components/CostTab";
 import { PoTemplatesTab } from "@/app/(app)/admin/system/components/PoTemplatesTab";
 import { QuoteTemplatesTab } from "./components/QuoteTemplatesTab";
+import { CustomQuoteTemplatesTab } from "./components/CustomQuoteTemplatesTab";
 import { ClaimTemplatesTab } from "@/app/(app)/admin/system/components/ClaimTemplatesTab";
 import { ProfitCentresTab } from "./components/ProfitCentresTab";
 import { CostCentresTab } from "./components/CostCentresTab";
@@ -53,6 +54,34 @@ const OPERATIONS_TABS = [
 ];
 
 const DEFAULT_TAB = "sm-tasks";
+
+/** Sub-tabs within Quote Templates: Std + Custom */
+function QuoteTemplatesWrapper() {
+  const [subTab, setSubTab] = React.useState("std");
+  const [subExpanded, toggleSubExpanded] = useExpandedState("quote-templates");
+
+  return (
+    <ExpandableSection expanded={subExpanded} onToggle={toggleSubExpanded}>
+      <Tabs value={subTab} onValueChange={setSubTab} className="flex flex-col h-full">
+        <div className="flex items-center gap-2 mx-4 mt-2">
+          <TabsList className="w-fit">
+            <TabsTrigger value="std">Std Quote Templates</TabsTrigger>
+            <TabsTrigger value="custom">Custom Quote Templates</TabsTrigger>
+          </TabsList>
+          <ExpandButton expanded={subExpanded} onToggle={toggleSubExpanded} />
+        </div>
+        <div className="flex-1 min-h-0 mt-2">
+          <TabsContent value="std" className="h-full overflow-auto">
+            <QuoteTemplatesTab />
+          </TabsContent>
+          <TabsContent value="custom" className="h-full overflow-auto">
+            <CustomQuoteTemplatesTab />
+          </TabsContent>
+        </div>
+      </Tabs>
+    </ExpandableSection>
+  );
+}
 
 export default function OperationsSettingsPage() {
   const [expanded, toggleExpanded] = useExpandedState("operations");
@@ -113,7 +142,7 @@ export default function OperationsSettingsPage() {
             <PoTemplatesTab />
           </TabsContent>
           <TabsContent value="quote-templates" className="absolute inset-0 overflow-auto">
-            <QuoteTemplatesTab />
+            <QuoteTemplatesWrapper />
           </TabsContent>
           <TabsContent value="claim-templates" className="absolute inset-0 overflow-auto">
             <ClaimTemplatesTab />

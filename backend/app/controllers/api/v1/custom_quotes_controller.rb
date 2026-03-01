@@ -4,6 +4,7 @@ module Api
   module V1
     class CustomQuotesController < ApplicationController
       before_action :set_template, only: [:show_template, :update_template, :destroy_template, :duplicate_template]
+      before_action :set_template_line, only: [:update_template_line]
       before_action :set_custom_quote, only: [:show, :update, :destroy, :save_as_template, :overwrite_template]
       before_action :set_line, only: [:update_line, :add_supplier, :add_child_line]
       before_action :set_supplier, only: [:send_rfq_single, :mark_sent, :record_response, :accept_quote,
@@ -73,6 +74,12 @@ module Api
         clone_template_lines(@template, new_template)
 
         render json: { success: true, data: template_json(new_template) }, status: :created
+      end
+
+      # PATCH /api/v1/custom_quote_template_lines/:id
+      def update_template_line
+        @template_line.update!(template_line_params)
+        render json: { success: true, data: @template_line.as_tree_node }
       end
 
       # ═══════════════════════════════════════════════════════════════════════════
@@ -505,6 +512,10 @@ module Api
         @template = CustomQuoteTemplate.find(params[:id])
       end
 
+      def set_template_line
+        @template_line = CustomQuoteTemplateLine.find(params[:id])
+      end
+
       def set_custom_quote
         @custom_quote = CustomQuote.find(params[:id])
       end
@@ -523,6 +534,10 @@ module Api
 
       def template_params
         params.permit(:name, :description, :is_active, :position, :po_template_pack_id)
+      end
+
+      def template_line_params
+        params.permit(:name, :budget_amount, :tender_description, :po_description, :default_instructions)
       end
 
       def quote_params

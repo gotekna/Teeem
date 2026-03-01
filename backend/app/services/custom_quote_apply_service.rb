@@ -44,7 +44,7 @@ class CustomQuoteApplyService
             tender_description: template_cc.tender_description,
             po_description: template_cc.po_description,
             rfq_instructions: template_cc.default_instructions,
-            budget_amount: lookup_budget(job, template_cc.cost_centre_id)
+            budget_amount: template_cc.budget_amount || lookup_budget(job, template_cc.cost_centre_id)
           )
 
           # Create default suppliers for CC line (if quote_level == 'cost_centre')
@@ -63,7 +63,8 @@ class CustomQuoteApplyService
               position: template_po.position,
               tender_description: template_po.tender_description,
               po_description: template_po.po_description,
-              rfq_instructions: template_po.default_instructions
+              rfq_instructions: template_po.default_instructions,
+              budget_amount: template_po.budget_amount
             )
 
             # Create default suppliers for PO line (if parent quote_level == 'po')

@@ -88,7 +88,8 @@ class CustomQuoteTemplateService
             tender_description: cc_line.tender_description,
             po_description: cc_line.po_description,
             default_instructions: cc_line.rfq_instructions,
-            default_supplier_ids: cc_line.suppliers.pluck(:supplier_id)
+            default_supplier_ids: cc_line.suppliers.pluck(:supplier_id),
+            budget_amount: cc_line.budget_amount
           )
 
           cc_line.children.order(:position).each do |po_line|
@@ -102,7 +103,8 @@ class CustomQuoteTemplateService
               tender_description: po_line.tender_description,
               po_description: po_line.po_description,
               default_instructions: po_line.rfq_instructions,
-              default_supplier_ids: po_line.suppliers.pluck(:supplier_id)
+              default_supplier_ids: po_line.suppliers.pluck(:supplier_id),
+              budget_amount: po_line.budget_amount
             )
           end
         end
@@ -135,7 +137,8 @@ class CustomQuoteTemplateService
             tender_description: cc_line.tender_description,
             po_description: cc_line.po_description,
             default_instructions: cc_line.rfq_instructions,
-            default_supplier_ids: cc_line.suppliers.pluck(:supplier_id)
+            default_supplier_ids: cc_line.suppliers.pluck(:supplier_id),
+            budget_amount: cc_line.budget_amount
           )
 
           cc_line.children.order(:position).each do |po_line|
@@ -149,7 +152,8 @@ class CustomQuoteTemplateService
               tender_description: po_line.tender_description,
               po_description: po_line.po_description,
               default_instructions: po_line.rfq_instructions,
-              default_supplier_ids: po_line.suppliers.pluck(:supplier_id)
+              default_supplier_ids: po_line.suppliers.pluck(:supplier_id),
+              budget_amount: po_line.budget_amount
             )
           end
         end

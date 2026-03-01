@@ -1,8 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { Calendar, Info, Package, Plus, Save, Trash2, Upload } from "lucide-react";
+import { Calendar, ChevronDown, Package, Plus, Save, Trash2, Upload } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { CustomQuoteTemplate } from "./types";
 import type { PoTemplatePackSummary } from "./useCustomQuote";
 
@@ -43,114 +50,147 @@ export function CustomQuoteSetup({
   hasActiveQuote,
   hasLinkedTemplate,
 }: CustomQuoteSetupProps) {
-  const templateItems: ComboboxItem[] = templates.map((t) => ({
-    id: String(t.id),
-    label: `${t.name} (${t.lineCount} lines)`,
-  }));
+  const hasSmTasks = smTaskCount > 0;
 
-  const packItems: ComboboxItem[] = packs.map((p) => ({
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 bg-muted/50 border-b">
+      {/* Create options when no quote exists */}
+      {!hasActiveQuote && (
+        <>
+          {/* Primary action based on what the job has */}
+          {hasSmTasks ? (
+            <Button size="sm" onClick={onPopulateFromSchedule}>
+              <Calendar className="h-4 w-4 mr-1" />
+              From Current Schedule ({smTaskCount} tasks)
+            </Button>
+          ) : (
+            <PackPicker
+              packs={packs}
+              packsLoading={packsLoading}
+              onApplyPack={onApplyPack}
+            />
+          )}
+
+          {/* Divider */}
+          <span className="text-muted-foreground text-sm">or</span>
+
+          {/* Secondary options in a dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                More Options
+                <ChevronDown className="h-4 w-4 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {hasSmTasks && packs.length > 0 && (
+                <PackPickerMenu packs={packs} onApplyPack={onApplyPack} />
+              )}
+              {!hasSmTasks && (
+                <DropdownMenuItem onClick={onPopulateFromSchedule}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  From Schedule (0 tasks)
+                </DropdownMenuItem>
+              )}
+              {templates.map((t) => (
+                <DropdownMenuItem key={t.id} onClick={() => onApplyTemplate(t.id)}>
+                  <Package className="h-4 w-4 mr-2" />
+                  {t.name} ({t.lineCount} lines)
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem onClick={onCreateBlank}>
+                <Plus className="h-4 w-4 mr-2" />
+                Blank Quote
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {existingPoCount > 0 && (
+            <span className="text-xs text-muted-foreground ml-2">
+              {existingPoCount} POs already exist
+            </span>
+          )}
+        </>
+      )}
+
+      {/* Active quote actions */}
+      {hasActiveQuote && hasLinkedTemplate && (
+        <Button size="sm" variant="outline" onClick={onOverwriteTemplate}>
+          <Upload className="h-4 w-4 mr-1" />
+          Save to Template
+        </Button>
+      )}
+
+      {hasActiveQuote && (
+        <Button size="sm" variant="outline" onClick={onSaveAsTemplate}>
+          <Save className="h-4 w-4 mr-1" />
+          Save as Template
+        </Button>
+      )}
+
+      {hasActiveQuote && (
+        <div className="ml-auto">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              if (window.confirm("Delete this custom quote? This cannot be undone.")) {
+                onDeleteQuote();
+              }
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete Quote
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Inline PO Pack picker — shown as primary when no SmTasks */
+function PackPicker({
+  packs,
+  packsLoading,
+  onApplyPack,
+}: {
+  packs: PoTemplatePackSummary[];
+  packsLoading: boolean;
+  onApplyPack: (packId: number) => void;
+}) {
+  const items: ComboboxItem[] = packs.map((p) => ({
     id: String(p.id),
     label: `${p.name} (${p.itemCount} POs)`,
   }));
 
-  const hasSmTasks = smTaskCount > 0;
-  const hasExistingPos = existingPoCount > 0;
-
   return (
-    <div className="flex flex-col gap-2 px-4 py-3 bg-muted/50 border-b">
-      {/* Create options when no quote exists */}
-      {!hasActiveQuote && (
-        <div className="flex flex-col gap-2">
-          {/* Smart info bar */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Info className="h-4 w-4 shrink-0" />
-            {hasSmTasks ? (
-              <span>
-                This job has <strong className="text-foreground">{smTaskCount}</strong> schedule tasks
-                {hasExistingPos && (
-                  <> and <strong className="text-foreground">{existingPoCount}</strong> existing POs</>
-                )}
-              </span>
-            ) : (
-              <span>
-                No schedule tasks found.
-                {hasExistingPos
-                  ? <> This job has <strong className="text-foreground">{existingPoCount}</strong> existing POs.</>
-                  : <> Select a PO template pack or create a blank quote.</>
-                }
-              </span>
-            )}
-          </div>
+    <ComboboxDropdown
+      items={items}
+      onSelect={(item) => onApplyPack(Number(item.id))}
+      placeholder="Select PO Pack..."
+      className="w-64"
+      disabled={packsLoading}
+    />
+  );
+}
 
-          {/* Action buttons row */}
-          <div className="flex items-center gap-3">
-            {/* Primary action: From Schedule (if SmTasks exist) */}
-            {hasSmTasks && (
-              <Button size="sm" variant="default" onClick={onPopulateFromSchedule}>
-                <Calendar className="h-4 w-4 mr-1" />
-                From Schedule ({smTaskCount})
-              </Button>
-            )}
-
-            {/* PO Pack picker (prominent if no SmTasks, secondary if SmTasks exist) */}
-            <ComboboxDropdown
-              items={packItems}
-              onSelect={(item) => onApplyPack(Number(item.id))}
-              placeholder={hasSmTasks ? "Or from PO Pack..." : "From PO Pack..."}
-              className="w-64"
-              disabled={packsLoading}
-            />
-
-            {/* Template picker */}
-            <ComboboxDropdown
-              items={templateItems}
-              onSelect={(item) => onApplyTemplate(Number(item.id))}
-              placeholder="Apply template..."
-              className="w-64"
-              disabled={templatesLoading}
-            />
-
-            {/* Blank quote */}
-            <Button size="sm" variant="outline" onClick={onCreateBlank}>
-              <Plus className="h-4 w-4 mr-1" />
-              Blank
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Active quote actions */}
-      {hasActiveQuote && (
-        <div className="flex items-center gap-3">
-          {hasLinkedTemplate && (
-            <Button size="sm" variant="outline" onClick={onOverwriteTemplate}>
-              <Upload className="h-4 w-4 mr-1" />
-              Save to Template
-            </Button>
-          )}
-
-          <Button size="sm" variant="outline" onClick={onSaveAsTemplate}>
-            <Save className="h-4 w-4 mr-1" />
-            Save as Template
-          </Button>
-
-          <div className="ml-auto">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => {
-                if (window.confirm("Delete this custom quote? This cannot be undone.")) {
-                  onDeleteQuote();
-                }
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Delete Quote
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
+/** PO Pack options inside dropdown menu — shown as secondary when SmTasks exist */
+function PackPickerMenu({
+  packs,
+  onApplyPack,
+}: {
+  packs: PoTemplatePackSummary[];
+  onApplyPack: (packId: number) => void;
+}) {
+  return (
+    <>
+      {packs.map((p) => (
+        <DropdownMenuItem key={p.id} onClick={() => onApplyPack(p.id)}>
+          <Package className="h-4 w-4 mr-2" />
+          {p.name} ({p.itemCount} POs)
+        </DropdownMenuItem>
+      ))}
+    </>
   );
 }

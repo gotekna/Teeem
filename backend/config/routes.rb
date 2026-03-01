@@ -982,6 +982,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # Custom Quote Template Lines - update individual lines
+      resources :custom_quote_template_lines, only: [:update], controller: 'custom_quotes', action: 'update_template_line'
+
       # Custom Quotes - job-level custom quoting (CC → PO tree)
       resources :jobs, only: [] do
         resources :custom_quotes, only: [:index, :create], controller: 'custom_quotes'

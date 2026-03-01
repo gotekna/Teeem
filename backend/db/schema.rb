@@ -948,8 +948,12 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "svg_preview"
+    t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["is_published"], name: "index_bpmn_processes_on_is_published"
     t.index ["name"], name: "index_bpmn_processes_on_name"
+    t.index ["tenant_id", "sync_key"], name: "idx_bpmn_processes_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_bpmn_processes_on_tenant_id"
     t.index ["workflow_definition_id"], name: "index_bpmn_processes_on_workflow_definition_id"
   end
 
@@ -2287,6 +2291,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "default_supplier_ids", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "budget_amount", precision: 12, scale: 2
     t.index ["cost_centre_id"], name: "index_custom_quote_template_lines_on_cost_centre_id"
     t.index ["custom_quote_template_id", "position"], name: "idx_cqtl_template_position"
     t.index ["custom_quote_template_id"], name: "index_custom_quote_template_lines_on_custom_quote_template_id"
@@ -7620,6 +7625,22 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["uploaded_by_id"], name: "index_plan_uploads_on_uploaded_by_id"
   end
 
+  create_table "po_statuses", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.string "color"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.boolean "system_locked", default: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "position"], name: "index_po_statuses_on_tenant_id_and_position"
+    t.index ["tenant_id", "slug"], name: "index_po_statuses_on_tenant_id_and_slug", unique: true
+    t.index ["tenant_id"], name: "index_po_statuses_on_tenant_id"
+  end
+
   create_table "po_template_items", force: :cascade do |t|
     t.bigint "po_template_pack_id", null: false
     t.string "name", null: false
@@ -8050,6 +8071,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.decimal "credit_amount", precision: 15, scale: 2, default: "0.0"
     t.integer "tender_id"
     t.bigint "quote_warehouse_document_id"
+    t.bigint "po_status_id"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["budget_locked_at"], name: "index_purchase_orders_on_budget_locked_at"
@@ -8062,6 +8084,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["job_id", "supplier_id", "status"], name: "idx_po_job_supplier_status"
     t.index ["job_id"], name: "index_purchase_orders_on_job_id"
     t.index ["payment_status"], name: "index_purchase_orders_on_payment_status"
+    t.index ["po_status_id"], name: "index_purchase_orders_on_po_status_id"
     t.index ["purchase_order_number"], name: "index_purchase_orders_on_purchase_order_number", unique: true
     t.index ["quote_response_id"], name: "index_purchase_orders_on_quote_response_id"
     t.index ["quote_warehouse_document_id"], name: "index_purchase_orders_on_quote_warehouse_document_id"
@@ -9074,7 +9097,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "is_active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["is_active"], name: "index_sm_task_groups_on_is_active"
+    t.index ["tenant_id", "sync_key"], name: "idx_sm_task_groups_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_sm_task_groups_on_tenant_id"
   end
 
   create_table "sm_task_notes", force: :cascade do |t|
@@ -12373,6 +12400,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "plan_uploads", "job_plan_tabs"
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
+  add_foreign_key "po_statuses", "tenants"
   add_foreign_key "po_template_items", "po_template_packs"
   add_foreign_key "po_template_items", "profit_centres", on_delete: :nullify
   add_foreign_key "po_template_line_items", "po_template_items"
@@ -12411,6 +12439,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "purchase_orders", "estimates"
   add_foreign_key "purchase_orders", "external_invoices"
   add_foreign_key "purchase_orders", "jobs"
+  add_foreign_key "purchase_orders", "po_statuses"
   add_foreign_key "purchase_orders", "quote_responses"
   add_foreign_key "purchase_orders", "tenants"
   add_foreign_key "purchase_orders", "users", column: "budget_locked_by_id"
