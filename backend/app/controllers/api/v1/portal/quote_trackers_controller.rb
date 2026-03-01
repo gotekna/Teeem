@@ -248,7 +248,7 @@ module Api
 
         def portal_rfq_doc_json(doc)
           {
-            name: doc.ui_name || doc.original_filename,
+            name: doc.download_filename || doc.original_filename || doc.ui_name,
             url: (doc.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT) rescue nil),
             versionLetter: doc.version_letter || "A"
           }

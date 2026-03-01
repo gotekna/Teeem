@@ -11,6 +11,7 @@ import {
   ChevronUpIcon,
   ArrowDownTrayIcon,
   CalendarDaysIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -447,22 +448,43 @@ function QuoteRow({
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
                   Builder&apos;s Documents
                 </h4>
-                <ul className="space-y-1">
+                <ul className="space-y-2">
                   {quote.rfqDocuments.map((doc, idx) => (
-                    <li key={idx}>
-                      <a
-                        href={doc.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ArrowDownTrayIcon className="h-4 w-4" />
+                    <li key={idx} className="flex items-center gap-3">
+                      <span className="text-sm text-foreground dark:text-white truncate flex-1">
                         {doc.name}
                         {doc.versionLetter && doc.versionLetter !== "A" && (
-                          <span className="text-xs text-muted-foreground">(Rev {doc.versionLetter})</span>
+                          <span className="ml-1 text-xs text-muted-foreground">(Rev {doc.versionLetter})</span>
                         )}
-                      </a>
+                      </span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {doc.url && (
+                          <>
+                            <a
+                              href={`/view?url=${encodeURIComponent(doc.url)}&name=${encodeURIComponent(doc.name)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Preview"
+                            >
+                              <EyeIcon className="h-3.5 w-3.5" />
+                              Preview
+                            </a>
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-muted-foreground hover:bg-muted"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Download"
+                            >
+                              <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                              Download
+                            </a>
+                          </>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -480,21 +502,45 @@ function QuoteRow({
                     </span>
                   )}
                 </h4>
-                <a
-                  href={quote.documentUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (quote.isDocumentNew) {
-                      onMarkDocumentViewed(quote.id);
-                    }
-                  }}
-                >
-                  <ArrowDownTrayIcon className="h-4 w-4" />
-                  {quote.documentName || "Download quote"}
-                </a>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-foreground dark:text-white truncate flex-1">
+                    {quote.documentName || "Quote document"}
+                  </span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <a
+                      href={`/view?url=${encodeURIComponent(quote.documentUrl)}&name=${encodeURIComponent(quote.documentName || "Quote")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (quote.isDocumentNew) {
+                          onMarkDocumentViewed(quote.id);
+                        }
+                      }}
+                      title="Preview"
+                    >
+                      <EyeIcon className="h-3.5 w-3.5" />
+                      Preview
+                    </a>
+                    <a
+                      href={quote.documentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-muted-foreground hover:bg-muted"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (quote.isDocumentNew) {
+                          onMarkDocumentViewed(quote.id);
+                        }
+                      }}
+                      title="Download"
+                    >
+                      <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                      Download
+                    </a>
+                  </div>
+                </div>
               </div>
             )}
 
