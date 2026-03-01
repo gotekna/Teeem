@@ -2,7 +2,7 @@ module Api
   module V1
     class PurchaseOrdersController < ApplicationController
       include AsyncPdfGeneration
-      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync, :lock_budget, :unlock_budget, :save_pdf, :send_email, :bills ]
+      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync, :lock_budget, :unlock_budget, :save_pdf, :send_email, :bills, :documents ]
 
       # GET /api/v1/purchase_orders
       # Params: construction_id, supplier_id, status, search, sort_by, sort_direction, page, per_page
@@ -163,6 +163,53 @@ module Api
             )
           end,
           total_count: bills.size
+        }
+      end
+
+      # GET /api/v1/purchase_orders/:id/documents
+      # Aggregates related documents from multiple sources:
+      #   1. PO PDFs - WarehouseDocuments linked to job with purchase_order_id in metadata
+      #   2. Quote document - via quote_warehouse_document FK
+      #   3. SM Task attachments - WarehouseDocuments linked to the PO's sm_task
+      #   4. Direct PO docs - WarehouseDocuments with linkable_type: "PurchaseOrder"
+      def documents
+        docs = {}
+
+        # 1. PO PDFs saved to warehouse (linkable=Job, metadata has purchase_order_id)
+        po_pdfs = WarehouseDocument.includes(:storage_blob)
+          .where(linkable_type: "Job", linkable_id: @purchase_order.job_id)
+          .where("metadata->>'purchase_order_id' = ?", @purchase_order.id.to_s)
+        po_pdfs.each { |d| docs[d.id] = { doc: d, source: "po_pdf" } }
+
+        # 2. Quote document (FK on PurchaseOrder)
+        if @purchase_order.quote_warehouse_document_id.present?
+          quote_doc = WarehouseDocument.includes(:storage_blob)
+            .find_by(id: @purchase_order.quote_warehouse_document_id)
+          docs[quote_doc.id] = { doc: quote_doc, source: "quote" } if quote_doc
+        end
+
+        # 3. SM Task attachments (if task linked)
+        if @purchase_order.sm_task_id.present?
+          task_docs = WarehouseDocument.includes(:storage_blob)
+            .where(linkable_type: "SmTask", linkable_id: @purchase_order.sm_task_id)
+          task_docs.each { |d| docs[d.id] ||= { doc: d, source: "task_attachment" } }
+        end
+
+        # 4. Direct PO docs (linkable_type: "PurchaseOrder")
+        direct_docs = WarehouseDocument.includes(:storage_blob)
+          .where(linkable_type: "PurchaseOrder", linkable_id: @purchase_order.id)
+        direct_docs.each { |d| docs[d.id] ||= { doc: d, source: "uploaded" } }
+
+        # Build response
+        documents_list = docs.values.map { |entry| format_po_document(entry[:doc], source: entry[:source]) }
+          .sort_by { |d| d[:createdAt] || "" }.reverse
+
+        sources = docs.values.group_by { |e| e[:source] }.transform_values(&:count)
+
+        render json: {
+          documents: documents_list,
+          totalCount: documents_list.size,
+          sources: sources
         }
       end
 
@@ -1428,6 +1475,20 @@ module Api
           { sm_task: :sm_schedule_master }
         ).find_by_slug(params[:id])
         raise ActiveRecord::RecordNotFound unless @purchase_order
+      end
+
+      def format_po_document(doc, source:)
+        blob = doc.storage_blob
+        {
+          id: doc.id,
+          displayName: doc.ui_name || doc.original_filename || "Document",
+          mimeType: doc.content_type || blob&.content_type,
+          fileSize: doc.file_size || blob&.file_size,
+          fileUrl: doc.download_url,
+          source: source,
+          createdAt: doc.created_at&.iso8601,
+          originalFilename: doc.original_filename
+        }
       end
 
       def purchase_order_params

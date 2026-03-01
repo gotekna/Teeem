@@ -91,6 +91,7 @@ import {
 } from "@/lib/constants/purchase-order-constants";
 import { useGstCodes } from "@/lib/hooks/useGstCodes";
 import PriceComparisonSheet from "@/app/(app)/pricebook/components/PriceComparisonSheet";
+import PODocumentsSection from "./components/PODocumentsSection";
 
 // Schedule Sync Preview Types
 interface SyncTaskPredecessor {
@@ -1971,6 +1972,9 @@ export default function PurchaseOrderDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Documents & Attachments */}
+      <PODocumentsSection purchaseOrderId={recordId} />
 
       {/* Schedule Sync Modal */}
       <Dialog open={syncModalOpen} onOpenChange={setSyncModalOpen}>
