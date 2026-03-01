@@ -108,8 +108,13 @@ module Api
             .where.not(status: "draft")
             .includes(:warehouse_document, custom_quote_line: { custom_quote: :job })
 
+          # Pre-load job documents and WFDT mappings to avoid N+1 queries
+          job_ids = suppliers.filter_map { |cqs| cqs.custom_quote_line&.custom_quote&.job_id }.uniq
+          job_docs_cache = preload_job_documents(job_ids)
+          wfdt_map = preload_wfdt_mappings(suppliers)
+
           suppliers.each do |cqs|
-            record = serialize_custom_quote_supplier(cqs, tenant)
+            record = serialize_custom_quote_supplier(cqs, tenant, job_docs_cache, wfdt_map)
             bucket = status_bucket(cqs.status)
             quotes_by_status[bucket] << record if bucket
           end
@@ -138,7 +143,7 @@ module Api
           }
         end
 
-        def serialize_custom_quote_supplier(cqs, tenant)
+        def serialize_custom_quote_supplier(cqs, tenant, job_docs_cache = {}, wfdt_map = {})
           line = cqs.custom_quote_line
           job = line&.custom_quote&.job
           doc = cqs.warehouse_document
@@ -164,7 +169,88 @@ module Api
             instructions: line&.rfq_instructions,
             documentName: doc&.ui_name || doc&.original_filename,
             documentUrl: (doc&.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT) rescue nil),
-            isDocumentNew: doc.present? && (cqs.document_viewed_at.nil? || doc.updated_at > cqs.document_viewed_at)
+            isDocumentNew: doc.present? && (cqs.document_viewed_at.nil? || doc.updated_at > cqs.document_viewed_at),
+            rfqDocuments: resolve_rfq_documents(line, job, job_docs_cache, wfdt_map)
+          }
+        end
+
+        # Pre-load all WarehouseDocuments for the given jobs (avoids N+1)
+        def preload_job_documents(job_ids)
+          return {} if job_ids.blank?
+
+          docs = WarehouseDocument
+            .where(
+              "((documentable_type = 'Job' AND documentable_id IN (:ids)) OR (linkable_type = 'Job' AND linkable_id IN (:ids)))",
+              ids: job_ids
+            )
+            .includes(:storage_blob, :warehouse_folder_document_type)
+            .where.not(storage_blobs: { id: nil })
+
+          # Group by job_id (check both documentable and linkable)
+          cache = Hash.new { |h, k| h[k] = [] }
+          docs.each do |doc|
+            job_id = (doc.documentable_type == "Job") ? doc.documentable_id : doc.linkable_id
+            cache[job_id] << doc
+          end
+          cache
+        end
+
+        # Pre-load WFDT → document_type_id mappings for all relevant document_type_ids
+        def preload_wfdt_mappings(suppliers)
+          all_type_ids = suppliers.filter_map { |cqs| cqs.custom_quote_line&.document_type_ids }.flatten.compact.uniq
+          return {} if all_type_ids.blank?
+
+          WarehouseFolderDocumentType
+            .where(document_type_id: all_type_ids)
+            .pluck(:id, :document_type_id)
+            .to_h  # { wfdt_id => document_type_id }
+        end
+
+        # Resolve RFQ documents for a custom quote line (reuses rfq_documents matching logic)
+        def resolve_rfq_documents(line, job, job_docs_cache, wfdt_map)
+          return [] unless line && job
+
+          type_ids = line.document_type_ids
+          return [] if type_ids.blank?
+
+          all_docs = job_docs_cache[job.id] || []
+          return [] if all_docs.empty?
+
+          doc_types = DocumentType.where(id: type_ids).index_by(&:id)
+          matched = []
+
+          all_docs.each do |doc|
+            # Strategy 1: Match via WFDT link
+            if doc.warehouse_folder_document_type_id && wfdt_map[doc.warehouse_folder_document_type_id]
+              dt_id = wfdt_map[doc.warehouse_folder_document_type_id]
+              if type_ids.include?(dt_id)
+                matched << portal_rfq_doc_json(doc)
+                next
+              end
+            end
+
+            # Strategy 2: Filename match against document type names
+            fname = (doc.original_filename || doc.ui_name || "").downcase
+            next if fname.blank?
+
+            type_ids.each do |tid|
+              dt_name = doc_types[tid]&.name
+              next unless dt_name
+              if fname.include?(dt_name.downcase)
+                matched << portal_rfq_doc_json(doc)
+                break
+              end
+            end
+          end
+
+          matched
+        end
+
+        def portal_rfq_doc_json(doc)
+          {
+            name: doc.ui_name || doc.original_filename,
+            url: (doc.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT) rescue nil),
+            versionLetter: doc.version_letter || "A"
           }
         end
 

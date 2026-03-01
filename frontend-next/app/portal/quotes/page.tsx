@@ -38,6 +38,7 @@ interface QuoteRecord {
   documentName: string | null;
   documentUrl: string | null;
   isDocumentNew: boolean;
+  rfqDocuments?: Array<{ name: string; url: string; versionLetter: string }>;
 }
 
 interface Builder {
@@ -305,7 +306,7 @@ function QuoteRow({
   const [saving, setSaving] = useState(false);
 
   const isExpired = quote.validTo && new Date(quote.validTo) < new Date();
-  const hasDetails = quote.instructions || quote.documentUrl || quote.responseNotes;
+  const hasDetails = quote.instructions || quote.documentUrl || quote.responseNotes || (quote.rfqDocuments && quote.rfqDocuments.length > 0);
 
   const handleSaveExpiry = async () => {
     setSaving(true);
@@ -440,11 +441,39 @@ function QuoteRow({
               </div>
             )}
 
-            {/* Quote document download */}
+            {/* Builder's RFQ documents (plans/specs) */}
+            {quote.rfqDocuments && quote.rfqDocuments.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                  Builder&apos;s Documents
+                </h4>
+                <ul className="space-y-1">
+                  {quote.rfqDocuments.map((doc, idx) => (
+                    <li key={idx}>
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4" />
+                        {doc.name}
+                        {doc.versionLetter && doc.versionLetter !== "A" && (
+                          <span className="text-xs text-muted-foreground">(Rev {doc.versionLetter})</span>
+                        )}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Supplier's quote document */}
             {quote.documentUrl && (
               <div>
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                  Quote Document
+                  Your Quote
                   {quote.isDocumentNew && (
                     <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
                       New
