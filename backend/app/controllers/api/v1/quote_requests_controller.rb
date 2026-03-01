@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/quote_requests
       # List all quote requests for the current user's company
       def index
-        quote_requests = QuoteRequest.includes(:construction, :created_by, :contacts, quote_responses: :contact)
+        quote_requests = QuoteRequest.includes(:job, :created_by, :contacts, quote_responses: :contact)
                                     .order(created_at: :desc)
 
         # Filter by construction if provided

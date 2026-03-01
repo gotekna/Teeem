@@ -23,7 +23,7 @@ class Api::V1::WHSInductionsController < ApplicationController
       inductions = inductions.expiring_soon(days)
     end
 
-    inductions = inductions.includes(:whs_induction_template, :user, :construction, :inducted_by_user)
+    inductions = inductions.includes(:whs_induction_template, :user, :job, :inducted_by_user)
                            .order(completion_date: :desc)
 
     # Following B01.003: API response format

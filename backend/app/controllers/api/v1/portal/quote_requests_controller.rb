@@ -8,7 +8,7 @@ module Api
         # List all quote requests for the logged-in subcontractor
         def index
           quote_requests = current_contact.quote_requests
-                                          .includes(:construction, :created_by, quote_responses: :contact)
+                                          .includes(:job, :created_by, quote_responses: :contact)
                                           .order(created_at: :desc)
 
           # Filter by status if provided

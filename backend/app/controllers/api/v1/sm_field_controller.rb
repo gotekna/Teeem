@@ -99,7 +99,7 @@ module Api
 
       # GET /api/v1/sm_field/checkins
       def checkins
-        checkins = SmSiteCheckin.includes(:resource, :construction, :task)
+        checkins = SmSiteCheckin.includes(:resource, :job, :task)
 
         # Filters
         checkins = checkins.where(job_id: params[:job_id]) if params[:job_id]

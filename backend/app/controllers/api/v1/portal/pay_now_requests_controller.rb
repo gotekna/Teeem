@@ -212,7 +212,7 @@ module Api
                                             status: %w[pending approved]
                                           ).distinct.pluck(:purchase_order_id)
                                         )
-                                        .includes(:construction, :payments)
+                                        .includes(:job, :payments)
                                         .order(completed_at: :desc)
 
           render json: {

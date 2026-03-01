@@ -8,7 +8,7 @@ module Api
         # List all active jobs for the logged-in subcontractor
         def index
           purchase_orders = current_contact.purchase_orders
-                                          .includes(:construction, :quote_response, :subcontractor_invoices)
+                                          .includes(:job, :quote_response, :subcontractor_invoices)
                                           .order(created_at: :desc)
 
           # Filter by status if provided

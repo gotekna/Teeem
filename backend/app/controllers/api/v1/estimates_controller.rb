@@ -4,7 +4,7 @@ module Api
       before_action :set_estimate, only: [ :show, :match, :destroy, :generate_purchase_orders ]
 
       def index
-        estimates = Estimate.includes(:construction, :estimate_line_items)
+        estimates = Estimate.includes(:job, :estimate_line_items)
                             .order(created_at: :desc)
 
         # Filter by status if provided

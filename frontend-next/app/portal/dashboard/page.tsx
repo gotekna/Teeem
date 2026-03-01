@@ -109,7 +109,7 @@ export default function PortalDashboard() {
     },
     {
       name: "Kudos Score",
-      value: kudosScore?.kudos_score?.toFixed(0) || 0,
+      value: Number(kudosScore?.kudos_score ?? 0).toFixed(0),
       icon: TrophyIcon,
       link: "/portal/kudos",
       color: "bg-purple-500",
@@ -276,7 +276,7 @@ export default function PortalDashboard() {
                   </dt>
                   <dd className="flex items-baseline">
                     <div className="text-3xl font-semibold text-white">
-                      {(kudosScore.kudos_score ?? 0).toFixed(0)}
+                      {Number(kudosScore.kudos_score ?? 0).toFixed(0)}
                     </div>
                     <div className="ml-2 flex items-baseline text-sm font-semibold text-purple-100">
                       {kudosScore.tier}

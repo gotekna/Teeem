@@ -21,7 +21,7 @@ module Api
         @transactions = @transactions.recent.offset((page - 1) * per_page).limit(per_page)
 
         # Include related records for efficiency
-        @transactions = @transactions.includes(:user, :construction, :keepr_journal)
+        @transactions = @transactions.includes(:user, :job, :keepr_journal)
 
         total = @company ? FinancialTransaction.for_company(@company.id).count : FinancialTransaction.count
 

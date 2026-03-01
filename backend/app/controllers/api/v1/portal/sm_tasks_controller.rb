@@ -10,7 +10,7 @@ module Api
         # List all SM Gantt tasks assigned to this supplier
         def index
           tasks = SmTask.where(supplier_id: current_contact.id)
-                        .includes(:construction, :task_photos, :comments)
+                        .includes(:job, :task_photos, :comments)
                         .order(:start_date)
 
           # Filter by status

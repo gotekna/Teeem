@@ -280,7 +280,7 @@ export default function PortalSettings() {
                     </label>
                     <div className="mt-1">
                       <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                        {portalUser?.kudos_score?.toFixed(0) || 0}
+                        {Number(portalUser?.kudos_score ?? 0).toFixed(0)}
                       </span>
                       <span className="ml-2 text-sm text-muted-foreground dark:text-muted-foreground">/ 1000</span>
                     </div>

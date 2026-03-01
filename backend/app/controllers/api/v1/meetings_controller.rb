@@ -11,7 +11,7 @@ class Api::V1::MeetingsController < ApplicationController
       Meeting.all
     end
 
-    meetings = meetings.includes(:construction, :created_by, :meeting_participants, :meeting_agenda_items)
+    meetings = meetings.includes(:job, :created_by, :meeting_participants, :meeting_agenda_items)
                        .order(start_time: :desc)
 
     # Following B01.003: API response format
