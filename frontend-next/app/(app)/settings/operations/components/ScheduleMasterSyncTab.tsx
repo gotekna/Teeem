@@ -14,37 +14,36 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Check, AlertCircle, RefreshCw, Minus, Ban } from "lucide-react";
+import { Check, AlertCircle, RefreshCw, Minus, Ban, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /**
  * ScheduleMasterSyncTab - One-button Schedule Master config sync
  *
- * Syncs all SM-related configuration tables from TEEEM master tenant
- * in the correct dependency order. Designed for simplicity:
- * one button, live progress, clear results.
+ * Two modes:
+ * - Non-master tenant: Pull SM config FROM TEEEM master (columns: TEEEM | Yours)
+ * - Master tenant (TEEEM): Pull SM config FROM a selected tenant (columns: Source | TEEEM)
  *
  * SSoT: TenantConfigSyncService handles all backend sync logic.
  * This component reuses the same pull_one_table API as TenantSyncPullTab.
  */
 
 // Tables to sync in dependency order
-// Dependencies come first so FK references resolve correctly
 const SM_SYNC_TABLES = [
-  { key: "sm_trades", label: "Trades", description: "Trade categories for SM tasks" },
-  { key: "sm_stages", label: "Stages", description: "Build stages" },
-  { key: "cost_centres", label: "Cost Centres", description: "Cost centre assignments" },
-  { key: "supervisor_checklist_templates", label: "Checklists", description: "Supervisor checklist templates" },
-  { key: "document_types", label: "Document Types", description: "Document type definitions" },
-  { key: "sm_schedule_master_templates", label: "SM Templates", description: "Schedule master templates" },
-  { key: "sm_task_groups", label: "Task Groups", description: "Task group categories" },
-  { key: "bpmn_processes", label: "Workflows", description: "Start/complete workflow definitions" },
-  { key: "sm_schedule_masters", label: "SM Tasks", description: "The main schedule master tasks" },
-  { key: "sm_schedule_master_document_types", label: "SM Document Types", description: "SM task \u2192 document type links" },
-  { key: "sm_schedule_master_related_pos", label: "Related PO Links", description: "SM task \u2192 related PO task links" },
-  { key: "sm_hold_reasons", label: "Hold Reasons", description: "Reasons for holding tasks" },
-  { key: "sm_resources", label: "Resources", description: "Resource definitions (depend on trades)" },
+  { key: "sm_trades", label: "Trades" },
+  { key: "sm_stages", label: "Stages" },
+  { key: "cost_centres", label: "Cost Centres" },
+  { key: "supervisor_checklist_templates", label: "Checklists" },
+  { key: "document_types", label: "Document Types" },
+  { key: "sm_schedule_master_templates", label: "SM Templates" },
+  { key: "sm_task_groups", label: "Task Groups" },
+  { key: "bpmn_processes", label: "Workflows" },
+  { key: "sm_schedule_masters", label: "SM Tasks" },
+  { key: "sm_schedule_master_document_types", label: "SM Document Types" },
+  { key: "sm_schedule_master_related_pos", label: "Related PO Links" },
+  { key: "sm_hold_reasons", label: "Hold Reasons" },
+  { key: "sm_resources", label: "Resources" },
 ] as const;
 
 type TableKey = typeof SM_SYNC_TABLES[number]["key"];
@@ -58,11 +57,24 @@ interface TableResult {
   error?: string;
 }
 
+interface TenantInfo {
+  id: number;
+  name: string;
+  slug: string;
+  is_master: boolean;
+}
+
 const BATCH_SIZE = 500;
 
 export function ScheduleMasterSyncTab() {
-  // Counts from server
-  const [counts, setCounts] = useState<Record<string, { master: number; tenant: number }>>({});
+  // Non-master: { master: N, tenant: N }
+  const [simpleCounts, setSimpleCounts] = useState<Record<string, { master: number; tenant: number }>>({});
+  // Master: all tenant counts keyed by slug { table: { slug: count } }
+  const [allTenantCounts, setAllTenantCounts] = useState<Record<string, Record<string, number>>>({});
+  const [allTenants, setAllTenants] = useState<TenantInfo[]>([]);
+  const [isMasterTenant, setIsMasterTenant] = useState(false);
+  const [selectedSourceId, setSelectedSourceId] = useState<number>(0);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,8 +88,6 @@ export function ScheduleMasterSyncTab() {
   // Audit trail
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [lastSyncBy, setLastSyncBy] = useState<string | null>(null);
-
-  // Whether we've completed at least one sync this session
   const [syncComplete, setSyncComplete] = useState(false);
 
   // Fetch counts on mount
@@ -88,14 +98,38 @@ export function ScheduleMasterSyncTab() {
       const response = await api.get<{
         success: boolean;
         counts?: Record<string, { master: number; tenant: number }>;
+        is_master_tenant?: boolean;
+        all_tenants?: TenantInfo[];
+        all_tenant_counts?: Record<string, Record<string, number>>;
         last_config_sync_at?: string | null;
         last_config_sync_by?: string | null;
       }>("/api/v1/config_sync/tables");
 
-      if (response?.success && response.counts) {
-        setCounts(response.counts);
+      if (response?.success) {
         setLastSyncAt(response.last_config_sync_at || null);
         setLastSyncBy(response.last_config_sync_by || null);
+        setIsMasterTenant(response.is_master_tenant || false);
+
+        if (response.is_master_tenant && response.all_tenants && response.all_tenant_counts) {
+          setAllTenants(response.all_tenants);
+          setAllTenantCounts(response.all_tenant_counts);
+
+          // Auto-select the non-master tenant with the most SM tasks
+          const nonMaster = response.all_tenants.filter((t) => !t.is_master);
+          const smKey = "sm_schedule_masters";
+          let bestId = 0;
+          let bestCount = 0;
+          for (const t of nonMaster) {
+            const count = response.all_tenant_counts[smKey]?.[t.slug] || 0;
+            if (count > bestCount) {
+              bestCount = count;
+              bestId = t.id;
+            }
+          }
+          if (bestId > 0) setSelectedSourceId(bestId);
+        } else if (response.counts) {
+          setSimpleCounts(response.counts);
+        }
       }
     } catch (err) {
       console.error("[SMSync] Failed to fetch counts:", err);
@@ -109,7 +143,29 @@ export function ScheduleMasterSyncTab() {
     fetchCounts();
   }, [fetchCounts]);
 
-  // Pull a single table with auto-batching (same pattern as TenantSyncPullTab)
+  // Derived: selected source tenant info
+  const sourceTenant = allTenants.find((t) => t.id === selectedSourceId);
+  const nonMasterTenants = allTenants.filter((t) => !t.is_master);
+
+  // Get counts for a table
+  const getSourceCount = (tableKey: string): number => {
+    if (isMasterTenant) {
+      if (!sourceTenant) return 0;
+      return allTenantCounts[tableKey]?.[sourceTenant.slug] || 0;
+    }
+    return simpleCounts[tableKey]?.master ?? 0;
+  };
+
+  const getLocalCount = (tableKey: string): number => {
+    if (isMasterTenant) {
+      const masterTenant = allTenants.find((t) => t.is_master);
+      if (!masterTenant) return 0;
+      return allTenantCounts[tableKey]?.[masterTenant.slug] || 0;
+    }
+    return simpleCounts[tableKey]?.tenant ?? 0;
+  };
+
+  // Pull a single table with auto-batching
   const pullOneTable = async (tableKey: string): Promise<TableResult> => {
     type PullResponse = {
       success: boolean;
@@ -129,9 +185,19 @@ export function ScheduleMasterSyncTab() {
     let hasMore = true;
 
     while (hasMore) {
+      const body: Record<string, unknown> = {
+        table: tableKey,
+        batch_size: BATCH_SIZE,
+        offset,
+      };
+      // Master tenant: pass explicit source
+      if (isMasterTenant && selectedSourceId) {
+        body.source_tenant_id = selectedSourceId;
+      }
+
       const response = await api.post<PullResponse>(
         "/api/v1/config_sync/pull_one_table",
-        { table: tableKey, batch_size: BATCH_SIZE, offset }
+        body
       );
 
       if (!response?.success) {
@@ -152,7 +218,6 @@ export function ScheduleMasterSyncTab() {
       hasMore = response.has_more;
       offset = response.next_offset || 0;
 
-      // Update batch progress for large tables
       if (hasMore || totalRecords > BATCH_SIZE) {
         setBatchProgress({ processed: totalProcessed, total: totalRecords });
       }
@@ -166,21 +231,17 @@ export function ScheduleMasterSyncTab() {
     };
   };
 
-  // Main sync handler - syncs all tables in order
+  // Main sync handler
   const handleSync = async () => {
     setSyncing(true);
     setSyncComplete(false);
     setError(null);
     setBatchProgress(null);
 
-    // Initialize all tables as pending
     const initialStatus = {} as Record<TableKey, TableSyncStatus>;
     SM_SYNC_TABLES.forEach((t) => { initialStatus[t.key] = "pending"; });
     setTableStatus(initialStatus);
     setTableResults({} as Record<TableKey, TableResult>);
-
-    let totalImported = 0;
-    let totalUpdated = 0;
 
     for (let i = 0; i < SM_SYNC_TABLES.length; i++) {
       const table = SM_SYNC_TABLES[i];
@@ -191,8 +252,6 @@ export function ScheduleMasterSyncTab() {
       try {
         const result = await pullOneTable(table.key);
         setTableResults((prev) => ({ ...prev, [table.key]: result }));
-        totalImported += result.imported;
-        totalUpdated += result.updated;
 
         if (result.error) {
           setTableStatus((prev) => ({ ...prev, [table.key]: "error" }));
@@ -233,9 +292,14 @@ export function ScheduleMasterSyncTab() {
       const refreshed = await api.get<{
         success: boolean;
         counts?: Record<string, { master: number; tenant: number }>;
+        all_tenant_counts?: Record<string, Record<string, number>>;
       }>("/api/v1/config_sync/tables");
-      if (refreshed?.success && refreshed.counts) {
-        setCounts(refreshed.counts);
+      if (refreshed?.success) {
+        if (refreshed.all_tenant_counts) {
+          setAllTenantCounts(refreshed.all_tenant_counts);
+        } else if (refreshed.counts) {
+          setSimpleCounts(refreshed.counts);
+        }
       }
     } catch {
       // Non-critical
@@ -247,7 +311,7 @@ export function ScheduleMasterSyncTab() {
     setSyncComplete(true);
   };
 
-  // Compute totals from results
+  // Compute totals
   const totals = Object.values(tableResults).reduce(
     (acc, r) => ({
       imported: acc.imported + (r.imported || 0),
@@ -260,7 +324,6 @@ export function ScheduleMasterSyncTab() {
   const hasResults = syncComplete || syncing;
   const hasErrors = Object.values(tableStatus).some((s) => s === "error");
 
-  // Progress calculation
   const completedCount = Object.values(tableStatus).filter(
     (s) => s === "done" || s === "error" || s === "skipped"
   ).length;
@@ -268,7 +331,6 @@ export function ScheduleMasterSyncTab() {
     ? (completedCount / SM_SYNC_TABLES.length) * 100
     : 0;
 
-  // Format last sync date
   const formatDate = (iso: string) => {
     try {
       return new Date(iso).toLocaleString("en-AU", {
@@ -285,24 +347,20 @@ export function ScheduleMasterSyncTab() {
     }
   };
 
-  const renderStatusIcon = (status: TableSyncStatus | undefined, result: TableResult | undefined) => {
+  const renderStatusIcon = (status: TableSyncStatus | undefined) => {
     if (!status || status === "pending") {
       return <Minus className="h-4 w-4 text-muted-foreground/40" />;
     }
-    if (status === "syncing") {
-      return <Spinner className="h-4 w-4" />;
-    }
-    if (status === "done") {
-      return <Check className="h-4 w-4 text-green-600 dark:text-green-400" />;
-    }
-    if (status === "error") {
-      return <AlertCircle className="h-4 w-4 text-red-500 dark:text-red-400" />;
-    }
-    if (status === "skipped") {
-      return <Ban className="h-4 w-4 text-muted-foreground/40" />;
-    }
+    if (status === "syncing") return <Spinner className="h-4 w-4" />;
+    if (status === "done") return <Check className="h-4 w-4 text-green-600 dark:text-green-400" />;
+    if (status === "error") return <AlertCircle className="h-4 w-4 text-red-500 dark:text-red-400" />;
+    if (status === "skipped") return <Ban className="h-4 w-4 text-muted-foreground/40" />;
     return null;
   };
+
+  // Column headers depend on mode
+  const sourceLabel = isMasterTenant ? (sourceTenant?.name || "Source") : "TEEEM";
+  const localLabel = isMasterTenant ? "TEEEM" : "Yours";
 
   if (loading) {
     return (
@@ -318,8 +376,11 @@ export function ScheduleMasterSyncTab() {
         <CardHeader>
           <CardTitle className="text-lg">Schedule Master Sync</CardTitle>
           <CardDescription>
-            Sync all Schedule Master configuration from the TEEEM master template.
-            Tables are synced in dependency order so references resolve correctly.
+            {isMasterTenant
+              ? "Import Schedule Master config from a tenant into the TEEEM master template."
+              : "Sync all Schedule Master configuration from the TEEEM master template."
+            }
+            {" "}Tables are synced in dependency order so references resolve correctly.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -333,6 +394,26 @@ export function ScheduleMasterSyncTab() {
             </div>
           )}
 
+          {/* Master tenant: source selector */}
+          {isMasterTenant && (
+            <div className="flex items-center gap-3 p-3 rounded-md bg-muted/50 border">
+              <span className="text-sm text-muted-foreground">Import from:</span>
+              <select
+                value={selectedSourceId}
+                onChange={(e) => setSelectedSourceId(Number(e.target.value))}
+                disabled={syncing}
+                className="text-sm border rounded px-2 py-1 bg-background text-foreground"
+              >
+                <option value={0}>Select tenant...</option>
+                {nonMasterTenants.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              <Badge variant="secondary">TEEEM</Badge>
+            </div>
+          )}
+
           {/* Table list */}
           <div className="border rounded-md overflow-hidden">
             <Table>
@@ -340,8 +421,8 @@ export function ScheduleMasterSyncTab() {
                 <TableRow>
                   <TableHead className="w-[40px] text-center">#</TableHead>
                   <TableHead>Table</TableHead>
-                  <TableHead className="text-right w-[70px]">TEEEM</TableHead>
-                  <TableHead className="text-right w-[70px]">Yours</TableHead>
+                  <TableHead className="text-right w-[70px]">{sourceLabel}</TableHead>
+                  <TableHead className="text-right w-[70px]">{localLabel}</TableHead>
                   <TableHead className="w-[180px] text-right">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -349,10 +430,9 @@ export function ScheduleMasterSyncTab() {
                 {SM_SYNC_TABLES.map((table, index) => {
                   const status = tableStatus[table.key];
                   const result = tableResults[table.key];
-                  const tableCounts = counts[table.key];
-                  const masterCount = tableCounts?.master ?? 0;
-                  const tenantCount = tableCounts?.tenant ?? 0;
-                  const countsDiffer = masterCount !== tenantCount && masterCount > 0;
+                  const sourceCount = getSourceCount(table.key);
+                  const localCount = getLocalCount(table.key);
+                  const countsDiffer = sourceCount !== localCount && sourceCount > 0;
 
                   return (
                     <TableRow
@@ -375,17 +455,17 @@ export function ScheduleMasterSyncTab() {
                         )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-sm py-2">
-                        {masterCount.toLocaleString()}
+                        {sourceCount.toLocaleString()}
                       </TableCell>
                       <TableCell className={cn(
                         "text-right tabular-nums text-sm py-2",
                         countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
                       )}>
-                        {tenantCount.toLocaleString()}
+                        {localCount.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right py-2">
                         <div className="flex items-center justify-end gap-1.5">
-                          {renderStatusIcon(status, result)}
+                          {renderStatusIcon(status)}
                           {status === "syncing" && batchProgress && currentTableIndex === index && (
                             <span className="text-xs text-muted-foreground tabular-nums">
                               {batchProgress.processed.toLocaleString()}/{batchProgress.total.toLocaleString()}
@@ -416,7 +496,7 @@ export function ScheduleMasterSyncTab() {
             </Table>
           </div>
 
-          {/* Progress bar (visible during sync) */}
+          {/* Progress bar */}
           {syncing && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-sm">
@@ -436,7 +516,7 @@ export function ScheduleMasterSyncTab() {
             </div>
           )}
 
-          {/* Results summary (after sync) */}
+          {/* Results summary */}
           {syncComplete && (
             <div className={cn(
               "rounded-md border p-3",
@@ -459,7 +539,7 @@ export function ScheduleMasterSyncTab() {
             </div>
           )}
 
-          {/* Last sync info + action button */}
+          {/* Last sync + action button */}
           <div className="flex items-center justify-between pt-2">
             <div className="text-xs text-muted-foreground">
               {lastSyncAt ? (
@@ -470,7 +550,7 @@ export function ScheduleMasterSyncTab() {
             </div>
             <Button
               onClick={handleSync}
-              disabled={syncing}
+              disabled={syncing || (isMasterTenant && !selectedSourceId)}
               size="default"
             >
               {syncing ? (
@@ -481,7 +561,7 @@ export function ScheduleMasterSyncTab() {
               ) : (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Sync Schedule Master
+                  {isMasterTenant ? `Import from ${sourceTenant?.name || "Tenant"}` : "Sync Schedule Master"}
                 </>
               )}
             </Button>
