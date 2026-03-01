@@ -291,6 +291,20 @@ export function useCustomQuote(jobId: string | number) {
     return null;
   }, []);
 
+  const deleteQuote = useCallback(async (quoteId: number) => {
+    try {
+      await api.delete(`/api/v1/custom_quotes/${quoteId}`);
+      setActiveQuote(null);
+      setQuotes([]);
+      toast.success("Custom quote deleted");
+      return true;
+    } catch (err) {
+      console.error("[useCustomQuote] delete error:", err);
+      toast.error("Failed to delete custom quote");
+    }
+    return false;
+  }, []);
+
   const refresh = useCallback(async () => {
     if (activeQuote) {
       await fetchQuoteTree(activeQuote.id);
@@ -311,6 +325,7 @@ export function useCustomQuote(jobId: string | number) {
     markSent,
     acceptQuote,
     rejectQuote,
+    deleteQuote,
     saveAsTemplate,
     overwriteTemplate,
     fetchAllocations,

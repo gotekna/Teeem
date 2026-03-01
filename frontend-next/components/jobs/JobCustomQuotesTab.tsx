@@ -42,6 +42,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     fetchQuotes,
     fetchQuoteTree,
     createQuote,
+    deleteQuote,
     updateLine,
     addSupplier,
     addChildLine,
@@ -99,6 +100,13 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     await createQuote(undefined, undefined, 'schedule_master');
     await fetchQuotes();
   }, [createQuote, fetchQuotes]);
+
+  const handleDeleteQuote = useCallback(async () => {
+    if (activeQuote) {
+      const ok = await deleteQuote(activeQuote.id);
+      if (ok) await fetchQuotes();
+    }
+  }, [activeQuote, deleteQuote, fetchQuotes]);
 
   const handleToggleQuoteLevel = useCallback(async (lineId: number, level: QuoteLevel) => {
     await updateLine(lineId, { quote_level: level });
@@ -271,6 +279,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
         onPopulateFromSchedule={handlePopulateFromSchedule}
         onSaveAsTemplate={() => setSaveTemplateOpen(true)}
         onOverwriteTemplate={handleOverwriteTemplate}
+        onDeleteQuote={handleDeleteQuote}
         activeTemplateName={activeQuote?.templateName ?? null}
         hasActiveQuote={!!activeQuote}
         hasLinkedTemplate={!!activeQuote?.templateId}

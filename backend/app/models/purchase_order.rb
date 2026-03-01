@@ -23,6 +23,7 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :quote_response, optional: true
   belongs_to :quote_warehouse_document, class_name: "WarehouseDocument", optional: true
   belongs_to :external_invoice, optional: true
+  belongs_to :po_status, optional: true
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
   has_many :items, class_name: "PurchaseOrderLineItem" # Alias for Foundation API eager loading
 
@@ -155,6 +156,11 @@ class PurchaseOrder < ApplicationRecord
   after_save :update_job_profit, if: :job_profit_fields_changed?
   after_save :sync_supplier_to_sm_task
   after_destroy :update_job_profit
+
+  # Dual-column sync: po_status_id ↔ status string
+  # Keeps both columns in sync during migration period (42+ existing status references)
+  before_save :sync_status_from_po_status, if: :po_status_id_changed?
+  after_save :sync_po_status_from_status, if: :saved_change_to_status?
 
   # SSoT: Update contact's cached supplier flag when PO changes
   after_commit :refresh_supplier_cached_flag, on: [:create, :destroy]
@@ -550,6 +556,20 @@ class PurchaseOrder < ApplicationRecord
   end
 
   private
+
+  # Dual-column sync: po_status_id → status string
+  # When po_status_id changes (e.g., via Foundation table edit), update the status string
+  def sync_status_from_po_status
+    self.status = po_status&.slug if po_status_id.present?
+  end
+
+  # Dual-column sync: status string → po_status_id
+  # When status changes (e.g., via approve!, send_to_supplier!), update po_status_id
+  def sync_po_status_from_status
+    return unless status.present?
+    new_id = PoStatus.id_for_slug(status)
+    update_column(:po_status_id, new_id) if new_id && po_status_id != new_id
+  end
 
   # Callback condition helpers
   def line_items_or_pricing_changed?

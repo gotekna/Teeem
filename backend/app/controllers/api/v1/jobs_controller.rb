@@ -781,7 +781,7 @@ module Api
       def boq
         purchase_orders = @job.purchase_orders
                               .where.not(status: "cancelled")
-                              .includes(:supplier, :tender, line_items: [:pricebook_item, :profit_centre],
+                              .includes(:supplier, :tender, :po_status, line_items: [:pricebook_item, :profit_centre],
                                         sm_task: [:sm_schedule_master, :tender])
 
         cost_budgets = @job.job_cost_budgets.includes(:cost_centre)
@@ -930,6 +930,9 @@ module Api
                 name: po.purchase_order_number || "PO-#{po.id}",
                 supplierId: po.supplier_id,
                 supplierName: po.supplier&.display_name,
+                poStatus: po.status,
+                poStatusName: po.po_status&.name,
+                poStatusColor: po.po_status&.color,
                 taskName: po.sm_task&.name || po.description,
                 taskPosition: po.sm_task&.sequence_order,
                 tradeName: po.trade_from_task,
@@ -954,6 +957,9 @@ module Api
               name: po.purchase_order_number || "PO-#{po.id}",
               supplierId: po.supplier_id,
               supplierName: po.supplier&.display_name,
+              poStatus: po.status,
+              poStatusName: po.po_status&.name,
+              poStatusColor: po.po_status&.color,
               taskName: po.sm_task&.name || po.description,
               taskPosition: po.sm_task&.sequence_order,
               tradeName: po.trade_from_task,
@@ -1010,6 +1016,9 @@ module Api
               name: po.purchase_order_number || "PO-#{po.id}",
               supplierId: po.supplier_id,
               supplierName: po.supplier&.display_name,
+              poStatus: po.status,
+              poStatusName: po.po_status&.name,
+              poStatusColor: po.po_status&.color,
               taskName: "X - No Task",
               taskPosition: nil,
               tradeName: nil,

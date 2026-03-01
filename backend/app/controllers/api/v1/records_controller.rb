@@ -1431,7 +1431,9 @@ module Api
                     else
                       DisplayValueResolver.resolve(related)
                     end
-                    json[id_column] = { id: json[id_column], display: display_value }
+                    expanded = { id: json[id_column], display: display_value }
+                    expanded[:display_color] = related.color if related.respond_to?(:color) && related.color.present?
+                    json[id_column] = expanded
                   end
                 elsif assoc_ref.nil?
                   # No association defined - try direct access (computed method)
@@ -1443,7 +1445,9 @@ module Api
                     else
                       DisplayValueResolver.resolve(related)
                     end
-                    json[id_column] = { id: json[id_column], display: display_value }
+                    expanded = { id: json[id_column], display: display_value }
+                    expanded[:display_color] = related.color if related.respond_to?(:color) && related.color.present?
+                    json[id_column] = expanded
                   end
                 end
               rescue ActiveModel::MissingAttributeError
@@ -1527,10 +1531,12 @@ module Api
 
               if related_record
                 # SSoT: Use DisplayValueResolver for consistent display value resolution
-                json[column.column_name] = {
+                expanded = {
                   id: related_record.id,  # Always use the actual record ID
                   display: DisplayValueResolver.resolve_lookup(related_record, column)
                 }
+                expanded[:display_color] = related_record.color if related_record.respond_to?(:color) && related_record.color.present?
+                json[column.column_name] = expanded
               else
                 json[column.column_name] = { id: numeric_id || 0, display: "[Deleted]" }
               end

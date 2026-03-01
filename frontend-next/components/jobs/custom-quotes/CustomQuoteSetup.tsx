@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { Calendar, Plus, Save, Upload } from "lucide-react";
+import { Calendar, Plus, Save, Trash2, Upload } from "lucide-react";
 import type { CustomQuoteTemplate } from "./types";
 
 interface CustomQuoteSetupProps {
@@ -14,6 +14,7 @@ interface CustomQuoteSetupProps {
   onPopulateFromSchedule: () => void;
   onSaveAsTemplate: () => void;
   onOverwriteTemplate: () => void;
+  onDeleteQuote: () => void;
   activeTemplateName: string | null;
   hasActiveQuote: boolean;
   hasLinkedTemplate: boolean;
@@ -27,6 +28,7 @@ export function CustomQuoteSetup({
   onPopulateFromSchedule,
   onSaveAsTemplate,
   onOverwriteTemplate,
+  onDeleteQuote,
   hasActiveQuote,
   hasLinkedTemplate,
 }: CustomQuoteSetupProps) {
@@ -72,6 +74,24 @@ export function CustomQuoteSetup({
           <Save className="h-4 w-4 mr-1" />
           Save as Template
         </Button>
+      )}
+
+      {hasActiveQuote && (
+        <div className="ml-auto">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              if (window.confirm("Delete this custom quote? This cannot be undone.")) {
+                onDeleteQuote();
+              }
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete Quote
+          </Button>
+        </div>
       )}
     </div>
   );
