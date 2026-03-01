@@ -119,7 +119,7 @@ export default function OperationsSettingsPage() {
           </div>
         </div>
 
-        <div className={expanded ? "flex-1 overflow-auto p-4" : "flex-1 min-h-0 mt-4 relative"}>
+        <div className={expanded ? "flex-1 min-h-0 relative" : "flex-1 min-h-0 mt-4 relative"}>
           <TabsContent value="schedule-master" className="absolute inset-0 overflow-auto">
             <ScheduleMasterTab basePath="/settings/operations/schedule-master" />
           </TabsContent>
