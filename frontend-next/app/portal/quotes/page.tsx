@@ -39,7 +39,7 @@ interface QuoteRecord {
   documentName: string | null;
   documentUrl: string | null;
   isDocumentNew: boolean;
-  rfqDocuments?: Array<{ name: string; url: string; versionLetter: string }>;
+  rfqDocuments?: Array<{ name: string; downloadUrl: string; viewUrl: string; versionLetter: string }>;
 }
 
 interface Builder {
@@ -458,31 +458,31 @@ function QuoteRow({
                         </span>
                       </span>
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        {doc.url && (
-                          <>
-                            <a
-                              href={`/view?url=${encodeURIComponent(doc.url)}&name=${encodeURIComponent(doc.name)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                              onClick={(e) => e.stopPropagation()}
-                              title="Preview"
-                            >
-                              <EyeIcon className="h-3.5 w-3.5" />
-                              Preview
-                            </a>
-                            <a
-                              href={doc.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-muted-foreground hover:bg-muted"
-                              onClick={(e) => e.stopPropagation()}
-                              title="Download"
-                            >
-                              <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-                              Download
-                            </a>
-                          </>
+                        {doc.viewUrl && (
+                          <a
+                            href={`/view?url=${encodeURIComponent(doc.viewUrl)}&name=${encodeURIComponent(doc.name)}${doc.downloadUrl ? `&download=${encodeURIComponent(doc.downloadUrl)}` : ""}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Preview"
+                          >
+                            <EyeIcon className="h-3.5 w-3.5" />
+                            Preview
+                          </a>
+                        )}
+                        {doc.downloadUrl && (
+                          <a
+                            href={doc.downloadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-muted-foreground hover:bg-muted"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Download"
+                          >
+                            <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                            Download
+                          </a>
                         )}
                       </div>
                     </li>
