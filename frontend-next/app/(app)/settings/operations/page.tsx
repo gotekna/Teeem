@@ -21,7 +21,7 @@ import { CostCentresTab } from "./components/CostCentresTab";
 import { TenderHeadersTab } from "./components/TenderHeadersTab";
 import { TenderSectionsTab } from "./components/TenderSectionsTab";
 import { TenderDocumentTemplatesTab } from "./components/TenderDocumentTemplatesTab";
-import { ScheduleMasterSyncTab } from "./components/ScheduleMasterSyncTab";
+
 
 /**
  * Operations Settings Page - Organization Settings
@@ -50,7 +50,6 @@ const OPERATIONS_TABS = [
   { id: "tender-headers", label: "Tender Headers" },
   { id: "tender-sections", label: "Tender Sections" },
   { id: "tender-documents", label: "Tender Documents" },
-  { id: "sm-sync", label: "SM Sync" },
 ];
 
 const DEFAULT_TAB = "sm-tasks";
@@ -133,9 +132,6 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="tender-documents" className="absolute inset-0 overflow-auto">
             <TenderDocumentTemplatesTab />
-          </TabsContent>
-          <TabsContent value="sm-sync" className="absolute inset-0 overflow-auto">
-            <ScheduleMasterSyncTab />
           </TabsContent>
         </div>
       </Tabs>

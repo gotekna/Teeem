@@ -39,6 +39,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     quotes,
     activeQuote,
     loading,
+    smTaskCount,
+    existingPoCount,
     fetchQuotes,
     fetchQuoteTree,
     createQuote,
@@ -283,6 +285,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
         templatesLoading={templatesLoading}
         packs={packs}
         packsLoading={packsLoading}
+        smTaskCount={smTaskCount}
+        existingPoCount={existingPoCount}
         onApplyTemplate={handleApplyTemplate}
         onCreateBlank={handleCreateBlank}
         onPopulateFromSchedule={handlePopulateFromSchedule}

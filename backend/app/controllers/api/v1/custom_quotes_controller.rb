@@ -84,9 +84,18 @@ module Api
         job = Job.find(params[:job_id])
         quotes = CustomQuote.for_job(job.id).includes(:custom_quote_template, :created_by)
 
+        # Counts for smart auto-detection in the UI
+        sm_task_count = SmTask.where(job_id: job.id)
+                              .where.not(sm_schedule_master_id: nil)
+                              .where(po_required: true)
+                              .count
+        existing_po_count = PurchaseOrder.where(job_id: job.id).count
+
         render json: {
           success: true,
-          data: quotes.map { |q| quote_summary_json(q) }
+          data: quotes.map { |q| quote_summary_json(q) },
+          smTaskCount: sm_task_count,
+          existingPoCount: existing_po_count
         }
       end
 

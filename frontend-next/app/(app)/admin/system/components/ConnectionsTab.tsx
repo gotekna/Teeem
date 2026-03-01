@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
 import { BackupSettingsTab } from "./BackupSettingsTab";
 import { ConfigSyncSection } from "./ConfigSyncSection";
+import { ScheduleMasterSyncTab } from "@/app/(app)/settings/operations/components/ScheduleMasterSyncTab";
 import { EmailAccountsTab } from "./EmailAccountsTab";
 import { AIAssistantSetupTab } from "./AIAssistantSetupTab";
 import { Progress } from "@/components/ui/progress";
@@ -2436,6 +2437,7 @@ const CONNECTIONS_SUB_TABS = [
   { id: "costs", label: "Cost Comparison" },
   { id: "backups", label: "Backups" },
   { id: "sync", label: "Sync" },
+  { id: "sm-sync", label: "SM Sync" },
 ];
 
 // SSoT: Connections is now top-level in Settings (Jan 2026)
@@ -2520,6 +2522,9 @@ export function ConnectionsTab({ subTab, deepTab, basePath = DEFAULT_CONNECTIONS
       </TabsContent>
       <TabsContent value="sync" forceMount className={activeSubTab !== "sync" ? "hidden" : ""}>
         {visitedTabs.has("sync") && <ConfigSyncSection />}
+      </TabsContent>
+      <TabsContent value="sm-sync" forceMount className={activeSubTab !== "sm-sync" ? "hidden" : ""}>
+        {visitedTabs.has("sm-sync") && <ScheduleMasterSyncTab />}
       </TabsContent>
       </div>
     </Tabs>

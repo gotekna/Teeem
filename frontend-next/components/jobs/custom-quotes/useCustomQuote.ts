@@ -103,14 +103,18 @@ export function useCustomQuote(jobId: string | number) {
   const [quotes, setQuotes] = useState<CustomQuoteSummary[]>([]);
   const [activeQuote, setActiveQuote] = useState<CustomQuoteData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [smTaskCount, setSmTaskCount] = useState<number>(0);
+  const [existingPoCount, setExistingPoCount] = useState<number>(0);
 
   const fetchQuotes = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get<{ success: boolean; data: CustomQuoteSummary[] }>(
+      const res = await api.get<{ success: boolean; data: CustomQuoteSummary[]; smTaskCount: number; existingPoCount: number }>(
         `/api/v1/jobs/${jobId}/custom_quotes`
       );
       if (res?.data) setQuotes(res.data);
+      if (res?.smTaskCount !== undefined) setSmTaskCount(res.smTaskCount);
+      if (res?.existingPoCount !== undefined) setExistingPoCount(res.existingPoCount);
     } catch (err) {
       console.error("[useCustomQuote] fetch quotes error:", err);
     } finally {
@@ -348,6 +352,8 @@ export function useCustomQuote(jobId: string | number) {
     quotes,
     activeQuote,
     loading,
+    smTaskCount,
+    existingPoCount,
     fetchQuotes,
     fetchQuoteTree,
     createQuote,
