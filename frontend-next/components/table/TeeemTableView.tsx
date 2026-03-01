@@ -3754,11 +3754,14 @@ export default function TeeemTableView({
     return filteredAndSortedEntries.slice(0, Math.min(rowLimit, MAX_RENDERED_ROWS));
   }, [filteredAndSortedEntries, rowLimit, showAllRows, INITIAL_ROW_LIMIT]);
 
-  // Reset row limit when filters/sort change
+  // Reset row limit when filters/search change (new result set)
+  // ⚠️ DO NOT include sortColumns - sorting reorders the SAME data, it shouldn't
+  // reset the display limit. Resetting on sort causes records at the end (e.g., nulls)
+  // to disappear because they get pushed past the 250-row display cap.
   useEffect(() => {
     setRowLimit(INITIAL_ROW_LIMIT);
     setShowAllRows(false);
-  }, [cascadeFilters, sortColumns, search, INITIAL_ROW_LIMIT]);
+  }, [cascadeFilters, search, INITIAL_ROW_LIMIT]);
 
   // Drag-to-select handlers are now provided by useTableDragSelect hook
   // (called after getVisibleRowIds is defined below)
