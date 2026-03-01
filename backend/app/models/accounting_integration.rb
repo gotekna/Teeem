@@ -4,6 +4,8 @@ class AccountingIntegration < ApplicationRecord
   has_many :subcontractor_invoices, dependent: :nullify
   has_many :account_mappings, dependent: :destroy
 
+  SYSTEM_TYPES = %w[xero myob quickbooks reckon].freeze
+
   # Enums (Rails 8 syntax)
   enum :system_type, {
     xero: "xero",
@@ -34,6 +36,10 @@ class AccountingIntegration < ApplicationRecord
   scope :expired, -> { where("token_expires_at < ?", Time.current) }
 
   # Instance Methods
+  def active?
+    sync_status == "active"
+  end
+
   def connected?
     oauth_token.present? && !token_expired?
   end
