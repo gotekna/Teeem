@@ -460,12 +460,12 @@ function QuoteRow({
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {doc.viewUrl && (
                           <a
-                            href={`/view?url=${encodeURIComponent(doc.viewUrl)}&name=${encodeURIComponent(doc.name)}${doc.downloadUrl ? `&download=${encodeURIComponent(doc.downloadUrl)}` : ""}`}
+                            href={buildViewerUrl(quote.rfqDocuments!, idx)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
                             onClick={(e) => e.stopPropagation()}
-                            title="Preview"
+                            title="Preview all documents"
                           >
                             <EyeIcon className="h-3.5 w-3.5" />
                             Preview
@@ -608,6 +608,24 @@ function QuoteRow({
       )}
     </li>
   );
+}
+
+// Build multi-file viewer URL for RFQ documents
+function buildViewerUrl(docs: Array<{ name: string; downloadUrl: string; viewUrl: string; versionLetter: string }>, currentIndex: number): string {
+  const files = docs.map((doc) => ({
+    name: `${doc.name}${doc.versionLetter ? ` (Rev ${doc.versionLetter})` : ""}`,
+    downloadUrl: doc.downloadUrl,
+    openUrl: doc.viewUrl,
+  }));
+  const context = { files, currentIndex };
+  const json = JSON.stringify(context);
+  // UTF-8 encode, then base64url
+  const utf8Bytes = encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+    String.fromCharCode(parseInt(p1, 16))
+  );
+  const base64 = btoa(utf8Bytes);
+  const encoded = base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `/view/${encoded}`;
 }
 
 function formatDate(dateStr: string): string {
