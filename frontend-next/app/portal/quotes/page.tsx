@@ -451,11 +451,11 @@ function QuoteRow({
                 <ul className="space-y-2">
                   {quote.rfqDocuments.map((doc, idx) => (
                     <li key={idx} className="flex items-center gap-3">
-                      <span className="text-sm text-foreground dark:text-white truncate flex-1">
-                        {doc.name}
-                        <span className={`ml-1 text-xs ${doc.versionLetter && doc.versionLetter !== "A" ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}`}>
-                          (Rev {doc.versionLetter || "A"})
-                        </span>
+                      <span className="text-sm text-foreground dark:text-white min-w-0 flex-1">
+                        <span className="truncate block">{doc.name}</span>
+                      </span>
+                      <span className={`text-xs whitespace-nowrap flex-shrink-0 ${doc.versionLetter && doc.versionLetter !== "A" ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}`}>
+                        Rev {doc.versionLetter || "A"}
                       </span>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {doc.viewUrl && (
