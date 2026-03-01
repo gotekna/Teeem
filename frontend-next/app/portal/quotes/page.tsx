@@ -460,7 +460,11 @@ function QuoteRow({
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {doc.viewUrl && (
                           <a
-                            href={buildViewerUrl(quote.rfqDocuments!, idx)}
+                            href={buildViewerUrl(
+                              quote.rfqDocuments!,
+                              idx,
+                              quote.documentUrl ? { name: quote.documentName || "Your Quote", url: quote.documentUrl } : null
+                            )}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
@@ -508,7 +512,15 @@ function QuoteRow({
                   </span>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <a
-                      href={`/view?url=${encodeURIComponent(quote.documentUrl)}&name=${encodeURIComponent(quote.documentName || "Quote")}`}
+                      href={
+                        quote.rfqDocuments && quote.rfqDocuments.length > 0
+                          ? buildViewerUrl(
+                              quote.rfqDocuments,
+                              quote.rfqDocuments.length, // supplier doc is appended last
+                              { name: quote.documentName || "Your Quote", url: quote.documentUrl! }
+                            )
+                          : `/view?url=${encodeURIComponent(quote.documentUrl!)}&name=${encodeURIComponent(quote.documentName || "Quote")}`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
@@ -610,13 +622,34 @@ function QuoteRow({
   );
 }
 
-// Build multi-file viewer URL for RFQ documents
-function buildViewerUrl(docs: Array<{ name: string; downloadUrl: string; viewUrl: string; versionLetter: string }>, currentIndex: number): string {
+// Insert revision letter before file extension so viewer can still detect file type
+// e.g., "Ground Floor Plan.pdf" + "B" → "Ground Floor Plan (Rev B).pdf"
+function nameWithRevision(name: string, rev: string | undefined): string {
+  if (!rev) return name;
+  const dotIdx = name.lastIndexOf(".");
+  if (dotIdx === -1) return `${name} (Rev ${rev})`;
+  return `${name.slice(0, dotIdx)} (Rev ${rev})${name.slice(dotIdx)}`;
+}
+
+// Build multi-file viewer URL for RFQ documents (+ optional supplier quote)
+function buildViewerUrl(
+  docs: Array<{ name: string; downloadUrl: string; viewUrl: string; versionLetter: string }>,
+  currentIndex: number,
+  supplierDoc?: { name: string; url: string } | null
+): string {
   const files = docs.map((doc) => ({
-    name: `${doc.name}${doc.versionLetter ? ` (Rev ${doc.versionLetter})` : ""}`,
+    name: nameWithRevision(doc.name, doc.versionLetter),
     downloadUrl: doc.downloadUrl,
     openUrl: doc.viewUrl,
   }));
+  // Append supplier's own quote as the last file
+  if (supplierDoc?.url) {
+    files.push({
+      name: supplierDoc.name || "Your Quote",
+      downloadUrl: supplierDoc.url,
+      openUrl: supplierDoc.url,
+    });
+  }
   const context = { files, currentIndex };
   const json = JSON.stringify(context);
   // UTF-8 encode, then base64url
