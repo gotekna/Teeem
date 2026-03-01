@@ -12,6 +12,7 @@ import {
   ArrowDownTrayIcon,
   CalendarDaysIcon,
   EyeIcon,
+  FolderOpenIcon,
 } from "@heroicons/react/24/outline";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -39,7 +40,15 @@ interface QuoteRecord {
   documentName: string | null;
   documentUrl: string | null;
   isDocumentNew: boolean;
-  rfqDocuments?: Array<{ name: string; downloadUrl: string; viewUrl: string; versionLetter: string }>;
+  rfqDocuments?: Array<{
+    name: string;
+    downloadUrl: string;
+    viewUrl: string;
+    versionLetter: string;
+    currentVersionLetter: string;
+    sentVersionLetter: string;
+    hasNewerVersion: boolean;
+  }>;
 }
 
 interface Builder {
@@ -305,9 +314,26 @@ function QuoteRow({
   const [editingExpiry, setEditingExpiry] = useState(false);
   const [expiryValue, setExpiryValue] = useState(quote.validTo || "");
   const [saving, setSaving] = useState(false);
+  const [loadingAllDocs, setLoadingAllDocs] = useState(false);
 
   const isExpired = quote.validTo && new Date(quote.validTo) < new Date();
   const hasDetails = quote.instructions || quote.documentUrl || quote.responseNotes || (quote.rfqDocuments && quote.rfqDocuments.length > 0);
+
+  const handleViewAllPlans = async () => {
+    setLoadingAllDocs(true);
+    try {
+      const res = await portalApi.get(`/api/v1/portal/quote_trackers/${quote.id}/job_documents`);
+      if (res?.data?.success && res.data.data?.length > 0) {
+        const docs = res.data.data as Array<{ name: string; downloadUrl: string; viewUrl: string; versionLetter: string }>;
+        const url = buildViewerUrl(docs, 0);
+        window.open(url, "_blank");
+      }
+    } catch (error) {
+      console.error("Failed to load job documents:", error);
+    } finally {
+      setLoadingAllDocs(false);
+    }
+  };
 
   const handleSaveExpiry = async () => {
     setSaving(true);
@@ -454,8 +480,15 @@ function QuoteRow({
                       <span className="text-sm text-foreground dark:text-white min-w-0 flex-1">
                         <span className="truncate block">{doc.name}</span>
                       </span>
-                      <span className={`text-xs whitespace-nowrap flex-shrink-0 ${doc.versionLetter && doc.versionLetter !== "A" ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}`}>
-                        Rev {doc.versionLetter || "A"}
+                      <span className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className={`text-xs whitespace-nowrap ${doc.hasNewerVersion ? "text-muted-foreground" : "text-muted-foreground"}`}>
+                          Rev {doc.hasNewerVersion ? doc.sentVersionLetter : (doc.currentVersionLetter || doc.versionLetter || "A")}
+                        </span>
+                        {doc.hasNewerVersion && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
+                            Rev {doc.currentVersionLetter} available
+                          </span>
+                        )}
                       </span>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {doc.viewUrl && (
@@ -492,6 +525,23 @@ function QuoteRow({
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* View All Job Documents button (custom_quote only) */}
+            {quote.source === "custom_quote" && (
+              <div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleViewAllPlans();
+                  }}
+                  disabled={loadingAllDocs}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-50"
+                >
+                  <FolderOpenIcon className="h-4 w-4" />
+                  {loadingAllDocs ? "Loading..." : "View All Job Documents"}
+                </button>
               </div>
             )}
 
@@ -622,23 +672,26 @@ function QuoteRow({
   );
 }
 
-// Insert revision letter before file extension so viewer can still detect file type
-// e.g., "Ground Floor Plan.pdf" + "B" → "Ground Floor Plan (Rev B).pdf"
-function nameWithRevision(name: string, rev: string | undefined): string {
-  if (!rev) return name;
+// Insert revision info before file extension so viewer can still detect file type
+// e.g., "Ground Floor Plan.pdf" + sent="A" + current="J" → "Ground Floor Plan (Rev A → J).pdf"
+// e.g., "Ground Floor Plan.pdf" + sent="A" + current="A" → "Ground Floor Plan (Rev A).pdf"
+function nameWithRevision(name: string, rev: string | undefined, sentRev?: string, currentRev?: string): string {
+  const label = sentRev && currentRev && sentRev !== currentRev
+    ? `Rev ${sentRev} → ${currentRev}`
+    : `Rev ${rev || currentRev || "A"}`;
   const dotIdx = name.lastIndexOf(".");
-  if (dotIdx === -1) return `${name} (Rev ${rev})`;
-  return `${name.slice(0, dotIdx)} (Rev ${rev})${name.slice(dotIdx)}`;
+  if (dotIdx === -1) return `${name} (${label})`;
+  return `${name.slice(0, dotIdx)} (${label})${name.slice(dotIdx)}`;
 }
 
 // Build multi-file viewer URL for RFQ documents (+ optional supplier quote)
 function buildViewerUrl(
-  docs: Array<{ name: string; downloadUrl: string; viewUrl: string; versionLetter: string }>,
+  docs: Array<{ name: string; downloadUrl: string; viewUrl: string; versionLetter: string; sentVersionLetter?: string; currentVersionLetter?: string; hasNewerVersion?: boolean }>,
   currentIndex: number,
   supplierDoc?: { name: string; url: string } | null
 ): string {
   const files = docs.map((doc) => ({
-    name: nameWithRevision(doc.name, doc.versionLetter),
+    name: nameWithRevision(doc.name, doc.versionLetter, doc.sentVersionLetter, doc.currentVersionLetter),
     downloadUrl: doc.downloadUrl,
     openUrl: doc.viewUrl,
   }));

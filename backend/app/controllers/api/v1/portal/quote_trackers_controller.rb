@@ -50,6 +50,37 @@ module Api
           render json: { success: true }
         end
 
+        # GET /api/v1/portal/quote_trackers/:id/job_documents
+        #
+        # Returns ALL WarehouseDocuments for the job associated with this CQS record.
+        # Allows supplier to browse all job plans, not just the RFQ-filtered subset.
+        def job_documents
+          source, record_id = parse_quote_id(params[:id])
+          return render json: { success: false, error: "Invalid quote ID" }, status: :bad_request unless source == "cqs" && record_id
+
+          record = find_owned_record(source, record_id)
+          return render json: { success: false, error: "Quote not found" }, status: :not_found unless record
+
+          job = record.custom_quote_line&.custom_quote&.job
+          return render json: { success: false, error: "Job not found" }, status: :not_found unless job
+
+          tenant = record.custom_quote_line.custom_quote.job.tenant
+          docs = ActsAsTenant.with_tenant(tenant) do
+            WarehouseDocument
+              .where(
+                "((documentable_type = 'Job' AND documentable_id = :id) OR (linkable_type = 'Job' AND linkable_id = :id))",
+                id: job.id
+              )
+              .where("is_latest_version = true OR version_group_id IS NULL")
+              .includes(:storage_blob)
+              .where.not(storage_blobs: { id: nil })
+              .order(:ui_name)
+              .map { |doc| portal_rfq_doc_json(doc) }
+          end
+
+          render json: { success: true, data: docs }
+        end
+
         # PATCH /api/v1/portal/quote_trackers/:id
         #
         # Allows supplier to update valid_to (expiry date) on their quotes.
@@ -113,8 +144,12 @@ module Api
           job_docs_cache = preload_job_documents(job_ids)
           wfdt_map = preload_wfdt_mappings(suppliers)
 
+          # Pre-load version histories for all job documents (batch to avoid N+1)
+          all_group_ids = job_docs_cache.values.flatten.filter_map(&:version_group_id).uniq
+          version_histories = preload_version_histories(all_group_ids)
+
           suppliers.each do |cqs|
-            record = serialize_custom_quote_supplier(cqs, tenant, job_docs_cache, wfdt_map)
+            record = serialize_custom_quote_supplier(cqs, tenant, job_docs_cache, wfdt_map, version_histories)
             bucket = status_bucket(cqs.status)
             quotes_by_status[bucket] << record if bucket
           end
@@ -143,7 +178,7 @@ module Api
           }
         end
 
-        def serialize_custom_quote_supplier(cqs, tenant, job_docs_cache = {}, wfdt_map = {})
+        def serialize_custom_quote_supplier(cqs, tenant, job_docs_cache = {}, wfdt_map = {}, version_histories = {})
           line = cqs.custom_quote_line
           job = line&.custom_quote&.job
           doc = cqs.warehouse_document
@@ -170,7 +205,7 @@ module Api
             documentName: doc&.ui_name || doc&.original_filename,
             documentUrl: (doc&.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT) rescue nil),
             isDocumentNew: doc.present? && (cqs.document_viewed_at.nil? || doc.updated_at > cqs.document_viewed_at),
-            rfqDocuments: resolve_rfq_documents(line, job, job_docs_cache, wfdt_map)
+            rfqDocuments: resolve_rfq_documents(line, job, job_docs_cache, wfdt_map, cqs.sent_at, version_histories)
           }
         end
 
@@ -208,7 +243,7 @@ module Api
         end
 
         # Resolve RFQ documents for a custom quote line (reuses rfq_documents matching logic)
-        def resolve_rfq_documents(line, job, job_docs_cache, wfdt_map)
+        def resolve_rfq_documents(line, job, job_docs_cache, wfdt_map, sent_at = nil, version_histories = {})
           return [] unless line && job
 
           type_ids = line.document_type_ids
@@ -225,7 +260,7 @@ module Api
             if doc.warehouse_folder_document_type_id && wfdt_map[doc.warehouse_folder_document_type_id]
               dt_id = wfdt_map[doc.warehouse_folder_document_type_id]
               if type_ids.include?(dt_id)
-                matched << portal_rfq_doc_json(doc)
+                matched << portal_rfq_doc_json(doc, sent_at, version_histories)
                 next
               end
             end
@@ -238,7 +273,7 @@ module Api
               dt_name = doc_types[tid]&.name
               next unless dt_name
               if fname.include?(dt_name.downcase)
-                matched << portal_rfq_doc_json(doc)
+                matched << portal_rfq_doc_json(doc, sent_at, version_histories)
                 break
               end
             end
@@ -247,13 +282,44 @@ module Api
           matched
         end
 
-        def portal_rfq_doc_json(doc)
+        def portal_rfq_doc_json(doc, sent_at = nil, version_histories = {})
+          current_letter = doc.version_letter || "A"
+          sent_letter = current_letter
+
+          if sent_at.present? && doc.version_group_id.present?
+            versions = version_histories[doc.version_group_id] || []
+            if versions.any?
+              # Find what version was current when the RFQ was sent
+              # (latest version created before or at sent_at)
+              version_at_send = versions.select { |v| v.created_at <= sent_at }.last
+              sent_letter = version_at_send&.version_letter || versions.first&.version_letter || "A"
+              # Current is always the latest version
+              latest = versions.last
+              current_letter = latest&.version_letter || current_letter
+            end
+          end
+
           {
             name: doc.original_filename || doc.ui_name,
             downloadUrl: (doc.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :attachment) rescue nil),
             viewUrl: (doc.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :inline) rescue nil),
-            versionLetter: doc.version_letter || "A"
+            versionLetter: current_letter,
+            currentVersionLetter: current_letter,
+            sentVersionLetter: sent_letter,
+            hasNewerVersion: sent_letter != current_letter
           }
+        end
+
+        # Batch-load version histories for all given version_group_ids
+        # Returns: { version_group_id => [doc1(v1), doc2(v2), ...] } ordered by version_number
+        def preload_version_histories(group_ids)
+          return {} if group_ids.blank?
+
+          WarehouseDocument
+            .where(version_group_id: group_ids)
+            .order(:version_group_id, :version_number)
+            .select(:id, :version_group_id, :version_number, :version_letter, :created_at)
+            .group_by(&:version_group_id)
         end
 
         def status_bucket(status)

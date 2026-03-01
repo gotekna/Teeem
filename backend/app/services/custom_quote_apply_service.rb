@@ -89,9 +89,10 @@ class CustomQuoteApplyService
     def populate_from_job_tasks!(job:, user:, name: nil)
       quote_name = name || "Schedule Master Quote - #{job.name}"
 
-      # Fetch all SmTasks for this job that have a schedule master reference
+      # Fetch SmTasks for this job that require purchase orders
       job_tasks = SmTask.where(job_id: job.id)
                         .where.not(sm_schedule_master_id: nil)
+                        .where(po_required: true)
                         .includes(:cost_centre_ref, :sm_schedule_master)
                         .order(:cost_centre, :task_number)
 

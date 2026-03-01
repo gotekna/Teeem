@@ -4617,6 +4617,7 @@ Rails.application.routes.draw do
         resources :quote_trackers, only: [ :index, :update ] do
           member do
             post :mark_document_viewed
+            get :job_documents
           end
         end
 
