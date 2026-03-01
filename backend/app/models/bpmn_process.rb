@@ -1,4 +1,7 @@
 class BpmnProcess < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+
   # Associations
   belongs_to :workflow_definition, optional: true
   has_many :bpmn_nodes, dependent: :destroy

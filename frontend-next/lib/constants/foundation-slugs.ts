@@ -31,6 +31,7 @@ export const FOUNDATION_SLUGS = {
   PURCHASE_ORDERS: 'purchase-orders',  // ⚠️ HYPHEN - not purchase_orders
   PURCHASE_ORDER_DOCUMENTS: 'purchase_order_documents',
   PURCHASE_ORDER_LINE_ITEMS: 'purchase_order_line_items',
+  PO_STATUSES: 'po-statuses',  // ⚠️ HYPHEN
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Finance & Accounting
@@ -256,6 +257,7 @@ export const HYPHENATED_SLUGS = [
   'bill-inbox',
   'email-proposals',
   'inspiring-quotes',
+  'po-statuses',
   'price-histories',
   'pricebook-items',
   'purchase-orders',

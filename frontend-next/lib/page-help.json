@@ -1058,9 +1058,9 @@
     },
     "/settings/tables": {
       "title": "Tables",
-      "description": "Manage lookup tables including Pricebook Categories, Brands, Ranges, GST Codes, and Units of Measure.",
-      "tips": ["Pricebook tab manages category groupings for pricebook items", "Brands tab manages brand names for pricebook items", "Ranges tab manages product range/line groupings for pricebook items", "Accounts tab manages GST codes used in POs and Xero sync", "UOM tab manages units of measure (Each, Lm, m2, m3) for pricebook items"],
-      "tasks": ["Manage pricebook categories", "Manage pricebook brands", "Manage pricebook ranges", "Add or edit GST codes", "Sync GST codes from Xero", "Add or edit units of measure"]
+      "description": "Manage lookup tables including Pricebook Categories, Brands, Ranges, PO Statuses, GST Codes, and Units of Measure.",
+      "tips": ["Pricebook tab manages category groupings for pricebook items", "Brands tab manages brand names for pricebook items", "Ranges tab manages product range/line groupings for pricebook items", "Purchase Orders tab manages PO status values with custom colors", "Accounts tab manages GST codes used in POs and Xero sync", "UOM tab manages units of measure (Each, Lm, m2, m3) for pricebook items"],
+      "tasks": ["Manage pricebook categories", "Manage pricebook brands", "Manage pricebook ranges", "Manage PO statuses and colors", "Add or edit GST codes", "Sync GST codes from Xero", "Add or edit units of measure"]
     },
     "/settings/connections": {
       "title": "Connections",

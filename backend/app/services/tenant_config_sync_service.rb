@@ -200,6 +200,22 @@ class TenantConfigSyncService
       description: "Schedule Master templates",
       group: "schedule"
     },
+    sm_task_groups: {
+      model: "SmTaskGroup",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :is_active],
+      description: "Schedule Master task groups (PO visibility inheritance)",
+      group: "schedule"
+    },
+    bpmn_processes: {
+      model: "BpmnProcess",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :bpmn_xml, :canvas_data, :is_published, :version],
+      description: "Workflow process definitions (BPMN)",
+      group: "schedule"
+    },
     sm_schedule_masters: {
       model: "SmScheduleMaster",
       name_field: :name,
@@ -211,13 +227,21 @@ class TenantConfigSyncService
                     :require_photo, :po_required, :critical_po, :has_subtasks,
                     :subtask_count, :subtask_names, :tags, :color, :is_active, :cost_centre,
                     :header_gantt, :assigned_role, :is_claim_task,
-                    :claim_percentage, :is_variation, :sm_template_ids, :predecessor_ids],
+                    :claim_percentage, :is_variation, :sm_template_ids, :predecessor_ids,
+                    :checklist_id, :spawn_scan_task_id, :start_workflow_id,
+                    :complete_workflow_id, :completion_document_type_id, :sm_task_group_id],
       description: "Schedule Master task templates",
       group: "schedule",
       remap_fks: {
         sm_template_ids: { model: "SmScheduleMasterTemplate", match_field: :name, array: true },
         trade: { model: "SmTrade", match_field: :name },
-        stage: { model: "SmStage", match_field: :name }
+        stage: { model: "SmStage", match_field: :name },
+        checklist_id: { model: "SupervisorChecklistTemplate", match_field: :sync_key },
+        completion_document_type_id: { model: "DocumentType", match_field: :sync_key },
+        spawn_scan_task_id: { model: "SmScheduleMaster", match_field: :sync_key },
+        start_workflow_id: { model: "BpmnProcess", match_field: :sync_key },
+        complete_workflow_id: { model: "BpmnProcess", match_field: :sync_key },
+        sm_task_group_id: { model: "SmTaskGroup", match_field: :sync_key }
       }
     },
     sm_trades: {
@@ -266,6 +290,18 @@ class TenantConfigSyncService
       remap_fks: {
         sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key },
         document_type_id: { model: "DocumentType", match_field: :name }
+      }
+    },
+    sm_schedule_master_related_pos: {
+      model: "SmScheduleMasterRelatedPo",
+      name_field: :id,
+      match_fields: [:sm_schedule_master_id, :related_sm_schedule_master_id],
+      sync_fields: [:sm_schedule_master_id, :related_sm_schedule_master_id, :position],
+      description: "Schedule Master related PO task links",
+      group: "schedule",
+      remap_fks: {
+        sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key },
+        related_sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key }
       }
     },
 
@@ -920,6 +956,19 @@ class TenantConfigSyncService
             end
           rescue => e
             @errors << "Failed to set parent for #{record.send(config[:name_field])}: #{e.message}"
+          end
+        end
+      end
+    end
+
+    # Post-import hook: BpmnProcess — rebuild nodes/edges/triggers from bpmn_xml
+    if table.to_sym == :bpmn_processes && imported.any?
+      ActsAsTenant.with_tenant(tenant) do
+        imported.each do |process|
+          begin
+            process.sync_nodes_from_xml! if process.bpmn_xml.present?
+          rescue => e
+            @errors << "Failed to sync nodes for workflow '#{process.name}': #{e.message}"
           end
         end
       end

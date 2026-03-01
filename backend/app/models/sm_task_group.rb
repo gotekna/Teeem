@@ -14,6 +14,9 @@
 #   When any NDIS PO is on a job, NDIS Final Inspection appears (once).
 #
 class SmTaskGroup < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+
   has_many :sm_schedule_masters, dependent: :nullify
 
   validates :name, presence: true

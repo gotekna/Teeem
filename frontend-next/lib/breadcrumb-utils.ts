@@ -498,7 +498,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "data-health": ["overview", "contacts"],
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
   "corporate": ["groups", "companies", "company-tabs"],
-  "tables": ["pricebook", "accounts"],
+  "tables": ["pricebook", "purchase-orders", "accounts"],
 };
 
 /**

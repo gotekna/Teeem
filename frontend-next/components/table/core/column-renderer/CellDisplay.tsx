@@ -329,6 +329,13 @@ export function displayLookup(value: unknown): React.ReactNode {
     if (!displayText) {
       return formatEmpty();
     }
+
+    // Color support for lookup columns (e.g., PO Status, Job Status)
+    // Generic: any lookup table with a `color` column gets colored badges automatically
+    const color = obj.display_color as string | undefined;
+    if (color) {
+      return <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${color}`}>{displayText}</Badge>;
+    }
   } else {
     displayText = String(value);
   }

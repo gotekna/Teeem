@@ -50,6 +50,9 @@ export interface BOQGroup {
   name: string;
   supplierId?: number | null;
   supplierName?: string | null;
+  poStatus?: string | null;
+  poStatusName?: string | null;
+  poStatusColor?: string | null;
   taskName?: string | null;
   taskPosition?: number | null;
   tradeName?: string | null;
@@ -1292,16 +1295,23 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                   {group.taskName}
                 </div>
               )}
-              {onGroupClick ? (
-                <button
-                  onClick={() => onGroupClick(group.id)}
-                  className="text-left text-primary hover:underline font-medium"
-                >
-                  {group.name}
-                </button>
-              ) : (
-                group.name
-              )}
+              <div className="flex items-center gap-1.5">
+                {onGroupClick ? (
+                  <button
+                    onClick={() => onGroupClick(group.id)}
+                    className="text-left text-primary hover:underline font-medium"
+                  >
+                    {group.name}
+                  </button>
+                ) : (
+                  group.name
+                )}
+                {group.poStatusName && (
+                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${group.poStatusColor || ""}`}>
+                    {group.poStatusName}
+                  </Badge>
+                )}
+              </div>
               {(group.stageName || group.tradeName) && (
                 <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
                   {group.stageName && <span>{group.stageName}</span>}
@@ -1362,16 +1372,23 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                       {group.taskName}
                     </div>
                   )}
-                  {onGroupClick ? (
-                    <button
-                      onClick={() => onGroupClick(group.id)}
-                      className="text-left text-primary hover:underline font-medium"
-                    >
-                      {group.name}
-                    </button>
-                  ) : (
-                    group.name
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {onGroupClick ? (
+                      <button
+                        onClick={() => onGroupClick(group.id)}
+                        className="text-left text-primary hover:underline font-medium"
+                      >
+                        {group.name}
+                      </button>
+                    ) : (
+                      group.name
+                    )}
+                    {group.poStatusName && (
+                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${group.poStatusColor || ""}`}>
+                        {group.poStatusName}
+                      </Badge>
+                    )}
+                  </div>
                   {(group.stageName || group.tradeName) && (
                     <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
                       {group.stageName && <span>{group.stageName}</span>}

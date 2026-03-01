@@ -23,12 +23,15 @@ import TeeemTableView from "@/components/table/TeeemTableView";
  *   - brands: Pricebook Brands (TeeemTableView)
  *   - ranges: Pricebook Ranges (TeeemTableView)
  *   - uom: Units of Measure (TeeemTableView)
+ * - purchase-orders: Purchase Order config
+ *   - statuses (default): PO Statuses (TeeemTableView)
  * - accounts: Accounting tables
  *   - gst (default): GST Codes (custom table)
  */
 
 const TOP_TABS = [
   { id: "pricebook", label: "Pricebook" },
+  { id: "purchase-orders", label: "Purchase Orders" },
   { id: "accounts", label: "Accounts" },
 ];
 
@@ -37,6 +40,10 @@ const PRICEBOOK_SUB_TABS = [
   { id: "brands", label: "Brands" },
   { id: "ranges", label: "Ranges" },
   { id: "uom", label: "UOM" },
+];
+
+const PO_SUB_TABS = [
+  { id: "statuses", label: "Statuses" },
 ];
 
 const ACCOUNTS_SUB_TABS = [
@@ -60,6 +67,7 @@ export default function TablesSettingsPage() {
   // Default sub-tabs per top-level tab
   const DEFAULT_SUB_TABS: Record<string, string> = useMemo(() => ({
     pricebook: "categories",
+    "purchase-orders": "statuses",
     accounts: "gst",
   }), []);
 
@@ -74,6 +82,10 @@ export default function TablesSettingsPage() {
     if (activeTab === "pricebook") {
       const validSubs = PRICEBOOK_SUB_TABS.map(s => s.id);
       return subTab && validSubs.includes(subTab) ? subTab : "categories";
+    }
+    if (activeTab === "purchase-orders") {
+      const validSubs = PO_SUB_TABS.map(s => s.id);
+      return subTab && validSubs.includes(subTab) ? subTab : "statuses";
     }
     if (activeTab === "accounts") {
       const validSubs = ACCOUNTS_SUB_TABS.map(s => s.id);
@@ -160,6 +172,33 @@ export default function TablesSettingsPage() {
                       <TeeemTableView
                         foundationId={FOUNDATION_SLUGS.UNITS_OF_MEASURE}
                         tableName="Units of Measure"
+                        autoFetchRecords={true}
+                      />
+                    </div>
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </div>
+          </TabsContent>
+
+          {/* Purchase Orders Tab */}
+          <TabsContent value="purchase-orders" className="absolute inset-0">
+            <div className="flex flex-col h-full">
+              <Tabs value={activeSubTab} onValueChange={setSubTab} className="flex flex-col h-full">
+                <TabsList className="flex-wrap h-auto gap-1 shrink-0">
+                  {PO_SUB_TABS.map((tab) => (
+                    <TabsTrigger key={tab.id} value={tab.id} className="text-sm">
+                      {tab.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+
+                <div className="flex-1 min-h-0 mt-2 relative">
+                  <TabsContent value="statuses" className="absolute inset-0 overflow-auto">
+                    <div className="flex flex-col h-full -mx-4">
+                      <TeeemTableView
+                        foundationId={FOUNDATION_SLUGS.PO_STATUSES}
+                        tableName="PO Statuses"
                         autoFetchRecords={true}
                       />
                     </div>

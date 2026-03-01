@@ -32,6 +32,9 @@ interface BOQApiGroup {
   name: string;
   supplierId: number | null;
   supplierName: string | null;
+  poStatus: string | null;
+  poStatusName: string | null;
+  poStatusColor: string | null;
   taskName: string | null;
   taskPosition: number | null;
   tradeName: string | null;
@@ -147,6 +150,9 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
       name: g.name,
       supplierId: g.supplierId,
       supplierName: g.supplierName,
+      poStatus: g.poStatus,
+      poStatusName: g.poStatusName,
+      poStatusColor: g.poStatusColor,
       taskName: g.taskName,
       taskPosition: g.taskPosition,
       tradeName: g.tradeName,
