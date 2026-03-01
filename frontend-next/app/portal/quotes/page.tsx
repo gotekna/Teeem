@@ -453,9 +453,9 @@ function QuoteRow({
                     <li key={idx} className="flex items-center gap-3">
                       <span className="text-sm text-foreground dark:text-white truncate flex-1">
                         {doc.name}
-                        {doc.versionLetter && doc.versionLetter !== "A" && (
-                          <span className="ml-1 text-xs text-muted-foreground">(Rev {doc.versionLetter})</span>
-                        )}
+                        <span className={`ml-1 text-xs ${doc.versionLetter && doc.versionLetter !== "A" ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}`}>
+                          (Rev {doc.versionLetter || "A"})
+                        </span>
                       </span>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {doc.url && (

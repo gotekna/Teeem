@@ -183,6 +183,7 @@ module Api
               "((documentable_type = 'Job' AND documentable_id IN (:ids)) OR (linkable_type = 'Job' AND linkable_id IN (:ids)))",
               ids: job_ids
             )
+            .where("is_latest_version = true OR version_group_id IS NULL")
             .includes(:storage_blob, :warehouse_folder_document_type)
             .where.not(storage_blobs: { id: nil })
 
