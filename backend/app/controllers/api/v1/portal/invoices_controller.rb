@@ -47,8 +47,8 @@ module Api
                 po_number: invoice.purchase_order.po_number,
                 total: invoice.purchase_order.total,
                 construction: {
-                  name: invoice.purchase_order.job.job_name,
-                  address: invoice.purchase_order.job.street_address
+                  name: invoice.purchase_order.job.name,
+                  address: [invoice.purchase_order.job.street_number, invoice.purchase_order.job.street_name, invoice.purchase_order.job.street_type].compact.join(" ")
                 }
               },
               accounting_integration: invoice.accounting_integration ? {

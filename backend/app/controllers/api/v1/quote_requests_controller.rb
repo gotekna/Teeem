@@ -291,8 +291,8 @@ module Api
           created_at: quote_request.created_at,
           construction: {
             id: quote_request.job.id,
-            name: quote_request.job.job_name,
-            address: quote_request.job.street_address
+            name: quote_request.job.name,
+            address: [quote_request.job.street_number, quote_request.job.street_name, quote_request.job.street_type].compact.join(" ")
           },
           created_by: {
             id: quote_request.created_by.id,

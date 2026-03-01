@@ -84,8 +84,8 @@ module Api
                 title: quote_response.quote_request.title,
                 description: quote_response.quote_request.description,
                 construction: {
-                  name: quote_response.quote_request.job.job_name,
-                  address: quote_response.quote_request.job.street_address
+                  name: quote_response.quote_request.job.name,
+                  address: [quote_response.quote_request.job.street_number, quote_response.quote_request.job.street_name, quote_response.quote_request.job.street_type].compact.join(" ")
                 }
               }
             )

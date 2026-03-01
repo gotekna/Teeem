@@ -219,7 +219,7 @@ module Api
             construction: {
               id: task.job_id,
               name: task.job.name,
-              address: task.job.street_address
+              address: [task.job.street_number, task.job.street_name, task.job.street_type].compact.join(" ")
             }
           }
         end
