@@ -89,6 +89,7 @@ class CustomQuoteTemplateService
             po_description: cc_line.po_description,
             default_instructions: cc_line.rfq_instructions,
             default_supplier_ids: cc_line.suppliers.pluck(:supplier_id),
+            document_type_ids: cc_line.document_type_ids,
             budget_amount: cc_line.budget_amount
           )
 
@@ -104,6 +105,7 @@ class CustomQuoteTemplateService
               po_description: po_line.po_description,
               default_instructions: po_line.rfq_instructions,
               default_supplier_ids: po_line.suppliers.pluck(:supplier_id),
+              document_type_ids: po_line.document_type_ids,
               budget_amount: po_line.budget_amount
             )
           end
@@ -138,6 +140,7 @@ class CustomQuoteTemplateService
             po_description: cc_line.po_description,
             default_instructions: cc_line.rfq_instructions,
             default_supplier_ids: cc_line.suppliers.pluck(:supplier_id),
+            document_type_ids: cc_line.document_type_ids,
             budget_amount: cc_line.budget_amount
           )
 
@@ -153,6 +156,7 @@ class CustomQuoteTemplateService
               po_description: po_line.po_description,
               default_instructions: po_line.rfq_instructions,
               default_supplier_ids: po_line.suppliers.pluck(:supplier_id),
+              document_type_ids: po_line.document_type_ids,
               budget_amount: po_line.budget_amount
             )
           end

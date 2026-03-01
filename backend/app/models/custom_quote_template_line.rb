@@ -50,6 +50,7 @@ class CustomQuoteTemplateLine < ApplicationRecord
       po_description: po_description,
       default_instructions: default_instructions,
       default_supplier_ids: default_supplier_ids,
+      document_type_ids: document_type_ids,
       budget_amount: budget_amount&.to_f,
       position: position,
       children: children.order(:position).map(&:as_tree_node)

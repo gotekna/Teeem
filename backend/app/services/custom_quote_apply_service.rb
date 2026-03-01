@@ -44,6 +44,7 @@ class CustomQuoteApplyService
             tender_description: template_cc.tender_description,
             po_description: template_cc.po_description,
             rfq_instructions: template_cc.default_instructions,
+            document_type_ids: template_cc.document_type_ids,
             budget_amount: template_cc.budget_amount || lookup_budget(job, template_cc.cost_centre_id)
           )
 
@@ -64,6 +65,7 @@ class CustomQuoteApplyService
               tender_description: template_po.tender_description,
               po_description: template_po.po_description,
               rfq_instructions: template_po.default_instructions,
+              document_type_ids: template_po.document_type_ids,
               budget_amount: template_po.budget_amount
             )
 

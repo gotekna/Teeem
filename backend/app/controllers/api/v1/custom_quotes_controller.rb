@@ -537,7 +537,7 @@ module Api
       end
 
       def template_line_params
-        params.permit(:name, :budget_amount, :tender_description, :po_description, :default_instructions)
+        params.permit(:name, :budget_amount, :tender_description, :po_description, :default_instructions, :quote_level, document_type_ids: [], default_supplier_ids: [])
       end
 
       def quote_params

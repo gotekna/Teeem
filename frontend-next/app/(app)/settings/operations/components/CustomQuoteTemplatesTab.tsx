@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Pencil,
   Trash2,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Search,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -19,8 +24,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+// SSoT: Use the SAME components as the job Custom Quotes page
+import { CostCentreSection } from "@/components/jobs/custom-quotes/CostCentreSection";
+import type { CustomQuoteLineNode, QuoteLevel } from "@/components/jobs/custom-quotes/types";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -49,6 +55,7 @@ interface TemplateTreeNode {
   po_description: string | null;
   default_instructions: string | null;
   default_supplier_ids: number[];
+  document_type_ids: number[];
   budget_amount: number | null;
   position: number;
   children: TemplateTreeNode[];
@@ -59,7 +66,32 @@ interface CustomQuoteTemplateDetail extends CustomQuoteTemplateSummary {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Component
+// Map template tree → job CustomQuoteLineNode (SSoT type)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function mapTemplateToLineNode(node: TemplateTreeNode): CustomQuoteLineNode {
+  return {
+    id: node.id,
+    name: node.name,
+    quoteLevel: node.quote_level as QuoteLevel,
+    costCentreId: node.cost_centre_id,
+    smScheduleMasterId: node.sm_schedule_master_id,
+    smTaskId: null,
+    documentTypeIds: node.document_type_ids || [],
+    documentTypeNames: [],
+    tenderDescription: node.tender_description,
+    poDescription: node.po_description,
+    rfqInstructions: node.default_instructions,
+    budgetAmount: node.budget_amount,
+    position: node.position,
+    suppliers: [],
+    defaultSupplierIds: node.default_supplier_ids || [],
+    children: node.children.map(mapTemplateToLineNode),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Main Component
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function CustomQuoteTemplatesTab() {
@@ -71,9 +103,12 @@ export function CustomQuoteTemplatesTab() {
   const [renameDialog, setRenameDialog] = useState<{ id: number; name: string } | null>(null);
   const [renameName, setRenameName] = useState("");
 
+  // Map field names: template uses default_instructions, job uses rfq_instructions
   const handleUpdateLine = useCallback(async (lineId: number, field: string, value: unknown) => {
+    // Remap rfq_instructions → default_instructions for template API
+    const apiField = field === "rfq_instructions" ? "default_instructions" : field;
     try {
-      await api.patch(`/api/v1/custom_quote_template_lines/${lineId}`, { [field]: value });
+      await api.patch(`/api/v1/custom_quote_template_lines/${lineId}`, { [apiField]: value });
       // Refresh the expanded detail
       if (expandedId && expandedDetail) {
         const res = await api.get<{ success: boolean; data: CustomQuoteTemplateDetail }>(
@@ -86,6 +121,11 @@ export function CustomQuoteTemplatesTab() {
       toast.error("Failed to update line");
     }
   }, [expandedId, expandedDetail]);
+
+  // Template uses handleUpdateLine for quote_level (not a separate endpoint)
+  const handleToggleQuoteLevel = useCallback((lineId: number, level: QuoteLevel) => {
+    handleUpdateLine(lineId, "quote_level", level);
+  }, [handleUpdateLine]);
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -186,7 +226,7 @@ export function CustomQuoteTemplatesTab() {
         <div className="border rounded-lg divide-y">
           {templates.map((t) => (
             <div key={t.id}>
-              {/* Template row */}
+              {/* Template header row */}
               <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50">
                 <button
                   className="shrink-0"
@@ -244,23 +284,19 @@ export function CustomQuoteTemplatesTab() {
                 </div>
               </div>
 
-              {/* Expanded tree */}
+              {/* Expanded template tree — uses SAME components as job Custom Quotes */}
               {expandedId === t.id && (
-                <div className="px-4 pb-4 bg-muted/30">
+                <div className="bg-muted/20 border-t">
                   {loadingDetail ? (
                     <div className="flex items-center justify-center py-6">
                       <Spinner className="h-5 w-5" />
                     </div>
                   ) : expandedDetail ? (
-                    <div className="ml-8 space-y-1 pt-2">
-                      {expandedDetail.tree.length === 0 ? (
-                        <p className="text-sm text-muted-foreground italic">No lines in this template</p>
-                      ) : (
-                        expandedDetail.tree.map((cc) => (
-                          <TemplateTreeRow key={cc.id} node={cc} depth={0} onUpdateLine={handleUpdateLine} />
-                        ))
-                      )}
-                    </div>
+                    <TemplateTreeView
+                      tree={expandedDetail.tree}
+                      onUpdateLine={handleUpdateLine}
+                      onToggleQuoteLevel={handleToggleQuoteLevel}
+                    />
                   ) : null}
                 </div>
               )}
@@ -295,118 +331,105 @@ export function CustomQuoteTemplatesTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Tree row
+// Template Tree View (matches CustomQuoteTree toolbar + uses CostCentreSection)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function TemplateTreeRow({ node, depth, onUpdateLine }: {
-  node: TemplateTreeNode;
-  depth: number;
+function TemplateTreeView({ tree, onUpdateLine, onToggleQuoteLevel }: {
+  tree: TemplateTreeNode[];
   onUpdateLine: (lineId: number, field: string, value: unknown) => void;
+  onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
 }) {
-  const isCC = depth === 0;
-  const hasDetails = node.tender_description || node.po_description || node.default_instructions;
+  const [expandedCCs, setExpandedCCs] = useState<Set<number>>(new Set());
+  const [ccSearch, setCcSearch] = useState("");
 
-  return (
-    <>
-      <div
-        className="py-1.5 text-sm border-b border-border/50 last:border-b-0"
-        style={{ paddingLeft: `${depth * 24}px` }}
-      >
-        <div className="flex items-center gap-2">
-          <Badge variant={isCC ? "default" : "outline"} className="text-xs shrink-0">
-            {isCC ? "CC" : "PO"}
-          </Badge>
-          <span className={isCC ? "font-medium flex-1" : "flex-1"}>{node.name}</span>
-          {isCC && node.quote_level && (
-            <Badge variant="secondary" className="text-xs">
-              {node.quote_level === "cost_centre" ? "Quote at CC" : "Quote at PO"}
-            </Badge>
-          )}
-          {node.default_supplier_ids && node.default_supplier_ids.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {node.default_supplier_ids.length} supplier{node.default_supplier_ids.length !== 1 ? "s" : ""}
-            </span>
-          )}
-          <InlinePrice
-            lineId={node.id}
-            value={node.budget_amount}
-            onSave={(val) => onUpdateLine(node.id, "budget_amount", val)}
-          />
-        </div>
-        {hasDetails && (
-          <div className="ml-12 mt-0.5 space-y-0.5">
-            {node.tender_description && (
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground/70">Tender:</span> {node.tender_description}
-              </p>
-            )}
-            {node.po_description && (
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground/70">PO:</span> {node.po_description}
-              </p>
-            )}
-            {node.default_instructions && (
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground/70">RFQ Instructions:</span> {node.default_instructions}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-      {node.children?.map((child) => (
-        <TemplateTreeRow key={child.id} node={child} depth={depth + 1} onUpdateLine={onUpdateLine} />
-      ))}
-    </>
+  const anyExpanded = expandedCCs.size > 0;
+
+  const expandAllCCs = useCallback(() => {
+    setExpandedCCs(new Set(tree.map((cc) => cc.id)));
+  }, [tree]);
+
+  const collapseAllCCs = useCallback(() => {
+    setExpandedCCs(new Set());
+  }, []);
+
+  const toggleCCExpanded = useCallback((ccId: number) => {
+    setExpandedCCs((prev) => {
+      const next = new Set(prev);
+      if (next.has(ccId)) next.delete(ccId);
+      else next.add(ccId);
+      return next;
+    });
+  }, []);
+
+  const filteredTree = useMemo(() => {
+    if (!ccSearch.trim()) return tree;
+    const q = ccSearch.toLowerCase();
+    return tree.filter((cc) =>
+      cc.name.toLowerCase().includes(q) ||
+      cc.children.some((child) => child.name.toLowerCase().includes(q))
+    );
+  }, [tree, ccSearch]);
+
+  // Map template nodes to CustomQuoteLineNode for the shared components
+  const mappedTree = useMemo(() =>
+    filteredTree.map(mapTemplateToLineNode),
+    [filteredTree]
   );
-}
 
-/** Inline editable price — click to edit, blur/enter to save */
-function InlinePrice({ lineId, value, onSave }: {
-  lineId: number;
-  value: number | null;
-  onSave: (val: number | null) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-
-  const startEdit = () => {
-    setDraft(value ? String(value) : "");
-    setEditing(true);
-  };
-
-  const save = () => {
-    setEditing(false);
-    const num = parseFloat(draft);
-    const newVal = isNaN(num) ? null : num;
-    if (newVal !== value) onSave(newVal);
-  };
-
-  if (editing) {
+  if (tree.length === 0) {
     return (
-      <div className="flex items-center gap-1 shrink-0">
-        <span className="text-xs text-muted-foreground">$</span>
-        <input
-          type="number"
-          className="w-24 h-6 text-xs text-right border rounded px-1 bg-background"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={save}
-          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
-          autoFocus
-        />
+      <div className="flex items-center justify-center py-8 text-muted-foreground">
+        <p className="text-sm italic">No lines in this template</p>
       </div>
     );
   }
 
   return (
-    <button
-      onClick={startEdit}
-      className="shrink-0 text-xs font-mono tabular-nums px-2 py-0.5 rounded hover:bg-muted min-w-[80px] text-right"
-      title="Click to set PC price"
-    >
-      {value ? `$${value.toLocaleString("en-AU", { minimumFractionDigits: 2 })}` : (
-        <span className="text-muted-foreground italic">Set price</span>
-      )}
-    </button>
+    <div className="flex flex-col">
+      {/* Toolbar — same as job Custom Quotes */}
+      <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 border-b">
+        <button
+          type="button"
+          onClick={anyExpanded ? collapseAllCCs : expandAllCCs}
+          className="shrink-0 px-2 py-0.5 text-[10px] rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+        >
+          {anyExpanded ? (
+            <>
+              <ChevronsDownUp className="h-3 w-3 inline mr-0.5" />
+              Collapse
+            </>
+          ) : (
+            <>
+              <ChevronsUpDown className="h-3 w-3 inline mr-0.5" />
+              Expand
+            </>
+          )}
+        </button>
+        <div className="relative flex-1 min-w-0 max-w-xs">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <Input
+            value={ccSearch}
+            onChange={(e) => setCcSearch(e.target.value)}
+            placeholder="Search cost centres..."
+            className="h-7 pl-7 text-xs"
+          />
+        </div>
+      </div>
+
+      {/* CC Sections — uses the SAME CostCentreSection as job page */}
+      {/* No supplier props passed = template mode (hides supplier UI) */}
+      <div className="p-4 space-y-1">
+        {mappedTree.map((ccLine) => (
+          <CostCentreSection
+            key={ccLine.id}
+            line={ccLine}
+            expanded={expandedCCs.has(ccLine.id)}
+            onToggleExpanded={() => toggleCCExpanded(ccLine.id)}
+            onToggleQuoteLevel={onToggleQuoteLevel}
+            onUpdateLine={onUpdateLine}
+          />
+        ))}
+      </div>
+    </div>
   );
 }

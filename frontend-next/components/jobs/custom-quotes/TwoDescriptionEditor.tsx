@@ -62,10 +62,8 @@ function wrapAsRfq(
     senderTitle?: string;
     senderPhone?: string;
     senderEmail?: string;
-    /** Actual matched documents grouped by type name - only types with files */
+    /** Actual matched documents grouped by type name - only types with files in the job */
     attachedDocuments?: Array<{ typeName: string; docs: RfqDocument[] }>;
-    /** Fallback: all document type names (used when live data not yet loaded) */
-    documentTypeNames?: string[];
     poLineNames?: string[];
   }
 ): string {
@@ -79,20 +77,13 @@ function wrapAsRfq(
     parts.push(tenderText.trim() + "\n");
   }
 
-  // Attached documents - only those that actually exist
+  // Attached documents - ONLY those that actually exist in the job
   if (opts.attachedDocuments && opts.attachedDocuments.length > 0) {
     parts.push("Please find the following documents attached for quoting:");
     for (const { docs } of opts.attachedDocuments) {
       for (const doc of docs) {
         parts.push(`  - ${formatDocForRfq(doc)}`);
       }
-    }
-    parts.push("");
-  } else if (opts.documentTypeNames && opts.documentTypeNames.length > 0) {
-    // Fallback to type names while loading
-    parts.push("Please find the following documents attached for quoting:");
-    for (const name of opts.documentTypeNames) {
-      parts.push(`  - ${name}`);
     }
     parts.push("");
   }
@@ -190,10 +181,9 @@ export function TwoDescriptionEditor({
       senderPhone: user?.mobile_phone || undefined,
       senderEmail: user?.email,
       attachedDocuments: getAttachedDocuments(),
-      documentTypeNames,
       poLineNames,
     });
-  }, [user, getAttachedDocuments, documentTypeNames, poLineNames]);
+  }, [user, getAttachedDocuments, poLineNames]);
 
   const handleTenderChange = useCallback((value: string) => {
     setLocalTender(value);

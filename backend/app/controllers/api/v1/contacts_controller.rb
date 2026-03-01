@@ -23,6 +23,12 @@ module Api
           Contact.where(is_active: true)
         end
 
+        # Filter by specific IDs (for resolving names)
+        if params[:ids].present?
+          ids = params[:ids].to_s.split(",").map(&:to_i).reject(&:zero?)
+          @contacts = @contacts.where(id: ids) if ids.any?
+        end
+
         # Filter to only show actual company directors
         # Performance: Uses cached column instead of joining corporate_company_directors
         if params[:is_director] == "true"

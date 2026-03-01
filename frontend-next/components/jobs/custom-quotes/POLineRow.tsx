@@ -6,19 +6,21 @@ import { Button } from "@/components/ui/button";
 import { SupplierQuoteCell } from "./SupplierQuoteCell";
 import { TwoDescriptionEditor } from "./TwoDescriptionEditor";
 import { DocumentTypeTreePicker } from "./DocumentTypeTreePicker";
+import { DefaultSuppliersList } from "./DefaultSuppliersList";
 import type { CustomQuoteLineNode, QuoteLevel } from "./types";
 
 interface POLineRowProps {
-  jobId: string | number;
+  jobId?: string | number;
   line: CustomQuoteLineNode;
   onUpdateLine: (lineId: number, field: string, value: unknown) => void;
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
-  onAddSupplier: (lineId: number) => void;
-  onSendRfq: (supplierId: number) => void;
-  onMarkSent: (supplierId: number) => void;
-  onRecordResponse: (supplierId: number) => void;
-  onAccept: (supplierId: number) => void;
-  onReject: (supplierId: number) => void;
+  // Supplier/job-specific props — optional for template mode
+  onAddSupplier?: (lineId: number) => void;
+  onSendRfq?: (supplierId: number) => void;
+  onMarkSent?: (supplierId: number) => void;
+  onRecordResponse?: (supplierId: number) => void;
+  onAccept?: (supplierId: number) => void;
+  onReject?: (supplierId: number) => void;
   onDropFile?: (supplierId: number, file: File) => void;
 }
 
@@ -35,6 +37,9 @@ export function POLineRow({
   onReject,
   onDropFile,
 }: POLineRowProps) {
+  // Whether supplier workflow UI is available (job mode vs template mode)
+  const hasSupplierUI = !!(onAddSupplier && onSendRfq);
+
   const [liveDocTypeNames, setLiveDocTypeNames] = useState<string[]>(line.documentTypeNames);
   const handleDocTypeNamesChange = useCallback((names: string[]) => {
     setLiveDocTypeNames(names);
@@ -65,10 +70,11 @@ export function POLineRow({
           </span>
         )}
 
-        {!isNotRequired && line.budgetAmount != null && (
-          <span className="text-xs text-muted-foreground">
-            Budget: ${line.budgetAmount.toLocaleString()}
-          </span>
+        {!isNotRequired && (
+          <InlineBudget
+            value={line.budgetAmount}
+            onSave={(val) => onUpdateLine(line.id, "budget_amount", val)}
+          />
         )}
 
         {!isNotRequired && allocated > 0 && (
@@ -77,12 +83,12 @@ export function POLineRow({
           </span>
         )}
 
-        {!isNotRequired && (
+        {!isNotRequired && hasSupplierUI && (
           <Button
             size="sm"
             variant="ghost"
             className="h-6 px-2 text-xs ml-auto"
-            onClick={() => onAddSupplier(line.id)}
+            onClick={() => onAddSupplier!(line.id)}
           >
             <Plus className="h-3 w-3 mr-1" />
             Supplier
@@ -90,7 +96,7 @@ export function POLineRow({
         )}
       </div>
 
-      {/* Document type, supplier cards, descriptions - hidden when not required */}
+      {/* Document type selector — always shown */}
       {!isNotRequired && (
         <div className="mt-2">
           <DocumentTypeTreePicker
@@ -101,23 +107,35 @@ export function POLineRow({
         </div>
       )}
 
-      {!isNotRequired && line.suppliers.length > 0 && (
+      {/* Default suppliers — template mode */}
+      {!isNotRequired && !hasSupplierUI && line.defaultSupplierIds !== undefined && (
+        <div className="mt-2">
+          <DefaultSuppliersList
+            supplierIds={line.defaultSupplierIds}
+            onUpdate={(ids) => onUpdateLine(line.id, "default_supplier_ids", ids)}
+          />
+        </div>
+      )}
+
+      {/* Supplier cards — job mode only */}
+      {!isNotRequired && hasSupplierUI && line.suppliers.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2">
           {line.suppliers.map((supplier) => (
             <SupplierQuoteCell
               key={supplier.id}
               supplier={supplier}
-              onSendRfq={onSendRfq}
-              onMarkSent={onMarkSent}
-              onRecordResponse={onRecordResponse}
-              onAccept={onAccept}
-              onReject={onReject}
+              onSendRfq={onSendRfq!}
+              onMarkSent={onMarkSent!}
+              onRecordResponse={onRecordResponse!}
+              onAccept={onAccept!}
+              onReject={onReject!}
               onDropFile={onDropFile}
             />
           ))}
         </div>
       )}
 
+      {/* Descriptions — always shown */}
       {!isNotRequired && (
         <TwoDescriptionEditor
           tenderDescription={line.tenderDescription}
@@ -130,5 +148,55 @@ export function POLineRow({
         />
       )}
     </div>
+  );
+}
+
+/** Inline editable budget — click to edit, blur/enter to save */
+function InlineBudget({ value, onSave }: {
+  value: number | null | undefined;
+  onSave: (val: number | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const startEdit = () => {
+    setDraft(value ? String(value) : "");
+    setEditing(true);
+  };
+
+  const save = () => {
+    setEditing(false);
+    const num = parseFloat(draft);
+    const newVal = isNaN(num) ? null : num;
+    if (newVal !== (value ?? null)) onSave(newVal);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <span className="text-xs text-muted-foreground">$</span>
+        <input
+          type="number"
+          className="w-24 h-6 text-xs text-right border rounded px-1 bg-background"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+          autoFocus
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); startEdit(); }}
+      className="shrink-0 text-xs font-mono tabular-nums px-2 py-0.5 rounded hover:bg-muted text-right"
+      title="Click to set budget/PC price"
+    >
+      {value ? `Budget: $${value.toLocaleString("en-AU", { minimumFractionDigits: 2 })}` : (
+        <span className="text-muted-foreground italic">Set price</span>
+      )}
+    </button>
   );
 }

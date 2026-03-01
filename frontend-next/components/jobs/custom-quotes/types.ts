@@ -47,6 +47,7 @@ export interface CustomQuoteLineNode {
   budgetAmount: number | null;
   position: number;
   suppliers: CustomQuoteSupplierSummary[];
+  defaultSupplierIds?: number[];
   children: CustomQuoteLineNode[];
 }
 

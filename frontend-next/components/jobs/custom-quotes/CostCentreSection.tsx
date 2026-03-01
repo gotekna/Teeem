@@ -7,23 +7,25 @@ import { SupplierQuoteCell } from "./SupplierQuoteCell";
 import { POLineRow } from "./POLineRow";
 import { TwoDescriptionEditor } from "./TwoDescriptionEditor";
 import { DocumentTypeTreePicker } from "./DocumentTypeTreePicker";
+import { DefaultSuppliersList } from "./DefaultSuppliersList";
 import type { CustomQuoteLineNode, QuoteLevel } from "./types";
 
 interface CostCentreSectionProps {
-  jobId: string | number;
+  jobId?: string | number;
   line: CustomQuoteLineNode;
   expanded: boolean;
   onToggleExpanded: () => void;
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
   onUpdateLine: (lineId: number, field: string, value: unknown) => void;
-  onAddSupplier: (lineId: number) => void;
-  onAddChildLine: (parentLineId: number) => void;
-  onSendRfq: (supplierId: number) => void;
-  onMarkSent: (supplierId: number) => void;
-  onRecordResponse: (supplierId: number) => void;
-  onAccept: (supplierId: number) => void;
-  onReject: (supplierId: number) => void;
-  onAllocate: (supplierId: number) => void;
+  // Supplier/job-specific props — optional for template mode
+  onAddSupplier?: (lineId: number) => void;
+  onAddChildLine?: (parentLineId: number) => void;
+  onSendRfq?: (supplierId: number) => void;
+  onMarkSent?: (supplierId: number) => void;
+  onRecordResponse?: (supplierId: number) => void;
+  onAccept?: (supplierId: number) => void;
+  onReject?: (supplierId: number) => void;
+  onAllocate?: (supplierId: number) => void;
   onDropFile?: (supplierId: number, file: File) => void;
 }
 
@@ -44,6 +46,9 @@ export function CostCentreSection({
   onAllocate,
   onDropFile,
 }: CostCentreSectionProps) {
+
+  // Whether supplier workflow UI is available (job mode vs template mode)
+  const hasSupplierUI = !!(onAddSupplier && onSendRfq);
 
   // Total from accepted suppliers or PO children
   const ccTotal = line.quoteLevel === "cost_centre"
@@ -111,11 +116,12 @@ export function CostCentreSection({
           </span>
         )}
 
-        {line.budgetAmount != null && (
-          <span className="text-xs text-muted-foreground">
-            Budget: ${line.budgetAmount.toLocaleString()}
-          </span>
-        )}
+        <div onClick={(e) => e.stopPropagation()}>
+          <InlineBudget
+            value={line.budgetAmount}
+            onSave={(val) => onUpdateLine(line.id, "budget_amount", val)}
+          />
+        </div>
 
         {!isNotRequired && line.documentTypeNames.length > 0 && (
           <span className="text-[10px] text-muted-foreground">
@@ -127,7 +133,7 @@ export function CostCentreSection({
       {/* Expanded content (hidden when not required) */}
       {expanded && !isNotRequired && (
         <div className="px-4 pb-3">
-          {/* Document type selector */}
+          {/* Document type selector — always shown */}
           <div className="mb-3">
             <DocumentTypeTreePicker
               selectedIds={line.documentTypeIds}
@@ -136,8 +142,18 @@ export function CostCentreSection({
             />
           </div>
 
-          {/* CC-level: suppliers on the CC line itself */}
-          {isCCLevel && (
+          {/* Default suppliers — template mode (no supplier workflow) */}
+          {!hasSupplierUI && line.defaultSupplierIds !== undefined && (
+            <div className="mb-3">
+              <DefaultSuppliersList
+                supplierIds={line.defaultSupplierIds}
+                onUpdate={(ids) => onUpdateLine(line.id, "default_supplier_ids", ids)}
+              />
+            </div>
+          )}
+
+          {/* CC-level: suppliers on the CC line itself — job mode only */}
+          {hasSupplierUI && isCCLevel && (
             <div className="mb-3">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xs font-medium text-muted-foreground">CC-Level Suppliers</span>
@@ -145,7 +161,7 @@ export function CostCentreSection({
                   size="sm"
                   variant="ghost"
                   className="h-6 px-2 text-xs"
-                  onClick={() => onAddSupplier(line.id)}
+                  onClick={() => onAddSupplier!(line.id)}
                 >
                   <Plus className="h-3 w-3 mr-1" />
                   Supplier
@@ -156,14 +172,14 @@ export function CostCentreSection({
                   <SupplierQuoteCell
                     key={supplier.id}
                     supplier={supplier}
-                    onSendRfq={onSendRfq}
-                    onMarkSent={onMarkSent}
-                    onRecordResponse={onRecordResponse}
+                    onSendRfq={onSendRfq!}
+                    onMarkSent={onMarkSent!}
+                    onRecordResponse={onRecordResponse!}
                     onAccept={(id) => {
                       // For CC-level, accepted supplier needs allocation
-                      onAllocate(id);
+                      onAllocate?.(id);
                     }}
-                    onReject={onReject}
+                    onReject={onReject!}
                     onDropFile={onDropFile}
                   />
                 ))}
@@ -171,19 +187,17 @@ export function CostCentreSection({
             </div>
           )}
 
-          {/* Descriptions only for CC-level quoting */}
-          {isCCLevel && (
-            <TwoDescriptionEditor
-              tenderDescription={line.tenderDescription}
-              poDescription={line.poDescription}
-              rfqInstructions={line.rfqInstructions}
-              onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
-              jobId={jobId}
-              documentTypeIds={line.documentTypeIds}
-              documentTypeNames={liveDocTypeNames}
-              poLineNames={line.children.filter((c) => c.quoteLevel !== "not_required").map((c) => c.name)}
-            />
-          )}
+          {/* Descriptions — always shown when expanded */}
+          <TwoDescriptionEditor
+            tenderDescription={line.tenderDescription}
+            poDescription={line.poDescription}
+            rfqInstructions={line.rfqInstructions}
+            onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
+            jobId={jobId}
+            documentTypeIds={line.documentTypeIds}
+            documentTypeNames={liveDocTypeNames}
+            poLineNames={line.children.filter((c) => c.quoteLevel !== "not_required").map((c) => c.name)}
+          />
 
           {/* PO Children */}
           <div className="mt-2">
@@ -204,18 +218,70 @@ export function CostCentreSection({
               />
             ))}
 
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-xs ml-6 mt-1"
-              onClick={() => onAddChildLine(line.id)}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              Add PO Line
-            </Button>
+            {onAddChildLine && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs ml-6 mt-1"
+                onClick={() => onAddChildLine(line.id)}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add PO Line
+              </Button>
+            )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** Inline editable budget — click to edit, blur/enter to save */
+function InlineBudget({ value, onSave }: {
+  value: number | null | undefined;
+  onSave: (val: number | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const startEdit = () => {
+    setDraft(value ? String(value) : "");
+    setEditing(true);
+  };
+
+  const save = () => {
+    setEditing(false);
+    const num = parseFloat(draft);
+    const newVal = isNaN(num) ? null : num;
+    if (newVal !== (value ?? null)) onSave(newVal);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="text-xs text-muted-foreground">$</span>
+        <input
+          type="number"
+          className="w-24 h-6 text-xs text-right border rounded px-1 bg-background"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+          autoFocus
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={startEdit}
+      className="shrink-0 text-xs font-mono tabular-nums px-2 py-0.5 rounded hover:bg-muted text-right"
+      title="Click to set budget/PC price"
+    >
+      {value ? `Budget: $${value.toLocaleString("en-AU", { minimumFractionDigits: 2 })}` : (
+        <span className="text-muted-foreground italic">Set price</span>
+      )}
+    </button>
   );
 }
