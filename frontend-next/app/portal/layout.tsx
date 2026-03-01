@@ -255,7 +255,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       )}
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className="lg:pl-64 h-screen overflow-y-auto">
         <main className="py-6 lg:py-10 px-4 sm:px-6 lg:px-8 pt-20 lg:pt-10">
           {children}
         </main>
