@@ -37,6 +37,7 @@ interface QuoteRecord {
   instructions: string | null;
   documentName: string | null;
   documentUrl: string | null;
+  isDocumentNew: boolean;
 }
 
 interface Builder {
@@ -178,6 +179,26 @@ export default function PortalQuotes() {
     }
   };
 
+  const handleMarkDocumentViewed = useCallback(async (quoteId: string) => {
+    try {
+      await portalApi.post(`/api/v1/portal/quote_trackers/${quoteId}/mark_document_viewed`);
+      setData((prev) => {
+        const updated = { ...prev };
+        for (const key of Object.keys(updated) as (TabKey | "builders")[]) {
+          if (key === "builders") continue;
+          const list = updated[key] as QuoteRecord[];
+          const idx = list.findIndex((q) => q.id === quoteId);
+          if (idx !== -1) {
+            list[idx] = { ...list[idx], isDocumentNew: false };
+          }
+        }
+        return updated;
+      });
+    } catch (error) {
+      console.error("Failed to mark document as viewed:", error);
+    }
+  }, []);
+
   const multiBuilder = data.builders.length > 1;
   const currentQuotes = data[activeTab] || [];
 
@@ -255,6 +276,7 @@ export default function PortalQuotes() {
                 activeTab={activeTab}
                 showBuilder={multiBuilder}
                 onUpdateValidTo={handleUpdateValidTo}
+                onMarkDocumentViewed={handleMarkDocumentViewed}
               />
             ))}
           </ul>
@@ -269,11 +291,13 @@ function QuoteRow({
   activeTab,
   showBuilder,
   onUpdateValidTo,
+  onMarkDocumentViewed,
 }: {
   quote: QuoteRecord;
   activeTab: TabKey;
   showBuilder: boolean;
   onUpdateValidTo: (quoteId: string, validTo: string | null) => Promise<void>;
+  onMarkDocumentViewed: (quoteId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingExpiry, setEditingExpiry] = useState(false);
@@ -348,9 +372,13 @@ function QuoteRow({
               )}
 
               {quote.documentUrl && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                  quote.isDocumentNew
+                    ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300"
+                    : "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                }`}>
                   <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
-                  Quote attached
+                  {quote.isDocumentNew ? "New revision" : "Quote attached"}
                 </span>
               )}
             </div>
@@ -417,13 +445,23 @@ function QuoteRow({
               <div>
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
                   Quote Document
+                  {quote.isDocumentNew && (
+                    <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
+                      New
+                    </span>
+                  )}
                 </h4>
                 <a
                   href={quote.documentUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (quote.isDocumentNew) {
+                      onMarkDocumentViewed(quote.id);
+                    }
+                  }}
                 >
                   <ArrowDownTrayIcon className="h-4 w-4" />
                   {quote.documentName || "Download quote"}

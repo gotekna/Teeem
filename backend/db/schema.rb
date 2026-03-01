@@ -2262,6 +2262,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "confirmed_by_id"
     t.datetime "confirmed_at"
     t.text "confirmation_notes"
+    t.datetime "document_viewed_at"
     t.index ["contact_person_id"], name: "index_custom_quote_suppliers_on_contact_person_id"
     t.index ["custom_quote_line_id", "supplier_id"], name: "idx_cqs_line_supplier", unique: true
     t.index ["custom_quote_line_id"], name: "index_custom_quote_suppliers_on_custom_quote_line_id"

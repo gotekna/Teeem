@@ -4614,7 +4614,11 @@ Rails.application.routes.draw do
         resources :quote_responses, only: [ :create, :update, :show ]
 
         # Quote trackers (cross-tenant view of QuoteTracker + CustomQuoteSupplier)
-        resources :quote_trackers, only: [ :index, :update ]
+        resources :quote_trackers, only: [ :index, :update ] do
+          member do
+            post :mark_document_viewed
+          end
+        end
 
         # Jobs tracking
         resources :jobs, only: [ :index, :show ] do

@@ -35,6 +35,21 @@ module Api
           }
         end
 
+        # POST /api/v1/portal/quote_trackers/:id/mark_document_viewed
+        #
+        # Marks the supplier's document as viewed (resets the "new" indicator).
+        # Only applies to CustomQuoteSupplier records (cqs_ prefix).
+        def mark_document_viewed
+          source, record_id = parse_quote_id(params[:id])
+          return render json: { success: false, error: "Invalid quote ID" }, status: :bad_request unless source == "cqs" && record_id
+
+          record = find_owned_record(source, record_id)
+          return render json: { success: false, error: "Quote not found" }, status: :not_found unless record
+
+          record.update!(document_viewed_at: Time.current)
+          render json: { success: true }
+        end
+
         # PATCH /api/v1/portal/quote_trackers/:id
         #
         # Allows supplier to update valid_to (expiry date) on their quotes.
@@ -148,7 +163,8 @@ module Api
             responseNotes: cqs.response_notes,
             instructions: line&.rfq_instructions,
             documentName: doc&.ui_name || doc&.original_filename,
-            documentUrl: (doc&.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT) rescue nil)
+            documentUrl: (doc&.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT) rescue nil),
+            isDocumentNew: doc.present? && (cqs.document_viewed_at.nil? || doc.updated_at > cqs.document_viewed_at)
           }
         end
 
