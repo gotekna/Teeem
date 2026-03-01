@@ -100,7 +100,7 @@ class Contact < ApplicationRecord
   has_many :quote_responses, dependent: :destroy
   has_many :quote_request_contacts, dependent: :destroy
   has_many :quote_requests, through: :quote_request_contacts
-  has_one :accounting_integration, dependent: :destroy
+  has_many :accounting_integrations, dependent: :destroy
   has_many :subcontractor_invoices, dependent: :destroy
   has_many :pay_now_requests, dependent: :destroy
 

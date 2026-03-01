@@ -501,7 +501,7 @@ class PurchaseOrder < ApplicationRecord
     SubcontractorInvoice.create!(
       purchase_order: self,
       contact: contact,
-      accounting_integration: contact.accounting_integration,
+      accounting_integration: contact.accounting_integrations.active.first,
       amount: invoice_amount,
       status: "draft"
     )
