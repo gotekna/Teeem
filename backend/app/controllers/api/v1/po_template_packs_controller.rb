@@ -397,6 +397,10 @@ module Api
       def build_pack_sync_status(pack)
         return nil unless pack.sync_key.present?
 
+        # Respect per-record sync mode — if "independent", don't show sync badge
+        modes = current_tenant&.tenant_setting&.config_sync_table_modes || {}
+        return nil if modes["po_template_packs:#{pack.id}"] == "independent"
+
         # Check all other tenants for matching sync_key
         other_tenants = Tenant.where.not(id: current_tenant.id)
 
