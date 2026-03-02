@@ -12,8 +12,8 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import MultipleSelector from "@/components/ui/multiple-selector";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, AlertCircle, FileText, Package, RefreshCw } from "lucide-react";
-import { DependencyInfoPanel, getDependencyTypeLabel, DEPENDENCY_GRID_COLS } from "./DependencyInfoPanel";
+import { Check, AlertCircle, FileText, Package, RefreshCw, X } from "lucide-react";
+import { DependencyInfoPanel, DEPENDENCY_GRID_COLS, DEPENDENCY_GRID_COLS_EDITABLE } from "./DependencyInfoPanel";
 import { api } from "@/lib/api";
 import { UI_AUTOSAVE_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
@@ -258,8 +258,8 @@ export function EditRowDialog({
 
   // Template links state (lazy-loaded when Tender & Quotes tab is opened)
   const [templateLinks, setTemplateLinks] = React.useState<{
-    po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null }>;
-    custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number }>;
+    po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null; is_primary?: boolean }>;
+    custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number; is_primary?: boolean }>;
   } | null>(null);
   const [templateLinksLoaded, setTemplateLinksLoaded] = React.useState(false);
 
@@ -336,6 +336,8 @@ export function EditRowDialog({
         // Plan and document reference types
         plan_type_ids: row.plan_type_ids || [],
         document_ref_type_ids: row.document_ref_type_ids || [],
+        // Dependencies (predecessor_ids JSONB)
+        predecessor_ids: row.predecessor_ids || [],
       });
 
       // Load template preview if claim task with template
@@ -407,8 +409,8 @@ export function EditRowDialog({
       const data = await api.get<{
         success: boolean;
         data: {
-          po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null }>;
-          custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number }>;
+          po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null; is_primary?: boolean }>;
+          custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number; is_primary?: boolean }>;
         };
       }>(`/api/v1/sm_schedule_master/template_links/${row.id}`);
       if (data?.data) {
@@ -1139,6 +1141,7 @@ export function EditRowDialog({
               {/* ============================================================
                   TAB 3: DEPENDENCIES - Predecessors & Successors
                   Uses shared DependencyInfoPanel for consistency with Gantt
+                  Fully editable: add/remove predecessors, change type/lag
                  ============================================================ */}
               <TabsContent value="dependencies" className="mt-3">
                 <div className="flex gap-4">
@@ -1147,56 +1150,156 @@ export function EditRowDialog({
 
                   {/* Main Content - Predecessors & Successors */}
                   <div className="flex-1 overflow-y-auto space-y-4 min-w-0">
-                    {/* Predecessors Section */}
+                    {/* Predecessors Section - EDITABLE */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-indigo-500" />
                         <h3 className="text-sm font-semibold">Predecessors</h3>
                         <span className="text-xs text-muted-foreground">
-                          ({row?.predecessor_ids?.length || 0})
+                          ({(editRowForm.predecessor_ids || []).length})
                         </span>
                       </div>
 
                       {/* Header row */}
-                      <div className={`grid ${DEPENDENCY_GRID_COLS} gap-2 text-xs font-medium text-muted-foreground px-1`}>
+                      <div className={`grid ${DEPENDENCY_GRID_COLS_EDITABLE} gap-2 text-xs font-medium text-muted-foreground px-1`}>
                         <span>Row #</span>
                         <span>ID</span>
                         <span>Task</span>
                         <span>Type</span>
                         <span>Lag</span>
+                        <span></span>
                       </div>
 
-                      {row?.predecessor_ids && row.predecessor_ids.length > 0 ? (
-                        <div className="space-y-2">
-                          {row.predecessor_ids.map((pred) => {
-                            const predTask = allRows.find(r => r.task_number === pred.id || r.id === pred.id);
-                            return (
-                              <div key={`pred-${pred.id}`} className={`grid ${DEPENDENCY_GRID_COLS} gap-2 items-center`}>
-                                <div className="h-8 flex items-center justify-center text-sm rounded-md border border-input bg-background">
-                                  {predTask?.task_number || pred.id}
-                                </div>
-                                <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-background">
-                                  {predTask?.id || ""}
-                                </div>
-                                <div className="h-8 flex items-center px-2 text-sm rounded-md border border-input bg-background truncate">
-                                  {predTask ? predTask.name : `Task #${pred.id}`}
-                                </div>
-                                <div className="h-8 flex items-center px-2 text-sm rounded-md border border-input bg-background">
-                                  {getDependencyTypeLabel(pred.type || "FS")}
-                                </div>
-                                <div className="h-8 flex items-center justify-center text-sm rounded-md border border-input bg-background">
-                                  {pred.lag || 0}
-                                </div>
+                      <div className="space-y-2">
+                        {(editRowForm.predecessor_ids || []).map((pred, index) => {
+                          const predTask = allRows.find(r => r.task_number === pred.id || r.id === pred.id);
+                          return (
+                            <div key={`pred-${pred.id}-${index}`} className={`grid ${DEPENDENCY_GRID_COLS_EDITABLE} gap-2 items-center`}>
+                              {/* Row # input */}
+                              <Input
+                                type="number"
+                                min={1}
+                                value={predTask?.task_number || pred.id}
+                                onChange={(e) => {
+                                  const taskNum = parseInt(e.target.value, 10);
+                                  const found = allRows.find(r => r.task_number === taskNum);
+                                  if (found && found.id !== row.id) {
+                                    const updated = [...(editRowForm.predecessor_ids || [])];
+                                    updated[index] = { ...updated[index], id: found.task_number };
+                                    setEditRowForm({ ...editRowForm, predecessor_ids: updated });
+                                  }
+                                }}
+                                className="h-8 text-center"
+                                placeholder="#"
+                              />
+                              {/* ID display */}
+                              <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-background">
+                                {predTask?.id || ""}
                               </div>
-                            );
-                          })}
+                              {/* Task dropdown */}
+                              <ComboboxDropdown
+                                items={allRows
+                                  .filter(r => r.id !== row.id)
+                                  .map(r => ({ id: String(r.task_number), label: r.name, description: `#${r.task_number}` }))}
+                                selectedItem={predTask ? { id: String(predTask.task_number), label: predTask.name, description: `#${predTask.task_number}` } : undefined}
+                                onSelect={(item) => {
+                                  const updated = [...(editRowForm.predecessor_ids || [])];
+                                  updated[index] = { ...updated[index], id: Number(item.id) };
+                                  setEditRowForm({ ...editRowForm, predecessor_ids: updated });
+                                }}
+                                placeholder="Select task..."
+                                searchPlaceholder="Search tasks..."
+                                className="h-8"
+                              />
+                              {/* Type dropdown */}
+                              <select
+                                value={pred.type || "FS"}
+                                onChange={(e) => {
+                                  const updated = [...(editRowForm.predecessor_ids || [])];
+                                  updated[index] = { ...updated[index], type: e.target.value };
+                                  setEditRowForm({ ...editRowForm, predecessor_ids: updated });
+                                }}
+                                className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                              >
+                                <option value="FS">Finish-to-Start (FS)</option>
+                                <option value="FF">Finish-to-Finish (FF)</option>
+                                <option value="SS">Start-to-Start (SS)</option>
+                                <option value="SF">Start-to-Finish (SF)</option>
+                              </select>
+                              {/* Lag input */}
+                              <Input
+                                type="number"
+                                value={pred.lag || 0}
+                                onChange={(e) => {
+                                  const updated = [...(editRowForm.predecessor_ids || [])];
+                                  updated[index] = { ...updated[index], lag: parseInt(e.target.value, 10) || 0 };
+                                  setEditRowForm({ ...editRowForm, predecessor_ids: updated });
+                                }}
+                                className="h-8 text-center"
+                                placeholder="0"
+                              />
+                              {/* Remove button */}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => {
+                                  const updated = (editRowForm.predecessor_ids || []).filter((_, i) => i !== index);
+                                  setEditRowForm({ ...editRowForm, predecessor_ids: updated });
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+
+                        {/* Empty row to add new predecessor */}
+                        <div className={`grid ${DEPENDENCY_GRID_COLS_EDITABLE} gap-2 items-center opacity-60`}>
+                          <Input
+                            type="number"
+                            min={1}
+                            value=""
+                            onChange={(e) => {
+                              const taskNum = parseInt(e.target.value, 10);
+                              const found = allRows.find(r => r.task_number === taskNum);
+                              if (found && found.id !== row.id &&
+                                !(editRowForm.predecessor_ids || []).some(p => p.id === found.task_number)) {
+                                setEditRowForm({
+                                  ...editRowForm,
+                                  predecessor_ids: [...(editRowForm.predecessor_ids || []), { id: found.task_number, type: "FS", lag: 0 }]
+                                });
+                              }
+                            }}
+                            className="h-8 text-center"
+                            placeholder="#"
+                          />
+                          <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-background" />
+                          <ComboboxDropdown
+                            items={allRows
+                              .filter(r => r.id !== row.id && !(editRowForm.predecessor_ids || []).some(p => p.id === r.task_number))
+                              .map(r => ({ id: String(r.task_number), label: r.name, description: `#${r.task_number}` }))}
+                            selectedItem={undefined}
+                            onSelect={(item) => {
+                              setEditRowForm({
+                                ...editRowForm,
+                                predecessor_ids: [...(editRowForm.predecessor_ids || []), { id: Number(item.id), type: "FS", lag: 0 }]
+                              });
+                            }}
+                            placeholder="Add predecessor..."
+                            searchPlaceholder="Search tasks..."
+                            className="h-8"
+                          />
+                          <select disabled className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+                            <option>Finish-to-Start (FS)</option>
+                          </select>
+                          <Input disabled className="h-8 text-center" placeholder="0" />
+                          <div className="h-8 w-8" />
                         </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic py-2">No predecessors — this task has no dependencies</p>
-                      )}
+                      </div>
                     </div>
 
-                    {/* Successors Section */}
+                    {/* Successors Section - READ-ONLY (computed from other rows' predecessor_ids) */}
                     <div className="space-y-2 border-t pt-4">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-purple-500" />
@@ -1241,7 +1344,11 @@ export function EditRowDialog({
                                     {succ.name}
                                   </div>
                                   <div className="h-8 flex items-center px-2 text-sm rounded-md border border-input bg-background">
-                                    {getDependencyTypeLabel(pred?.type || "FS")}
+                                    {pred?.type === "FS" ? "Finish-to-Start (FS)"
+                                      : pred?.type === "SS" ? "Start-to-Start (SS)"
+                                      : pred?.type === "FF" ? "Finish-to-Finish (FF)"
+                                      : pred?.type === "SF" ? "Start-to-Finish (SF)"
+                                      : "Finish-to-Start (FS)"}
                                   </div>
                                   <div className="h-8 flex items-center justify-center text-sm rounded-md border border-input bg-background">
                                     {pred?.lag || 0}
@@ -2193,52 +2300,66 @@ export function EditRowDialog({
                     </div>
 
                     {/* PO Template Packs */}
-                    {templateLinks.po_template_packs.length > 0 && (
-                      <div>
-                        <Label className="text-xs font-medium flex items-center gap-1.5 mb-2">
-                          <Package className="h-3.5 w-3.5 text-blue-500" />
-                          PO Template Packs ({templateLinks.po_template_packs.length})
-                        </Label>
-                        <div className="space-y-1.5">
-                          {templateLinks.po_template_packs.map(pack => (
-                            <div key={pack.id} className="flex items-center gap-2 p-2.5 rounded-md border bg-muted/20 dark:bg-muted/10 text-sm">
-                              <Package className="h-4 w-4 text-blue-500 shrink-0" />
-                              <span className="font-medium flex-1">{pack.pack_name}</span>
-                              {pack.item_count != null && (
-                                <span className="text-xs text-muted-foreground">{pack.item_count} items</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-1.5 ml-1">
-                          Fields synced: Name, PO Supplier, Budget, PO Description
-                        </p>
-                      </div>
-                    )}
+                    <div>
+                      <Label className="text-xs font-medium flex items-center gap-1.5 mb-2">
+                        <Package className="h-3.5 w-3.5 text-blue-500" />
+                        PO Template Packs ({templateLinks.po_template_packs.length})
+                      </Label>
+                      {templateLinks.po_template_packs.length > 0 ? (
+                        <>
+                          <div className="space-y-1.5">
+                            {templateLinks.po_template_packs.map(pack => (
+                              <div key={pack.id} className="flex items-center gap-2 p-2.5 rounded-md border bg-muted/20 dark:bg-muted/10 text-sm">
+                                <Package className="h-4 w-4 text-blue-500 shrink-0" />
+                                <span className="font-medium flex-1">{pack.pack_name}</span>
+                                {pack.is_primary && (
+                                  <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">Primary</span>
+                                )}
+                                {pack.item_count != null && (
+                                  <span className="text-xs text-muted-foreground">{pack.item_count} items</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1.5 ml-1">
+                            Fields synced: Name, PO Supplier, Budget, PO Description
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic ml-1">Not linked to any PO Template Pack</p>
+                      )}
+                    </div>
 
                     {/* Custom Quote Templates */}
-                    {templateLinks.custom_quote_templates.length > 0 && (
-                      <div>
-                        <Label className="text-xs font-medium flex items-center gap-1.5 mb-2">
-                          <FileText className="h-3.5 w-3.5 text-green-500" />
-                          Custom Quote Templates ({templateLinks.custom_quote_templates.length})
-                        </Label>
-                        <div className="space-y-1.5">
-                          {templateLinks.custom_quote_templates.map(tmpl => (
-                            <div key={tmpl.id} className="flex items-center gap-2 p-2.5 rounded-md border bg-muted/20 dark:bg-muted/10 text-sm">
-                              <FileText className="h-4 w-4 text-green-500 shrink-0" />
-                              <span className="font-medium flex-1">{tmpl.template_name}</span>
-                              {tmpl.line_count != null && (
-                                <span className="text-xs text-muted-foreground">{tmpl.line_count} lines</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-1.5 ml-1">
-                          Fields synced: Name, Cost Centre, Supplier, Budget, Tender Description, PO Description, RFQ Instructions
-                        </p>
-                      </div>
-                    )}
+                    <div>
+                      <Label className="text-xs font-medium flex items-center gap-1.5 mb-2">
+                        <FileText className="h-3.5 w-3.5 text-green-500" />
+                        Custom Quote Templates ({templateLinks.custom_quote_templates.length})
+                      </Label>
+                      {templateLinks.custom_quote_templates.length > 0 ? (
+                        <>
+                          <div className="space-y-1.5">
+                            {templateLinks.custom_quote_templates.map(tmpl => (
+                              <div key={tmpl.id} className="flex items-center gap-2 p-2.5 rounded-md border bg-muted/20 dark:bg-muted/10 text-sm">
+                                <FileText className="h-4 w-4 text-green-500 shrink-0" />
+                                <span className="font-medium flex-1">{tmpl.template_name}</span>
+                                {tmpl.is_primary && (
+                                  <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">Primary</span>
+                                )}
+                                {tmpl.line_count != null && (
+                                  <span className="text-xs text-muted-foreground">{tmpl.line_count} lines</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1.5 ml-1">
+                            Fields synced: Name, Cost Centre, Supplier, Budget, Tender Description, PO Description, RFQ Instructions
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic ml-1">Not linked to any Custom Quote Template</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </TabsContent>

@@ -628,6 +628,7 @@ Rails.application.routes.draw do
           # Markup & Pricing
           get :markup
           patch :markup, action: :update_markup
+          post :target_margin
         end
 
         # Job contacts (nested under jobs)

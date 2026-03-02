@@ -35,6 +35,7 @@ import {
   HardHat,
   Building2,
   Calculator,
+  Target,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/utils/formatters";
@@ -157,6 +158,8 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderOption[]>([]);
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<string>>(new Set());
   const [hasChanges, setHasChanges] = useState(false);
+  const [targetPrice, setTargetPrice] = useState<string>("");
+  const [calculatingTarget, setCalculatingTarget] = useState(false);
 
   const pcPsMarkupCap = data?.job.pcPsMarkupCap ?? 25;
 
@@ -386,6 +389,34 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
         }))
       );
       setHasChanges(false);
+      setTargetPrice("");
+    }
+  };
+
+  const handleCalculateTarget = async () => {
+    const target = parseFloat(targetPrice);
+    if (!target || target <= 0) {
+      toast({ title: "Invalid target", description: "Enter a positive target price", variant: "destructive" });
+      return;
+    }
+    setCalculatingTarget(true);
+    try {
+      const res = await api.post<{ success: boolean; requiredMarginPercent: number; finalContractIncGst: number }>(
+        `/api/v1/jobs/${jobId}/target_margin`,
+        { targetFinalIncGst: target }
+      );
+      if (res?.requiredMarginPercent != null) {
+        setBuilderMargin(res.requiredMarginPercent);
+        setHasChanges(true);
+        toast({
+          title: "Target calculated",
+          description: `Builder margin set to ${res.requiredMarginPercent}% to hit ${formatCurrency(target)}`,
+        });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to calculate target margin", variant: "destructive" });
+    } finally {
+      setCalculatingTarget(false);
     }
   };
 
@@ -461,6 +492,31 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
                 />
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium whitespace-nowrap text-muted-foreground">Target Price:</span>
+              <div className="relative w-32">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={targetPrice}
+                  placeholder="e.g. 910000"
+                  onChange={e => setTargetPrice(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") handleCalculateTarget(); }}
+                  className="pl-5 text-right h-8"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCalculateTarget}
+                disabled={calculatingTarget || !targetPrice}
+              >
+                <Target className="h-3.5 w-3.5 mr-1" />
+                {calculatingTarget ? "..." : "Calculate"}
+              </Button>
             </div>
             <div className="flex items-center gap-2 ml-auto">
               {hasChanges && (

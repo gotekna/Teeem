@@ -4,7 +4,7 @@ module Api
       include DocumentProviderAware
       include AsyncPdfGeneration
 
-      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :finance_counts, :activities, :budget_tracking, :boq, :price_analysis, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders, :markup, :update_markup ]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :finance_counts, :activities, :budget_tracking, :boq, :price_analysis, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders, :markup, :update_markup, :target_margin ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
@@ -1716,6 +1716,9 @@ module Api
           calculator = MarkupChargeCalculator.new(@job)
           calc_result = calculator.calculate(persist: true)
 
+          # Sync charge amounts to linked Purchase Orders
+          calculator.sync_charge_purchase_orders(calc_result[:charges])
+
           if params[:applyToContractPrice]
             @job.update!(contract_price: calc_result[:final_contract_inc_gst])
           end
@@ -1726,6 +1729,32 @@ module Api
         render_error(e.message, status: :not_found)
       rescue ActiveRecord::RecordInvalid => e
         render_error(e.message, status: :unprocessable_entity)
+      end
+
+      # POST /api/v1/jobs/:id/target_margin
+      # Back-calculate builder margin % needed to hit a target final contract price
+      def target_margin
+        target = params[:targetFinalIncGst].to_f
+        if target <= 0
+          return render_error("Target price must be positive", status: :unprocessable_entity)
+        end
+
+        calculator = MarkupChargeCalculator.new(@job)
+        result = calculator.calculate_margin_for_target(target)
+
+        if result[:error]
+          render_error(result[:error], status: :unprocessable_entity)
+        else
+          render json: {
+            success: true,
+            requiredMarginPercent: result[:required_margin_percent],
+            subtotalWithCharges: result[:subtotal_with_charges],
+            contractExGst: result[:contract_ex_gst],
+            contractIncGst: result[:contract_inc_gst],
+            qbccAmount: result[:qbcc_amount],
+            finalContractIncGst: result[:final_contract_inc_gst]
+          }
+        end
       end
 
       private

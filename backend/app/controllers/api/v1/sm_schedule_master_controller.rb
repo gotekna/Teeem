@@ -183,6 +183,7 @@ module Api
       # Use ?detail=true to get full template content (items, line items, tree structure)
       def template_links
         sm = SmScheduleMaster.find(params[:id])
+        sm_template_ids = sm.sm_template_ids || []
 
         po_items = PoTemplateItem.includes(:po_template_pack, :supplier, :po_template_line_items, :profit_centre)
                                   .where(sm_schedule_master_id: sm.id)
@@ -200,7 +201,8 @@ module Api
             pack_name: pack.name,
             description: pack.description,
             item_count: pack.po_template_items.size,
-            estimated_total: pack.estimated_total&.to_f
+            estimated_total: pack.estimated_total&.to_f,
+            is_primary: sm_template_ids.include?(pack.sm_schedule_master_template_id)
           }
 
           if include_detail
@@ -241,7 +243,8 @@ module Api
             id: template.id,
             template_name: template.name,
             description: template.description,
-            line_count: template.line_count
+            line_count: template.line_count,
+            is_primary: sm_template_ids.include?(template.po_template_pack&.sm_schedule_master_template_id)
           }
 
           if include_detail

@@ -99,6 +99,105 @@ class MarkupChargeCalculator
     }
   end
 
+  # Back-calculate the builder margin % needed to hit a target final contract price (inc GST).
+  #
+  # The QBCC premium depends on contract_inc_gst, which depends on margin,
+  # creating a circular dependency. We solve iteratively (converges in 2-3 rounds).
+  #
+  # Returns hash with :required_margin_percent, :contract_inc_gst, :qbcc_amount, :final_contract_inc_gst
+  def calculate_margin_for_target(target_final_inc_gst)
+    base = calculate
+    subtotal_with_charges = base[:subtotal_with_charges]
+
+    return { error: "No charges to calculate from" } if subtotal_with_charges <= 0
+
+    qbcc_minimum = settings.qbcc_minimum_threshold || 3_300
+    qbcc_charge_record = existing_charges["qbcc_insurance"]
+    qbcc_override = qbcc_charge_record&.override_amount
+    qbcc_using_override = qbcc_override.present? && qbcc_override > 0
+
+    # Iteratively solve: target = contract_inc_gst + qbcc(contract_inc_gst)
+    guess = target_final_inc_gst
+    contract_inc_gst = guess
+    qbcc_amount = 0.0
+
+    5.times do
+      if qbcc_using_override
+        qbcc_amount = qbcc_override.to_f
+      elsif guess >= qbcc_minimum
+        qbcc_amount = QbccPremiumBracket.lookup_premium(guess - qbcc_amount)
+      else
+        qbcc_amount = 0.0
+      end
+
+      contract_inc_gst = (target_final_inc_gst - qbcc_amount).round(2)
+
+      # Re-derive QBCC from this contract_inc_gst
+      new_qbcc = if qbcc_using_override
+                   qbcc_override.to_f
+                 elsif contract_inc_gst >= qbcc_minimum
+                   QbccPremiumBracket.lookup_premium(contract_inc_gst)
+                 else
+                   0.0
+                 end
+
+      break if (new_qbcc - qbcc_amount).abs < 0.01
+      qbcc_amount = new_qbcc
+      contract_inc_gst = (target_final_inc_gst - qbcc_amount).round(2)
+    end
+
+    contract_ex_gst = (contract_inc_gst / 1.10).round(2)
+
+    if subtotal_with_charges > 0
+      required_margin = ((contract_ex_gst / subtotal_with_charges - 1) * 100).round(4)
+    else
+      required_margin = 0.0
+    end
+
+    {
+      required_margin_percent: required_margin.round(2),
+      subtotal_with_charges: subtotal_with_charges,
+      contract_ex_gst: contract_ex_gst,
+      contract_inc_gst: contract_inc_gst,
+      qbcc_amount: qbcc_amount.round(2),
+      final_contract_inc_gst: (contract_inc_gst + qbcc_amount).round(2)
+    }
+  end
+
+  # Sync charge amounts to linked Purchase Orders.
+  #
+  # For each charge with a purchase_order_id, finds or creates a line item
+  # prefixed with "[Charge]" and sets its unit_price to the effective amount.
+  # Skips POs that are cancelled or paid.
+  def sync_charge_purchase_orders(calculated_charges)
+    calculated_charges.each do |_type, charge_data|
+      po_id = charge_data[:purchase_order_id]
+      next unless po_id
+
+      po = PurchaseOrder.find_by(id: po_id)
+      next unless po
+      next if po.cancelled? || po.paid?
+
+      label = JobMarkupCharge::LABELS[charge_data[:charge_type]] || charge_data[:charge_type].humanize
+      description = "[Charge] #{label}"
+      amount = charge_data[:effective_amount].to_f
+
+      line_item = po.line_items.find_by(description: description)
+      line_item ||= po.line_items.build(
+        description: description,
+        line_number: (po.line_items.maximum(:line_number) || 0) + 1,
+        gst_code: "GST"
+      )
+
+      line_item.quantity = 1
+      line_item.unit_price = amount
+      line_item.save!
+
+      # Trigger PO totals recalculation
+      po.save!
+    end
+  end
+
   private
 
   def calc_charge(type, basis:, default_rate:)

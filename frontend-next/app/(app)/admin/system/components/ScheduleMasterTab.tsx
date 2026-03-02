@@ -1616,6 +1616,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       // Plan and document reference types
       plan_type_ids: data.plan_type_ids,
       document_ref_type_ids: data.document_ref_type_ids,
+      // Dependencies (predecessor_ids JSONB)
+      predecessor_ids: data.predecessor_ids,
     };
 
     // Transform document_types to Rails nested attributes format (SSoT: sm_schedule_master_document_types)
