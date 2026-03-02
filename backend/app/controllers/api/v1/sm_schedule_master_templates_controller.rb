@@ -1058,6 +1058,7 @@ module Api
           :default_overheads_percent, :default_qleave_rate_percent,
           :default_builds_contingency_percent, :default_project_prelims_percent,
           :default_project_management_percent, :default_maintenance_fee_percent,
+          :default_tender_markup_percent,
           charge_construction_insurance_sm_ids: [],
           charge_qleave_sm_ids: [],
           charge_overheads_sm_ids: [],
@@ -1068,7 +1069,8 @@ module Api
           charge_maintenance_fee_sm_ids: [],
           charge_builder_margin_sm_ids: [],
           charge_escalation_sm_ids: [],
-          charge_pc_ps_cap_sm_ids: []
+          charge_pc_ps_cap_sm_ids: [],
+          charge_tender_markup_sm_ids: []
         )
 
         # Permit charge_po_allocations as arbitrary nested JSONB
@@ -1121,6 +1123,8 @@ module Api
           charge_escalation_sm_tasks: resolve_sm_task_names(template.charge_escalation_sm_ids),
           charge_pc_ps_cap_sm_ids: template.charge_pc_ps_cap_sm_ids || [],
           charge_pc_ps_cap_sm_tasks: resolve_sm_task_names(template.charge_pc_ps_cap_sm_ids),
+          charge_tender_markup_sm_ids: template.charge_tender_markup_sm_ids || [],
+          charge_tender_markup_sm_tasks: resolve_sm_task_names(template.charge_tender_markup_sm_ids),
           # Per-template markup rate overrides (null = use global SmSetting default)
           defaultBuilderMarginPercent: template.default_builder_margin_percent&.to_f,
           defaultEscalationPercent: template.default_escalation_percent&.to_f,
@@ -1132,6 +1136,7 @@ module Api
           defaultProjectPrelimsPercent: template.default_project_prelims_percent&.to_f,
           defaultProjectManagementPercent: template.default_project_management_percent&.to_f,
           defaultMaintenanceFeePercent: template.default_maintenance_fee_percent&.to_f,
+          defaultTenderMarkupPercent: template.default_tender_markup_percent&.to_f,
           # Per-PO allocation percentages (all charges in one column)
           chargePoAllocations: template.charge_po_allocations || {}
         }

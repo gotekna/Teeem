@@ -773,6 +773,7 @@ module Api
         "quote_templates" => QuoteTemplate,
         "custom_quote_templates" => CustomQuoteTemplate,
         "po_template_packs" => PoTemplatePack,
+        "po_template_items" => PoTemplateItem,
       }.freeze
 
       def toggle_record_sync
@@ -932,7 +933,7 @@ module Api
                 end
 
                 # Syncable tables: add per-record breakdown showing synced vs independent
-                if table_key.in?([:quote_templates, :custom_quote_templates, :po_template_packs])
+                if table_key.in?([:quote_templates, :custom_quote_templates, :po_template_packs, :po_template_items])
                   master_sync_keys = ActsAsTenant.with_tenant(master_tenant) do
                     model.where.not(sync_key: nil).pluck(:sync_key).to_set
                   end
@@ -973,7 +974,7 @@ module Api
               end
 
               # Syncable tables: add per-record breakdown
-              if table_key.in?([:quote_templates, :custom_quote_templates, :po_template_packs])
+              if table_key.in?([:quote_templates, :custom_quote_templates, :po_template_packs, :po_template_items])
                 master_sync_keys = master_keys_cache[table_key] || Set.new
                 entry[:records] = syncable_records_breakdown(model, master_sync_keys)
               end

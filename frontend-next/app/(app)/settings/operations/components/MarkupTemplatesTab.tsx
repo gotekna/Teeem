@@ -39,6 +39,7 @@ interface TemplateMarkup {
   charge_builder_margin_sm_ids: number[];
   charge_escalation_sm_ids: number[];
   charge_pc_ps_cap_sm_ids: number[];
+  charge_tender_markup_sm_ids: number[];
   // Per-template markup rate overrides
   defaultBuilderMarginPercent: number | null;
   defaultEscalationPercent: number | null;
@@ -50,6 +51,7 @@ interface TemplateMarkup {
   defaultProjectPrelimsPercent: number | null;
   defaultProjectManagementPercent: number | null;
   defaultMaintenanceFeePercent: number | null;
+  defaultTenderMarkupPercent: number | null;
   // Per-PO allocation percentages
   chargePoAllocations: Record<string, Record<string, number>>;
 }
@@ -59,6 +61,7 @@ const MARKUP_RATES = [
   { key: "defaultBuilderMarginPercent", label: "Builder Margin", smField: "charge_builder_margin_sm_ids", chargeType: "builder_margin", step: 0.5 },
   { key: "defaultEscalationPercent", label: "Escalation", smField: "charge_escalation_sm_ids", chargeType: "escalation", step: 0.5 },
   { key: "pcPsMarkupCapPercent", label: "PC/PS Cap", smField: "charge_pc_ps_cap_sm_ids", chargeType: "pc_ps_cap", step: 0.5 },
+  { key: "defaultTenderMarkupPercent", label: "Tender Markup", smField: "charge_tender_markup_sm_ids", chargeType: "tender_markup", step: 0.5 },
 ] as const;
 
 const CHARGE_TYPES = [
@@ -119,6 +122,7 @@ export function MarkupTemplatesTab() {
         defaultProjectPrelimsPercent: globalDefaults.defaultProjectPrelimsPercent ?? null,
         defaultProjectManagementPercent: globalDefaults.defaultProjectManagementPercent ?? null,
         defaultMaintenanceFeePercent: globalDefaults.defaultMaintenanceFeePercent ?? null,
+        defaultTenderMarkupPercent: globalDefaults.defaultTenderMarkupPercent ?? null,
       },
     }));
     toast({ title: "Global defaults imported — adjust and save" });
@@ -148,6 +152,7 @@ export function MarkupTemplatesTab() {
           charge_builder_margin_sm_ids: tmpl.charge_builder_margin_sm_ids || [],
           charge_escalation_sm_ids: tmpl.charge_escalation_sm_ids || [],
           charge_pc_ps_cap_sm_ids: tmpl.charge_pc_ps_cap_sm_ids || [],
+          charge_tender_markup_sm_ids: tmpl.charge_tender_markup_sm_ids || [],
           defaultBuilderMarginPercent: tmpl.defaultBuilderMarginPercent,
           defaultEscalationPercent: tmpl.defaultEscalationPercent,
           pcPsMarkupCapPercent: tmpl.pcPsMarkupCapPercent,
@@ -158,6 +163,7 @@ export function MarkupTemplatesTab() {
           defaultProjectPrelimsPercent: tmpl.defaultProjectPrelimsPercent,
           defaultProjectManagementPercent: tmpl.defaultProjectManagementPercent,
           defaultMaintenanceFeePercent: tmpl.defaultMaintenanceFeePercent,
+          defaultTenderMarkupPercent: tmpl.defaultTenderMarkupPercent,
           chargePoAllocations: tmpl.chargePoAllocations || {},
         },
       }));
@@ -213,6 +219,7 @@ export function MarkupTemplatesTab() {
           charge_builder_margin_sm_ids: edits.charge_builder_margin_sm_ids || [],
           charge_escalation_sm_ids: edits.charge_escalation_sm_ids || [],
           charge_pc_ps_cap_sm_ids: edits.charge_pc_ps_cap_sm_ids || [],
+          charge_tender_markup_sm_ids: edits.charge_tender_markup_sm_ids || [],
           default_builder_margin_percent: edits.defaultBuilderMarginPercent,
           default_escalation_percent: edits.defaultEscalationPercent,
           pc_ps_markup_cap_percent: edits.pcPsMarkupCapPercent,
@@ -223,6 +230,7 @@ export function MarkupTemplatesTab() {
           default_project_prelims_percent: edits.defaultProjectPrelimsPercent,
           default_project_management_percent: edits.defaultProjectManagementPercent,
           default_maintenance_fee_percent: edits.defaultMaintenanceFeePercent,
+          default_tender_markup_percent: edits.defaultTenderMarkupPercent,
           charge_po_allocations: edits.chargePoAllocations || {},
         },
       });
@@ -297,27 +305,76 @@ export function MarkupTemplatesTab() {
                       </Button>
                     </div>
 
-                    {/* Markup Rates (no PO link) */}
-                    <div className="space-y-2">
+                    {/* Markup Rates (with PO link) */}
+                    <div className="space-y-3">
                       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Markup Rates</Label>
-                      {MARKUP_RATES.map(rate => (
-                        <div key={rate.key} className="flex items-center gap-3">
-                          <span className="text-sm w-36 shrink-0">{rate.label} %</span>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={rate.step}
-                            value={(edits[rate.key] as number | null) ?? ""}
-                            placeholder="Global default"
-                            onChange={e => {
-                              const raw = e.target.value;
-                              updateField(tmpl.id, rate.key, raw === "" ? null : parseFloat(raw) || 0);
-                            }}
-                            onFocus={e => e.target.select()}
-                            className="h-8 text-sm w-28"
-                          />
-                        </div>
-                      ))}
+                      {MARKUP_RATES.map(rate => {
+                        const smIds = ((edits as Record<string, unknown>)[rate.smField] as number[]) || [];
+                        const rateAllocs = allocs[rate.chargeType] || {};
+                        const hasMultiplePOs = smIds.length > 1;
+
+                        return (
+                          <div key={rate.key} className="space-y-1.5">
+                            <div className="flex items-start gap-3">
+                              <div className="w-36 shrink-0 pt-1">
+                                <span className="text-sm">{rate.label}</span>
+                              </div>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={rate.step}
+                                value={(edits[rate.key] as number | null) ?? ""}
+                                placeholder="Global default"
+                                onChange={e => {
+                                  const raw = e.target.value;
+                                  updateField(tmpl.id, rate.key, raw === "" ? null : parseFloat(raw) || 0);
+                                }}
+                                onFocus={e => e.target.select()}
+                                className="h-8 text-sm w-20 shrink-0"
+                              />
+                              <span className="text-xs text-muted-foreground pt-2 shrink-0">%</span>
+
+                              {tasks.length > 0 && (
+                                <div className="flex-1 min-w-0">
+                                  <ComboboxMultiSelect
+                                    items={tasks.map(t => ({ id: t.id.toString(), label: t.name }))}
+                                    selectedIds={smIds.map(v => v.toString())}
+                                    onChange={ids => updateField(tmpl.id, rate.smField, ids.map(id => parseInt(id, 10)))}
+                                    placeholder="Link to PO..."
+                                    searchPlaceholder="Search tasks..."
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {hasMultiplePOs && tasks.length > 0 && (
+                              <div className="ml-36 pl-3 flex flex-wrap gap-2 items-center">
+                                <span className="text-xs text-muted-foreground">Split:</span>
+                                {smIds.map(smId => {
+                                  const task = tasks.find(t => t.id === smId);
+                                  const pct = rateAllocs[smId.toString()] ?? Math.round(100 / smIds.length);
+                                  return (
+                                    <div key={smId} className="flex items-center gap-1">
+                                      <span className="text-xs truncate max-w-[120px]">{task?.name || `#${smId}`}</span>
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        step={1}
+                                        value={pct}
+                                        onChange={e => updateAllocation(tmpl.id, rate.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
+                                        onFocus={e => e.target.select()}
+                                        className="h-6 text-xs w-14 px-1"
+                                      />
+                                      <span className="text-xs text-muted-foreground">%</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Charges (rate + PO link per row) */}

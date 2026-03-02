@@ -8993,6 +8993,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "charge_builder_margin_sm_ids", default: []
     t.jsonb "charge_escalation_sm_ids", default: []
     t.jsonb "charge_pc_ps_cap_sm_ids", default: []
+    t.decimal "default_tender_markup_percent", precision: 5, scale: 2
+    t.jsonb "charge_tender_markup_sm_ids", default: []
     t.index ["canonical_record_id"], name: "idx_sm_schedule_master_templates_canonical_record_id"
     t.index ["copied_from_id"], name: "idx_sm_templates_copied_from"
     t.index ["created_by_id"], name: "index_sm_schedule_master_templates_on_created_by_id"
@@ -9144,6 +9146,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.decimal "default_project_prelims_percent", precision: 5, scale: 2, default: "0.0"
     t.decimal "default_project_management_percent", precision: 5, scale: 2, default: "0.0"
     t.decimal "default_maintenance_fee_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "default_tender_markup_percent", precision: 5, scale: 2, default: "0.0"
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|

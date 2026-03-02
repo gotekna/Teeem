@@ -24,6 +24,7 @@ interface PricingSettings {
   defaultProjectPrelimsPercent: number;
   defaultProjectManagementPercent: number;
   defaultMaintenanceFeePercent: number;
+  defaultTenderMarkupPercent: number;
   qleaveThreshold: number;
   qbccMinimumThreshold: number;
 }
@@ -59,6 +60,7 @@ export function MarkupDefaultsTab() {
             defaultProjectPrelimsPercent: settingsRes.settings.defaultProjectPrelimsPercent ?? 0,
             defaultProjectManagementPercent: settingsRes.settings.defaultProjectManagementPercent ?? 0,
             defaultMaintenanceFeePercent: settingsRes.settings.defaultMaintenanceFeePercent ?? 0,
+            defaultTenderMarkupPercent: settingsRes.settings.defaultTenderMarkupPercent ?? 0,
             qleaveThreshold: settingsRes.settings.qleaveThreshold ?? 150000,
             qbccMinimumThreshold: settingsRes.settings.qbccMinimumThreshold ?? 3300,
           });
@@ -91,6 +93,7 @@ export function MarkupDefaultsTab() {
           default_project_prelims_percent: settings.defaultProjectPrelimsPercent,
           default_project_management_percent: settings.defaultProjectManagementPercent,
           default_maintenance_fee_percent: settings.defaultMaintenanceFeePercent,
+          default_tender_markup_percent: settings.defaultTenderMarkupPercent,
           qleave_threshold: settings.qleaveThreshold,
           qbcc_minimum_threshold: settings.qbccMinimumThreshold,
         },
@@ -144,6 +147,12 @@ export function MarkupDefaultsTab() {
             value={settings?.pcPsMarkupCapPercent ?? 25}
             onChange={v => updateSetting("pcPsMarkupCapPercent", v)}
             help="Maximum markup allowed on Provisional Cost / Provisional Sum items (default 25%)."
+          />
+          <SettingField
+            label="Default Tender Markup (%)"
+            value={settings?.defaultTenderMarkupPercent ?? 0}
+            onChange={v => updateSetting("defaultTenderMarkupPercent", v)}
+            help="Applied to non-PC/PS PO costs with smart roundup. E.g. PO $3,454.34 × 10% → $3,800."
           />
         </CardContent>
       </Card>

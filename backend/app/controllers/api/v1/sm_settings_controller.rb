@@ -262,6 +262,7 @@ module Api
           :default_project_prelims_percent,
           :default_project_management_percent,
           :default_maintenance_fee_percent,
+          :default_tender_markup_percent,
           :qleave_threshold,
           :qbcc_minimum_threshold
         )
@@ -305,6 +306,7 @@ module Api
           defaultProjectPrelimsPercent: settings.default_project_prelims_percent&.to_f || 0,
           defaultProjectManagementPercent: settings.default_project_management_percent&.to_f || 0,
           defaultMaintenanceFeePercent: settings.default_maintenance_fee_percent&.to_f || 0,
+          defaultTenderMarkupPercent: settings.default_tender_markup_percent&.to_f || 0,
           qleaveThreshold: settings.qleave_threshold&.to_f || 150_000,
           qbccMinimumThreshold: settings.qbcc_minimum_threshold&.to_f || 3_300,
           # Computed values
