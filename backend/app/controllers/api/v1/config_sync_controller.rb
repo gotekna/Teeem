@@ -987,9 +987,9 @@ module Api
                 master_only: master_keys.size - linked
               }
 
-              # SM Tasks: add per-template breakdown
+              # SM Tasks: combined breakdown showing master + local counts per template
               if table_key == :sm_schedule_masters
-                entry[:templates] = template_breakdown(master_template_keys)
+                entry[:templates] = combined_template_breakdown(master_template_keys)
               end
 
               # Per-record breakdown for all ConfigSyncable tables
@@ -1013,6 +1013,7 @@ module Api
       end
 
       # SM Tasks: per-template breakdown showing synced vs independent
+      # For master path: simple single-tenant breakdown
       # Must be called within ActsAsTenant.with_tenant context
       def template_breakdown(master_template_keys)
         SmScheduleMasterTemplate.all.map do |t|
@@ -1020,6 +1021,59 @@ module Api
           synced = t.sync_key.present? && master_template_keys.include?(t.sync_key)
           { id: t.id, name: t.name, tasks: task_count, synced: synced }
         end
+      end
+
+      # SM Tasks: combined breakdown showing BOTH master and local task counts per template
+      # Shows master templates as the SSoT, cross-referenced with local data
+      def combined_template_breakdown(master_template_keys)
+        # Get master templates + task counts
+        master_templates = ActsAsTenant.with_tenant(master_tenant) do
+          SmScheduleMasterTemplate.all.map do |t|
+            tasks = SmScheduleMaster.for_template(t.id).count
+            { id: t.id, name: t.name, sync_key: t.sync_key, tasks: tasks }
+          end
+        end
+
+        # Get local templates + task counts (current tenant context)
+        local_templates = SmScheduleMasterTemplate.all.map do |t|
+          tasks = SmScheduleMaster.for_template(t.id).count
+          { id: t.id, name: t.name, sync_key: t.sync_key, tasks: tasks }
+        end
+
+        # Build local lookup by sync_key
+        local_by_key = {}
+        local_templates.each { |lt| local_by_key[lt[:sync_key]] = lt if lt[:sync_key].present? }
+        local_used_keys = Set.new
+
+        # Start with master templates, match to local
+        result = master_templates.map do |mt|
+          local = mt[:sync_key].present? ? local_by_key[mt[:sync_key]] : nil
+          local_used_keys.add(mt[:sync_key]) if local && mt[:sync_key].present?
+          synced = mt[:sync_key].present? && local.present?
+          {
+            id: local&.dig(:id) || mt[:id],
+            name: mt[:name],
+            master_tasks: mt[:tasks],
+            tasks: local&.dig(:tasks) || 0,
+            synced: synced
+          }
+        end
+
+        # Add local-only templates (not matched to any master template)
+        local_templates.each do |lt|
+          next if lt[:sync_key].present? && local_used_keys.include?(lt[:sync_key])
+          # Check if name-matched to a master template already shown
+          next if master_templates.any? { |mt| mt[:name].downcase.strip == lt[:name].downcase.strip }
+          result << {
+            id: lt[:id],
+            name: lt[:name],
+            master_tasks: 0,
+            tasks: lt[:tasks],
+            synced: false
+          }
+        end
+
+        result
       end
 
       # Generic per-record breakdown for ConfigSyncable tables

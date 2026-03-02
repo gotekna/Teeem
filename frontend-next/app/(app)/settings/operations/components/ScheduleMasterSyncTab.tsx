@@ -132,7 +132,7 @@ export function ScheduleMasterSyncTab() {
   // Sync coverage: linked vs local-only vs master-only per table
   // Non-master: { table: { linked, local_only, master_only } }
   // Master: { table: { tenantSlug: { linked, local_only, master_only } } }
-  type TemplateBreakdown = { id: number; name: string; tasks: number; synced: boolean };
+  type TemplateBreakdown = { id: number; name: string; tasks: number; master_tasks?: number; synced: boolean };
   type RecordBreakdown = { id: number; name: string; synced: boolean; count?: number };
   type CoverageEntry = { linked: number; local_only: number; master_only: number; templates?: TemplateBreakdown[]; records?: RecordBreakdown[] };
   const [syncCoverage, setSyncCoverage] = useState<Record<string, CoverageEntry | Record<string, CoverageEntry>>>({});
@@ -959,7 +959,9 @@ export function ScheduleMasterSyncTab() {
                             <TableCell className="py-1.5 pl-10">
                               <span className="text-xs text-muted-foreground">{tmpl.name}</span>
                             </TableCell>
-                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5" />
+                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
+                              {tmpl.master_tasks != null ? tmpl.master_tasks.toLocaleString() : ""}
+                            </TableCell>
                             <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
                               {tmpl.tasks.toLocaleString()}
                             </TableCell>
