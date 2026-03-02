@@ -68,6 +68,16 @@ interface SmScheduleMasterTemplate {
   row_count: number;
 }
 
+// Lookup fields come back as { id, display } objects from the API
+type LookupValue = { id: number; display: string } | string | null;
+
+/** Extract display string from a lookup value (handles both object and string formats) */
+function displayValue(val: LookupValue): string | null {
+  if (val == null) return null;
+  if (typeof val === "string") return val;
+  return val.display;
+}
+
 interface SmScheduleMaster {
   id: number;
   task_number: number;
@@ -77,12 +87,12 @@ interface SmScheduleMaster {
   duration_days: number;
   predecessor_ids: Array<{ id: number; type: string; lag: number }>;
   predecessor_display: string;
-  trade: string | null;
-  stage: string | null;
+  trade: LookupValue;
+  stage: LookupValue;
   trade_name: string | null;
   stage_name: string | null;
-  cost_centre: string | null;
-  assigned_role: string | null;
+  cost_centre: LookupValue;
+  assigned_role: LookupValue;
   supplier_id: number | null;
   supplier_name: string | null;
   checklist_id: number | null;
@@ -292,7 +302,7 @@ export default function ScheduleTemplateDetailPage() {
   const [documentTypes, setDocumentTypes] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
 
   // Cost Centre grouping state
-  const [groupByCostCentre, setGroupByCostCentre] = React.useState(false);
+  const [groupByCostCentre, setGroupByCostCentre] = React.useState(true);
   const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
 
   // Load data
@@ -343,9 +353,9 @@ export default function ScheduleTemplateDetailPage() {
       name: row.name,
       description: row.description,
       duration_days: row.duration_days,
-      trade: row.trade,
-      stage: row.stage,
-      cost_centre: row.cost_centre,
+      trade: displayValue(row.trade),
+      stage: displayValue(row.stage),
+      cost_centre: displayValue(row.cost_centre),
       po_required: row.po_required,
       critical_po: row.critical_po,
       require_photo: row.require_photo,
@@ -666,7 +676,7 @@ export default function ScheduleTemplateDetailPage() {
     if (!groupByCostCentre) return null;
     const groups = new Map<string, SmScheduleMaster[]>();
     rows.forEach((row) => {
-      const key = row.cost_centre || "Unassigned";
+      const key = displayValue(row.cost_centre) || "Unassigned";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(row);
     });
@@ -955,7 +965,7 @@ export default function ScheduleTemplateDetailPage() {
                           {row.stage_name || "-"}
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm">
-                          {row.cost_centre || "-"}
+                          {displayValue(row.cost_centre) || "-"}
                         </TableCell>
                         <TableCell>{row.duration_days}d</TableCell>
                         <TableCell className="text-muted-foreground text-sm">
@@ -1033,7 +1043,7 @@ export default function ScheduleTemplateDetailPage() {
                 <div className="space-y-2">
                   <Label>Trade</Label>
                   <Select
-                    value={editForm.trade || ""}
+                    value={displayValue(editForm.trade as LookupValue) || ""}
                     onValueChange={(value) => setEditForm({ ...editForm, trade: value === "__none__" ? null : value })}
                   >
                     <SelectTrigger>
@@ -1052,7 +1062,7 @@ export default function ScheduleTemplateDetailPage() {
                 <div className="space-y-2">
                   <Label>Stage</Label>
                   <Select
-                    value={editForm.stage || ""}
+                    value={displayValue(editForm.stage as LookupValue) || ""}
                     onValueChange={(value) => setEditForm({ ...editForm, stage: value === "__none__" ? null : value })}
                   >
                     <SelectTrigger>
@@ -1071,7 +1081,7 @@ export default function ScheduleTemplateDetailPage() {
                 <div className="col-span-2 space-y-2">
                   <Label>Cost Centre</Label>
                   <Input
-                    value={editForm.cost_centre || ""}
+                    value={displayValue(editForm.cost_centre as LookupValue) || ""}
                     onChange={(e) => setEditForm({ ...editForm, cost_centre: e.target.value })}
                     placeholder="e.g., Door, Windows, Framing"
                   />
