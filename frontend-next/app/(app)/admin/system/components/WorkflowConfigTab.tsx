@@ -436,8 +436,10 @@ export function WorkflowConfigTab() {
     (stage) => !statusStages.some((ss) => ss.id === stage.id)
   );
 
-  const sortedStatuses = [...typeStatuses].sort((a, b) => a.position - b.position);
-  const sortedStages = [...statusStages].sort((a, b) => a.position - b.position);
+  // ⚠️ DO NOT re-sort here — arrayMove already maintains drag order in state.
+  // Sorting by position would reset the list after every drag, making reorder appear broken.
+  const sortedStatuses = typeStatuses;
+  const sortedStages = statusStages;
 
   if (loading) {
     return <LoadingOverlay />;

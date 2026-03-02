@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
+ActiveRecord::Schema[8.0].define(version: 2026_03_02_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1592,6 +1592,47 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["tenant_id"], name: "index_contact_company_group_memberships_on_tenant_id"
   end
 
+  create_table "contact_documents", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.string "title", null: false
+    t.text "description"
+    t.string "document_type", null: false
+    t.date "document_date"
+    t.date "expiry_date"
+    t.string "file_name"
+    t.integer "file_size"
+    t.string "mime_type"
+    t.datetime "uploaded_at"
+    t.string "folder"
+    t.string "source", default: "manual"
+    t.bigint "document_type_id"
+    t.string "content_hash"
+    t.string "external_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "storage_provider"
+    t.string "storage_item_id"
+    t.string "storage_path"
+    t.string "migration_status"
+    t.datetime "migration_started_at"
+    t.datetime "migration_completed_at"
+    t.text "migration_error"
+    t.string "source_provider"
+    t.string "source_item_id"
+    t.bigint "storage_blob_id"
+    t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
+    t.index ["content_hash"], name: "index_contact_documents_on_content_hash"
+    t.index ["document_date"], name: "index_contact_documents_on_document_date"
+    t.index ["document_type"], name: "index_contact_documents_on_document_type"
+    t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
+    t.index ["expiry_date"], name: "index_contact_documents_on_expiry_date"
+    t.index ["external_id"], name: "index_contact_documents_on_external_id"
+    t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
+    t.index ["storage_blob_id"], name: "index_contact_documents_on_storage_blob_id"
+    t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
+    t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
+  end
+
   create_table "contact_emails", force: :cascade do |t|
     t.bigint "contact_id", null: false
     t.string "email", null: false
@@ -2291,8 +2332,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "default_supplier_ids", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.decimal "budget_amount", precision: 12, scale: 2
     t.integer "document_type_ids", default: [], null: false, array: true
+    t.decimal "budget_amount", precision: 12, scale: 2
     t.index ["cost_centre_id"], name: "index_custom_quote_template_lines_on_cost_centre_id"
     t.index ["custom_quote_template_id", "position"], name: "idx_cqtl_template_position"
     t.index ["custom_quote_template_id"], name: "index_custom_quote_template_lines_on_custom_quote_template_id"
@@ -7869,13 +7910,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "qr_code_storage_blob_id"
     t.bigint "brand_id"
     t.bigint "range_id"
-    t.bigint "unit_of_measure_id"
-    t.bigint "gst_code_id"
     t.index ["brand_id"], name: "index_pricebooks_on_brand_id"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
     t.index ["colour"], name: "index_pricebooks_on_colour"
     t.index ["default_supplier_id"], name: "index_pricebooks_on_default_supplier_id"
-    t.index ["gst_code_id"], name: "index_pricebooks_on_gst_code_id"
     t.index ["image_fetch_status"], name: "index_pricebooks_on_image_fetch_status"
     t.index ["image_file_id"], name: "index_pricebooks_on_image_file_id"
     t.index ["image_storage_blob_id"], name: "index_pricebooks_on_image_storage_blob_id"
@@ -7891,7 +7929,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["supplier_id"], name: "index_pricebooks_on_supplier_id"
     t.index ["tenant_id", "sync_key"], name: "idx_pricebooks_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_pricebooks_on_tenant_id"
-    t.index ["unit_of_measure_id"], name: "index_pricebooks_on_unit_of_measure_id"
   end
 
   create_table "profit_centres", force: :cascade do |t|
@@ -9281,12 +9318,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "response_zip_path"
     t.datetime "response_zip_created_at"
     t.boolean "auto_attach_email_files", default: true, null: false
-    t.string "sync_key"
     t.string "task_code", limit: 50
     t.integer "tender_id"
     t.bigint "warehouse_folder_id"
-    t.jsonb "plan_type_ids", default: "[]"
-    t.jsonb "document_ref_type_ids", default: "[]"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
@@ -10663,18 +10697,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["status"], name: "index_trinities_on_status"
   end
 
-  create_table "units_of_measure", force: :cascade do |t|
-    t.string "code", limit: 20, null: false
-    t.string "name", limit: 50, null: false
-    t.string "description", limit: 100
-    t.integer "sort_order", default: 0
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["code"], name: "index_units_of_measure_on_code", unique: true
-    t.index ["is_active"], name: "index_units_of_measure_on_is_active"
-  end
-
   create_table "unreal_variables", force: :cascade do |t|
     t.string "variable_name", null: false
     t.decimal "claude_value", precision: 10, scale: 2, default: "0.0"
@@ -11035,11 +11057,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "token_config", default: {}, null: false
     t.jsonb "records_config", default: {}, null: false
     t.string "sync_key"
-    t.string "source_types", default: [], null: false, array: true
     t.index ["code"], name: "idx_warehouse_types_code"
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
-    t.index ["source_types"], name: "idx_warehouse_types_source_types", using: :gin
     t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_warehouse_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_warehouse_types_on_tenant_id"
@@ -11801,6 +11821,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "contact_company_group_memberships", "contacts"
   add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
   add_foreign_key "contact_company_group_memberships", "tenants"
+  add_foreign_key "contact_documents", "storage_blobs"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
