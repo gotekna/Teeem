@@ -1568,6 +1568,30 @@ class TenantConfigSyncService
     master = master_tenant
     return { pushed: 0, skipped: 0, errors: ["No master tenant"] } unless master
 
+    # FRC (Mar 2026): Backfill sync_keys for any tenant records missing them.
+    # Records created before ConfigSyncable was added won't have sync_keys,
+    # so they'd be invisible to the push (which filters by sync_key).
+    if model.include?(ConfigSyncable)
+      ActsAsTenant.with_tenant(tenant) do
+        base = config[:scope] ? model.instance_exec(&config[:scope]) : model.all
+        base.where(sync_key: [nil, ""]).find_each do |record|
+          record.generate_sync_key
+          record.save!(validate: false) if record.sync_key_changed?
+        end
+      end
+    end
+
+    # Also backfill master records (same issue: pre-ConfigSyncable records)
+    if model.include?(ConfigSyncable)
+      ActsAsTenant.with_tenant(master) do
+        base = config[:scope] ? model.instance_exec(&config[:scope]) : model.all
+        base.where(sync_key: [nil, ""]).find_each do |record|
+          record.generate_sync_key
+          record.save!(validate: false) if record.sync_key_changed?
+        end
+      end
+    end
+
     # Find sync_keys that exist on master
     master_sync_keys = ActsAsTenant.with_tenant(master) do
       model.where.not(sync_key: [nil, ""]).pluck(:sync_key).to_set
