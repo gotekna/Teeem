@@ -494,6 +494,18 @@ cleanup_temp_files:
   schedule: at 5am every day
 
 # ============================================
+# CONFIG SYNC (Nightly Two-Way Auto-Sync)
+# ============================================
+
+# Auto-sync tables set to "two_way" mode from TEEEM master
+# Iterates non-master tenants, syncs tables where mode == "two_way"
+# Runs at 3am Brisbane time (off-peak, after backups)
+config_auto_sync:
+  class: ConfigAutoSyncJob
+  queue: low
+  schedule: at 3am every day
+
+# ============================================
 # SCHEDULE MASTER (SM GANTT)
 # ============================================
 

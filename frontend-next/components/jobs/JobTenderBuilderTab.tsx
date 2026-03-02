@@ -2567,16 +2567,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
 
                                 {/* PO footer row — spans both panels */}
                                 {!isPOCollapsed && pg.footer && (() => {
-                                  // Compute sell total for this PO (always when markup > 0)
-                                  const poSellTotal = tenderMarkupPercent > 0
-                                    ? includedItems.reduce((sum, r) => {
-                                        const c = getClassification(r.key, r.poId, r.sectionName);
-                                        if (c === "pc" || c === "ps" || c === "excluded") return sum + r.amount;
-                                        return sum + applySmartRoundup(r.unitPrice * (1 + tenderMarkupPercent / 100)) * r.quantity;
-                                      }, 0)
-                                    : pg.footer.subtotal;
-                                  const poMarkupDelta = poSellTotal - pg.footer.subtotal;
-                                  const showPoMarkup = tenderMarkupPercent > 0 && poMarkupDelta > 0;
                                   return (
                                   <div className="flex">
                                     <div className="w-3/5 min-w-0 flex items-center border-b-2 border-border bg-muted/10 py-1">
@@ -2598,11 +2588,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                         <span className="text-sm font-mono font-semibold tabular-nums">
                                           {formatCurrency(pg.footer.subtotal)}
                                         </span>
-                                        {showPoMarkup && (
-                                          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 tabular-nums">
-                                            sell {formatCurrency(poSellTotal)}
-                                          </span>
-                                        )}
                                         <span className="text-xs text-muted-foreground tabular-nums">
                                           GST {formatCurrency(pg.footer.subtotal * 0.1)}
                                         </span>
@@ -2611,17 +2596,66 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                         </span>
                                       </div>
                                     </div>
-                                    {/* Right panel: show markup breakdown for this PO when per_po */}
-                                    <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b-2 border-border flex items-center">
-                                      {showPoMarkup && (
-                                        <div className="flex items-center gap-2 px-4 text-[11px]">
-                                          <span className="text-emerald-600 dark:text-emerald-400">
-                                            +{formatCurrency(poMarkupDelta)} markup ({tenderMarkupPercent}%)
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
+                                    <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b-2 border-border" />
                                   </div>
+                                  );
+                                })()}
+
+                                {/* Tender Markup line per PO — always visible, editable */}
+                                {!isPOCollapsed && pg.footer && (() => {
+                                  const poCost = includedItems.reduce((sum, r) => {
+                                    const c = getClassification(r.key, r.poId, r.sectionName);
+                                    if (c === "pc" || c === "ps" || c === "excluded") return sum;
+                                    return sum + r.amount;
+                                  }, 0);
+                                  if (poCost <= 0) return null;
+                                  const poSell = tenderMarkupPercent > 0
+                                    ? includedItems.reduce((sum, r) => {
+                                        const c = getClassification(r.key, r.poId, r.sectionName);
+                                        if (c === "pc" || c === "ps" || c === "excluded") return sum;
+                                        return sum + applySmartRoundup(r.unitPrice * (1 + tenderMarkupPercent / 100)) * r.quantity;
+                                      }, 0)
+                                    : poCost;
+                                  const poMarkup = poSell - poCost;
+                                  return (
+                                    <div className="flex">
+                                      <div className="w-3/5 min-w-0 flex items-center border-b border-border/30 bg-emerald-50/30 dark:bg-emerald-950/10 py-0.5">
+                                        <div className="flex items-center gap-2 pl-10">
+                                          <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                            Tender Markup
+                                          </span>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step={0.5}
+                                            value={tenderMarkupPercent}
+                                            onChange={(e) => {
+                                              setTenderMarkupPercent(parseFloat(e.target.value) || 0);
+                                              setTenderMarkupOverride(null);
+                                            }}
+                                            className="w-12 h-5 text-[11px] text-center tabular-nums border border-emerald-300 dark:border-emerald-700 rounded bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                          />
+                                          <span className="text-[11px] text-emerald-600 dark:text-emerald-500">%</span>
+                                        </div>
+                                        <div className="flex-1 flex items-center justify-end gap-4 pr-2">
+                                          <span className="text-sm font-mono font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                                            {poMarkup > 0 ? `+${formatCurrency(poMarkup)}` : formatCurrency(0)}
+                                          </span>
+                                          {poMarkup > 0 && (
+                                            <>
+                                              <span className="text-xs text-emerald-600/70 dark:text-emerald-500/70 tabular-nums">
+                                                GST {formatCurrency(poMarkup * 0.1)}
+                                              </span>
+                                              <span className="text-sm font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                                                {formatCurrency(poSell * 1.1)}
+                                              </span>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b border-border/30" />
+                                    </div>
                                   );
                                 })()}
                               </div>
