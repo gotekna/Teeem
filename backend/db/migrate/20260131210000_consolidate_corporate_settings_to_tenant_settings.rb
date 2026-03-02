@@ -7,22 +7,23 @@
 class ConsolidateCorporateSettingsToTenantSettings < ActiveRecord::Migration[8.0]
   def up
     # Phase 1: Add missing columns to tenant_settings
-    add_column :tenant_settings, :internal_email_domains, :string unless column_exists?(:tenant_settings, :internal_email_domains)
-    add_column :tenant_settings, :monitored_mailbox_pay, :string unless column_exists?(:tenant_settings, :monitored_mailbox_pay)
-    add_column :tenant_settings, :monitored_mailbox_newtask, :string unless column_exists?(:tenant_settings, :monitored_mailbox_newtask)
-    add_column :tenant_settings, :monitored_mailbox_newjob, :string unless column_exists?(:tenant_settings, :monitored_mailbox_newjob)
-    add_column :tenant_settings, :monitored_mailbox_newcase, :string unless column_exists?(:tenant_settings, :monitored_mailbox_newcase)
-    add_column :tenant_settings, :brand_color_primary, :string unless column_exists?(:tenant_settings, :brand_color_primary)
-    add_column :tenant_settings, :brand_color_primary_foreground, :string unless column_exists?(:tenant_settings, :brand_color_primary_foreground)
-    add_column :tenant_settings, :brand_color_secondary, :string unless column_exists?(:tenant_settings, :brand_color_secondary)
-    add_column :tenant_settings, :brand_color_muted, :string unless column_exists?(:tenant_settings, :brand_color_muted)
-    add_column :tenant_settings, :brand_color_accent, :string unless column_exists?(:tenant_settings, :brand_color_accent)
-    add_column :tenant_settings, :api_environment, :string, default: "production" unless column_exists?(:tenant_settings, :api_environment)
-    add_column :tenant_settings, :link_expiry_days, :integer, default: 7, null: false unless column_exists?(:tenant_settings, :link_expiry_days)
-    add_column :tenant_settings, :gl_lock_date, :date unless column_exists?(:tenant_settings, :gl_lock_date)
-    add_column :tenant_settings, :corporate_entity_types, :jsonb unless column_exists?(:tenant_settings, :corporate_entity_types)
-    add_column :tenant_settings, :job_cascade_sort, :jsonb unless column_exists?(:tenant_settings, :job_cascade_sort)
-    add_column :tenant_settings, :postcode, :string unless column_exists?(:tenant_settings, :postcode)
+    # FRC (Mar 2026): Use if_not_exists: true (DB-level) instead of column_exists? (Rails cache)
+    add_column :tenant_settings, :internal_email_domains, :string, if_not_exists: true
+    add_column :tenant_settings, :monitored_mailbox_pay, :string, if_not_exists: true
+    add_column :tenant_settings, :monitored_mailbox_newtask, :string, if_not_exists: true
+    add_column :tenant_settings, :monitored_mailbox_newjob, :string, if_not_exists: true
+    add_column :tenant_settings, :monitored_mailbox_newcase, :string, if_not_exists: true
+    add_column :tenant_settings, :brand_color_primary, :string, if_not_exists: true
+    add_column :tenant_settings, :brand_color_primary_foreground, :string, if_not_exists: true
+    add_column :tenant_settings, :brand_color_secondary, :string, if_not_exists: true
+    add_column :tenant_settings, :brand_color_muted, :string, if_not_exists: true
+    add_column :tenant_settings, :brand_color_accent, :string, if_not_exists: true
+    add_column :tenant_settings, :api_environment, :string, default: "production", if_not_exists: true
+    add_column :tenant_settings, :link_expiry_days, :integer, default: 7, null: false, if_not_exists: true
+    add_column :tenant_settings, :gl_lock_date, :date, if_not_exists: true
+    add_column :tenant_settings, :corporate_entity_types, :jsonb, if_not_exists: true
+    add_column :tenant_settings, :job_cascade_sort, :jsonb, if_not_exists: true
+    add_column :tenant_settings, :postcode, :string, if_not_exists: true
 
     # Phase 2: Migrate data from corporate_company_settings (singleton table - no tenant_id)
     # Copy to tenant_id = 2 (Tekna) which is the primary tenant
@@ -101,7 +102,7 @@ class ConsolidateCorporateSettingsToTenantSettings < ActiveRecord::Migration[8.0
       api_environment link_expiry_days gl_lock_date
       corporate_entity_types job_cascade_sort postcode
     ].each do |col|
-      remove_column :tenant_settings, col if column_exists?(:tenant_settings, col)
+      remove_column :tenant_settings, col, if_exists: true
     end
   end
 end

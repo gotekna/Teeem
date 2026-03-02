@@ -8,8 +8,9 @@
 class AddTenantIdToUsers < ActiveRecord::Migration[8.0]
   def change
     # Add tenant_id column
-    add_column :users, :tenant_id, :bigint unless column_exists?(:users, :tenant_id)
-    add_index :users, :tenant_id unless index_exists?(:users, :tenant_id)
+    # FRC (Mar 2026): Use if_not_exists: true (DB-level) instead of column_exists? (Rails cache)
+    add_column :users, :tenant_id, :bigint, if_not_exists: true
+    add_index :users, :tenant_id, if_not_exists: true
     add_foreign_key :users, :tenants unless foreign_key_exists?(:users, :tenants)
 
     reversible do |dir|

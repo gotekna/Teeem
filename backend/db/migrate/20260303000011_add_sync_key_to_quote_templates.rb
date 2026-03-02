@@ -12,20 +12,18 @@ class AddSyncKeyToQuoteTemplates < ActiveRecord::Migration[7.2]
   # DB-level idempotency that works regardless of cache state.
   def up
     add_column :quote_templates, :sync_key, :string, if_not_exists: true
-    unless index_exists?(:quote_templates, [:tenant_id, :sync_key], name: "idx_quote_templates_on_tenant_sync_key")
-      add_index :quote_templates, [:tenant_id, :sync_key],
-                name: "idx_quote_templates_on_tenant_sync_key",
-                unique: true,
-                where: "(sync_key IS NOT NULL)"
-    end
+    add_index :quote_templates, [:tenant_id, :sync_key],
+              name: "idx_quote_templates_on_tenant_sync_key",
+              unique: true,
+              where: "(sync_key IS NOT NULL)",
+              if_not_exists: true
 
     add_column :custom_quote_templates, :sync_key, :string, if_not_exists: true
-    unless index_exists?(:custom_quote_templates, [:tenant_id, :sync_key], name: "idx_custom_quote_templates_on_tenant_sync_key")
-      add_index :custom_quote_templates, [:tenant_id, :sync_key],
-                name: "idx_custom_quote_templates_on_tenant_sync_key",
-                unique: true,
-                where: "(sync_key IS NOT NULL)"
-    end
+    add_index :custom_quote_templates, [:tenant_id, :sync_key],
+              name: "idx_custom_quote_templates_on_tenant_sync_key",
+              unique: true,
+              where: "(sync_key IS NOT NULL)",
+              if_not_exists: true
 
     # Backfill sync_key for existing records from name (idempotent: WHERE sync_key IS NULL)
     execute <<-SQL

@@ -383,6 +383,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # Health checks - simple ping (no auth, used by deploy scripts)
+      get "health", to: "health#index"
+
       # Health checks - NEW unified endpoints
       get "health/unified", to: "health#unified"       # Main unified health dashboard
       post "health/fix", to: "health#fix"              # Fix health issues

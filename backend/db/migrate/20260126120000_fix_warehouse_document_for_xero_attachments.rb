@@ -18,9 +18,7 @@ class FixWarehouseDocumentForXeroAttachments < ActiveRecord::Migration[8.0]
   def up
     # 1. Remove the unique constraint on documentable
     # (keep the regular non-unique index for query performance)
-    if index_exists?(:warehouse_documents, [:documentable_type, :documentable_id], name: "idx_warehouse_docs_documentable_unique")
-      remove_index :warehouse_documents, name: "idx_warehouse_docs_documentable_unique"
-    end
+    remove_index :warehouse_documents, name: "idx_warehouse_docs_documentable_unique", if_exists: true
 
     # 2. Make documentable columns nullable
     # Attachments use parent_document_id instead of documentable
@@ -29,32 +27,26 @@ class FixWarehouseDocumentForXeroAttachments < ActiveRecord::Migration[8.0]
 
     # 3. Add compound index for attachment lookups
     # (parent_document_id, source_type) for finding all Xero attachments under a PDF
-    unless index_exists?(:warehouse_documents, [:parent_document_id, :source_type], name: "idx_warehouse_docs_parent_source")
-      add_index :warehouse_documents, [:parent_document_id, :source_type],
-                name: "idx_warehouse_docs_parent_source",
-                where: "parent_document_id IS NOT NULL"
-    end
+    add_index :warehouse_documents, [:parent_document_id, :source_type],
+              name: "idx_warehouse_docs_parent_source",
+              where: "parent_document_id IS NOT NULL",
+              if_not_exists: true
 
     # 4. Add partial unique constraint for documents with documentable
     # This ensures one WarehouseDocument per source record (for non-attachments)
-    unless index_exists?(:warehouse_documents, [:documentable_type, :documentable_id], name: "idx_warehouse_docs_documentable_unique_partial")
-      add_index :warehouse_documents, [:documentable_type, :documentable_id],
-                name: "idx_warehouse_docs_documentable_unique_partial",
-                unique: true,
-                where: "documentable_id IS NOT NULL"
-    end
+    add_index :warehouse_documents, [:documentable_type, :documentable_id],
+              name: "idx_warehouse_docs_documentable_unique_partial",
+              unique: true,
+              where: "documentable_id IS NOT NULL",
+              if_not_exists: true
   end
 
   def down
     # Remove partial unique index
-    if index_exists?(:warehouse_documents, name: "idx_warehouse_docs_documentable_unique_partial")
-      remove_index :warehouse_documents, name: "idx_warehouse_docs_documentable_unique_partial"
-    end
+    remove_index :warehouse_documents, name: "idx_warehouse_docs_documentable_unique_partial", if_exists: true
 
     # Remove parent+source index
-    if index_exists?(:warehouse_documents, name: "idx_warehouse_docs_parent_source")
-      remove_index :warehouse_documents, name: "idx_warehouse_docs_parent_source"
-    end
+    remove_index :warehouse_documents, name: "idx_warehouse_docs_parent_source", if_exists: true
 
     # Restore NOT NULL constraints
     # Note: This will fail if there are NULL values

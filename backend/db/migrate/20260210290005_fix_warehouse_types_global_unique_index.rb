@@ -9,20 +9,16 @@
 class FixWarehouseTypesGlobalUniqueIndex < ActiveRecord::Migration[8.0]
   def up
     # Drop the global unique index (prevents cross-tenant code overlap)
-    if index_exists?(:warehouse_types, :code, name: "index_warehouse_types_on_code")
-      remove_index :warehouse_types, name: "index_warehouse_types_on_code"
-    end
+    remove_index :warehouse_types, name: "index_warehouse_types_on_code", if_exists: true
 
-    # Add a non-unique index on code for query performance (if not exists)
-    unless index_exists?(:warehouse_types, :code, name: "idx_warehouse_types_code")
-      add_index :warehouse_types, :code, name: "idx_warehouse_types_code"
-    end
+    # Add a non-unique index on code for query performance
+    add_index :warehouse_types, :code, name: "idx_warehouse_types_code", if_not_exists: true
 
     puts "[FixWarehouseTypesIndex] Replaced global unique code index with non-unique (tenant-scoped unique already exists)"
   end
 
   def down
-    remove_index :warehouse_types, name: "idx_warehouse_types_code" if index_exists?(:warehouse_types, :code, name: "idx_warehouse_types_code")
-    add_index :warehouse_types, :code, unique: true, name: "index_warehouse_types_on_code" unless index_exists?(:warehouse_types, :code, name: "index_warehouse_types_on_code")
+    remove_index :warehouse_types, name: "idx_warehouse_types_code", if_exists: true
+    add_index :warehouse_types, :code, unique: true, name: "index_warehouse_types_on_code", if_not_exists: true
   end
 end

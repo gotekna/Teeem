@@ -67,10 +67,8 @@ class CreateTendersFoundation < ActiveRecord::Migration[8.0]
     # ═══════════════════════════════════════════════════════════════════════════
     # 3. Add tender_id column to sm_schedule_masters
     # ═══════════════════════════════════════════════════════════════════════════
-    unless column_exists?(:sm_schedule_masters, :tender_id)
-      add_column :sm_schedule_masters, :tender_id, :integer
-      add_index :sm_schedule_masters, :tender_id
-    end
+    add_column :sm_schedule_masters, :tender_id, :integer, if_not_exists: true
+    add_index :sm_schedule_masters, :tender_id, if_not_exists: true
 
     # Add "Tender Section" lookup column to SM Schedule Master Foundation
     sm_foundation = Foundation.find_by(slug: "sm-schedule-master")
@@ -121,7 +119,7 @@ class CreateTendersFoundation < ActiveRecord::Migration[8.0]
     sm_foundation&.columns&.find_by(column_name: "tender_id")&.destroy
 
     # Remove tender_id from sm_schedule_masters
-    remove_column :sm_schedule_masters, :tender_id if column_exists?(:sm_schedule_masters, :tender_id)
+    remove_column :sm_schedule_masters, :tender_id, if_exists: true
 
     # Remove seeded data
     Tender.destroy_all

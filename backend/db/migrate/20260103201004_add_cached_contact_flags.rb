@@ -4,10 +4,11 @@ class AddCachedContactFlags < ActiveRecord::Migration[8.0]
   # These cached columns are updated via callbacks on related models
 
   def up
-    # Add cached columns with default false (if_not_exists for idempotency)
-    add_column :contacts, :is_customer_cached, :boolean, default: false, null: false unless column_exists?(:contacts, :is_customer_cached)
-    add_column :contacts, :is_supplier_cached, :boolean, default: false, null: false unless column_exists?(:contacts, :is_supplier_cached)
-    add_column :contacts, :is_director_cached, :boolean, default: false, null: false unless column_exists?(:contacts, :is_director_cached)
+    # Add cached columns with default false
+    # FRC (Mar 2026): Use if_not_exists: true (DB-level) instead of column_exists? (Rails cache)
+    add_column :contacts, :is_customer_cached, :boolean, default: false, null: false, if_not_exists: true
+    add_column :contacts, :is_supplier_cached, :boolean, default: false, null: false, if_not_exists: true
+    add_column :contacts, :is_director_cached, :boolean, default: false, null: false, if_not_exists: true
 
     # Add indexes for filtering (if_not_exists for idempotency)
     add_index :contacts, :is_customer_cached, if_not_exists: true

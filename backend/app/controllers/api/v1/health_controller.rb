@@ -14,6 +14,14 @@ module Api
     #
     class HealthController < ApplicationController
       include CacheConstants
+      skip_before_action :authorize_request, only: [:index]
+
+      # GET /api/v1/health
+      # Simple health ping (no auth) - used by deploy scripts
+      def index
+        render json: { status: "ok", timestamp: Time.current.iso8601 }
+      end
+
       # GET /api/v1/health/unified
       # Returns unified health data for the new gamified dashboard
       # Supports caching with optional ?refresh=true parameter to force fresh calculation

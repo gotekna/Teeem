@@ -15,7 +15,7 @@ class AddWarehouseTypeToWarehouseDocuments < ActiveRecord::Migration[7.1]
   disable_ddl_transaction!
 
   def up
-    add_column :warehouse_documents, :warehouse_type, :string unless column_exists?(:warehouse_documents, :warehouse_type)
+    add_column :warehouse_documents, :warehouse_type, :string, if_not_exists: true
 
     add_index :warehouse_documents, :warehouse_type,
               name: "idx_wd_warehouse_type",
@@ -35,7 +35,7 @@ class AddWarehouseTypeToWarehouseDocuments < ActiveRecord::Migration[7.1]
   def down
     remove_index :warehouse_documents, name: "idx_wd_tenant_warehouse_type", if_exists: true
     remove_index :warehouse_documents, name: "idx_wd_warehouse_type", if_exists: true
-    remove_column :warehouse_documents, :warehouse_type if column_exists?(:warehouse_documents, :warehouse_type)
+    remove_column :warehouse_documents, :warehouse_type, if_exists: true
   end
 
   private

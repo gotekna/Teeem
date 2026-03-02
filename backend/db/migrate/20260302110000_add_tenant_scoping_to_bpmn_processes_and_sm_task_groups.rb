@@ -33,25 +33,19 @@ class AddTenantScopingToBpmnProcessesAndSmTaskGroups < ActiveRecord::Migration[7
     # ========================================================================
     # Step 4: Add indexes (after backfill so inserts are fast)
     # ========================================================================
-    unless index_exists?(:sm_task_groups, :tenant_id)
-      add_index :sm_task_groups, :tenant_id
-    end
-    unless index_exists?(:sm_task_groups, [:tenant_id, :sync_key], name: "idx_sm_task_groups_on_tenant_sync_key")
-      add_index :sm_task_groups, [:tenant_id, :sync_key],
-                name: "idx_sm_task_groups_on_tenant_sync_key",
-                unique: true,
-                where: "sync_key IS NOT NULL"
-    end
+    add_index :sm_task_groups, :tenant_id, if_not_exists: true
+    add_index :sm_task_groups, [:tenant_id, :sync_key],
+              name: "idx_sm_task_groups_on_tenant_sync_key",
+              unique: true,
+              where: "sync_key IS NOT NULL",
+              if_not_exists: true
 
-    unless index_exists?(:bpmn_processes, :tenant_id)
-      add_index :bpmn_processes, :tenant_id
-    end
-    unless index_exists?(:bpmn_processes, [:tenant_id, :sync_key], name: "idx_bpmn_processes_on_tenant_sync_key")
-      add_index :bpmn_processes, [:tenant_id, :sync_key],
-                name: "idx_bpmn_processes_on_tenant_sync_key",
-                unique: true,
-                where: "sync_key IS NOT NULL"
-    end
+    add_index :bpmn_processes, :tenant_id, if_not_exists: true
+    add_index :bpmn_processes, [:tenant_id, :sync_key],
+              name: "idx_bpmn_processes_on_tenant_sync_key",
+              unique: true,
+              where: "sync_key IS NOT NULL",
+              if_not_exists: true
   end
 
   def down

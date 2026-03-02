@@ -11,11 +11,10 @@
 class AddTenantToOrganizationsAndBackups < ActiveRecord::Migration[8.0]
   def up
     # Step 1: Add tenant_id to organizations
-    unless column_exists?(:organizations, :tenant_id)
-      add_column :organizations, :tenant_id, :bigint
-      add_index :organizations, :tenant_id
-      add_foreign_key :organizations, :tenants
-    end
+    # FRC (Mar 2026): Use if_not_exists: true (DB-level) instead of column_exists? (Rails cache)
+    add_column :organizations, :tenant_id, :bigint, if_not_exists: true
+    add_index :organizations, :tenant_id, if_not_exists: true
+    add_foreign_key :organizations, :tenants unless foreign_key_exists?(:organizations, :tenants)
 
     # Step 2: Link all organizations to Tekna tenant (id=2)
     # All current organizations are sub-tenants of Tekna
@@ -24,11 +23,9 @@ class AddTenantToOrganizationsAndBackups < ActiveRecord::Migration[8.0]
     SQL
 
     # Step 3: Add tenant_id to backup_configurations
-    unless column_exists?(:backup_configurations, :tenant_id)
-      add_column :backup_configurations, :tenant_id, :bigint
-      add_index :backup_configurations, :tenant_id
-      add_foreign_key :backup_configurations, :tenants
-    end
+    add_column :backup_configurations, :tenant_id, :bigint, if_not_exists: true
+    add_index :backup_configurations, :tenant_id, if_not_exists: true
+    add_foreign_key :backup_configurations, :tenants unless foreign_key_exists?(:backup_configurations, :tenants)
 
     # Step 4: Migrate backup_configurations from organization_id to tenant_id
     # All organizations belong to Tekna (tenant_id=2)

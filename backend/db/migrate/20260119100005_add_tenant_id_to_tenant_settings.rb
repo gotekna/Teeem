@@ -8,8 +8,9 @@
 class AddTenantIdToTenantSettings < ActiveRecord::Migration[8.0]
   def change
     # Add tenant_id column
-    add_column :tenant_settings, :tenant_id, :bigint unless column_exists?(:tenant_settings, :tenant_id)
-    add_index :tenant_settings, :tenant_id unless index_exists?(:tenant_settings, :tenant_id)
+    # FRC (Mar 2026): Use if_not_exists: true (DB-level) instead of column_exists? (Rails cache)
+    add_column :tenant_settings, :tenant_id, :bigint, if_not_exists: true
+    add_index :tenant_settings, :tenant_id, if_not_exists: true
     add_foreign_key :tenant_settings, :tenants unless foreign_key_exists?(:tenant_settings, :tenants)
 
     reversible do |dir|

@@ -11,19 +11,30 @@
 # - Provider-agnostic storage via StorageConfiguration
 #
 class AddStorageBlobToDocuments < ActiveRecord::Migration[8.0]
-  def change
+  def up
     # CorporateCompanyDocument - main document storage (12,783+ records)
-    add_reference :corporate_documents, :storage_blob, foreign_key: true, index: true
+    unless column_exists?(:corporate_documents, :storage_blob_id)
+      add_reference :corporate_documents, :storage_blob, foreign_key: true, index: true
+    end
 
     # ChatMessage - chat attachments (5 records)
-    add_reference :chat_messages, :storage_blob, foreign_key: true, index: true
+    unless column_exists?(:chat_messages, :storage_blob_id)
+      add_reference :chat_messages, :storage_blob, foreign_key: true, index: true
+    end
 
     # BillInbox - invoice files (2 records)
-    add_reference :bill_inboxes, :storage_blob, foreign_key: true, index: true
-
-    # Add index on content_hash for deduplication lookups (if not exists)
-    unless index_exists?(:corporate_documents, :content_hash)
-      add_index :corporate_documents, :content_hash, where: "content_hash IS NOT NULL"
+    unless column_exists?(:bill_inboxes, :storage_blob_id)
+      add_reference :bill_inboxes, :storage_blob, foreign_key: true, index: true
     end
+
+    # Add index on content_hash for deduplication lookups
+    add_index :corporate_documents, :content_hash, where: "content_hash IS NOT NULL", if_not_exists: true
+  end
+
+  def down
+    remove_index :corporate_documents, :content_hash, if_exists: true
+    remove_reference :bill_inboxes, :storage_blob, if_exists: true
+    remove_reference :chat_messages, :storage_blob, if_exists: true
+    remove_reference :corporate_documents, :storage_blob, if_exists: true
   end
 end

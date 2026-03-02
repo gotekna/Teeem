@@ -29,6 +29,9 @@ class CreatePoStatusesAndConvertStatus < ActiveRecord::Migration[7.2]
     # Step 2: Add po_status_id FK to purchase_orders (idempotent)
     # =========================================================================
     unless column_exists?(:purchase_orders, :po_status_id)
+      # Note: add_reference doesn't support if_not_exists, but the column_exists?
+      # check here is safe because disable_ddl_transaction! means partial progress
+      # is preserved and this check runs against the actual DB state.
       add_reference :purchase_orders, :po_status, foreign_key: { to_table: :po_statuses }, null: true
     end
 

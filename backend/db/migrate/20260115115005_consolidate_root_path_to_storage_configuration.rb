@@ -39,12 +39,7 @@ class ConsolidateRootPathToStorageConfiguration < ActiveRecord::Migration[8.0]
 
   def down
     # Restore columns (but data is lost)
-    unless column_exists?(:s3_compatible_credentials, :root_path)
-      add_column :s3_compatible_credentials, :root_path, :string, default: ""
-    end
-
-    unless column_exists?(:corporate_settings, :sharepoint_root_path)
-      add_column :corporate_settings, :sharepoint_root_path, :string, default: "/Shared Documents"
-    end
+    add_column :s3_compatible_credentials, :root_path, :string, default: "", if_not_exists: true
+    add_column :corporate_settings, :sharepoint_root_path, :string, default: "/Shared Documents", if_not_exists: true
   end
 end

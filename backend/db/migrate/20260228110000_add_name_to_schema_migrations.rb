@@ -7,12 +7,10 @@
 # Sentry: TEEEM-BACKEND-5V (4 events)
 class AddNameToSchemaMigrations < ActiveRecord::Migration[8.0]
   def up
-    unless column_exists?(:schema_migrations, :name)
-      add_column :schema_migrations, :name, :string
-    end
+    add_column :schema_migrations, :name, :string, if_not_exists: true
   end
 
   def down
-    remove_column :schema_migrations, :name if column_exists?(:schema_migrations, :name)
+    remove_column :schema_migrations, :name, if_exists: true
   end
 end

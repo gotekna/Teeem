@@ -13,13 +13,8 @@
 # Backfill: Populates tender_id on existing sm_tasks from their linked sm_schedule_masters.
 class AddTenderIdToSmTasks < ActiveRecord::Migration[8.0]
   def up
-    unless column_exists?(:sm_tasks, :tender_id)
-      add_column :sm_tasks, :tender_id, :integer
-    end
-
-    unless index_exists?(:sm_tasks, :tender_id)
-      add_index :sm_tasks, :tender_id
-    end
+    add_column :sm_tasks, :tender_id, :integer, if_not_exists: true
+    add_index :sm_tasks, :tender_id, if_not_exists: true
 
     # Backfill tender_id from linked sm_schedule_masters
     execute <<-SQL.squish
