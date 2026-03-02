@@ -61,6 +61,9 @@ const LINKED_CHILDREN: Record<string, string[]> = {
   claim_stage_templates: ["claim_stage_template_lines"],
   po_template_packs: ["po_template_items", "po_template_line_items"],
   tender_headers: ["tenders"],
+  // Bidirectional: template ↔ tasks (setting one cascades to same-named record in the other)
+  sm_schedule_master_templates: ["sm_schedule_masters"],
+  sm_schedule_masters: ["sm_schedule_master_templates"],
 };
 
 type SyncMode = "two_way" | "one_way" | "independent";

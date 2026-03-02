@@ -950,6 +950,21 @@ module Api
             Tender.where(tender_header_id: master_header_ids).pluck(:id)
           end
 
+        when "sm_schedule_masters"
+          # SM Tasks: record_id is template id (sub-rows grouped by template) — exclude master tasks
+          tmpl_names = SmScheduleMasterTemplate.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
+            master_tmpl_ids = SmScheduleMasterTemplate.where("LOWER(name) IN (?)", tmpl_names).pluck(:id)
+            SmScheduleMaster.where(sm_schedule_master_template_id: master_tmpl_ids).pluck(:id)
+          end
+
+        when "sm_schedule_master_templates"
+          # SM Templates: record_id is the template id itself
+          names = SmScheduleMasterTemplate.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
+            SmScheduleMasterTemplate.where("LOWER(name) IN (?)", names).pluck(:id)
+          end
+
         else
           # Generic: record_id is the actual record id — match by name
           name_col = %w[name display_name item_name].find { |c| model.column_names.include?(c) } || "name"
@@ -982,6 +997,17 @@ module Api
           count += record.lines.where.not(sync_key: nil).update_all(sync_key: nil)
         when "tender_headers"
           count += Tender.where(tender_header_id: record.id).where.not(sync_key: nil).update_all(sync_key: nil)
+        when "sm_schedule_master_templates"
+          # Template → clear sync_keys on all SM tasks belonging to this template
+          count += SmScheduleMaster.where(sm_schedule_master_template_id: record.id)
+                                   .where.not(sync_key: nil).update_all(sync_key: nil)
+        when "sm_schedule_masters"
+          # Task → clear sync_key on the parent template (bidirectional)
+          tmpl = record.sm_schedule_master_template
+          if tmpl&.sync_key.present?
+            tmpl.update_column(:sync_key, nil)
+            count += 1
+          end
         end
         count
       end
@@ -1018,6 +1044,25 @@ module Api
             t.generate_sync_key if t.respond_to?(:generate_sync_key)
             if t.sync_key_changed?
               t.save!
+              count += 1
+            end
+          end
+        when "sm_schedule_master_templates"
+          # Template → regenerate sync_keys on all SM tasks belonging to this template
+          SmScheduleMaster.where(sm_schedule_master_template_id: record.id, sync_key: [nil, ""]).find_each do |task|
+            task.generate_sync_key if task.respond_to?(:generate_sync_key)
+            if task.sync_key_changed?
+              task.save!
+              count += 1
+            end
+          end
+        when "sm_schedule_masters"
+          # Task → regenerate sync_key on the parent template (bidirectional)
+          tmpl = record.sm_schedule_master_template
+          if tmpl && tmpl.sync_key.blank? && tmpl.respond_to?(:generate_sync_key)
+            tmpl.generate_sync_key
+            if tmpl.sync_key_changed?
+              tmpl.save!
               count += 1
             end
           end
