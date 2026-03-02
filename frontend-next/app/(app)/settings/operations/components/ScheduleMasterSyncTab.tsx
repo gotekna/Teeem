@@ -53,7 +53,7 @@ const SM_SYNC_TABLES = [
   { key: "tender_headers", label: "Tender Headers", defaultMode: "one_way" as const },
   { key: "tenders", label: "Tender Sections", defaultMode: "one_way" as const },
   { key: "claim_stage_templates", label: "Claim Templates", defaultMode: "one_way" as const },
-  { key: "claim_stage_template_lines", label: "Claim Template Lines", defaultMode: "one_way" as const },
+  { key: "claim_stage_template_lines", label: "Claim Template Lines", defaultMode: "two_way" as const },
 ] as const;
 
 type SyncMode = "two_way" | "one_way" | "independent";
@@ -944,8 +944,8 @@ export function ScheduleMasterSyncTab() {
                         const records = cov && "records" in cov ? cov.records : undefined;
                         if (!records || records.length === 0) return null;
 
-                        // PO Items and Line Items are read-only (grouped by pack, toggle is on PO Packs row)
-                        const isReadOnly = table.key === "po_template_line_items" || table.key === "po_template_items";
+                        // Child tables are read-only (grouped by parent, toggle is on parent row)
+                        const isReadOnly = table.key === "po_template_line_items" || table.key === "po_template_items" || table.key === "claim_stage_template_lines";
 
                         return records.map((rec) => (
                           <TableRow key={`${table.key}-rec-${rec.id}`} className="bg-muted/30">

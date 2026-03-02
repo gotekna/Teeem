@@ -967,6 +967,11 @@ module Api
                   entry[:records] = ActsAsTenant.with_tenant(t) do
                     table_key == :po_template_items ? po_items_by_pack(master_pack_keys) : po_lines_by_pack(master_pack_keys)
                   end
+                elsif table_key == :claim_stage_template_lines
+                  master_claim_keys = master_sync_keys_cache[:claim_stage_templates] || Set.new
+                  entry[:records] = ActsAsTenant.with_tenant(t) do
+                    claim_lines_by_template(master_claim_keys)
+                  end
                 elsif table_key != :sm_schedule_masters && model.column_names.include?("sync_key")
                   mk = master_sync_keys_cache[table_key] || Set.new
                   entry[:records] = ActsAsTenant.with_tenant(t) do
@@ -1010,6 +1015,9 @@ module Api
               if table_key == :po_template_items || table_key == :po_template_line_items
                 master_pack_keys = master_sync_keys_cache[:po_template_packs] || Set.new
                 entry[:records] = table_key == :po_template_items ? po_items_by_pack(master_pack_keys) : po_lines_by_pack(master_pack_keys)
+              elsif table_key == :claim_stage_template_lines
+                master_claim_keys = master_sync_keys_cache[:claim_stage_templates] || Set.new
+                entry[:records] = claim_lines_by_template(master_claim_keys)
               elsif table_key != :sm_schedule_masters && model.column_names.include?("sync_key")
                 mk = master_sync_keys_cache[table_key] || Set.new
                 entry[:records] = syncable_records_breakdown(model, mk)
@@ -1126,6 +1134,18 @@ module Api
           next nil if count == 0
           synced = pack.sync_key.present? && master_pack_keys.include?(pack.sync_key)
           { id: pack.id, name: pack.name, count: count, synced: synced }
+        end.compact
+      end
+
+      # Claim Template Lines grouped by parent claim template
+      # Uses claim template sync_keys so status matches Claim Templates row
+      # Must be called within ActsAsTenant.with_tenant context
+      def claim_lines_by_template(master_template_keys)
+        templates = ClaimStageTemplate.includes(:lines).all
+        templates.map do |tpl|
+          next nil if tpl.lines.empty?
+          synced = tpl.sync_key.present? && master_template_keys.include?(tpl.sync_key)
+          { id: tpl.id, name: tpl.name, count: tpl.lines.size, synced: synced }
         end.compact
       end
 
