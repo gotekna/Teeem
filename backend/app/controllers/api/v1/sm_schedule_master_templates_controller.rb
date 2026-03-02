@@ -106,8 +106,8 @@ module Api
         tasks = @template.sm_schedule_master_rows.active
                   .where(po_required: true)
                   .order(:sequence_order)
-                  .pluck(:id, :name)
-                  .map { |id, name| { id: id, name: name } }
+                  .pluck(:id, :name, :task_code)
+                  .map { |id, name, task_code| { id: id, name: name, task_code: task_code } }
 
         render json: { success: true, tasks: tasks }
       end

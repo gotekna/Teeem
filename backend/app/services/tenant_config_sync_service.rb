@@ -212,8 +212,38 @@ class TenantConfigSyncService
       model: "SmScheduleMasterTemplate",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :description, :is_default, :is_active],
-      description: "Schedule Master templates",
+      sync_fields: [
+        :name, :description, :is_default, :is_active,
+        # Rate percentages (Markup Templates page)
+        :default_builder_margin_percent, :default_escalation_percent, :pc_ps_markup_cap_percent,
+        :default_construction_insurance_percent, :default_overheads_percent, :default_qleave_rate_percent,
+        :default_builds_contingency_percent, :default_project_prelims_percent,
+        :default_project_management_percent, :default_maintenance_fee_percent, :default_tender_markup_percent,
+        # PO link arrays (JSONB — SM task IDs, remapped via remap_fks)
+        :charge_construction_insurance_sm_ids, :charge_overheads_sm_ids, :charge_qleave_sm_ids,
+        :charge_qbcc_insurance_sm_ids, :charge_builds_contingency_sm_ids, :charge_project_prelims_sm_ids,
+        :charge_project_management_sm_ids, :charge_maintenance_fee_sm_ids,
+        :charge_builder_margin_sm_ids, :charge_escalation_sm_ids, :charge_pc_ps_cap_sm_ids,
+        :charge_tender_markup_sm_ids,
+        # Claim template link
+        :claim_stage_template_id
+      ],
+      remap_fks: {
+        claim_stage_template_id: { model: "ClaimStageTemplate", match_field: :name },
+        charge_construction_insurance_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_overheads_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_qleave_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_qbcc_insurance_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_builds_contingency_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_project_prelims_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_project_management_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_maintenance_fee_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_builder_margin_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_escalation_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_pc_ps_cap_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        charge_tender_markup_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true }
+      },
+      description: "Schedule Master templates (with markup rates & PO links)",
       group: "schedule"
     },
     sm_task_groups: {

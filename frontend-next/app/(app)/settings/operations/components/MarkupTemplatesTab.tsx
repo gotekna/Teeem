@@ -20,6 +20,7 @@ import { api } from "@/lib/api";
 interface SmPoTask {
   id: number;
   name: string;
+  task_code?: string | null;
 }
 
 interface ClaimTemplateLine {
@@ -392,7 +393,7 @@ export function MarkupTemplatesTab() {
                               {hasSmField && tasks.length > 0 && (
                                 <div className="flex-1 min-w-0">
                                   <ComboboxMultiSelect
-                                    items={tasks.map(t => ({ id: t.id.toString(), label: t.name }))}
+                                    items={tasks.map(t => ({ id: t.id.toString(), label: t.task_code ? `${t.task_code} — ${t.name}` : t.name, searchText: t.task_code || undefined }))}
                                     selectedIds={smIds.map(v => v.toString())}
                                     onChange={ids => updateField(tmpl.id, rate.smField!, ids.map(id => parseInt(id, 10)))}
                                     placeholder="Link to PO..."
@@ -483,7 +484,7 @@ export function MarkupTemplatesTab() {
                               {tasks.length > 0 && (
                                 <div className="flex-1 min-w-0">
                                   <ComboboxMultiSelect
-                                    items={tasks.map(t => ({ id: t.id.toString(), label: t.name }))}
+                                    items={tasks.map(t => ({ id: t.id.toString(), label: t.task_code ? `${t.task_code} — ${t.name}` : t.name, searchText: t.task_code || undefined }))}
                                     selectedIds={smIds.map(v => v.toString())}
                                     onChange={ids => updateField(tmpl.id, charge.smField, ids.map(id => parseInt(id, 10)))}
                                     placeholder="Link to PO..."
