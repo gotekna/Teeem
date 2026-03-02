@@ -242,17 +242,53 @@ export function ScheduleMasterSyncTab() {
   };
 
   // Cycle sync mode: two_way → one_way → independent → two_way
+  // Cascades to child records: independent clears sync_keys, two_way/one_way regenerates them
   const handleCycleSyncMode = async (tableKey: string, currentMode: SyncMode) => {
     const currentIndex = SYNC_MODES.indexOf(currentMode);
     const nextMode = SYNC_MODES[(currentIndex + 1) % SYNC_MODES.length];
-    // Optimistic update
+    // Optimistic update - header mode
     setTableModes((prev) => ({ ...prev, [tableKey]: nextMode }));
+    // Optimistic update - cascade children synced status
+    const prevCoverage = syncCoverage;
+    setSyncCoverage((prev) => {
+      const entry = prev[tableKey];
+      if (!entry || typeof entry !== "object") return prev;
+      const cov = entry as CoverageEntry;
+      if (cov.records) {
+        const synced = nextMode !== "independent";
+        const updatedRecords = cov.records.map((r) => ({ ...r, synced }));
+        return {
+          ...prev,
+          [tableKey]: {
+            ...cov,
+            linked: synced ? updatedRecords.length : 0,
+            local_only: synced ? 0 : updatedRecords.length,
+            records: updatedRecords,
+          },
+        };
+      }
+      if (cov.templates) {
+        const synced = nextMode !== "independent";
+        const updatedTemplates = cov.templates.map((t) => ({ ...t, synced }));
+        return {
+          ...prev,
+          [tableKey]: {
+            ...cov,
+            linked: synced ? updatedTemplates.reduce((s, t) => s + t.tasks, 0) : 0,
+            local_only: synced ? 0 : updatedTemplates.reduce((s, t) => s + t.tasks, 0),
+            templates: updatedTemplates,
+          },
+        };
+      }
+      return prev;
+    });
     try {
-      await api.put("/api/v1/config_sync/update_table_mode", { table: tableKey, mode: nextMode });
+      await api.put("/api/v1/config_sync/update_table_mode", { table: tableKey, mode: nextMode, cascade: true });
     } catch (err) {
       console.error("[SMSync] Failed to update table mode:", err);
       // Revert on failure
       setTableModes((prev) => ({ ...prev, [tableKey]: currentMode }));
+      setSyncCoverage(prevCoverage);
     }
   };
 

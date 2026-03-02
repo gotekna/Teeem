@@ -835,7 +835,31 @@ module Api
         modes[table_key] = mode
         ts.update!(config_sync_table_modes: modes)
 
-        render json: { success: true, modes: modes }
+        # Cascade sync_key changes to all records when mode changes
+        cascaded = 0
+        if params[:cascade].present?
+          config = TenantConfigSyncService::CONFIG_TABLES[table_key.to_sym]
+          if config
+            model = config[:model].constantize
+            if model.column_names.include?("sync_key")
+              if mode == "independent"
+                # Clear all sync_keys → records become independent
+                cascaded = model.where.not(sync_key: nil).update_all(sync_key: nil)
+              else
+                # Regenerate sync_keys for records missing them
+                model.where(sync_key: nil).find_each do |record|
+                  record.generate_sync_key
+                  if record.sync_key_changed?
+                    record.save!
+                    cascaded += 1
+                  end
+                end
+              end
+            end
+          end
+        end
+
+        render json: { success: true, modes: modes, cascaded: cascaded }
       end
 
       private
