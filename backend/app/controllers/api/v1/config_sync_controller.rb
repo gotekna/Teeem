@@ -449,28 +449,9 @@ module Api
 
           # ── Two-way: push local-only records up to TEEEM (on last batch) ──
           pushed_count = 0
-          if !has_more && table_mode(table) == "two_way" && model.column_names.include?("sync_key")
-            master_sync_keys = ActsAsTenant.with_tenant(master_tenant) do
-              model.where.not(sync_key: [nil, ""]).pluck(:sync_key).to_set
-            end
-
-            tenant_only_ids = ActsAsTenant.with_tenant(current_tenant) do
-              scoped_model(model, effective_config)
-                .where.not(sync_key: [nil, ""])
-                .select { |r| !master_sync_keys.include?(r.sync_key) }
-                .map(&:id)
-            end
-
-            if tenant_only_ids.any?
-              master_service = TenantConfigSyncService.new(master_tenant)
-              push_result = master_service.import_from_tenant(
-                source_tenant: current_tenant,
-                table: table.to_s,
-                record_ids: tenant_only_ids
-              )
-              pushed_count = push_result[:imported]&.length || 0
-              Rails.logger.info "[ConfigSync] Two-way push #{table}: #{pushed_count} records → TEEEM" if pushed_count > 0
-            end
+          if !has_more && table_mode(table) == "two_way"
+            push_result = service.push_local_only_to_master(table: table.to_s)
+            pushed_count = push_result[:pushed] || 0
           end
 
           # Record per-table sync timestamp (only on last batch or single batch)

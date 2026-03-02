@@ -119,135 +119,123 @@ export function MarkupDefaultsTab() {
   };
 
   return (
-    <div className="space-y-8 max-w-3xl px-4 pt-4">
+    <div className="space-y-6 max-w-3xl px-4 pt-4">
       {/* ── Markup Defaults ── */}
-      <div>
-        <h2 className="text-lg font-semibold">Markup Defaults</h2>
-        <p className="text-sm text-muted-foreground">
-          Default markup values applied when a Schedule Master template is copied to a new job.
-        </p>
-      </div>
-
       <Card>
-        <CardContent className="space-y-6 p-6">
-          <SettingField
-            label="Default Builder Margin (%)"
-            value={settings?.defaultBuilderMarginPercent ?? 0}
-            onChange={v => updateSetting("defaultBuilderMarginPercent", v)}
-            help="Applied to new jobs when a template is copied. Editable per-job in the Markup tab."
-          />
-          <SettingField
-            label="Default Escalation (%)"
-            value={settings?.defaultEscalationPercent ?? 0}
-            onChange={v => updateSetting("defaultEscalationPercent", v)}
-            help="CPI/inflation adjustment applied to PO costs. Editable per-task in the Markup tab."
-          />
-          <SettingField
-            label="PC/PS Markup Cap (%)"
-            value={settings?.pcPsMarkupCapPercent ?? 25}
-            onChange={v => updateSetting("pcPsMarkupCapPercent", v)}
-            help="Maximum markup allowed on Provisional Cost / Provisional Sum items (default 25%)."
-          />
-          <SettingField
-            label="Default Tender Markup (%)"
-            value={settings?.defaultTenderMarkupPercent ?? 0}
-            onChange={v => updateSetting("defaultTenderMarkupPercent", v)}
-            help="Applied to non-PC/PS PO costs with smart roundup. E.g. PO $3,454.34 × 10% → $3,800."
-          />
+        <CardContent className="p-5">
+          <h2 className="text-sm font-semibold mb-1">Markup Defaults</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Applied when a Schedule Master template is copied to a new job. Editable per-job.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+            <CompactField
+              label="Builder Margin"
+              suffix="%"
+              value={settings?.defaultBuilderMarginPercent ?? 0}
+              onChange={v => updateSetting("defaultBuilderMarginPercent", v)}
+            />
+            <CompactField
+              label="Escalation"
+              suffix="%"
+              value={settings?.defaultEscalationPercent ?? 0}
+              onChange={v => updateSetting("defaultEscalationPercent", v)}
+            />
+            <CompactField
+              label="PC/PS Markup Cap"
+              suffix="%"
+              value={settings?.pcPsMarkupCapPercent ?? 25}
+              onChange={v => updateSetting("pcPsMarkupCapPercent", v)}
+            />
+            <CompactField
+              label="Tender Markup"
+              suffix="%"
+              value={settings?.defaultTenderMarkupPercent ?? 0}
+              onChange={v => updateSetting("defaultTenderMarkupPercent", v)}
+            />
+          </div>
         </CardContent>
       </Card>
 
       {/* ── Job Charge Defaults ── */}
-      <div>
-        <h2 className="text-lg font-semibold">Job Charge Defaults</h2>
-        <p className="text-sm text-muted-foreground">
-          Default rates for insurance, levies, and overheads added to job pricing.
-        </p>
-      </div>
-
       <Card>
-        <CardContent className="space-y-6 p-6">
-          <SettingField
-            label="Default Construction Insurance (%)"
-            value={settings?.defaultConstructionInsurancePercent ?? 0}
-            onChange={v => updateSetting("defaultConstructionInsurancePercent", v)}
-            help="Builder's construction insurance as % of sell subtotal."
-            step={0.1}
-          />
-          <SettingField
-            label="Default Overheads (%)"
-            value={settings?.defaultOverheadsPercent ?? 0}
-            onChange={v => updateSetting("defaultOverheadsPercent", v)}
-            help="General overheads as % of sell subtotal."
-            step={0.1}
-          />
-          <SettingField
-            label="Default Builds Contingency (%)"
-            value={settings?.defaultBuildsContingencyPercent ?? 0}
-            onChange={v => updateSetting("defaultBuildsContingencyPercent", v)}
-            help="Contingency allowance as % of sell subtotal."
-            step={0.1}
-          />
-          <SettingField
-            label="Default Project Prelims (%)"
-            value={settings?.defaultProjectPrelimsPercent ?? 0}
-            onChange={v => updateSetting("defaultProjectPrelimsPercent", v)}
-            help="Preliminary costs as % of sell subtotal."
-            step={0.1}
-          />
-          <SettingField
-            label="Default Project Management (%)"
-            value={settings?.defaultProjectManagementPercent ?? 0}
-            onChange={v => updateSetting("defaultProjectManagementPercent", v)}
-            help="Project management fee as % of sell subtotal."
-            step={0.1}
-          />
-          <SettingField
-            label="Default Maintenance Fee (%)"
-            value={settings?.defaultMaintenanceFeePercent ?? 0}
-            onChange={v => updateSetting("defaultMaintenanceFeePercent", v)}
-            help="Maintenance fee as % of sell subtotal."
-            step={0.1}
-          />
-
-          <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold mb-3">QLeave</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <SettingField
-                label="QLeave Rate (%)"
-                value={settings?.defaultQleaveRatePercent ?? 0.575}
-                onChange={v => updateSetting("defaultQleaveRatePercent", v)}
-                help="QLD building levy rate (currently 0.575%)."
-                step={0.001}
-              />
-              <SettingField
-                label="QLeave Threshold ($)"
-                value={settings?.qleaveThreshold ?? 150000}
-                onChange={v => updateSetting("qleaveThreshold", v)}
-                help="Cost threshold above which QLeave applies (currently $150,000 ex GST)."
-                step={1000}
-                prefix="$"
-              />
-            </div>
-          </div>
-
-          <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold mb-3">QBCC Home Warranty Insurance</h3>
-            <SettingField
-              label="QBCC Minimum Threshold ($)"
+        <CardContent className="p-5">
+          <h2 className="text-sm font-semibold mb-1">Job Charge Defaults</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Default rates for insurance, levies, and overheads added to job pricing.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+            <CompactField
+              label="Constr. Insurance"
+              suffix="%"
+              value={settings?.defaultConstructionInsurancePercent ?? 0}
+              onChange={v => updateSetting("defaultConstructionInsurancePercent", v)}
+              step={0.1}
+            />
+            <CompactField
+              label="Overheads"
+              suffix="%"
+              value={settings?.defaultOverheadsPercent ?? 0}
+              onChange={v => updateSetting("defaultOverheadsPercent", v)}
+              step={0.1}
+            />
+            <CompactField
+              label="Builds Contingency"
+              suffix="%"
+              value={settings?.defaultBuildsContingencyPercent ?? 0}
+              onChange={v => updateSetting("defaultBuildsContingencyPercent", v)}
+              step={0.1}
+            />
+            <CompactField
+              label="Project Prelims"
+              suffix="%"
+              value={settings?.defaultProjectPrelimsPercent ?? 0}
+              onChange={v => updateSetting("defaultProjectPrelimsPercent", v)}
+              step={0.1}
+            />
+            <CompactField
+              label="Project Management"
+              suffix="%"
+              value={settings?.defaultProjectManagementPercent ?? 0}
+              onChange={v => updateSetting("defaultProjectManagementPercent", v)}
+              step={0.1}
+            />
+            <CompactField
+              label="Maintenance Fee"
+              suffix="%"
+              value={settings?.defaultMaintenanceFeePercent ?? 0}
+              onChange={v => updateSetting("defaultMaintenanceFeePercent", v)}
+              step={0.1}
+            />
+            <CompactField
+              label="QLeave Rate"
+              suffix="%"
+              value={settings?.defaultQleaveRatePercent ?? 0.575}
+              onChange={v => updateSetting("defaultQleaveRatePercent", v)}
+              step={0.001}
+            />
+            <CompactField
+              label="QLeave Threshold"
+              prefix="$"
+              value={settings?.qleaveThreshold ?? 150000}
+              onChange={v => updateSetting("qleaveThreshold", v)}
+              step={1000}
+              inputWidth="w-28"
+            />
+            <CompactField
+              label="QBCC Min Threshold"
+              prefix="$"
               value={settings?.qbccMinimumThreshold ?? 3300}
               onChange={v => updateSetting("qbccMinimumThreshold", v)}
-              help="Contract value below which QBCC premium doesn't apply (currently $3,300)."
               step={100}
-              prefix="$"
+              inputWidth="w-28"
             />
           </div>
-
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save All Defaults"}
-          </Button>
         </CardContent>
       </Card>
+
+      <Button onClick={handleSave} disabled={saving}>
+        {saving ? "Saving..." : "Save All Defaults"}
+      </Button>
     </div>
   );
 }
@@ -256,30 +244,28 @@ export function MarkupDefaultsTab() {
 // Sub-components
 // ============================================
 
-function SettingField({
+function CompactField({
   label,
   value,
   onChange,
-  help,
   step = 0.5,
   prefix,
+  suffix,
+  inputWidth = "w-20",
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
-  help?: string;
   step?: number;
   prefix?: string;
+  suffix?: string;
+  inputWidth?: string;
 }) {
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <div className="relative w-36">
-        {prefix && (
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-            {prefix}
-          </span>
-        )}
+    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-b-0">
+      <Label className="text-sm font-normal text-foreground shrink-0">{label}</Label>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {prefix && <span className="text-sm text-muted-foreground">{prefix}</span>}
         <Input
           type="number"
           min={0}
@@ -287,10 +273,10 @@ function SettingField({
           value={value}
           onChange={e => onChange(parseFloat(e.target.value) || 0)}
           onFocus={e => e.target.select()}
-          className={prefix ? "pl-6" : ""}
+          className={`${inputWidth} h-8 text-right text-sm`}
         />
+        {suffix && <span className="text-sm text-muted-foreground w-3">{suffix}</span>}
       </div>
-      {help && <p className="text-xs text-muted-foreground">{help}</p>}
     </div>
   );
 }

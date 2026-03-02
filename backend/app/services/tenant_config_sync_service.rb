@@ -1501,6 +1501,55 @@ class TenantConfigSyncService
   end
 
   # ============================================================================
+  # Two-Way Sync: push tenant-only records up to master
+  # ============================================================================
+
+  # After pulling from master, push local-only records (sync_key exists on tenant
+  # but not on master) back up to TEEEM. This makes two-way sync truly bidirectional.
+  #
+  # Returns { pushed: N, skipped: N, errors: [...] }
+  def push_local_only_to_master(table:)
+    config = CONFIG_TABLES[table.to_sym]
+    return { pushed: 0, skipped: 0, errors: ["Unknown table: #{table}"] } unless config
+
+    model = config[:model].constantize
+    return { pushed: 0, skipped: 0, errors: [] } unless model.column_names.include?("sync_key")
+
+    master = master_tenant
+    return { pushed: 0, skipped: 0, errors: ["No master tenant"] } unless master
+
+    # Find sync_keys that exist on master
+    master_sync_keys = ActsAsTenant.with_tenant(master) do
+      model.where.not(sync_key: [nil, ""]).pluck(:sync_key).to_set
+    end
+
+    # Find tenant records whose sync_key is NOT in master
+    tenant_only_ids = ActsAsTenant.with_tenant(tenant) do
+      base = config[:scope] ? model.instance_exec(&config[:scope]) : model.all
+      base.where.not(sync_key: [nil, ""])
+          .select { |r| !master_sync_keys.include?(r.sync_key) }
+          .map(&:id)
+    end
+
+    return { pushed: 0, skipped: 0, errors: [] } if tenant_only_ids.empty?
+
+    # Import into master using a master-scoped service
+    master_service = self.class.new(master)
+    result = master_service.import_from_tenant(
+      source_tenant: tenant,
+      table: table.to_s,
+      record_ids: tenant_only_ids
+    )
+
+    pushed = result[:imported]&.length || 0
+    skipped = result[:skipped]&.length || 0
+
+    Rails.logger.info "[ConfigSync] Two-way push #{table}: #{pushed} records from #{tenant.name} → TEEEM" if pushed > 0
+
+    { pushed: pushed, skipped: skipped, errors: result[:errors] || [] }
+  end
+
+  # ============================================================================
   # Compulsory Sync (for new tenant provisioning)
   # ============================================================================
 

@@ -57,8 +57,7 @@ class ConfigAutoSyncJob < ApplicationJob
 
     Rails.logger.info "[ConfigAutoSync] Tenant #{tenant.name}: #{two_way_tables.length} two-way tables (#{two_way_tables.join(', ')})"
 
-    tenant_service = TenantConfigSyncService.new(tenant)
-    master_service = TenantConfigSyncService.new(master)
+    service = TenantConfigSyncService.new(tenant)
     tenant_synced = false
 
     # Sync tables in dependency order (parents before children)
@@ -85,7 +84,7 @@ class ConfigAutoSyncJob < ApplicationJob
         end
 
         if master_ids.any?
-          result = tenant_service.pull_from_master(
+          result = service.pull_from_master(
             table: table_key.to_s,
             record_ids: master_ids,
             mode: :replace_existing
@@ -94,37 +93,10 @@ class ConfigAutoSyncJob < ApplicationJob
           skipped += result[:skipped]&.length || 0
         end
 
-        # ── Direction 2: Push tenant → master (local-only records) ──
-        # Find tenant records that don't exist in master (by sync_key match)
-        if model.column_names.include?("sync_key")
-          master_sync_keys = ActsAsTenant.with_tenant(master) do
-            model.where.not(sync_key: [nil, ""]).pluck(:sync_key).to_set
-          end
-
-          tenant_only_ids = ActsAsTenant.with_tenant(tenant) do
-            if config[:scope]
-              model.instance_exec(&config[:scope])
-            else
-              model.all
-            end.where.not(sync_key: [nil, ""]).select { |r|
-              !master_sync_keys.include?(r.sync_key)
-            }.map(&:id)
-          end
-
-          if tenant_only_ids.any?
-            push_result = master_service.import_from_tenant(
-              source_tenant: tenant,
-              table: table_key.to_s,
-              record_ids: tenant_only_ids
-            )
-            pushed = push_result[:imported]&.length || 0
-            skipped += push_result[:skipped]&.length || 0
-
-            if pushed > 0
-              Rails.logger.info "[ConfigAutoSync] #{tenant.name}/#{table_key}: pushed #{pushed} records → TEEEM"
-            end
-          end
-        end
+        # ── Direction 2: Push tenant-only records → TEEEM (SSoT method) ──
+        push_result = service.push_local_only_to_master(table: table_key.to_s)
+        pushed = push_result[:pushed] || 0
+        skipped += push_result[:skipped] || 0
 
         total_results[:tables_synced] += 1
         total_results[:pulled] += pulled
