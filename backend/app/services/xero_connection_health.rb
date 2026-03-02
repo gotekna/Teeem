@@ -52,7 +52,7 @@ class XeroConnectionHealth
   class << self
     # Compute health for an XeroCredential
     # This is THE SSoT for credential health - all other code should call this
-    def for_credential(credential)
+    def for_credential(credential, usage: nil)
       return disconnected_status("No credential") unless credential
 
       # Check token poisoning first (fatal - requires re-auth)
@@ -127,8 +127,9 @@ class XeroConnectionHealth
 
       # FRC: Check rate limits before declaring healthy
       # This integrates rate limit status into connection health (SSoT consistency)
+      # Accept pre-computed usage (from batch read) to avoid N+1 on solid_cache_entries
       if credential.tenant_id.present?
-        usage = XeroRateLimitTracker.usage_for(credential.tenant_id)
+        usage ||= XeroRateLimitTracker.usage_for(credential.tenant_id)
         if usage && !usage[:can_make_request]
           return HealthStatus.new(
             connected: true,  # Still connected, just throttled

@@ -286,6 +286,61 @@ class XeroRateLimitTracker
       }
     end
 
+    # Batch-fetch usage for multiple tenants in ONE cache round-trip (not N*4 reads)
+    # Returns: { tenant_id => usage_hash }
+    # Use this instead of looping usage_for() to avoid N+1 on solid_cache_entries
+    def usage_for_many(tenant_ids)
+      return {} if tenant_ids.blank?
+
+      minute_window = Time.current.strftime("%Y%m%d%H%M")
+      day_window    = Time.current.utc.strftime("%Y%m%d")
+
+      # Build all keys in one go
+      all_keys = tenant_ids.flat_map do |tid|
+        [
+          "xero:rate:minute:#{tid}:#{minute_window}",
+          "xero:rate:daily:#{tid}:#{day_window}",
+          "xero:rate:total:#{tid}",
+          "#{LOCKOUT_KEY}:#{tid}"
+        ]
+      end
+
+      # Single batched cache read instead of N*4 individual reads
+      values = Rails.cache.read_multi(*all_keys)
+
+      tenant_ids.index_with do |tid|
+        minute_count = values["xero:rate:minute:#{tid}:#{minute_window}"].to_i
+        daily_count  = values["xero:rate:daily:#{tid}:#{day_window}"].to_i
+        total_count  = values["xero:rate:total:#{tid}"].to_i
+
+        tenant_lockout = values["#{LOCKOUT_KEY}:#{tid}"]
+        is_locked_out = if tenant_lockout
+          locked_until = Time.parse(tenant_lockout[:locked_until]) rescue nil
+          locked_until.present? && locked_until > Time.current
+        else
+          false
+        end
+
+        {
+          minute: {
+            used: minute_count, limit: MINUTE_LIMIT,
+            remaining: [ MINUTE_LIMIT - minute_count, 0 ].max,
+            percentage: (minute_count.to_f / MINUTE_LIMIT * 100).round(1)
+          },
+          daily: {
+            used: daily_count, limit: DAILY_LIMIT,
+            remaining: [ DAILY_LIMIT - daily_count, 0 ].max,
+            percentage: (daily_count.to_f / DAILY_LIMIT * 100).round(1)
+          },
+          total_7d: total_count,
+          can_make_request: !is_locked_out && minute_count < MINUTE_LIMIT && daily_count < DAILY_LIMIT,
+          locked_out: is_locked_out,
+          lockout: tenant_lockout,
+          resets: { minute: Time.current.utc.end_of_minute, daily: Time.current.utc.end_of_day }
+        }
+      end
+    end
+
     # Get usage for all active tenants
     def all_tenant_usage
       credentials = XeroCredential.where(status: %w[connected degraded])

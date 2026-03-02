@@ -345,8 +345,13 @@ class XeroApiClient
     needs_attention_count = 0 # needs_attention == true
     rate_limited_count = 0    # FRC: Track rate-limited credentials separately
 
+    # Batch-fetch rate limit usage for ALL credentials in one cache round-trip
+    # Prevents N+1 on solid_cache_entries (was N*4 reads, now 1 read_multi)
+    tenant_ids = all_credentials.map(&:tenant_id).compact
+    pre_fetched_usage = XeroRateLimitTracker.usage_for_many(tenant_ids)
+
     all_credentials.each do |cred|
-      health = XeroConnectionHealth.for_credential(cred)
+      health = XeroConnectionHealth.for_credential(cred, usage: pre_fetched_usage[cred.tenant_id])
       # SSoT: Use health.connected to determine if credential is working
       # This correctly considers "warning" and "rate_limited" states as working
       working_count += 1 if health.connected

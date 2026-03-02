@@ -42,6 +42,7 @@ class SmScheduleMasterTemplate < ApplicationRecord
 
   # Callbacks
   before_save :ensure_single_default
+  after_save :propagate_canonical_changes, if: :canonical_record_id?
 
   # Get all rows for this template (via JSONB containment query)
   def sm_schedule_master_rows
@@ -69,5 +70,31 @@ class SmScheduleMasterTemplate < ApplicationRecord
     return unless is_default? && is_default_changed?
 
     SmScheduleMasterTemplate.where.not(id: id).update_all(is_default: false)
+  end
+
+  # Push changed inheritable fields to canonical record and propagate to other tenants.
+  # Mirrors SmScheduleMaster#propagate_canonical_changes.
+  def propagate_canonical_changes
+    return unless CanonicalSyncGroupMember.bidirectional?(tenant_id)
+
+    inheritable = SmCanonicalRecord::INHERITABLE_FIELDS["SmScheduleMasterTemplate"] || []
+    fk_fields = SmCanonicalRecord::FK_FIELDS["SmScheduleMasterTemplate"] || []
+    all_syncable = inheritable + fk_fields
+
+    changed = saved_changes.keys & all_syncable
+    return if changed.empty?
+
+    overrides = field_overrides || []
+    pushable = changed - overrides
+    return if pushable.empty?
+
+    canonical = SmCanonicalRecord.find_by(id: canonical_record_id)
+    return unless canonical
+
+    canonical.update_from_local!(self, changed_fields: pushable)
+
+    CanonicalRecordPropagationJob.perform_later(
+      canonical.id, pushable, tenant_id
+    )
   end
 end

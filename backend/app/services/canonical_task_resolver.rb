@@ -47,6 +47,7 @@ class CanonicalTaskResolver
     "charge_escalation_sm_ids" => { model: "SmScheduleMaster", via: :canonical_record_id, array: true, format: :sync_key_to_id },
     "charge_pc_ps_cap_sm_ids" => { model: "SmScheduleMaster", via: :canonical_record_id, array: true, format: :sync_key_to_id },
     "charge_tender_markup_sm_ids" => { model: "SmScheduleMaster", via: :canonical_record_id, array: true, format: :sync_key_to_id },
+    "charge_po_allocations" => { model: "SmScheduleMaster", via: :canonical_record_id, format: :po_allocations },
     "header_gantt" => { model: "SmScheduleMaster", via: :canonical_record_id, format: :header_gantt },
     "linked_task_ids" => { model: "SmScheduleMaster", via: :canonical_record_id, array: true, format: :sync_key_to_id },
     "completion_linked_task_ids" => { model: "SmScheduleMaster", via: :canonical_record_id, array: true, format: :sync_key_to_id }
@@ -113,7 +114,10 @@ class CanonicalTaskResolver
       end
     end
 
-    if mapping[:array] && mapping[:format] == :predecessor
+    if mapping[:format] == :po_allocations
+      # Nested JSONB { charge_type: { sync_key: pct } } → { charge_type: { local_id: pct } }
+      resolve_po_allocations(sync_value)
+    elsif mapping[:array] && mapping[:format] == :predecessor
       # Array of {sync_key, type, lag} → [{id, type, lag}]
       resolve_predecessor_array(sync_value, model_name, mapping)
     elsif mapping[:array] && mapping[:format] == :sync_key_to_id
@@ -184,6 +188,23 @@ class CanonicalTaskResolver
     return sync_value if sync_value.is_a?(String) # "Header" passes through
     return resolve_via_canonical_id(sync_value, model_name) if sync_value.is_a?(Hash)
     sync_value # Fallback: pass through as-is
+  end
+
+  # Nested JSONB { charge_type: { sync_key: pct } } → { charge_type: { local_id: pct } }
+  # Used for charge_po_allocations: remaps canonical SM sync_keys back to local SmScheduleMaster IDs
+  def resolve_po_allocations(sync_value)
+    return {} unless sync_value.is_a?(Hash)
+
+    sync_value.each_with_object({}) do |(charge_type, per_po), result|
+      next unless per_po.is_a?(Hash)
+      remapped = per_po.each_with_object({}) do |(sk, pct), out|
+        canonical = SmCanonicalRecord.find_by(sync_key: sk, record_type: "SmScheduleMaster")
+        next unless canonical
+        local = SmScheduleMaster.find_by(canonical_record_id: canonical.id, tenant_id: @tenant_id)
+        out[local.id.to_s] = pct if local
+      end
+      result[charge_type] = remapped unless remapped.empty?
+    end
   end
 
   # Array of sync_keys → [local_ids] resolved via canonical_record_id

@@ -71,7 +71,7 @@ class SmCanonicalRecord < ApplicationRecord
       charge_qbcc_insurance_sm_ids charge_builds_contingency_sm_ids charge_project_prelims_sm_ids
       charge_project_management_sm_ids charge_maintenance_fee_sm_ids
       charge_builder_margin_sm_ids charge_escalation_sm_ids charge_pc_ps_cap_sm_ids
-      charge_tender_markup_sm_ids
+      charge_tender_markup_sm_ids charge_po_allocations
     ],
     "SmScheduleMasterDocumentType" => %w[sm_schedule_master_id document_type_id],
     "SmResource" => %w[user_id contact_id asset_id]
@@ -274,6 +274,19 @@ class SmCanonicalRecord < ApplicationRecord
         next unless ref&.canonical_record_id
         canonical = SmCanonicalRecord.find_by(id: ref.canonical_record_id)
         canonical&.sync_key
+      end
+    when "charge_po_allocations"
+      # SmScheduleMasterTemplate FK: { charge_type: { sm_id: pct } } → { charge_type: { sync_key: pct } }
+      # Remaps tenant-local SmScheduleMaster IDs to canonical sync_keys so allocations survive cross-tenant sync
+      (record.charge_po_allocations || {}).each_with_object({}) do |(charge_type, per_po), result|
+        next unless per_po.is_a?(Hash)
+        remapped = per_po.each_with_object({}) do |(id_str, pct), out|
+          ref = SmScheduleMaster.find_by(id: id_str.to_i)
+          next unless ref&.canonical_record_id
+          canonical = SmCanonicalRecord.find_by(id: ref.canonical_record_id)
+          out[canonical.sync_key] = pct if canonical
+        end
+        result[charge_type] = remapped unless remapped.empty?
       end
     when "user_id", "contact_id", "asset_id"
       # These are tenant-local and don't sync
