@@ -264,81 +264,6 @@ export function ScheduleMasterSyncTab() {
     }
   };
 
-  // Toggle a SM template between synced (Two-way) and independent
-  const handleToggleTemplateSync = async (templateId: number, currentlySynced: boolean) => {
-    // Optimistic update
-    setSyncCoverage((prev) => {
-      const entry = prev["sm_schedule_masters"] as CoverageEntry | undefined;
-      if (!entry || !entry.templates) return prev;
-      const updatedTemplates = entry.templates.map((t) =>
-        t.id === templateId ? { ...t, synced: !currentlySynced } : t,
-      );
-      const synced = updatedTemplates.filter((t) => t.synced);
-      const independent = updatedTemplates.filter((t) => !t.synced);
-      return {
-        ...prev,
-        sm_schedule_masters: {
-          ...entry,
-          linked: synced.reduce((s, t) => s + t.tasks, 0),
-          local_only: independent.reduce((s, t) => s + t.tasks, 0),
-          templates: updatedTemplates,
-        },
-      };
-    });
-    try {
-      await api.post("/api/v1/config_sync/toggle_template_sync", { template_id: templateId });
-    } catch (err) {
-      console.error("[SMSync] Failed to toggle template sync:", err);
-      // Revert on failure
-      setSyncCoverage((prev) => {
-        const entry = prev["sm_schedule_masters"] as CoverageEntry | undefined;
-        if (!entry || !entry.templates) return prev;
-        const revertedTemplates = entry.templates.map((t) =>
-          t.id === templateId ? { ...t, synced: currentlySynced } : t,
-        );
-        return { ...prev, sm_schedule_masters: { ...entry, templates: revertedTemplates } };
-      });
-    }
-  };
-
-  // Toggle any ConfigSyncable record between synced and independent
-  const handleToggleRecordSync = async (tableKey: string, recordId: number, currentlySynced: boolean) => {
-    // Optimistic update
-    setSyncCoverage((prev) => {
-      const entry = prev[tableKey] as CoverageEntry | undefined;
-      if (!entry || !entry.records) return prev;
-      const updatedRecords = entry.records.map((r) =>
-        r.id === recordId ? { ...r, synced: !currentlySynced } : r,
-      );
-      return {
-        ...prev,
-        [tableKey]: {
-          ...entry,
-          linked: updatedRecords.filter((r) => r.synced).length,
-          local_only: updatedRecords.filter((r) => !r.synced).length,
-          records: updatedRecords,
-        },
-      };
-    });
-    try {
-      await api.post("/api/v1/config_sync/toggle_record_sync", { table_key: tableKey, record_id: recordId });
-      // Silent refresh — update coverage without blanking the screen
-      const res = await api.get<{ success: boolean; sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>> }>("/api/v1/config_sync/tables");
-      if (res?.sync_coverage) setSyncCoverage(res.sync_coverage);
-    } catch (err) {
-      console.error("[SMSync] Failed to toggle record sync:", err);
-      // Revert on failure
-      setSyncCoverage((prev) => {
-        const entry = prev[tableKey] as CoverageEntry | undefined;
-        if (!entry || !entry.records) return prev;
-        const revertedRecords = entry.records.map((r) =>
-          r.id === recordId ? { ...r, synced: currentlySynced } : r,
-        );
-        return { ...prev, [tableKey]: { ...entry, records: revertedRecords } };
-      });
-    }
-  };
-
   // Pull a single table with auto-batching
   const pullOneTable = async (tableKey: string): Promise<TableResult> => {
     type PullResponse = {
@@ -923,22 +848,12 @@ export function ScheduleMasterSyncTab() {
                               {tmpl.tasks.toLocaleString()}
                             </TableCell>
                             <TableCell className="text-center py-1.5">
-                              <button
-                                type="button"
-                                className={cn(
-                                  "text-[11px] font-medium cursor-pointer hover:underline transition-colors",
-                                  tmpl.synced
-                                    ? SYNC_MODE_LABELS[mode].color
-                                    : "text-muted-foreground",
-                                )}
-                                onClick={() => handleToggleTemplateSync(tmpl.id, tmpl.synced)}
-                                title={tmpl.synced
-                                  ? "Click to disconnect — make this template independent"
-                                  : "Click to reconnect — sync this template with TEEEM"
-                                }
-                              >
-                                {tmpl.synced ? SYNC_MODE_LABELS[mode].label : "Independent"}
-                              </button>
+                              <span className={cn(
+                                "text-[11px] font-medium",
+                                SYNC_MODE_LABELS[mode].color,
+                              )}>
+                                {SYNC_MODE_LABELS[mode].label}
+                              </span>
                             </TableCell>
                             <TableCell className="py-1.5" />
                           </TableRow>
@@ -954,9 +869,6 @@ export function ScheduleMasterSyncTab() {
                         const records = cov && "records" in cov ? cov.records : undefined;
                         if (!records || records.length === 0) return null;
 
-                        // Child tables are read-only (grouped by parent, toggle is on parent row)
-                        const isReadOnly = table.key === "po_template_line_items" || table.key === "po_template_items" || table.key === "claim_stage_template_lines";
-
                         return records.map((rec) => (
                           <TableRow key={`${table.key}-rec-${rec.id}`} className="bg-muted/30">
                             <TableCell className="py-1.5" />
@@ -970,33 +882,12 @@ export function ScheduleMasterSyncTab() {
                               )}
                             </TableCell>
                             <TableCell className="text-center py-1.5">
-                              {isReadOnly ? (
-                                <span className={cn(
-                                  "text-[11px] font-medium",
-                                  rec.synced
-                                    ? SYNC_MODE_LABELS[mode].color
-                                    : "text-muted-foreground",
-                                )}>
-                                  {rec.synced ? SYNC_MODE_LABELS[mode].label : "Independent"}
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className={cn(
-                                    "text-[11px] font-medium cursor-pointer hover:underline transition-colors",
-                                    rec.synced
-                                      ? SYNC_MODE_LABELS[mode].color
-                                      : "text-muted-foreground",
-                                  )}
-                                  onClick={() => handleToggleRecordSync(table.key, rec.id, rec.synced)}
-                                  title={rec.synced
-                                    ? "Click to disconnect — make independent"
-                                    : "Click to reconnect — sync with TEEEM"
-                                  }
-                                >
-                                  {rec.synced ? SYNC_MODE_LABELS[mode].label : "Independent"}
-                                </button>
-                              )}
+                              <span className={cn(
+                                "text-[11px] font-medium",
+                                SYNC_MODE_LABELS[mode].color,
+                              )}>
+                                {SYNC_MODE_LABELS[mode].label}
+                              </span>
                             </TableCell>
                             <TableCell className="py-1.5" />
                           </TableRow>
