@@ -934,6 +934,7 @@ export function ScheduleMasterSyncTab() {
 
                       {/* Template breakdown sub-rows */}
                       {expandedTables.has(table.key) && (() => {
+                        const mode = getTableMode(table.key, table.defaultMode);
                         const cov = !isMasterTenant
                           ? (syncCoverage[table.key] as CoverageEntry | undefined)
                           : undefined;
@@ -958,7 +959,7 @@ export function ScheduleMasterSyncTab() {
                                 className={cn(
                                   "text-[11px] font-medium cursor-pointer hover:underline transition-colors",
                                   tmpl.synced
-                                    ? "text-green-600 dark:text-green-400"
+                                    ? SYNC_MODE_LABELS[mode].color
                                     : "text-muted-foreground",
                                 )}
                                 onClick={() => handleToggleTemplateSync(tmpl.id, tmpl.synced)}
@@ -967,7 +968,7 @@ export function ScheduleMasterSyncTab() {
                                   : "Click to reconnect — sync this template with TEEEM"
                                 }
                               >
-                                {tmpl.synced ? "Two-way" : "Independent"}
+                                {tmpl.synced ? SYNC_MODE_LABELS[mode].label : "Independent"}
                               </button>
                             </TableCell>
                             <TableCell className="py-1.5" />
@@ -977,6 +978,7 @@ export function ScheduleMasterSyncTab() {
 
                       {/* Records breakdown sub-rows (Quote Templates, PO Packs, PO Items, PO Line Items) */}
                       {expandedTables.has(table.key) && (() => {
+                        const mode = getTableMode(table.key, table.defaultMode);
                         const cov = !isMasterTenant
                           ? (syncCoverage[table.key] as CoverageEntry | undefined)
                           : undefined;
@@ -1003,10 +1005,10 @@ export function ScheduleMasterSyncTab() {
                                 <span className={cn(
                                   "text-[11px] font-medium",
                                   rec.synced
-                                    ? "text-green-600 dark:text-green-400"
+                                    ? SYNC_MODE_LABELS[mode].color
                                     : "text-muted-foreground",
                                 )}>
-                                  {rec.synced ? "Two-way" : "Independent"}
+                                  {rec.synced ? SYNC_MODE_LABELS[mode].label : "Independent"}
                                 </span>
                               ) : (
                                 <button
@@ -1014,7 +1016,7 @@ export function ScheduleMasterSyncTab() {
                                   className={cn(
                                     "text-[11px] font-medium cursor-pointer hover:underline transition-colors",
                                     rec.synced
-                                      ? "text-green-600 dark:text-green-400"
+                                      ? SYNC_MODE_LABELS[mode].color
                                       : "text-muted-foreground",
                                   )}
                                   onClick={() => handleToggleRecordSync(table.key, rec.id, rec.synced)}
@@ -1023,7 +1025,7 @@ export function ScheduleMasterSyncTab() {
                                     : "Click to reconnect — sync with TEEEM"
                                   }
                                 >
-                                  {rec.synced ? "Two-way" : "Independent"}
+                                  {rec.synced ? SYNC_MODE_LABELS[mode].label : "Independent"}
                                 </button>
                               )}
                             </TableCell>
