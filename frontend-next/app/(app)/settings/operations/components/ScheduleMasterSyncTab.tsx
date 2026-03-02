@@ -252,7 +252,12 @@ export function ScheduleMasterSyncTab() {
   };
 
   // Get effective sync mode for a specific record (per-record override > table mode > default)
-  const getRecordMode = (tableKey: string, recordId: number, defaultMode: string): SyncMode => {
+  // Master-only records (negative IDs) use name-based keys: "table:master:lowercase_name"
+  const getRecordMode = (tableKey: string, recordId: number, defaultMode: string, recordName?: string): SyncMode => {
+    if (recordId < 0 && recordName) {
+      const nameKey = `${tableKey}:master:${recordName.toLowerCase()}`;
+      if (tableModes[nameKey]) return tableModes[nameKey] as SyncMode;
+    }
     return tableModes[`${tableKey}:${recordId}`] || tableModes[tableKey] || (defaultMode as SyncMode);
   };
 
@@ -298,10 +303,14 @@ export function ScheduleMasterSyncTab() {
   // Cycle sync mode for a specific record (per-record override)
   // Cascades to same-named records in LINKED_CHILDREN tables
   // e.g. "Standard House" in po_template_packs → also sets in po_template_items + po_template_line_items
-  const handleCycleRecordMode = async (tableKey: string, recordId: number, currentMode: SyncMode) => {
+  // Master-only records (negative IDs) use name-based keys stored as "table:master:lowercase_name"
+  const handleCycleRecordMode = async (tableKey: string, recordId: number, currentMode: SyncMode, recordName?: string) => {
     const currentIndex = SYNC_MODES.indexOf(currentMode);
     const nextMode = SYNC_MODES[(currentIndex + 1) % SYNC_MODES.length];
-    const modeKey = `${tableKey}:${recordId}`;
+    const isMasterOnly = recordId < 0;
+    const modeKey = isMasterOnly && recordName
+      ? `${tableKey}:master:${recordName.toLowerCase()}`
+      : `${tableKey}:${recordId}`;
 
     // Find matching records by name in linked child tables
     const childUpdates: { tableKey: string; recordId: number; modeKey: string }[] = [];
@@ -338,7 +347,10 @@ export function ScheduleMasterSyncTab() {
     try {
       await Promise.all([
         api.put("/api/v1/config_sync/update_table_mode", {
-          table: tableKey, mode: nextMode, record_id: recordId,
+          table: tableKey, mode: nextMode,
+          ...(isMasterOnly && recordName
+            ? { record_name: recordName }
+            : { record_id: recordId }),
         }),
         ...childUpdates.map((child) =>
           api.put("/api/v1/config_sync/update_table_mode", {
@@ -999,23 +1011,18 @@ export function ScheduleMasterSyncTab() {
                                 {rec.count != null && rec.count > 0 ? rec.count.toLocaleString() : "0"}
                               </TableCell>
                               <TableCell className="text-center py-1.5">
-                                {isMasterOnly ? (
-                                  // Master-only: no local record to configure, show mode as static text
-                                  <span className={cn("text-[11px] font-medium", SYNC_MODE_LABELS[recMode].color)}>
-                                    {SYNC_MODE_LABELS[recMode].label}
-                                  </span>
-                                ) : (
-                                  <button
-                                    className={cn(
-                                      "text-[11px] font-medium cursor-pointer hover:underline",
-                                      SYNC_MODE_LABELS[recMode].color,
-                                    )}
-                                    title="Click to change sync direction for this record"
-                                    onClick={() => handleCycleRecordMode(table.key, rec.id, recMode)}
-                                  >
-                                    {SYNC_MODE_LABELS[recMode].label}
-                                  </button>
-                                )}
+                                <button
+                                  className={cn(
+                                    "text-[11px] font-medium cursor-pointer hover:underline",
+                                    SYNC_MODE_LABELS[recMode].color,
+                                  )}
+                                  title={isMasterOnly
+                                    ? "Click to change sync direction (not yet synced locally)"
+                                    : "Click to change sync direction for this record"}
+                                  onClick={() => handleCycleRecordMode(table.key, rec.id, recMode)}
+                                >
+                                  {SYNC_MODE_LABELS[recMode].label}
+                                </button>
                               </TableCell>
                               <TableCell className="py-1.5" />
                             </TableRow>

@@ -19,12 +19,28 @@ class DocumentBackupJob < ApplicationJob
 
   # Batch size for processing
   BATCH_SIZE = 100
+  # Circuit breaker: stop after this many consecutive errors (B2 down/credentials broken)
+  MAX_CONSECUTIVE_ERRORS = 10
 
   def perform(scope = :daily)
     Rails.logger.info "[DocumentBackup] Starting #{scope} backup"
 
     unless BackupStorageService.configured?
       Rails.logger.warn "[DocumentBackup] Skipped - backup storage not configured"
+      return
+    end
+
+    # Early connectivity check: probe backup storage before iterating thousands of docs.
+    # A 403/network error here means credentials are broken — abort with 1 Sentry event
+    # instead of flooding with N errors.
+    begin
+      BackupStorageService.list("__health_check__")
+    rescue => e
+      Rails.logger.error "[DocumentBackup] Backup storage unreachable (#{e.class}): #{e.message}. Aborting."
+      Sentry.capture_message("DocumentBackup aborted - backup storage unreachable",
+        level: :error,
+        extra: { scope: scope, error: e.message, error_class: e.class.name }
+      ) if defined?(Sentry)
       return
     end
 
@@ -41,25 +57,36 @@ class DocumentBackupJob < ApplicationJob
     backed_up = 0
     skipped = 0
     errors = 0
+    consecutive_errors = 0
 
     documents.find_each(batch_size: BATCH_SIZE) do |doc|
       result = backup_document(doc)
       case result
       when :success
         backed_up += 1
+        consecutive_errors = 0
       when :skipped
         skipped += 1
+        consecutive_errors = 0
       when :error
         errors += 1
+        consecutive_errors += 1
+        # Circuit breaker: if backup storage is down, stop hammering it
+        if consecutive_errors >= MAX_CONSECUTIVE_ERRORS
+          Rails.logger.error "[DocumentBackup] Circuit breaker triggered after #{consecutive_errors} consecutive errors. Stopping."
+          break
+        end
       end
     rescue => e
       Rails.logger.error "[DocumentBackup] Error processing document #{doc.id}: #{e.message}"
       errors += 1
+      consecutive_errors += 1
+      break if consecutive_errors >= MAX_CONSECUTIVE_ERRORS
     end
 
     Rails.logger.info "[DocumentBackup] Complete: #{backed_up} backed up, #{skipped} skipped, #{errors} errors"
 
-    # Report summary to Sentry if there were errors
+    # Only alert Sentry if there were errors beyond occasional flakiness
     if errors > 0 && defined?(Sentry)
       Sentry.capture_message(
         "DocumentBackup completed with errors",

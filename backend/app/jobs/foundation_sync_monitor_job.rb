@@ -39,14 +39,16 @@ class FoundationSyncMonitorJob < ApplicationJob
     auto_fixed = auto_sync_drift(issues)
 
     # Re-check for remaining issues after auto-sync
-    remaining = find_sync_issues
+    # Exclude SKIP_FOUNDATIONS — they are intentionally excluded from auto-sync
+    # and will never be auto-fixable, so alerting on them daily is noise.
+    remaining = find_sync_issues.reject { |i| SKIP_FOUNDATIONS.include?(i[:foundation].name) }
 
     if remaining.empty?
       Rails.logger.info "[FoundationSyncMonitor] Auto-sync resolved all drift: #{auto_fixed[:added]} added, #{auto_fixed[:removed]} removed"
       return
     end
 
-    # Only alert Sentry for issues that couldn't be auto-fixed
+    # Only alert Sentry for issues that couldn't be auto-fixed (and aren't intentionally skipped)
     remaining_orphans = remaining.sum { |i| i[:orphans].count }
     remaining_missing = remaining.sum { |i| i[:missing].count }
 
