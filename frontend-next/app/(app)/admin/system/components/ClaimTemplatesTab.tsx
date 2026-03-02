@@ -33,6 +33,7 @@ import {
   ChevronRight,
   FileStack,
   GripVertical,
+  RefreshCw,
 } from "lucide-react";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { api } from "@/lib/api";
@@ -61,6 +62,7 @@ interface ClaimTemplate {
   lineCount: number;
   totalPercentage: number;
   percentagesValid: boolean;
+  syncStatus?: { syncedTenants: string[] } | null;
   createdAt: string;
   updatedAt: string;
   lines: TemplateLine[];
@@ -364,7 +366,15 @@ export function ClaimTemplatesTab() {
                     />
                     <Receipt className="h-5 w-5 text-muted-foreground" />
                     <div>
-                      <CardTitle className="text-base">{template.name}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base">{template.name}</CardTitle>
+                        {template.syncStatus?.syncedTenants && template.syncStatus.syncedTenants.length > 0 && (
+                          <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800 shrink-0">
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Synced: {template.syncStatus.syncedTenants.join(", ")}
+                          </Badge>
+                        )}
+                      </div>
                       {template.description && (
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {template.description}

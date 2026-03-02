@@ -168,10 +168,34 @@ module Api
           lineCount: template.lines.size,
           totalPercentage: template.total_percentage.to_f,
           percentagesValid: template.percentages_valid?,
+          syncStatus: build_sync_status(template),
           createdAt: template.created_at&.iso8601,
           updatedAt: template.updated_at&.iso8601,
           lines: template.lines.ordered.map { |line| line_json(line) }
         }
+      end
+
+      # Build sync status for a claim stage template (ConfigSync-based)
+      # Checks all other tenants for matching sync_key
+      def build_sync_status(template)
+        return nil unless template.sync_key.present?
+
+        # Respect per-record sync mode — if "independent", don't show sync badge
+        modes = current_tenant&.tenant_setting&.config_sync_table_modes || {}
+        return nil if modes["claim_stage_templates:#{template.id}"] == "independent"
+
+        other_tenants = Tenant.where.not(id: current_tenant.id)
+
+        synced_tenants = other_tenants.filter_map do |tenant|
+          has_match = ActsAsTenant.with_tenant(tenant) do
+            ClaimStageTemplate.exists?(sync_key: template.sync_key)
+          end
+          tenant.name if has_match
+        end
+
+        return nil if synced_tenants.empty?
+
+        { syncedTenants: synced_tenants }
       end
 
       def line_json(line)
