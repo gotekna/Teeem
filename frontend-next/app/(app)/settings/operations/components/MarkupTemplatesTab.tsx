@@ -341,8 +341,45 @@ export function MarkupTemplatesTab() {
                                 ? { id: edits.claimStageTemplateId.toString(), label: claimTemplates.find(ct => ct.id === edits.claimStageTemplateId)?.name || "" }
                                 : undefined
                             }
-                            onSelect={(item) => updateField(tmpl.id, "claimStageTemplateId", parseInt(item.id, 10))}
-                            onClear={() => updateField(tmpl.id, "claimStageTemplateId", null)}
+                            onSelect={(item) => {
+                              const ctId = parseInt(item.id, 10);
+                              updateField(tmpl.id, "claimStageTemplateId", ctId);
+                              // Auto-populate overheads PO links from claim template
+                              const ct = claimTemplates.find(c => c.id === ctId);
+                              if (ct && tasks.length > 0) {
+                                const matchedIds: number[] = [];
+                                const overheadAllocs: Record<string, number> = {};
+                                for (const line of ct.lines) {
+                                  if (line.overheadPoName) {
+                                    const matchTask = tasks.find(t => t.name === line.overheadPoName);
+                                    if (matchTask) {
+                                      matchedIds.push(matchTask.id);
+                                      overheadAllocs[matchTask.id.toString()] = line.percentage;
+                                    }
+                                  }
+                                }
+                                if (matchedIds.length > 0) {
+                                  setEditState(prev => {
+                                    const current = prev[tmpl.id] || {};
+                                    const existingAllocs = { ...(current.chargePoAllocations || {}) };
+                                    existingAllocs["overheads"] = overheadAllocs;
+                                    return {
+                                      ...prev,
+                                      [tmpl.id]: {
+                                        ...current,
+                                        claimStageTemplateId: ctId,
+                                        charge_overheads_sm_ids: matchedIds,
+                                        chargePoAllocations: existingAllocs,
+                                      },
+                                    };
+                                  });
+                                }
+                              }
+                            }}
+                            onClear={() => {
+                              // Clear claim link but keep PO selections for manual editing
+                              updateField(tmpl.id, "claimStageTemplateId", null);
+                            }}
                             clearable
                             placeholder="Link claim template..."
                             searchPlaceholder="Search claim templates..."
@@ -494,40 +531,46 @@ export function MarkupTemplatesTab() {
                               )}
                             </div>
 
-                            {/* Per-PO allocation % (only when multiple POs selected) */}
-                            {hasMultiplePOs && tasks.length > 0 && (
-                              <div className="ml-36 pl-3 flex flex-wrap gap-2 items-center">
-                                <span className="text-xs text-muted-foreground">Split:</span>
-                                {smIds.map(smId => {
-                                  const task = tasks.find(t => t.id === smId);
-                                  const taskName = task?.name || `#${smId}`;
-                                  const claimMatch = claimPoMap[taskName];
-                                  const pct = claimMatch
-                                    ? claimMatch.percentage
-                                    : (chargeAllocs[smId.toString()] ?? Math.round(100 / smIds.length));
-                                  return (
-                                    <div key={smId} className="flex items-center gap-1">
-                                      <span className="text-xs truncate max-w-[120px]">{taskName}</span>
-                                      {claimMatch ? (
-                                        <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded" title={`From claim stage: ${claimMatch.stageName}`}>
-                                          {claimMatch.percentage}%
-                                        </span>
-                                      ) : (
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          max={100}
-                                          step={1}
-                                          value={pct}
-                                          onChange={e => updateAllocation(tmpl.id, charge.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
-                                          onFocus={e => e.target.select()}
-                                          className="h-6 text-xs w-14 px-1"
-                                        />
-                                      )}
-                                      {!claimMatch && <span className="text-xs text-muted-foreground">%</span>}
-                                    </div>
-                                  );
-                                })}
+                            {/* Per-PO allocation % (when multiple POs or claim-linked overheads) */}
+                            {smIds.length > 0 && tasks.length > 0 && (hasMultiplePOs || (charge.chargeType === "overheads" && linkedClaimTemplate)) && (
+                              <div className="ml-36 pl-3 space-y-1">
+                                <span className="text-xs text-muted-foreground">
+                                  {linkedClaimTemplate && charge.chargeType === "overheads" ? "Claim stage split:" : "Split:"}
+                                </span>
+                                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                  {smIds.map(smId => {
+                                    const task = tasks.find(t => t.id === smId);
+                                    const taskName = task?.name || `#${smId}`;
+                                    const claimMatch = claimPoMap[taskName];
+                                    const pct = claimMatch
+                                      ? claimMatch.percentage
+                                      : (chargeAllocs[smId.toString()] ?? Math.round(100 / smIds.length));
+                                    return (
+                                      <div key={smId} className="flex items-center gap-1">
+                                        <span className="text-xs truncate max-w-[140px]">{taskName}</span>
+                                        {claimMatch ? (
+                                          <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded" title={`From claim stage: ${claimMatch.stageName} (${claimMatch.percentage}%)`}>
+                                            {claimMatch.percentage}%
+                                          </span>
+                                        ) : (
+                                          <>
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              max={100}
+                                              step={1}
+                                              value={pct}
+                                              onChange={e => updateAllocation(tmpl.id, charge.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
+                                              onFocus={e => e.target.select()}
+                                              className="h-6 text-xs w-14 px-1"
+                                            />
+                                            <span className="text-xs text-muted-foreground">%</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             )}
                           </div>
