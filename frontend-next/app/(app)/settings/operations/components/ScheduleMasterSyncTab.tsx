@@ -871,12 +871,16 @@ export function ScheduleMasterSyncTab() {
                               {tmpl.tasks.toLocaleString()}
                             </TableCell>
                             <TableCell className="text-center py-1.5">
-                              <span className={cn(
-                                "text-[11px] font-medium",
-                                SYNC_MODE_LABELS[mode].color,
-                              )}>
+                              <button
+                                className={cn(
+                                  "text-[11px] font-medium cursor-pointer hover:underline",
+                                  SYNC_MODE_LABELS[mode].color,
+                                )}
+                                title="Click to change sync direction (Two-way → One-way → Independent)"
+                                onClick={() => handleCycleSyncMode(table.key, mode)}
+                              >
                                 {SYNC_MODE_LABELS[mode].label}
-                              </span>
+                              </button>
                             </TableCell>
                             <TableCell className="py-1.5" />
                           </TableRow>
@@ -905,12 +909,16 @@ export function ScheduleMasterSyncTab() {
                               )}
                             </TableCell>
                             <TableCell className="text-center py-1.5">
-                              <span className={cn(
-                                "text-[11px] font-medium",
-                                SYNC_MODE_LABELS[mode].color,
-                              )}>
+                              <button
+                                className={cn(
+                                  "text-[11px] font-medium cursor-pointer hover:underline",
+                                  SYNC_MODE_LABELS[mode].color,
+                                )}
+                                title="Click to change sync direction (Two-way → One-way → Independent)"
+                                onClick={() => handleCycleSyncMode(table.key, mode)}
+                              >
                                 {SYNC_MODE_LABELS[mode].label}
-                              </span>
+                              </button>
                             </TableCell>
                             <TableCell className="py-1.5" />
                           </TableRow>
