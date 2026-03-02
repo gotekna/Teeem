@@ -1492,12 +1492,18 @@ module Api
         end
 
         # Add master-only records not in local
+        # Use negative IDs (based on index) so each entry has a unique ID.
+        # id: 0 caused all master-only records to share the same React key and
+        # the same tableModes key ("table:0"), triggering duplicate key warnings
+        # and cascading mode changes to multiple records at once.
+        master_only_index = 0
         master_data.each do |m|
           next if m[:sync_key].present? && used_master_keys.include?(m[:sync_key])
           next if used_master_keys.include?(m[:name].downcase.strip)
 
+          master_only_index -= 1
           result << {
-            id: 0,
+            id: master_only_index,
             name: m[:name],
             master_count: m[:count] || 1,
             count: 0,

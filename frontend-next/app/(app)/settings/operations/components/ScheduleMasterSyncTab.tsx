@@ -316,7 +316,8 @@ export function ScheduleMasterSyncTab() {
           const childCov = syncCoverage[childKey] as CoverageEntry | undefined;
           const allChildItems = [...(childCov?.records || []), ...(childCov?.templates || [])];
           for (const childRec of allChildItems) {
-            if (childRec.name === thisRecord.name) {
+            // Skip master-only records (negative IDs) — they have no local counterpart
+            if (childRec.id > 0 && childRec.name === thisRecord.name) {
               childUpdates.push({
                 tableKey: childKey,
                 recordId: childRec.id,
@@ -978,9 +979,15 @@ export function ScheduleMasterSyncTab() {
                         if (!records || records.length === 0) return null;
 
                         return records.map((rec) => {
+                          // Master-only records have negative IDs (exist in TEEEM but not locally)
+                          const isMasterOnly = rec.id < 0;
                           const recMode = getRecordMode(table.key, rec.id, table.defaultMode);
+                          // Use name-based key for master-only records to avoid collisions
+                          const rowKey = isMasterOnly
+                            ? `${table.key}-master-${rec.name}`
+                            : `${table.key}-rec-${rec.id}`;
                           return (
-                            <TableRow key={`${table.key}-rec-${rec.id}`} className="bg-muted/30">
+                            <TableRow key={rowKey} className="bg-muted/30">
                               <TableCell className="py-1.5" />
                               <TableCell className="py-1.5 pl-10">
                                 <span className="text-xs text-muted-foreground">{rec.name}</span>
@@ -992,16 +999,23 @@ export function ScheduleMasterSyncTab() {
                                 {rec.count != null && rec.count > 0 ? rec.count.toLocaleString() : "0"}
                               </TableCell>
                               <TableCell className="text-center py-1.5">
-                                <button
-                                  className={cn(
-                                    "text-[11px] font-medium cursor-pointer hover:underline",
-                                    SYNC_MODE_LABELS[recMode].color,
-                                  )}
-                                  title="Click to change sync direction for this record"
-                                  onClick={() => handleCycleRecordMode(table.key, rec.id, recMode)}
-                                >
-                                  {SYNC_MODE_LABELS[recMode].label}
-                                </button>
+                                {isMasterOnly ? (
+                                  // Master-only: no local record to configure, show mode as static text
+                                  <span className={cn("text-[11px] font-medium", SYNC_MODE_LABELS[recMode].color)}>
+                                    {SYNC_MODE_LABELS[recMode].label}
+                                  </span>
+                                ) : (
+                                  <button
+                                    className={cn(
+                                      "text-[11px] font-medium cursor-pointer hover:underline",
+                                      SYNC_MODE_LABELS[recMode].color,
+                                    )}
+                                    title="Click to change sync direction for this record"
+                                    onClick={() => handleCycleRecordMode(table.key, rec.id, recMode)}
+                                  >
+                                    {SYNC_MODE_LABELS[recMode].label}
+                                  </button>
+                                )}
                               </TableCell>
                               <TableCell className="py-1.5" />
                             </TableRow>

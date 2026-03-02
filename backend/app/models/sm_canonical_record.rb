@@ -37,7 +37,13 @@ class SmCanonicalRecord < ApplicationRecord
       claim_sequence_number claim_invoice_pattern spawn_scan_lag_days
       plan_type_ids document_ref_type_ids
     ],
-    "SmScheduleMasterTemplate" => %w[name description is_default is_active],
+    "SmScheduleMasterTemplate" => %w[
+      name description is_default is_active
+      default_builder_margin_percent default_escalation_percent pc_ps_markup_cap_percent
+      default_construction_insurance_percent default_overheads_percent default_qleave_rate_percent
+      default_builds_contingency_percent default_project_prelims_percent
+      default_project_management_percent default_maintenance_fee_percent default_tender_markup_percent
+    ],
     "SmTrade" => %w[name],
     "SmStage" => %w[name],
     "SmTaskGroup" => %w[name description is_active],
@@ -58,6 +64,14 @@ class SmCanonicalRecord < ApplicationRecord
       claim_invoice_template_id claim_trading_name_id predecessor_ids
       sm_template_ids po_supplier_id assigned_role
       header_gantt linked_task_ids completion_linked_task_ids
+    ],
+    "SmScheduleMasterTemplate" => %w[
+      claim_stage_template_id
+      charge_construction_insurance_sm_ids charge_qleave_sm_ids charge_overheads_sm_ids
+      charge_qbcc_insurance_sm_ids charge_builds_contingency_sm_ids charge_project_prelims_sm_ids
+      charge_project_management_sm_ids charge_maintenance_fee_sm_ids
+      charge_builder_margin_sm_ids charge_escalation_sm_ids charge_pc_ps_cap_sm_ids
+      charge_tender_markup_sm_ids
     ],
     "SmScheduleMasterDocumentType" => %w[sm_schedule_master_id document_type_id],
     "SmResource" => %w[user_id contact_id asset_id]
@@ -243,6 +257,19 @@ class SmCanonicalRecord < ApplicationRecord
     when "completion_linked_task_ids"
       # Array of task IDs → array of canonical sync_keys
       (record.completion_linked_task_ids || []).filter_map do |tid|
+        ref = SmScheduleMaster.find_by(id: tid)
+        next unless ref&.canonical_record_id
+        canonical = SmCanonicalRecord.find_by(id: ref.canonical_record_id)
+        canonical&.sync_key
+      end
+    when "claim_stage_template_id"
+      # SmScheduleMasterTemplate FK: link to claim stage template by sync_key
+      ct = ClaimStageTemplate.find_by(id: record.claim_stage_template_id)
+      ct&.sync_key
+    when /\Acharge_\w+_sm_ids\z/
+      # SmScheduleMasterTemplate FKs: all 12 charge_*_sm_ids fields
+      # Array of SmScheduleMaster IDs → array of canonical sync_keys (via canonical_record_id)
+      (record.send(field) || []).filter_map do |tid|
         ref = SmScheduleMaster.find_by(id: tid)
         next unless ref&.canonical_record_id
         canonical = SmCanonicalRecord.find_by(id: ref.canonical_record_id)
