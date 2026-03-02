@@ -658,6 +658,47 @@ module Api
         match_fields.map { |f| record.send(f).to_s.downcase.strip }.join("|")
       end
 
+      # GET /api/v1/config_sync/diff_all/:table
+      # Compare one table across ALL tenants side-by-side (master tenant only)
+      def diff_all
+        unless current_tenant&.is_master_tenant?
+          return render_error("Master tenant only", status: :forbidden)
+        end
+
+        service = TenantConfigSyncService.new(current_tenant)
+        result = service.diff_all_tenants(params[:table])
+
+        if result[:error]
+          render_error(result[:error], status: :unprocessable_entity)
+        else
+          render json: { success: true, **result }
+        end
+      rescue ArgumentError => e
+        render_error(e.message, status: :bad_request)
+      end
+
+      # POST /api/v1/config_sync/apply_winners
+      # Apply winner selections — push winning tenant's version to all other tenants
+      def apply_winners
+        unless current_tenant&.is_master_tenant?
+          return render_error("Master tenant only", status: :forbidden)
+        end
+
+        table = params[:table]
+        selections = params[:selections] || []
+
+        if table.blank? || selections.empty?
+          return render_error("table and selections are required", status: :bad_request)
+        end
+
+        service = TenantConfigSyncService.new(current_tenant)
+        result = service.apply_winners(table, selections)
+
+        render json: { success: result[:success], **result }
+      rescue ArgumentError => e
+        render_error(e.message, status: :bad_request)
+      end
+
       # POST /api/v1/config_sync/push
       # Push selected records from current tenant TO master tenant (TEEEM staff only)
       #

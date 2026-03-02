@@ -858,6 +858,214 @@ class TenantConfigSyncService
     }
   end
 
+  # Compare one table across ALL tenants side-by-side (master tenant only).
+  # Returns records grouped by match_key with per-tenant values and changed fields.
+  def diff_all_tenants(table)
+    validate_table!(table)
+    unless tenant.is_master_tenant?
+      return { error: "Only master tenant can compare all tenants" }
+    end
+
+    config = CONFIG_TABLES[table.to_sym]
+    model = config[:model].constantize
+    match_fields = config[:match_fields]
+    remap_fks = config[:remap_fks]
+
+    # Load all tenants
+    all_tenants = Tenant.where(id: Tenant.pluck(:id)).order(:id).to_a
+    tenant_infos = all_tenants.map { |t| { id: t.id, name: t.name, slug: t.slug } }
+
+    # Load records from each tenant
+    tenant_records = {} # slug => [records]
+    tenant_indexes = {} # slug => { key => record }
+    all_tenants.each do |t|
+      records = ActsAsTenant.with_tenant(t) { scoped_query(model, config).to_a }
+      tenant_records[t.slug] = records
+      tenant_indexes[t.slug] = build_record_index(records, match_fields, remap_fks)
+    end
+
+    # Collect ALL unique match keys across all tenants
+    all_keys = Set.new
+    key_to_name = {} # match_key => display name for UI
+    tenant_records.each do |slug, records|
+      records.each do |r|
+        key = record_sync_key(r) || legacy_match_key(r, match_fields, remap_fks)
+        all_keys << key
+        key_to_name[key] ||= r.send(config[:name_field])
+      end
+    end
+
+    # Build comparison for each key
+    result_records = []
+    identical_count = 0
+    different_count = 0
+    partial_count = 0
+
+    all_keys.each do |key|
+      # Find record in each tenant
+      values = {}
+      present_slugs = []
+      all_tenants.each do |t|
+        record = tenant_indexes[t.slug][key]
+        if record
+          values[t.slug] = record_to_json(record, config)
+          present_slugs << t.slug
+        end
+      end
+
+      next if present_slugs.empty?
+
+      # Determine status
+      if present_slugs.length < all_tenants.length
+        # Not in all tenants
+        status = "partial"
+        partial_count += 1
+        changed_fields = []
+      else
+        # In all tenants — check if they differ
+        reference = tenant_records[present_slugs.first].find { |r|
+          (record_sync_key(r) || legacy_match_key(r, match_fields, remap_fks)) == key
+        }
+        has_diff = false
+        changed_fields = []
+
+        config[:sync_fields].each do |field|
+          field_values = present_slugs.map { |slug|
+            rec = tenant_records[slug].find { |r|
+              (record_sync_key(r) || legacy_match_key(r, match_fields, remap_fks)) == key
+            }
+            rec ? normalize_value(rec.send(field)) : nil
+          }
+          unless field_values.uniq.length <= 1
+            has_diff = true
+            changed_fields << field.to_s
+          end
+        end
+
+        if has_diff
+          status = "different"
+          different_count += 1
+        else
+          status = "identical"
+          identical_count += 1
+        end
+      end
+
+      result_records << {
+        match_key: key,
+        name: key_to_name[key],
+        status: status,
+        values: values,
+        changed_fields: changed_fields,
+        present_in: present_slugs
+      }
+    end
+
+    # Sort: different first, then partial, then identical
+    order = { "different" => 0, "partial" => 1, "identical" => 2 }
+    result_records.sort_by! { |r| [order[r[:status]] || 99, r[:name].to_s] }
+
+    {
+      table: table.to_s,
+      tenants: tenant_infos,
+      records: result_records,
+      summary: { identical: identical_count, different: different_count, partial: partial_count }
+    }
+  end
+
+  # Apply winner selections: for each record, push the winning tenant's version to all other tenants.
+  # selections: [{ match_key: "...", winner_slug: "tekna" }]
+  def apply_winners(table, selections)
+    validate_table!(table)
+    unless tenant.is_master_tenant?
+      return { error: "Only master tenant can apply winners" }
+    end
+
+    config = CONFIG_TABLES[table.to_sym]
+    model = config[:model].constantize
+    match_fields = config[:match_fields]
+    remap_fks = config[:remap_fks]
+
+    all_tenants = Tenant.where(id: Tenant.pluck(:id)).order(:id).to_a
+    slug_to_tenant = all_tenants.index_by(&:slug)
+
+    applied = []
+    errors = []
+
+    selections.each do |sel|
+      match_key = sel[:match_key] || sel["match_key"]
+      winner_slug = sel[:winner_slug] || sel["winner_slug"]
+      winner_tenant = slug_to_tenant[winner_slug]
+
+      unless winner_tenant
+        errors << "Unknown tenant slug: #{winner_slug}"
+        next
+      end
+
+      # Load the winning record
+      winner_record = ActsAsTenant.with_tenant(winner_tenant) do
+        scoped_query(model, config).to_a.find { |r|
+          (record_sync_key(r) || legacy_match_key(r, match_fields, remap_fks)) == match_key
+        }
+      end
+
+      unless winner_record
+        errors << "Record not found for key '#{match_key}' in #{winner_slug}"
+        next
+      end
+
+      # Push to every OTHER tenant
+      other_tenants = all_tenants.reject { |t| t.slug == winner_slug }
+      other_tenants.each do |target_t|
+        begin
+          # Build target-relative service and push
+          target_service = TenantConfigSyncService.new(target_t)
+          target_service.upsert_record_from_source(winner_record, config, model, winner_tenant)
+        rescue => e
+          errors << "Failed to push '#{match_key}' to #{target_t.name}: #{e.message}"
+        end
+      end
+
+      applied << { match_key: match_key, winner: winner_slug }
+    end
+
+    { success: errors.empty?, applied: applied, errors: errors }
+  end
+
+  # Upsert a single source record into this service's tenant.
+  # Used by apply_winners to push a winning record into each target tenant.
+  def upsert_record_from_source(source_record, config, model, source_tenant)
+    match_fields = config[:match_fields]
+    remap_fks = config[:remap_fks]
+
+    # Build index for the target tenant
+    existing_records = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
+    existing_index = build_record_index(existing_records, match_fields, remap_fks)
+
+    existing = find_match(source_record, existing_index, match_fields, remap_fks)
+
+    # We need to temporarily set the FK resolve context to source tenant
+    # so build_sync_attrs can resolve FKs from source → target
+    @fk_resolve_cache = {} # Clear cache for fresh resolution
+
+    attrs = build_sync_attrs(source_record, config)
+
+    ActsAsTenant.with_tenant(tenant) do
+      if existing
+        existing.update!(attrs)
+      else
+        new_record = model.new
+        attrs.each do |field, value|
+          new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
+        end
+        if source_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
+          new_record.sync_key = source_record.sync_key.presence
+        end
+        new_record.save!
+      end
+    end
+  end
+
   # ============================================================================
   # Import Operations (TEEEM importing from tenant)
   # ============================================================================

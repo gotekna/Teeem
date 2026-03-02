@@ -14,19 +14,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Check, AlertCircle, RefreshCw, Minus, Ban, ArrowRight } from "lucide-react";
+import { Check, AlertCircle, RefreshCw, Minus, Ban, ArrowRight, GitCompare, X, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /**
- * ScheduleMasterSyncTab - One-button Schedule Master config sync
+ * ScheduleMasterSyncTab - SM config sync with Compare & Pick Winner mode
  *
- * Two modes:
- * - Non-master tenant: Pull SM config FROM TEEEM master (columns: TEEEM | Yours)
- * - Master tenant (TEEEM): Pull SM config FROM a selected tenant (columns: Source | TEEEM)
+ * Three capabilities:
+ * 1. Blind sync (existing) - pull from source to target
+ * 2. Compare mode (NEW) - see field-level diffs across ALL tenants
+ * 3. Pick winners (NEW) - choose which tenant's version wins per record, push to all
  *
  * SSoT: TenantConfigSyncService handles all backend sync logic.
- * This component reuses the same pull_one_table API as TenantSyncPullTab.
  */
 
 // Tables to sync in dependency order
@@ -64,6 +64,24 @@ interface TenantInfo {
   is_master: boolean;
 }
 
+// Diff types
+interface DiffRecord {
+  match_key: string;
+  name: string;
+  status: "identical" | "different" | "partial";
+  values: Record<string, Record<string, unknown>>;
+  changed_fields: string[];
+  present_in: string[];
+}
+
+interface DiffResponse {
+  success: boolean;
+  table: string;
+  tenants: { id: number; name: string; slug: string }[];
+  records: DiffRecord[];
+  summary: { identical: number; different: number; partial: number };
+}
+
 const BATCH_SIZE = 500;
 
 export function ScheduleMasterSyncTab() {
@@ -89,6 +107,16 @@ export function ScheduleMasterSyncTab() {
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [lastSyncBy, setLastSyncBy] = useState<string | null>(null);
   const [syncComplete, setSyncComplete] = useState(false);
+
+  // Compare mode state
+  const [diffTable, setDiffTable] = useState<string | null>(null);
+  const [diffData, setDiffData] = useState<DiffResponse | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const [winners, setWinners] = useState<Record<string, string>>({}); // match_key → tenant slug
+  const [applying, setApplying] = useState(false);
+  const [applyResult, setApplyResult] = useState<{ applied: number; errors: string[] } | null>(null);
+  const [showIdentical, setShowIdentical] = useState(false);
 
   // Fetch counts on mount
   const fetchCounts = useCallback(async () => {
@@ -311,6 +339,83 @@ export function ScheduleMasterSyncTab() {
     setSyncComplete(true);
   };
 
+  // Compare mode: fetch diff for a table
+  const handleCompare = async (tableKey: string) => {
+    if (diffTable === tableKey) {
+      // Toggle off
+      setDiffTable(null);
+      setDiffData(null);
+      setDiffError(null);
+      setWinners({});
+      setApplyResult(null);
+      return;
+    }
+
+    setDiffTable(tableKey);
+    setDiffLoading(true);
+    setDiffError(null);
+    setDiffData(null);
+    setWinners({});
+    setApplyResult(null);
+    setShowIdentical(false);
+
+    try {
+      const response = await api.get<DiffResponse>(
+        `/api/v1/config_sync/diff_all/${tableKey}`
+      );
+      if (response?.success) {
+        setDiffData(response);
+      } else {
+        setDiffError("Failed to load diff");
+      }
+    } catch (err) {
+      setDiffError(err instanceof Error ? err.message : "Failed to load diff");
+    } finally {
+      setDiffLoading(false);
+    }
+  };
+
+  // Apply winners
+  const handleApplyWinners = async () => {
+    if (!diffTable || Object.keys(winners).length === 0) return;
+
+    setApplying(true);
+    setApplyResult(null);
+
+    const selections = Object.entries(winners).map(([match_key, winner_slug]) => ({
+      match_key,
+      winner_slug,
+    }));
+
+    try {
+      const response = await api.post<{
+        success: boolean;
+        applied: { match_key: string; winner: string }[];
+        errors: string[];
+      }>("/api/v1/config_sync/apply_winners", {
+        table: diffTable,
+        selections,
+      });
+
+      setApplyResult({
+        applied: response?.applied?.length || 0,
+        errors: response?.errors || [],
+      });
+
+      // Refresh diff to show updated state
+      if (response?.success) {
+        setTimeout(() => handleCompare(diffTable), 500);
+      }
+    } catch (err) {
+      setApplyResult({
+        applied: 0,
+        errors: [err instanceof Error ? err.message : "Request failed"],
+      });
+    } finally {
+      setApplying(false);
+    }
+  };
+
   // Compute totals
   const totals = Object.values(tableResults).reduce(
     (acc, r) => ({
@@ -358,9 +463,25 @@ export function ScheduleMasterSyncTab() {
     return null;
   };
 
+  // Format field value for display
+  const formatFieldValue = (value: unknown): string => {
+    if (value === null || value === undefined) return "\u2014";
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (Array.isArray(value)) return value.length === 0 ? "\u2014" : value.join(", ");
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  };
+
   // Column headers depend on mode
   const sourceLabel = isMasterTenant ? (sourceTenant?.name || "Source") : "TEEEM";
   const localLabel = isMasterTenant ? "TEEEM" : "Yours";
+
+  // Diff panel: filter records to show
+  const diffRecords = diffData?.records || [];
+  const visibleDiffRecords = showIdentical
+    ? diffRecords
+    : diffRecords.filter((r) => r.status !== "identical");
+  const selectedWinnerCount = Object.keys(winners).length;
 
   if (loading) {
     return (
@@ -371,13 +492,13 @@ export function ScheduleMasterSyncTab() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
+    <div className="max-w-4xl mx-auto py-6 px-4 space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Schedule Master Sync</CardTitle>
           <CardDescription>
             {isMasterTenant
-              ? "Import Schedule Master config from a tenant into the TEEEM master template."
+              ? "Import Schedule Master config from a tenant, or Compare across all tenants to pick winners."
               : "Sync all Schedule Master configuration from the TEEEM master template."
             }
             {" "}Tables are synced in dependency order so references resolve correctly.
@@ -421,8 +542,19 @@ export function ScheduleMasterSyncTab() {
                 <TableRow>
                   <TableHead className="w-[40px] text-center">#</TableHead>
                   <TableHead>Table</TableHead>
-                  <TableHead className="text-right w-[70px]">{sourceLabel}</TableHead>
-                  <TableHead className="text-right w-[70px]">{localLabel}</TableHead>
+                  {/* Show per-tenant counts for master tenant */}
+                  {isMasterTenant && allTenants.length > 0 ? (
+                    allTenants.map((t) => (
+                      <TableHead key={t.slug} className="text-right w-[70px]">
+                        {t.name.length > 8 ? t.slug : t.name}
+                      </TableHead>
+                    ))
+                  ) : (
+                    <>
+                      <TableHead className="text-right w-[70px]">{sourceLabel}</TableHead>
+                      <TableHead className="text-right w-[70px]">{localLabel}</TableHead>
+                    </>
+                  )}
                   <TableHead className="w-[180px] text-right">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -432,64 +564,134 @@ export function ScheduleMasterSyncTab() {
                   const result = tableResults[table.key];
                   const sourceCount = getSourceCount(table.key);
                   const localCount = getLocalCount(table.key);
-                  const countsDiffer = sourceCount !== localCount && sourceCount > 0;
+                  const isComparing = diffTable === table.key;
+
+                  // Check if counts differ across tenants (for master mode)
+                  let countsDiffer = false;
+                  if (isMasterTenant && allTenants.length > 0) {
+                    const counts = allTenants.map((t) => allTenantCounts[table.key]?.[t.slug] || 0);
+                    countsDiffer = new Set(counts).size > 1;
+                  } else {
+                    countsDiffer = sourceCount !== localCount && sourceCount > 0;
+                  }
 
                   return (
-                    <TableRow
-                      key={table.key}
-                      className={cn(
-                        status === "syncing" && "bg-blue-50/50 dark:bg-blue-950/20",
-                        status === "done" && "bg-green-50/30 dark:bg-green-950/10",
-                        status === "error" && "bg-red-50/30 dark:bg-red-950/10",
-                      )}
-                    >
-                      <TableCell className="text-center text-xs text-muted-foreground tabular-nums py-2">
-                        {index + 1}
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <div className="text-sm font-medium">{table.label}</div>
-                        {status === "error" && result?.error && (
-                          <div className="text-xs text-red-500 dark:text-red-400 mt-0.5 truncate max-w-[250px]" title={result.error}>
-                            {result.error}
-                          </div>
+                    <React.Fragment key={table.key}>
+                      <TableRow
+                        className={cn(
+                          status === "syncing" && "bg-blue-50/50 dark:bg-blue-950/20",
+                          status === "done" && "bg-green-50/30 dark:bg-green-950/10",
+                          status === "error" && "bg-red-50/30 dark:bg-red-950/10",
+                          isComparing && "bg-blue-50/30 dark:bg-blue-950/10",
                         )}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-sm py-2">
-                        {sourceCount.toLocaleString()}
-                      </TableCell>
-                      <TableCell className={cn(
-                        "text-right tabular-nums text-sm py-2",
-                        countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
-                      )}>
-                        {localCount.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right py-2">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {renderStatusIcon(status)}
-                          {status === "syncing" && batchProgress && currentTableIndex === index && (
-                            <span className="text-xs text-muted-foreground tabular-nums">
-                              {batchProgress.processed.toLocaleString()}/{batchProgress.total.toLocaleString()}
-                            </span>
+                      >
+                        <TableCell className="text-center text-xs text-muted-foreground tabular-nums py-2">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{table.label}</span>
+                            {isMasterTenant && !syncing && (
+                              <Button
+                                variant={isComparing ? "secondary" : "ghost"}
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => handleCompare(table.key)}
+                                disabled={diffLoading && diffTable === table.key}
+                              >
+                                {diffLoading && diffTable === table.key ? (
+                                  <Spinner className="h-3 w-3" />
+                                ) : isComparing ? (
+                                  <X className="h-3 w-3" />
+                                ) : (
+                                  <GitCompare className="h-3 w-3" />
+                                )}
+                                <span className="ml-1">{isComparing ? "Close" : "Compare"}</span>
+                              </Button>
+                            )}
+                          </div>
+                          {status === "error" && result?.error && (
+                            <div className="text-xs text-red-500 dark:text-red-400 mt-0.5 truncate max-w-[250px]" title={result.error}>
+                              {result.error}
+                            </div>
                           )}
-                          {status === "done" && result && (
-                            <span className="text-xs text-muted-foreground">
-                              {result.imported > 0 && <span className="text-green-600 dark:text-green-400">+{result.imported}</span>}
-                              {result.imported > 0 && result.updated > 0 && ", "}
-                              {result.updated > 0 && <span className="text-blue-600 dark:text-blue-400">{result.updated} upd</span>}
-                              {result.imported === 0 && result.updated === 0 && "up to date"}
-                            </span>
-                          )}
-                          {status === "skipped" && (
-                            <span className="text-xs text-muted-foreground">no changes</span>
-                          )}
-                          {status === "error" && result && (result.imported > 0 || result.updated > 0) && (
-                            <span className="text-xs text-green-600 dark:text-green-400">
-                              {result.imported + result.updated} ok
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        {/* Per-tenant counts */}
+                        {isMasterTenant && allTenants.length > 0 ? (
+                          allTenants.map((t) => {
+                            const count = allTenantCounts[table.key]?.[t.slug] || 0;
+                            return (
+                              <TableCell key={t.slug} className={cn(
+                                "text-right tabular-nums text-sm py-2",
+                                countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
+                              )}>
+                                {count.toLocaleString()}
+                              </TableCell>
+                            );
+                          })
+                        ) : (
+                          <>
+                            <TableCell className="text-right tabular-nums text-sm py-2">
+                              {sourceCount.toLocaleString()}
+                            </TableCell>
+                            <TableCell className={cn(
+                              "text-right tabular-nums text-sm py-2",
+                              countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
+                            )}>
+                              {localCount.toLocaleString()}
+                            </TableCell>
+                          </>
+                        )}
+                        <TableCell className="text-right py-2">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {renderStatusIcon(status)}
+                            {status === "syncing" && batchProgress && currentTableIndex === index && (
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                {batchProgress.processed.toLocaleString()}/{batchProgress.total.toLocaleString()}
+                              </span>
+                            )}
+                            {status === "done" && result && (
+                              <span className="text-xs text-muted-foreground">
+                                {result.imported > 0 && <span className="text-green-600 dark:text-green-400">+{result.imported}</span>}
+                                {result.imported > 0 && result.updated > 0 && ", "}
+                                {result.updated > 0 && <span className="text-blue-600 dark:text-blue-400">{result.updated} upd</span>}
+                                {result.imported === 0 && result.updated === 0 && "up to date"}
+                              </span>
+                            )}
+                            {status === "skipped" && (
+                              <span className="text-xs text-muted-foreground">no changes</span>
+                            )}
+                            {status === "error" && result && (result.imported > 0 || result.updated > 0) && (
+                              <span className="text-xs text-green-600 dark:text-green-400">
+                                {result.imported + result.updated} ok
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Inline diff panel */}
+                      {isComparing && diffData && (
+                        <TableRow>
+                          <TableCell colSpan={isMasterTenant && allTenants.length > 0 ? allTenants.length + 3 : 5} className="p-0">
+                            <DiffPanel
+                              diffData={diffData}
+                              diffError={diffError}
+                              winners={winners}
+                              setWinners={setWinners}
+                              showIdentical={showIdentical}
+                              setShowIdentical={setShowIdentical}
+                              visibleRecords={visibleDiffRecords}
+                              selectedCount={selectedWinnerCount}
+                              applying={applying}
+                              applyResult={applyResult}
+                              onApply={handleApplyWinners}
+                              formatFieldValue={formatFieldValue}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </TableBody>
@@ -568,6 +770,318 @@ export function ScheduleMasterSyncTab() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ============================================================================
+// Diff Panel — shows field-level comparison across tenants with winner selection
+// ============================================================================
+
+interface DiffPanelProps {
+  diffData: DiffResponse;
+  diffError: string | null;
+  winners: Record<string, string>;
+  setWinners: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  showIdentical: boolean;
+  setShowIdentical: React.Dispatch<React.SetStateAction<boolean>>;
+  visibleRecords: DiffRecord[];
+  selectedCount: number;
+  applying: boolean;
+  applyResult: { applied: number; errors: string[] } | null;
+  onApply: () => void;
+  formatFieldValue: (value: unknown) => string;
+}
+
+function DiffPanel({
+  diffData,
+  diffError,
+  winners,
+  setWinners,
+  showIdentical,
+  setShowIdentical,
+  visibleRecords,
+  selectedCount,
+  applying,
+  applyResult,
+  onApply,
+  formatFieldValue,
+}: DiffPanelProps) {
+  const { tenants, summary } = diffData;
+
+  return (
+    <div className="border-t bg-muted/20 p-4 space-y-4">
+      {/* Summary bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-sm">
+          <span className="font-medium">{diffData.table.replace(/_/g, " ")}</span>
+          <Badge variant="outline" className="text-green-700 dark:text-green-400 border-green-300 dark:border-green-700">
+            {summary.identical} identical
+          </Badge>
+          {summary.different > 0 && (
+            <Badge variant="outline" className="text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700">
+              {summary.different} different
+            </Badge>
+          )}
+          {summary.partial > 0 && (
+            <Badge variant="outline" className="text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700">
+              {summary.partial} partial
+            </Badge>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs"
+          onClick={() => setShowIdentical(!showIdentical)}
+        >
+          {showIdentical ? "Hide" : "Show"} identical ({summary.identical})
+        </Button>
+      </div>
+
+      {diffError && (
+        <div className="text-sm text-destructive">{diffError}</div>
+      )}
+
+      {/* Record cards */}
+      {visibleRecords.length === 0 && (
+        <div className="text-sm text-muted-foreground text-center py-4">
+          All records are identical across tenants.
+        </div>
+      )}
+
+      <div className="space-y-3 max-h-[600px] overflow-y-auto">
+        {visibleRecords.map((record) => (
+          <DiffRecordCard
+            key={record.match_key}
+            record={record}
+            tenants={tenants}
+            winner={winners[record.match_key]}
+            onSelectWinner={(slug) => {
+              setWinners((prev) => {
+                const next = { ...prev };
+                if (next[record.match_key] === slug) {
+                  delete next[record.match_key];
+                } else {
+                  next[record.match_key] = slug;
+                }
+                return next;
+              });
+            }}
+            formatFieldValue={formatFieldValue}
+          />
+        ))}
+      </div>
+
+      {/* Apply button */}
+      {(summary.different > 0 || summary.partial > 0) && (
+        <div className="flex items-center justify-between pt-2 border-t">
+          <div className="text-sm text-muted-foreground">
+            {selectedCount > 0
+              ? `${selectedCount} winner${selectedCount !== 1 ? "s" : ""} selected`
+              : "Select winners to apply"}
+          </div>
+          <Button
+            onClick={onApply}
+            disabled={selectedCount === 0 || applying}
+            size="sm"
+          >
+            {applying ? (
+              <>
+                <Spinner className="h-4 w-4 mr-2" />
+                Applying...
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Apply {selectedCount} Winner{selectedCount !== 1 ? "s" : ""}
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* Apply result */}
+      {applyResult && (
+        <div className={cn(
+          "rounded-md border p-3 text-sm",
+          applyResult.errors.length > 0
+            ? "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20"
+            : "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20"
+        )}>
+          {applyResult.errors.length > 0 ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                Applied {applyResult.applied} with {applyResult.errors.length} error(s)
+              </div>
+              {applyResult.errors.map((e, i) => (
+                <div key={i} className="text-xs text-amber-700 dark:text-amber-300 pl-6">{e}</div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
+              <Check className="h-4 w-4 shrink-0" />
+              Successfully applied {applyResult.applied} winner{applyResult.applied !== 1 ? "s" : ""} to all tenants
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Single diff record card — shows per-field values across tenants
+// ============================================================================
+
+interface DiffRecordCardProps {
+  record: DiffRecord;
+  tenants: { id: number; name: string; slug: string }[];
+  winner: string | undefined;
+  onSelectWinner: (slug: string) => void;
+  formatFieldValue: (value: unknown) => string;
+}
+
+function DiffRecordCard({ record, tenants, winner, onSelectWinner, formatFieldValue }: DiffRecordCardProps) {
+  const [expanded, setExpanded] = useState(record.status !== "identical");
+
+  const statusBadge = record.status === "different" ? (
+    <Badge variant="outline" className="text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 text-xs">
+      Modified
+    </Badge>
+  ) : record.status === "partial" ? (
+    <Badge variant="outline" className="text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700 text-xs">
+      Partial
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 text-xs">
+      Identical
+    </Badge>
+  );
+
+  return (
+    <div className={cn(
+      "rounded-md border",
+      winner && "ring-2 ring-primary/50",
+      record.status === "identical" && "opacity-60"
+    )}>
+      {/* Header */}
+      <div
+        className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
+          <span className="text-sm font-medium">{record.name || record.match_key}</span>
+          {statusBadge}
+          {record.status === "partial" && (
+            <span className="text-xs text-muted-foreground">
+              Only in: {record.present_in.join(", ")}
+            </span>
+          )}
+        </div>
+        {winner && (
+          <Badge variant="secondary" className="text-xs">
+            Winner: {tenants.find((t) => t.slug === winner)?.name || winner}
+          </Badge>
+        )}
+      </div>
+
+      {/* Expanded: field comparison table + winner selection */}
+      {expanded && (
+        <div className="border-t px-3 pb-3 space-y-3">
+          {/* Field comparison */}
+          {record.changed_fields.length > 0 && (
+            <div className="overflow-x-auto mt-2">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-1.5 pr-3 font-medium text-muted-foreground">Field</th>
+                    {tenants.map((t) => (
+                      <th key={t.slug} className="text-left py-1.5 px-2 font-medium text-muted-foreground min-w-[100px]">
+                        {t.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {record.changed_fields.map((field) => (
+                    <tr key={field} className="border-b border-dashed last:border-0">
+                      <td className="py-1.5 pr-3 font-mono text-muted-foreground">{field}</td>
+                      {tenants.map((t) => {
+                        const val = record.values[t.slug]?.[field];
+                        const formatted = formatFieldValue(val);
+                        const isPresent = record.present_in.includes(t.slug);
+                        return (
+                          <td
+                            key={t.slug}
+                            className={cn(
+                              "py-1.5 px-2 max-w-[200px] truncate",
+                              !isPresent && "text-muted-foreground/30 italic",
+                            )}
+                            title={formatted}
+                          >
+                            {isPresent ? formatted : "\u2014"}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Winner selection */}
+          {record.status !== "identical" && (
+            <div className="flex items-center gap-3 pt-2">
+              <span className="text-xs font-medium text-muted-foreground">Winner:</span>
+              {record.status === "partial" ? (
+                // For partial records, show "Add to all" or "Skip"
+                <>
+                  {record.present_in.map((slug) => {
+                    const t = tenants.find((t) => t.slug === slug);
+                    return (
+                      <label key={slug} className="flex items-center gap-1.5 cursor-pointer text-xs">
+                        <input
+                          type="radio"
+                          name={`winner-${record.match_key}`}
+                          checked={winner === slug}
+                          onChange={() => onSelectWinner(slug)}
+                          className="accent-primary"
+                        />
+                        Add from {t?.name || slug}
+                      </label>
+                    );
+                  })}
+                </>
+              ) : (
+                // For different records, pick which tenant's version wins
+                tenants.map((t) => {
+                  if (!record.present_in.includes(t.slug)) return null;
+                  return (
+                    <label key={t.slug} className="flex items-center gap-1.5 cursor-pointer text-xs">
+                      <input
+                        type="radio"
+                        name={`winner-${record.match_key}`}
+                        checked={winner === t.slug}
+                        onChange={() => onSelectWinner(t.slug)}
+                        className="accent-primary"
+                      />
+                      {t.name}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

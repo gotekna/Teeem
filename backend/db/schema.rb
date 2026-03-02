@@ -2292,6 +2292,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.decimal "budget_amount", precision: 12, scale: 2
+    t.integer "document_type_ids", default: [], null: false, array: true
     t.index ["cost_centre_id"], name: "index_custom_quote_template_lines_on_cost_centre_id"
     t.index ["custom_quote_template_id", "position"], name: "idx_cqtl_template_position"
     t.index ["custom_quote_template_id"], name: "index_custom_quote_template_lines_on_custom_quote_template_id"

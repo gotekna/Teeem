@@ -53,6 +53,7 @@ export interface BOQGroup {
   poStatus?: string | null;
   poStatusName?: string | null;
   poStatusColor?: string | null;
+  poStatusPosition?: number | null;
   taskName?: string | null;
   taskPosition?: number | null;
   tradeName?: string | null;
@@ -151,7 +152,7 @@ function nextTempId(): string {
   return `new_${++tempIdCounter}`;
 }
 
-export type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre" | "tender" | "profitCentre";
+export type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre" | "tender" | "profitCentre" | "status";
 
 const GROUP_SORT_LABELS: Record<GroupSortBy, string> = {
   supplier: "Supplier",
@@ -160,6 +161,7 @@ const GROUP_SORT_LABELS: Record<GroupSortBy, string> = {
   costCentre: "Cost Centre",
   tender: "Tender",
   profitCentre: "Profit Centre",
+  status: "Status",
 };
 
 export function BillOfQuantities({
@@ -355,6 +357,13 @@ export function BillOfQuantities({
         const bPos = b.stagePosition ?? Infinity;
         if (aPos !== bPos) return aPos - bPos;
         return numericCompare(a.stageName || "", b.stageName || "");
+      }
+      // Status: sort by position (Draft=0, Pending=1, ..., Cancelled=8)
+      if (groupSortBy === "status") {
+        const aPos = a.poStatusPosition ?? Infinity;
+        const bPos = b.poStatusPosition ?? Infinity;
+        if (aPos !== bPos) return aPos - bPos;
+        return numericCompare(a.poStatusName || "", b.poStatusName || "");
       }
       const aVal = groupSortBy === "supplier" ? (a.supplierName || "")
         : groupSortBy === "costCentre" ? (a.costCentreName || "")
@@ -681,7 +690,7 @@ export function BillOfQuantities({
     if (!groupSortBy) return null;
 
     type SubSection = { label: string; groups: BOQGroup[]; total: number };
-    type Section = { label: string; groups: BOQGroup[]; total: number; sortOrder: number; subSections?: SubSection[] };
+    type Section = { label: string; groups: BOQGroup[]; total: number; sortOrder: number; subSections?: SubSection[]; color?: string };
 
     // Tender uses double cascade: Header → Section → POs
     if (groupSortBy === "tender") {
@@ -714,19 +723,24 @@ export function BillOfQuantities({
     }
 
     // Single-level cascade for all other dimensions
-    const buckets = new Map<string, { groups: BOQGroup[]; total: number; sortOrder: number }>();
+    const buckets = new Map<string, { groups: BOQGroup[]; total: number; sortOrder: number; color?: string }>();
     for (const group of filteredGroups) {
       const key =
         groupSortBy === "supplier" ? (group.supplierName || "No Supplier")
           : groupSortBy === "stage" ? (group.stageName || "No Stage")
-            : groupSortBy === "costCentre" ? (group.costCentreName || "Unallocated")
-              : groupSortBy === "profitCentre" ? (group.profitCentreName || "Unallocated")
-                : (group.tradeName || "No Trade");
+            : groupSortBy === "status" ? (group.poStatusName || "No Status")
+              : groupSortBy === "costCentre" ? (group.costCentreName || "Unallocated")
+                : groupSortBy === "profitCentre" ? (group.profitCentreName || "Unallocated")
+                  : (group.tradeName || "No Trade");
       if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0, sortOrder: Infinity });
       const bucket = buckets.get(key)!;
       bucket.groups.push(group);
       if (groupSortBy === "stage" && group.stagePosition != null) {
         bucket.sortOrder = Math.min(bucket.sortOrder, group.stagePosition);
+      }
+      if (groupSortBy === "status" && group.poStatusPosition != null) {
+        bucket.sortOrder = Math.min(bucket.sortOrder, group.poStatusPosition);
+        if (group.poStatusColor) bucket.color = group.poStatusColor;
       }
       for (const item of group.items) {
         bucket.total += getQty(group.id, item) * item.unitPrice;
@@ -734,13 +748,13 @@ export function BillOfQuantities({
     }
     return [...buckets.entries()]
       .sort((a, b) => {
-        if (groupSortBy === "stage") return a[1].sortOrder - b[1].sortOrder;
+        if (groupSortBy === "stage" || groupSortBy === "status") return a[1].sortOrder - b[1].sortOrder;
         const aNum = parseInt(a[0], 10);
         const bNum = parseInt(b[0], 10);
         if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
         return a[0].localeCompare(b[0]);
       })
-      .map(([label, { groups: g, total }]): Section => ({ label, groups: g, total, sortOrder: 0 }));
+      .map(([label, { groups: g, total, color }]): Section => ({ label, groups: g, total, sortOrder: 0, color }));
   }, [filteredGroups, groupSortBy, getQty]);
 
   // Totals (includes new lines)
@@ -810,7 +824,7 @@ export function BillOfQuantities({
               >
                 PO / Task
               </button>
-              {(["supplier", "stage", "trade", "costCentre", "tender", "profitCentre"] as GroupSortBy[]).map((dim) => {
+              {(["supplier", "stage", "trade", "costCentre", "tender", "profitCentre", "status"] as GroupSortBy[]).map((dim) => {
                 return (
                   <button
                     key={dim}
@@ -1061,7 +1075,13 @@ export function BillOfQuantities({
                           ) : (
                             <ChevronRight className="h-4 w-4 shrink-0" />
                           )}
-                          {section.label}
+                          {section.color ? (
+                            <Badge variant="outline" className={`text-xs px-2 py-0.5 border ${section.color}`}>
+                              {section.label}
+                            </Badge>
+                          ) : (
+                            section.label
+                          )}
                         </span>
                         <Badge variant="secondary" className="ml-2 text-xs font-normal">
                           {section.groups.length} PO{section.groups.length !== 1 ? "s" : ""}
