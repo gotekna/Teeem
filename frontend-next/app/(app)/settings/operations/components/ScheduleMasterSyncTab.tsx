@@ -789,9 +789,13 @@ export function ScheduleMasterSyncTab() {
                           <div className="flex items-center gap-2">
                             {/* Expandable chevron for tables with template breakdown */}
                             {(() => {
-                              const cov = !isMasterTenant
-                                ? (syncCoverage[table.key] as CoverageEntry | undefined)
-                                : undefined;
+                              // Non-master: use own coverage; master: use source tenant's coverage
+                              const cov = isMasterTenant
+                                ? (() => {
+                                    const perTenant = syncCoverage[table.key] as Record<string, CoverageEntry> | undefined;
+                                    return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
+                                  })()
+                                : (syncCoverage[table.key] as CoverageEntry | undefined);
                               const hasTemplates = cov && "templates" in cov && cov.templates && cov.templates.length > 1;
                               const hasRecords = cov && "records" in cov && cov.records && cov.records.length > 0;
                               if (hasTemplates || hasRecords) {
@@ -857,19 +861,7 @@ export function ScheduleMasterSyncTab() {
                                 "text-right tabular-nums text-sm py-2",
                                 countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
                               )}>
-                                {tenantCov && tenantCov.local_only > 0 ? (
-                                  <div className="flex items-center justify-end gap-1">
-                                    <span>{tenantCov.linked.toLocaleString()}</span>
-                                    <span
-                                      className="text-amber-600 dark:text-amber-400"
-                                      title={`${tenantCov.local_only} local-only (not in TEEEM)`}
-                                    >
-                                      +{tenantCov.local_only}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  count.toLocaleString()
-                                )}
+                                {count.toLocaleString()}
                               </TableCell>
                             );
                           })
@@ -979,9 +971,12 @@ export function ScheduleMasterSyncTab() {
 
                       {/* Template breakdown sub-rows */}
                       {expandedTables.has(table.key) && (() => {
-                        const cov = !isMasterTenant
-                          ? (syncCoverage[table.key] as CoverageEntry | undefined)
-                          : undefined;
+                        const cov = isMasterTenant
+                          ? (() => {
+                              const perTenant = syncCoverage[table.key] as Record<string, CoverageEntry> | undefined;
+                              return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
+                            })()
+                          : (syncCoverage[table.key] as CoverageEntry | undefined);
                         const templates = cov && "templates" in cov ? cov.templates : undefined;
                         if (!templates || templates.length === 0) return null;
 
@@ -1019,9 +1014,12 @@ export function ScheduleMasterSyncTab() {
 
                       {/* Records breakdown sub-rows (Quote Templates, PO Packs, PO Items, PO Line Items) */}
                       {expandedTables.has(table.key) && (() => {
-                        const cov = !isMasterTenant
-                          ? (syncCoverage[table.key] as CoverageEntry | undefined)
-                          : undefined;
+                        const cov = isMasterTenant
+                          ? (() => {
+                              const perTenant = syncCoverage[table.key] as Record<string, CoverageEntry> | undefined;
+                              return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
+                            })()
+                          : (syncCoverage[table.key] as CoverageEntry | undefined);
                         const records = cov && "records" in cov ? cov.records : undefined;
                         if (!records || records.length === 0) return null;
 
