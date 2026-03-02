@@ -625,6 +625,9 @@ Rails.application.routes.draw do
           get :linked_schedule_template
           # Storage folder creation
           post :create_storage_folders
+          # Markup & Pricing
+          get :markup
+          patch :markup, action: :update_markup
         end
 
         # Job contacts (nested under jobs)

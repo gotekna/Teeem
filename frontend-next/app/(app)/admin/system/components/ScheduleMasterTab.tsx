@@ -1524,6 +1524,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       claim_trading_name_id: extractLookupId(row.claim_trading_name_id)
         ? parseInt(extractLookupId(row.claim_trading_name_id)!)
         : (typeof row.claim_trading_name_id === 'number' ? row.claim_trading_name_id : undefined),
+      // Dependencies (predecessor_ids JSONB from sm_schedule_masters)
+      predecessor_ids: row.predecessor_ids || [],
       // Template membership (Schedule Master specific)
       sm_template_ids: (row.sm_template_ids || []).map((item: number | { id: number }) =>
         typeof item === 'object' ? item.id : item
@@ -1685,11 +1687,19 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // Handle row double-click - open edit sheet
   // SSoT: Use row directly from TeeemTableView callback (Foundation API data)
   // Don't lookup from dataViewRows which comes from custom endpoint with broken lookup expansion
+  // EXCEPT: predecessor_ids is NOT a Foundation column, so enrich from dataViewRows
   const handleDataViewRowDoubleClick = (row: Record<string, unknown>) => {
     setActiveEditTemplateId(dataViewTemplateId); // Track which template to save to
 
     // Cast row from TeeemTableView - it has all the data with proper lookup expansion from Foundation API
     const fullRow = row as unknown as SmScheduleMaster;
+
+    // Enrich with predecessor_ids from dataViewRows (not available via Foundation API)
+    const dataRow = dataViewRows.find(r => r.id === fullRow.id);
+    if (dataRow?.predecessor_ids) {
+      fullRow.predecessor_ids = dataRow.predecessor_ids;
+    }
+
     setEditingRow(fullRow);
     // SSoT: Convert to EditRowData for shared EditRowDialog
     setSelectedRowForEdit(convertToEditRowData(fullRow));

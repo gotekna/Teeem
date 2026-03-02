@@ -178,6 +178,10 @@ const JobTenderBuilderTab = dynamic(() => import("@/components/jobs/JobTenderBui
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const JobMarkupTab = dynamic(() => import("@/components/jobs/JobMarkupTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const ColourSelectionBuilder = dynamic(() => import("@/components/colours/ColourSelectionBuilder").then(m => m.ColourSelectionBuilder), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -312,6 +316,8 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "tender": JobTenderTab,
   "tenders": JobTenderTab,
   "tender-builder": JobTenderBuilderTab,
+  "markup": JobMarkupTab,
+  "pricing": JobMarkupTab,
   "revit": RevitTab,
   "revit-dwg": RevitTab,
   "warehouse": JobWarehouseTab,
@@ -355,6 +361,7 @@ const COMPONENT_BY_NAME: Record<string, React.ComponentType<any>> = {
   "JobDocumentsTab": JobDocumentsTab,
   "JobCommunicationsTab": JobCommunicationsTab,
   "JobTenderTab": JobTenderTab,
+  "JobMarkupTab": JobMarkupTab,
   "RevitTab": RevitTab,
   "JobWarehouseTab": JobWarehouseTab,
   "XeroBillsCard": XeroBillsCard,

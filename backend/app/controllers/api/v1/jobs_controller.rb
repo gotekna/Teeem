@@ -4,7 +4,7 @@ module Api
       include DocumentProviderAware
       include AsyncPdfGeneration
 
-      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :finance_counts, :activities, :budget_tracking, :boq, :price_analysis, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :finance_counts, :activities, :budget_tracking, :boq, :price_analysis, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders, :markup, :update_markup ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
@@ -1597,6 +1597,92 @@ module Api
         @job.create_folders_if_needed!
         render json: { success: true, status: @job.reload.storage_folder_status }
       rescue StandardError => e
+        render_error(e.message, status: :unprocessable_entity)
+      end
+
+      # GET /api/v1/jobs/:id/markup
+      # Returns pricing table data for the Job Markup & Pricing tab
+      def markup
+        tasks = @job.sm_tasks
+                    .where(po_required: true)
+                    .includes(:purchase_order, :sm_schedule_master,
+                              tender: :tender_header,
+                              purchase_order: :supplier)
+                    .order(:sequence_order)
+
+        sm_setting = SmSetting.instance
+
+        render json: {
+          success: true,
+          job: {
+            id: @job.id,
+            builderMarginPercent: @job.builder_margin_percent&.to_f || 0,
+            contractPrice: @job.contract_price&.to_f,
+            pcPsMarkupCap: sm_setting.pc_ps_markup_cap_percent&.to_f || 25.0
+          },
+          items: tasks.map { |task|
+            po = task.purchase_order
+            t = task.tender
+            {
+              smTaskId: task.id,
+              taskName: task.name,
+              supplierName: po&.supplier&.display_name,
+              tenderSection: t&.name,
+              tenderHeader: t&.tender_header&.name,
+              isPcPs: task.pc_ps_item?,
+              sectionType: t&.section_type,
+              cost: po&.sub_total&.to_f || 0,
+              poNumber: po&.purchase_order_number,
+              escalationPercent: task.escalation_percent&.to_f || 0,
+              markupPercent: task.markup_percent&.to_f || 0,
+              markupCap: task.pc_ps_item? ? (sm_setting.pc_ps_markup_cap_percent&.to_f || 25.0) : nil,
+              escalatedCost: task.escalated_cost.round(2),
+              sellPrice: task.sell_price.round(2)
+            }
+          },
+          summary: {
+            costTotal: tasks.sum(&:cost_basis).round(2),
+            escalatedTotal: tasks.sum(&:escalated_cost).round(2),
+            sellSubtotal: tasks.sum(&:sell_price).round(2),
+            builderMarginPercent: @job.builder_margin_percent&.to_f || 0,
+            contractExGst: @job.calculated_contract_price_ex_gst,
+            contractIncGst: @job.calculated_contract_price_inc_gst,
+            existingContractPrice: @job.contract_price&.to_f
+          }
+        }
+      end
+
+      # PATCH /api/v1/jobs/:id/markup
+      # Update escalation %, markup %, builder margin, and optionally apply to contract price
+      def update_markup
+        ActiveRecord::Base.transaction do
+          if params[:items].present?
+            params[:items].each do |item|
+              task = @job.sm_tasks.find(item[:smTaskId])
+              updates = {}
+              updates[:escalation_percent] = item[:escalationPercent] if item.key?(:escalationPercent)
+              if item.key?(:markupPercent)
+                cap = task.pc_ps_item? ? (SmSetting.instance.pc_ps_markup_cap_percent || 25.0) : Float::INFINITY
+                updates[:markup_percent] = [item[:markupPercent].to_f, cap].min
+              end
+              task.update!(updates) if updates.any?
+            end
+          end
+
+          if params.key?(:builderMarginPercent)
+            @job.update!(builder_margin_percent: params[:builderMarginPercent])
+          end
+
+          if params[:applyToContractPrice]
+            @job.reload
+            @job.update!(contract_price: @job.calculated_contract_price_inc_gst)
+          end
+        end
+
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound => e
+        render_error(e.message, status: :not_found)
+      rescue ActiveRecord::RecordInvalid => e
         render_error(e.message, status: :unprocessable_entity)
       end
 

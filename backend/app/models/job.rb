@@ -98,6 +98,27 @@ class Job < ApplicationRecord
     internal: "internal"
   }, prefix: :project_type, default: :construction
 
+  # ============================================
+  # Markup / Pricing Methods (Job Markup & Pricing Tab)
+  # ============================================
+
+  # Sum of all PO task sell prices (after escalation + markup)
+  def markup_subtotal
+    sm_tasks.where(po_required: true)
+            .includes(:purchase_order, tender: :tender_header)
+            .sum(&:sell_price)
+  end
+
+  # Contract price ex-GST after builder margin
+  def calculated_contract_price_ex_gst
+    (markup_subtotal * (1 + (builder_margin_percent || 0) / 100.0)).round(2)
+  end
+
+  # Contract price inc-GST (10% GST)
+  def calculated_contract_price_inc_gst
+    (calculated_contract_price_ex_gst * 1.10).round(2)
+  end
+
   # Alias title to name for backwards compatibility
   # Many parts of the codebase reference job.title but the column is 'name'
   alias_attribute :title, :name

@@ -70,6 +70,9 @@ class SmScheduleMasterTemplateCopyService
       # Fifth pass: Update PO descriptions with related supplier info
       update_related_po_descriptions
 
+      # Sixth pass: Set builder margin default on job (from SmSetting)
+      set_builder_margin_default
+
       if @errors.any?
         raise ActiveRecord::Rollback
       end
@@ -149,6 +152,17 @@ class SmScheduleMasterTemplateCopyService
     @stage_remap[stage_id] || stage_id
   end
 
+  # Set builder margin default on job from SmSetting (only if not already set)
+  def set_builder_margin_default
+    return if job.builder_margin_percent.present? && job.builder_margin_percent > 0
+
+    default_margin = SmSetting.instance.default_builder_margin_percent
+    if default_margin.present? && default_margin > 0
+      job.update!(builder_margin_percent: default_margin)
+      Rails.logger.info "SmScheduleMasterTemplateCopyService: Set builder margin #{default_margin}% on job #{job.id}"
+    end
+  end
+
   def clear_existing_tasks
     count = job.sm_tasks.count
     job.sm_tasks.destroy_all
@@ -195,6 +209,9 @@ class SmScheduleMasterTemplateCopyService
         header_gantt: row.header_gantt,
         color: row.color,
         cost_centre: row.cost_centre,
+        # Markup/Pricing defaults from template
+        escalation_percent: row.default_escalation_percent || SmSetting.instance.default_escalation_percent || 0,
+        markup_percent: row.default_markup_percent || 0,
         # Tender section (synced from template SSoT)
         tender_id: row.tender_id,
         # Workflow settings

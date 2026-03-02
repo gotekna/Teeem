@@ -341,6 +341,46 @@ class SmTask < ApplicationRecord
       &.user
   end
 
+  # ============================================
+  # Pricing / Markup Methods (Job Markup & Pricing Tab)
+  # ============================================
+
+  # Cost from linked PO (ex-tax sub_total)
+  def cost_basis
+    purchase_order&.sub_total || 0
+  end
+
+  # Cost adjusted for escalation (CPI/inflation)
+  def escalated_cost
+    cost_basis * (1 + (escalation_percent || 0) / 100.0)
+  end
+
+  # Markup % with PC/PS cap applied
+  def effective_markup_percent
+    raw = markup_percent || 0
+    return [raw, pc_ps_markup_cap].min if pc_ps_item?
+    raw
+  end
+
+  # Sell price = escalated cost × (1 + markup %)
+  def sell_price
+    escalated_cost * (1 + effective_markup_percent / 100.0)
+  end
+
+  # Is this a Provisional Cost / Provisional Sum item?
+  # PC/PS items have their markup capped (default 25%)
+  def pc_ps_item?
+    t = tender
+    return false unless t
+    t.section_type == "provisional" ||
+      t.tender_header&.header_type&.in?(%w[pc_schedule ps_schedule])
+  end
+
+  # The cap for PC/PS items (from SmSetting)
+  def pc_ps_markup_cap
+    SmSetting.instance.pc_ps_markup_cap_percent || 25.0
+  end
+
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
   validates :task_number, presence: true  # Template task_number is SSoT - no uniqueness constraint

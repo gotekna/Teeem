@@ -12,9 +12,34 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import MultipleSelector from "@/components/ui/multiple-selector";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, AlertCircle } from "lucide-react";
+import { Check, AlertCircle, FileText, Package, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { UI_AUTOSAVE_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
+
+// ============================================================================
+// TENDER TREE TYPES
+// ============================================================================
+
+interface TenderTreeSection {
+  id: number;
+  code: string;
+  name: string;
+  sortOrder: number | null;
+  sectionType: string;
+  defaultNote?: string;
+  description?: string;
+  attachedDocumentTypes: string[];
+}
+
+interface TenderTreeHeader {
+  id: number;
+  code: string;
+  name: string;
+  sortOrder: number | null;
+  description?: string;
+  headerType: string;
+  children: TenderTreeSection[];
+}
 
 // ============================================================================
 // TYPES - Extracted from ScheduleMasterTab.tsx (SSoT)
@@ -220,6 +245,11 @@ export function EditRowDialog({
   const [loadingTemplatePreview, setLoadingTemplatePreview] = React.useState(false);
   const [showFullPreview, setShowFullPreview] = React.useState(false);
 
+  // Tender tree state (lazy-loaded when Tender & Quotes tab is opened)
+  const [tenderTree, setTenderTree] = React.useState<TenderTreeHeader[]>([]);
+  const [tenderTreeLoaded, setTenderTreeLoaded] = React.useState(false);
+  const [loadingTenderTree, setLoadingTenderTree] = React.useState(false);
+
   // Filter document types: "Plans" folder vs everything else
   const planDocTypes = React.useMemo(
     () => documentTypes.filter(dt => dt.folder === "Plans" || dt.primary_folder_name === "Plans"),
@@ -333,6 +363,23 @@ export function EditRowDialog({
     }
   };
 
+  // Lazy-load tender tree when Tender & Quotes tab is first opened
+  const loadTenderTree = React.useCallback(async () => {
+    if (tenderTreeLoaded || loadingTenderTree) return;
+    setLoadingTenderTree(true);
+    try {
+      const data = await api.get<{ success: boolean; data: TenderTreeHeader[] }>("/api/v1/tenders/tree");
+      if (data?.data) {
+        setTenderTree(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to load tender tree:", error);
+    } finally {
+      setTenderTreeLoaded(true);
+      setLoadingTenderTree(false);
+    }
+  }, [tenderTreeLoaded, loadingTenderTree]);
+
   // Handle save (supports both manual and auto-save)
   const handleSaveRow = async (options?: { silent?: boolean }) => {
     if (!row) return;
@@ -418,16 +465,20 @@ export function EditRowDialog({
                 }
                 return null;
               })()}
-              {/* Template badge if in templates */}
+              {/* Template badges with sync indicator */}
               {row.sm_template_ids && row.sm_template_ids.length > 0 && templates.length > 0 && (
-                <Badge variant="secondary" className="text-xs font-normal ml-1">
-                  {row.sm_template_ids
-                    .map((item: number | { id: number; display?: string }) => {
-                      const id = typeof item === 'object' ? item.id : item;
-                      return templates.find(t => t.id === id)?.name || `#${id}`;
-                    })
-                    .join(', ')}
-                </Badge>
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 text-muted-foreground ml-1" />
+                  {row.sm_template_ids.map((item: number | { id: number; display?: string }) => {
+                    const id = typeof item === 'object' ? item.id : item;
+                    const name = templates.find(t => t.id === id)?.name || `#${id}`;
+                    return (
+                      <Badge key={id} variant="secondary" className="text-xs font-normal">
+                        {name}
+                      </Badge>
+                    );
+                  })}
+                </>
               )}
             </DialogTitle>
             <div className="flex items-center gap-4">
@@ -463,6 +514,22 @@ export function EditRowDialog({
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
+            {/* Template sync banner - shown when task belongs to templates */}
+            {row.sm_template_ids && row.sm_template_ids.length > 0 && templates.length > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                <RefreshCw className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                  Changes here sync to {row.sm_template_ids.length === 1 ? 'this template' : 'these templates'}:{' '}
+                  <span className="font-medium">
+                    {row.sm_template_ids.map((item: number | { id: number; display?: string }) => {
+                      const id = typeof item === 'object' ? item.id : item;
+                      return templates.find(t => t.id === id)?.name || `#${id}`;
+                    }).join(', ')}
+                  </span>
+                  . Editing in either place updates both.
+                </p>
+              </div>
+            )}
             {/* Row 1: Code + Name + Duration + Sequence - always visible above tabs */}
             <div className="grid grid-cols-[100px_1fr_80px_80px] gap-3">
               <div className="space-y-1">
@@ -528,6 +595,7 @@ export function EditRowDialog({
                 <TabsTrigger value="task">Task</TabsTrigger>
                 <TabsTrigger value="po-claims">PO & Claims</TabsTrigger>
                 <TabsTrigger value="dependencies">Dependencies</TabsTrigger>
+                <TabsTrigger value="tender-quotes">Tender & Quotes</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
                 <TabsTrigger value="relationships">Relationships</TabsTrigger>
               </TabsList>
@@ -1120,6 +1188,258 @@ export function EditRowDialog({
                           </div>
                         );
                       })()}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* ============================================================
+                  TAB: TENDER & QUOTES - Tender section mapping + quote flow
+                 ============================================================ */}
+              <TabsContent value="tender-quotes" className="mt-3" onFocusCapture={loadTenderTree}>
+                {/* Trigger load when tab becomes visible */}
+                <div ref={(el) => { if (el) loadTenderTree(); }} />
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Left: Tender Section Context */}
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs font-medium">Tender Section Assignment</Label>
+                      <p className="text-[10px] text-muted-foreground mb-2">Which tender section this task belongs to</p>
+
+                      {editRowForm.tender_id ? (() => {
+                        // Find this section in the tender tree for full context
+                        const tenderId = Number(editRowForm.tender_id);
+                        const sectionName = tenderSections.find(t => t.id === tenderId)?.name || `Section ${tenderId}`;
+                        let headerName: string | undefined;
+                        let sectionType: string | undefined;
+                        let attachedDocs: string[] = [];
+
+                        for (const header of tenderTree) {
+                          const section = header.children.find(s => s.id === tenderId);
+                          if (section) {
+                            headerName = header.name;
+                            sectionType = section.sectionType;
+                            attachedDocs = section.attachedDocumentTypes || [];
+                            break;
+                          }
+                        }
+
+                        return (
+                          <div className="space-y-2">
+                            <div className="p-3 rounded-md border bg-muted/30 dark:bg-muted/10">
+                              {headerName && (
+                                <div className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1">
+                                  <FileText className="h-3 w-3" />
+                                  {headerName}
+                                </div>
+                              )}
+                              <div className="text-sm font-medium">{sectionName}</div>
+                              <div className="flex items-center gap-2 mt-1">
+                                {sectionType && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 capitalize">
+                                    {sectionType}
+                                  </Badge>
+                                )}
+                                {attachedDocs.length > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {attachedDocs.length} doc type{attachedDocs.length !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
+                              {attachedDocs.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {attachedDocs.map(dt => (
+                                    <Badge key={dt} variant="secondary" className="text-[9px] px-1.5 py-0 h-4">
+                                      {dt}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Other tasks in the same tender section */}
+                            {(() => {
+                              const siblingTasks = allRows.filter(r =>
+                                r.id !== row?.id && r.tender_id === editRowForm.tender_id
+                              );
+                              if (siblingTasks.length === 0) return null;
+                              return (
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">
+                                    Other tasks in this section ({siblingTasks.length})
+                                  </Label>
+                                  <div className="space-y-1 mt-1 max-h-32 overflow-y-auto">
+                                    {siblingTasks.map(t => (
+                                      <div key={t.id} className="flex items-center gap-2 px-2 py-1 rounded text-xs bg-muted/20 dark:bg-muted/5">
+                                        <span className="text-muted-foreground/60">#{t.task_number}</span>
+                                        <span className="truncate">{t.name}</span>
+                                        {t.po_required && (
+                                          <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 ml-auto shrink-0">PO</Badge>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        );
+                      })() : (
+                        <p className="text-xs text-muted-foreground italic py-2">
+                          No tender section assigned. Set the Tender field on the Task tab to assign this task to a tender section.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Tender Tree Overview */}
+                    {loadingTenderTree ? (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                        <Spinner className="h-3 w-3" />
+                        Loading tender structure...
+                      </div>
+                    ) : tenderTree.length > 0 ? (
+                      <div className="pt-2 border-t">
+                        <Label className="text-[10px] text-muted-foreground">Tender Structure</Label>
+                        <div className="space-y-1.5 mt-1 max-h-48 overflow-y-auto">
+                          {tenderTree.map(header => (
+                            <div key={header.id}>
+                              <div className="text-[10px] font-medium text-muted-foreground px-1">
+                                {header.code} {header.name}
+                              </div>
+                              {header.children.map(section => {
+                                const isCurrentSection = editRowForm.tender_id && Number(editRowForm.tender_id) === section.id;
+                                const taskCount = allRows.filter(r => r.tender_id === String(section.id)).length;
+                                return (
+                                  <div
+                                    key={section.id}
+                                    className={`flex items-center gap-2 px-2 py-0.5 rounded text-[11px] ml-3 ${
+                                      isCurrentSection
+                                        ? 'bg-primary/10 dark:bg-primary/20 font-medium'
+                                        : 'text-muted-foreground'
+                                    }`}
+                                  >
+                                    <span className="truncate">{section.name}</span>
+                                    {taskCount > 0 && (
+                                      <span className="text-[9px] text-muted-foreground/60 ml-auto shrink-0">
+                                        {taskCount} task{taskCount !== 1 ? 's' : ''}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* Right: Quote Mapping */}
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs font-medium">Quote Mapping</Label>
+                      <p className="text-[10px] text-muted-foreground mb-2">How this task maps into quotes and tenders</p>
+
+                      {/* Mode indicator */}
+                      <div className="space-y-2">
+                        <div className="p-3 rounded-md border bg-muted/30 dark:bg-muted/10">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">
+                              {row?.po_required ? 'PO-Level Task' : 'Non-PO Task'}
+                            </span>
+                          </div>
+
+                          {row?.po_required ? (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] text-muted-foreground">
+                                This task generates a Purchase Order. In tenders, it maps as a direct line item — each PO task creates its own tender line.
+                              </p>
+                              {editRowForm.cost_centre && (
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <span className="text-muted-foreground">Cost Centre:</span>
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                    {costCentres.find(cc => String(cc.id) === editRowForm.cost_centre)?.name || `CC ${editRowForm.cost_centre}`}
+                                  </Badge>
+                                </div>
+                              )}
+                              {row.po_supplier_name && (
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <span className="text-muted-foreground">Default Supplier:</span>
+                                  <span>{row.po_supplier_name}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">
+                              Non-PO tasks don&apos;t appear directly in tender documents but contribute to the schedule timeline.
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Cost Centre Grouping - shows tasks that share the same CC */}
+                        {editRowForm.cost_centre && (() => {
+                          const ccId = editRowForm.cost_centre;
+                          const ccName = costCentres.find(cc => String(cc.id) === ccId)?.name || `CC ${ccId}`;
+                          const ccTasks = allRows.filter(r =>
+                            r.id !== row?.id && r.cost_centre === ccId && r.po_required
+                          );
+
+                          return (
+                            <div className="p-3 rounded-md border bg-muted/30 dark:bg-muted/10">
+                              <div className="text-xs font-medium mb-1">
+                                Cost Centre: {ccName}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground mb-2">
+                                When quoting by Cost Centre, these PO tasks merge into one quote line. Suppliers quote on the group, and amounts are allocated back to individual POs.
+                              </p>
+                              {ccTasks.length > 0 ? (
+                                <div className="space-y-1 max-h-28 overflow-y-auto">
+                                  {ccTasks.map(t => (
+                                    <div key={t.id} className="flex items-center gap-2 px-2 py-0.5 rounded text-[11px] bg-muted/20 dark:bg-muted/5">
+                                      <span className="text-muted-foreground/60">#{t.task_number}</span>
+                                      <span className="truncate">{t.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-muted-foreground italic">
+                                  No other PO tasks share this cost centre
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Quote Flow Summary */}
+                        {row?.po_required && (
+                          <div className="pt-2 border-t">
+                            <Label className="text-[10px] text-muted-foreground">Quote Flow</Label>
+                            <div className="mt-1 space-y-1">
+                              <div className="flex items-start gap-2 text-[11px]">
+                                <div className="w-4 h-4 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">1</div>
+                                <span>
+                                  {editRowForm.cost_centre
+                                    ? 'Tasks in same Cost Centre are grouped into one quote line'
+                                    : 'Task maps directly as a PO-level quote line'}
+                                </span>
+                              </div>
+                              <div className="flex items-start gap-2 text-[11px]">
+                                <div className="w-4 h-4 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">2</div>
+                                <span>Suppliers are invited to quote (RFQ sent via email)</span>
+                              </div>
+                              <div className="flex items-start gap-2 text-[11px]">
+                                <div className="w-4 h-4 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">3</div>
+                                <span>Accepted quote creates Purchase Order linked to this task</span>
+                              </div>
+                              <div className="flex items-start gap-2 text-[11px]">
+                                <div className="w-4 h-4 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">4</div>
+                                <span>PO appears in tender document under assigned section</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

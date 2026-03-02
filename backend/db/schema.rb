@@ -6609,6 +6609,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "soil_classification"
     t.string "specification"
     t.text "description"
+    t.decimal "builder_margin_percent", precision: 5, scale: 2, default: "0.0"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -9028,6 +9029,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
     t.integer "canonical_version", default: 0
+    t.decimal "default_escalation_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "default_markup_percent", precision: 5, scale: 2, default: "0.0"
     t.index ["canonical_record_id"], name: "idx_sm_schedule_masters_canonical_record_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
@@ -9071,6 +9074,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "schedule_master_trades", default: []
     t.jsonb "schedule_master_stages", default: []
     t.jsonb "schedule_master_roles", default: []
+    t.decimal "default_builder_margin_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "default_escalation_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "pc_ps_markup_cap_percent", precision: 5, scale: 2, default: "25.0"
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|
@@ -9343,6 +9349,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "warehouse_folder_id"
     t.jsonb "plan_type_ids", default: "[]"
     t.jsonb "document_ref_type_ids", default: "[]"
+    t.decimal "escalation_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "markup_percent", precision: 5, scale: 2, default: "0.0"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"

@@ -113,6 +113,8 @@ class SmScheduleMaster < ApplicationRecord
   validates :task_number, presence: true
   validates :sequence_order, presence: true
   validates :duration_days, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :default_escalation_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :default_markup_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validate :header_cannot_be_po
 
   def header_cannot_be_po

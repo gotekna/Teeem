@@ -113,6 +113,9 @@ class SmSetting < ApplicationRecord
   # Validations
   validates :rollover_timezone, presence: true, length: { maximum: 50 }
   validates :rollover_time, presence: true
+  validates :default_builder_margin_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :default_escalation_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :pc_ps_markup_cap_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   # Available timezones (Australian focus)
   TIMEZONES = [

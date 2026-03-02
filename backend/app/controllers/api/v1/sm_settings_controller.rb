@@ -251,7 +251,10 @@ module Api
           :rollover_enabled,
           :notify_on_hold,
           :notify_on_supplier_confirm,
-          :notify_on_rollover
+          :notify_on_rollover,
+          :default_builder_margin_percent,
+          :default_escalation_percent,
+          :pc_ps_markup_cap_percent
         )
 
         # Handle gantt_column_config as arbitrary JSON (array of column configs)
@@ -281,6 +284,10 @@ module Api
           default_template: default_template&.slice(:id, :name),
           # Schedule Master tags for grouping
           schedule_master_tags: settings.tags,
+          # Markup / Pricing defaults
+          defaultBuilderMarginPercent: settings.default_builder_margin_percent&.to_f || 0,
+          defaultEscalationPercent: settings.default_escalation_percent&.to_f || 0,
+          pcPsMarkupCapPercent: settings.pc_ps_markup_cap_percent&.to_f || 25.0,
           # Computed values
           current_time: settings.current_time,
           today: settings.today,
