@@ -447,6 +447,32 @@ module Api
             result[:errors]&.first(3)&.each { |e| Rails.logger.warn "  Error: #{e}" }
           end
 
+          # ── Two-way: push local-only records up to TEEEM (on last batch) ──
+          pushed_count = 0
+          if !has_more && table_mode(table) == "two_way" && model.column_names.include?("sync_key")
+            master_sync_keys = ActsAsTenant.with_tenant(master_tenant) do
+              model.where.not(sync_key: [nil, ""]).pluck(:sync_key).to_set
+            end
+
+            tenant_only_ids = ActsAsTenant.with_tenant(current_tenant) do
+              scoped_model(model, effective_config)
+                .where.not(sync_key: [nil, ""])
+                .select { |r| !master_sync_keys.include?(r.sync_key) }
+                .map(&:id)
+            end
+
+            if tenant_only_ids.any?
+              master_service = TenantConfigSyncService.new(master_tenant)
+              push_result = master_service.import_from_tenant(
+                source_tenant: current_tenant,
+                table: table.to_s,
+                record_ids: tenant_only_ids
+              )
+              pushed_count = push_result[:imported]&.length || 0
+              Rails.logger.info "[ConfigSync] Two-way push #{table}: #{pushed_count} records → TEEEM" if pushed_count > 0
+            end
+          end
+
           # Record per-table sync timestamp (only on last batch or single batch)
           record_table_sync(table, imported: imported_count, updated: updated_count, skipped: skipped_count) unless has_more
 
@@ -455,6 +481,7 @@ module Api
             imported: imported_count,
             updated: updated_count,
             skipped: skipped_count,
+            pushed: pushed_count,
             total: batch_ids.length,
             total_records: total_records,
             has_more: has_more,
@@ -877,6 +904,11 @@ module Api
           "skipped" => skipped
         }
         ts.update_columns(config_sync_table_timestamps: timestamps)
+      end
+
+      # Get the sync mode for a single table (from tenant's config_sync_table_modes)
+      def table_mode(table_key)
+        (current_tenant&.tenant_setting&.config_sync_table_modes || {})[table_key.to_s]
       end
 
       # Compute sync coverage per table: linked (match in master) vs local_only vs master_only

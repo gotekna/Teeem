@@ -227,6 +227,7 @@ function serializeBuilderState(opts: {
   tenderMarkupPercent?: number;
   tenderMarkupOverride?: number | null;
   markupLevel?: MarkupLevel;
+  poMarkupPercents?: Record<string, number>;
 }): Record<string, unknown> {
   return {
     itemClassifications: Object.fromEntries(opts.itemClassifications),
@@ -240,6 +241,7 @@ function serializeBuilderState(opts: {
     tenderMarkupPercent: opts.tenderMarkupPercent,
     tenderMarkupOverride: opts.tenderMarkupOverride,
     markupLevel: opts.markupLevel,
+    poMarkupPercents: opts.poMarkupPercents,
   };
 }
 
@@ -256,6 +258,7 @@ function deserializeBuilderState(state: Record<string, unknown>): {
   tenderMarkupPercent?: number;
   tenderMarkupOverride?: number | null;
   markupLevel?: MarkupLevel;
+  poMarkupPercents?: Record<string, number>;
 } | null {
   if (!state) return null;
 
@@ -284,6 +287,7 @@ function deserializeBuilderState(state: Record<string, unknown>): {
       tenderMarkupPercent: state.tenderMarkupPercent as number | undefined,
       tenderMarkupOverride: state.tenderMarkupOverride as number | null | undefined,
       markupLevel: state.markupLevel as MarkupLevel | undefined,
+      poMarkupPercents: state.poMarkupPercents as Record<string, number> | undefined,
     };
   } catch (err) {
     console.error("Failed to deserialize builder state:", err);
@@ -332,6 +336,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   const [showMarkupEditor, setShowMarkupEditor] = useState(false);
   const [defaultMarkupPercent, setDefaultMarkupPercent] = useState<number>(0); // template default for reset
   const [markupLevel, setMarkupLevel] = useState<MarkupLevel>("lump_sum");
+  // Per-PO markup overrides: poId → markup %. If not in map, uses global tenderMarkupPercent.
+  const [poMarkupPercents, setPoMarkupPercents] = useState<Record<string, number>>({});
 
   // Editing state
   const [editOverrides, setEditOverrides] = useState<Map<string, ItemOverride>>(new Map());
@@ -459,6 +465,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           if (restored.tenderMarkupPercent !== undefined) setTenderMarkupPercent(restored.tenderMarkupPercent);
           if (restored.tenderMarkupOverride !== undefined) setTenderMarkupOverride(restored.tenderMarkupOverride);
           if (restored.markupLevel) setMarkupLevel(restored.markupLevel);
+          if (restored.poMarkupPercents) setPoMarkupPercents(restored.poMarkupPercents);
           // Prevent auto-exclude-qty-0 from overriding restored state
           setAutoDefaultApplied(true);
           toast.success(`Restored builder state from Version ${response.data.version}`);
@@ -1219,6 +1226,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         tenderMarkupPercent,
         tenderMarkupOverride,
         markupLevel,
+        poMarkupPercents,
       });
       const response = await api.post<{
         success: boolean;
@@ -1260,7 +1268,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setSavingBuilder(false);
     }
-  }, [jobId, itemClassifications, poClassifications, editOverrides, newLines, sectionNotes, ccSubtotalEnabled, groupByCostCentre, excludedIds, tenderMarkupPercent, tenderMarkupOverride, markupLevel]);
+  }, [jobId, itemClassifications, poClassifications, editOverrides, newLines, sectionNotes, ccSubtotalEnabled, groupByCostCentre, excludedIds, tenderMarkupPercent, tenderMarkupOverride, markupLevel, poMarkupPercents]);
 
   const handleCreateTender = useCallback(async () => {
     try {
@@ -1334,6 +1342,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         tenderMarkupPercent,
         tenderMarkupOverride,
         markupLevel,
+        poMarkupPercents,
       });
 
       // Build section_document_types: { sectionName: ["Plans", "Engineering"] }
@@ -1377,7 +1386,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setCreatingTender(false);
     }
-  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre, tenderTree, excludedDocTypes, getClassification, unifiedRows, tenderMarkupPercent, tenderMarkupOverride, markupLevel]);
+  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre, tenderTree, excludedDocTypes, getClassification, unifiedRows, tenderMarkupPercent, tenderMarkupOverride, markupLevel, poMarkupPercents]);
 
   // ─── Render states ──────────────────────────────────────────────
 
@@ -2601,19 +2610,21 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                   );
                                 })()}
 
-                                {/* Tender Markup line per PO — always visible, editable */}
+                                {/* Tender Markup line per PO — always visible, editable independently */}
                                 {!isPOCollapsed && pg.footer && (() => {
+                                  const poId = String(pg.poRow.poId);
+                                  const thisMarkup = poMarkupPercents[poId] ?? tenderMarkupPercent;
                                   const poCost = includedItems.reduce((sum, r) => {
                                     const c = getClassification(r.key, r.poId, r.sectionName);
                                     if (c === "pc" || c === "ps" || c === "excluded") return sum;
                                     return sum + r.amount;
                                   }, 0);
                                   if (poCost <= 0) return null;
-                                  const poSell = tenderMarkupPercent > 0
+                                  const poSell = thisMarkup > 0
                                     ? includedItems.reduce((sum, r) => {
                                         const c = getClassification(r.key, r.poId, r.sectionName);
                                         if (c === "pc" || c === "ps" || c === "excluded") return sum;
-                                        return sum + applySmartRoundup(r.unitPrice * (1 + tenderMarkupPercent / 100)) * r.quantity;
+                                        return sum + applySmartRoundup(r.unitPrice * (1 + thisMarkup / 100)) * r.quantity;
                                       }, 0)
                                     : poCost;
                                   const poMarkup = poSell - poCost;
@@ -2625,29 +2636,55 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                             Tender Markup
                                           </span>
                                           <input
+                                            key={`pct-${poId}-${thisMarkup}`}
                                             type="number"
                                             min={0}
                                             max={100}
                                             step={0.5}
-                                            value={tenderMarkupPercent}
-                                            onChange={(e) => {
-                                              setTenderMarkupPercent(parseFloat(e.target.value) || 0);
-                                              setTenderMarkupOverride(null);
+                                            defaultValue={thisMarkup || ""}
+                                            placeholder="0"
+                                            onFocus={(e) => e.target.select()}
+                                            onBlur={(e) => {
+                                              const val = parseFloat(e.target.value) || 0;
+                                              setPoMarkupPercents(prev => ({ ...prev, [poId]: val }));
                                             }}
+                                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                                             className="w-12 h-5 text-[11px] text-center tabular-nums border border-emerald-300 dark:border-emerald-700 rounded bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
                                           />
                                           <span className="text-[11px] text-emerald-600 dark:text-emerald-500">%</span>
+                                          <span className="text-[11px] text-emerald-600/50 dark:text-emerald-500/50 mx-1">or $</span>
+                                          <input
+                                            key={`amt-${poId}-${Math.round(poMarkup)}`}
+                                            type="number"
+                                            min={0}
+                                            step={100}
+                                            defaultValue={poMarkup > 0 ? Math.round(poMarkup) : ""}
+                                            placeholder="—"
+                                            onFocus={(e) => e.target.select()}
+                                            onBlur={(e) => {
+                                              const fixedAmount = parseFloat(e.target.value) || 0;
+                                              if (poCost > 0 && fixedAmount > 0) {
+                                                const targetSell = poCost + fixedAmount;
+                                                const pct = Math.round(((targetSell / poCost) - 1) * 1000) / 10;
+                                                setPoMarkupPercents(prev => ({ ...prev, [poId]: pct }));
+                                              } else {
+                                                setPoMarkupPercents(prev => ({ ...prev, [poId]: 0 }));
+                                              }
+                                            }}
+                                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                                            className="w-16 h-5 text-[11px] text-center tabular-nums border border-emerald-300 dark:border-emerald-700 rounded bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                          />
                                         </div>
-                                        <div className="flex-1 flex items-center justify-end gap-4 pr-2">
-                                          <span className="text-sm font-mono font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-                                            {poMarkup > 0 ? `+${formatCurrency(poMarkup)}` : formatCurrency(0)}
-                                          </span>
+                                        <div className="flex-1 flex items-center justify-end gap-3 pr-2">
                                           {poMarkup > 0 && (
                                             <>
-                                              <span className="text-xs text-emerald-600/70 dark:text-emerald-500/70 tabular-nums">
+                                              <span className="text-xs font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
+                                                +{formatCurrency(poMarkup)}
+                                              </span>
+                                              <span className="text-[10px] text-emerald-600/70 dark:text-emerald-500/70 tabular-nums">
                                                 GST {formatCurrency(poMarkup * 0.1)}
                                               </span>
-                                              <span className="text-sm font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                                              <span className="text-xs font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                                                 {formatCurrency(poSell * 1.1)}
                                               </span>
                                             </>

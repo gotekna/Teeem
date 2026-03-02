@@ -2,11 +2,12 @@
 
 # ConfigAutoSyncJob - Nightly auto-sync for tables set to "two_way" mode
 #
-# Iterates all non-master tenants, checks their config_sync_table_modes,
-# and automatically syncs tables set to "two_way" from the master tenant.
+# True two-way sync:
+#   1. Pull: master → tenant (new/updated records flow down)
+#   2. Push: tenant → master (tenant-only records flow up to TEEEM)
 #
-# This ensures tenants with two-way sync stay up to date with TEEEM master
-# without manual intervention.
+# This ensures tenants with two-way sync stay in lockstep with TEEEM master
+# in both directions — no local-only records remain unsynced.
 #
 # Run via solid_queue recurring schedule (3am Brisbane time daily)
 class ConfigAutoSyncJob < ApplicationJob
@@ -24,7 +25,7 @@ class ConfigAutoSyncJob < ApplicationJob
     tenants = Tenant.where(is_master_tenant: false).to_a
     Rails.logger.info "[ConfigAutoSync] Starting nightly auto-sync for #{tenants.length} tenants"
 
-    total_results = { tenants_synced: 0, tables_synced: 0, imported: 0, updated: 0, skipped: 0, errors: [] }
+    total_results = { tenants_synced: 0, tables_synced: 0, pulled: 0, pushed: 0, skipped: 0, errors: [] }
 
     tenants.each do |tenant|
       begin
@@ -38,8 +39,8 @@ class ConfigAutoSyncJob < ApplicationJob
     Rails.logger.info "[ConfigAutoSync] Complete. " \
       "Tenants: #{total_results[:tenants_synced]}, " \
       "Tables: #{total_results[:tables_synced]}, " \
-      "Imported: #{total_results[:imported]}, " \
-      "Updated: #{total_results[:updated]}, " \
+      "Pulled (master→tenant): #{total_results[:pulled]}, " \
+      "Pushed (tenant→master): #{total_results[:pushed]}, " \
       "Skipped: #{total_results[:skipped]}, " \
       "Errors: #{total_results[:errors].length}"
 
@@ -56,7 +57,8 @@ class ConfigAutoSyncJob < ApplicationJob
 
     Rails.logger.info "[ConfigAutoSync] Tenant #{tenant.name}: #{two_way_tables.length} two-way tables (#{two_way_tables.join(', ')})"
 
-    service = TenantConfigSyncService.new(tenant)
+    tenant_service = TenantConfigSyncService.new(tenant)
+    master_service = TenantConfigSyncService.new(master)
     tenant_synced = false
 
     # Sync tables in dependency order (parents before children)
@@ -69,9 +71,12 @@ class ConfigAutoSyncJob < ApplicationJob
         next unless config
 
         model = config[:model].constantize
+        pulled = 0
+        pushed = 0
+        skipped = 0
 
-        # Get all master record IDs for this table (scoped by config[:scope] if present)
-        all_ids = ActsAsTenant.with_tenant(master) do
+        # ── Direction 1: Pull master → tenant ──
+        master_ids = ActsAsTenant.with_tenant(master) do
           if config[:scope]
             model.instance_exec(&config[:scope]).pluck(:id)
           else
@@ -79,31 +84,60 @@ class ConfigAutoSyncJob < ApplicationJob
           end
         end
 
-        next if all_ids.empty?
+        if master_ids.any?
+          result = tenant_service.pull_from_master(
+            table: table_key.to_s,
+            record_ids: master_ids,
+            mode: :replace_existing
+          )
+          pulled = (result[:imported]&.length || 0) + (result[:updated]&.length || 0)
+          skipped += result[:skipped]&.length || 0
+        end
 
-        # pull_from_master handles tenant scoping internally via @tenant
-        result = service.pull_from_master(
-          table: table_key.to_s,
-          record_ids: all_ids,
-          mode: :replace_existing
-        )
+        # ── Direction 2: Push tenant → master (local-only records) ──
+        # Find tenant records that don't exist in master (by sync_key match)
+        if model.column_names.include?("sync_key")
+          master_sync_keys = ActsAsTenant.with_tenant(master) do
+            model.where.not(sync_key: [nil, ""]).pluck(:sync_key).to_set
+          end
 
-        imported = result[:imported]&.length || 0
-        updated = result[:updated]&.length || 0
-        skipped = result[:skipped]&.length || 0
+          tenant_only_ids = ActsAsTenant.with_tenant(tenant) do
+            if config[:scope]
+              model.instance_exec(&config[:scope])
+            else
+              model.all
+            end.where.not(sync_key: [nil, ""]).select { |r|
+              !master_sync_keys.include?(r.sync_key)
+            }.map(&:id)
+          end
+
+          if tenant_only_ids.any?
+            push_result = master_service.import_from_tenant(
+              source_tenant: tenant,
+              table: table_key.to_s,
+              record_ids: tenant_only_ids
+            )
+            pushed = push_result[:imported]&.length || 0
+            skipped += push_result[:skipped]&.length || 0
+
+            if pushed > 0
+              Rails.logger.info "[ConfigAutoSync] #{tenant.name}/#{table_key}: pushed #{pushed} records → TEEEM"
+            end
+          end
+        end
 
         total_results[:tables_synced] += 1
-        total_results[:imported] += imported
-        total_results[:updated] += updated
+        total_results[:pulled] += pulled
+        total_results[:pushed] += pushed
         total_results[:skipped] += skipped
         tenant_synced = true
 
-        if imported > 0 || updated > 0
-          Rails.logger.info "[ConfigAutoSync] #{tenant.name}/#{table_key}: imported=#{imported}, updated=#{updated}, skipped=#{skipped}"
+        if pulled > 0 || pushed > 0
+          Rails.logger.info "[ConfigAutoSync] #{tenant.name}/#{table_key}: pulled=#{pulled}, pushed=#{pushed}, skipped=#{skipped}"
         end
 
         # Record per-table sync timestamp
-        record_table_sync(tenant, table_key, imported: imported, updated: updated, skipped: skipped)
+        record_table_sync(tenant, table_key, pulled: pulled, pushed: pushed, skipped: skipped)
       rescue => e
         Rails.logger.error "[ConfigAutoSync] #{tenant.name}/#{table_key}: #{e.message}"
         total_results[:errors] << "#{tenant.name}/#{table_key}: #{e.message}"
@@ -158,15 +192,15 @@ class ConfigAutoSyncJob < ApplicationJob
     ordered
   end
 
-  def record_table_sync(tenant, table_key, imported:, updated:, skipped:)
+  def record_table_sync(tenant, table_key, pulled:, pushed:, skipped:)
     return unless tenant.tenant_setting
 
     timestamps = (tenant.tenant_setting.config_sync_table_timestamps || {}).dup
     timestamps[table_key.to_s] = {
       "synced_at" => Time.current.iso8601,
       "synced_by" => "auto-sync",
-      "imported" => imported,
-      "updated" => updated,
+      "pulled" => pulled,
+      "pushed" => pushed,
       "skipped" => skipped
     }
     tenant.tenant_setting.update_columns(config_sync_table_timestamps: timestamps)
