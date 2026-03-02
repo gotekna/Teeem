@@ -1,5 +1,7 @@
 class ClaimStageTemplateLine < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:name, :claim_stage_template_name]
 
   # Associations
   belongs_to :claim_stage_template
@@ -13,4 +15,9 @@ class ClaimStageTemplateLine < ApplicationRecord
 
   # Scopes
   scope :ordered, -> { order(:sequence_order) }
+
+  # For sync_key generation: composite key from line name + parent template name
+  def claim_stage_template_name
+    claim_stage_template&.name || "unknown"
+  end
 end
