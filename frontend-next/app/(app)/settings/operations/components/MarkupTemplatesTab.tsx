@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ComboboxMultiSelect } from "@/components/ui/combobox-multi-select";
-import { ChevronDown, ChevronRight, Download, Save } from "lucide-react";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { ChevronDown, ChevronRight, Download, Save, Link2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 
@@ -103,16 +104,19 @@ export function MarkupTemplatesTab() {
   const [editState, setEditState] = React.useState<Record<number, Partial<TemplateMarkup>>>({});
   const [savingId, setSavingId] = React.useState<number | null>(null);
   const [globalDefaults, setGlobalDefaults] = React.useState<Record<string, number> | null>(null);
+  const [claimTemplates, setClaimTemplates] = React.useState<ClaimTemplate[]>([]);
 
   React.useEffect(() => {
     (async () => {
       try {
-        const [templatesRes, settingsRes] = await Promise.all([
+        const [templatesRes, settingsRes, claimRes] = await Promise.all([
           api.get<{ sm_schedule_master_templates: TemplateMarkup[] }>("/api/v1/sm_schedule_master_templates"),
           api.get<{ settings: Record<string, number> }>("/api/v1/sm_settings"),
+          api.get<{ success: boolean; data: ClaimTemplate[] }>("/api/v1/claim_stage_templates"),
         ]);
         setTemplates(templatesRes?.sm_schedule_master_templates || []);
         if (settingsRes?.settings) setGlobalDefaults(settingsRes.settings);
+        setClaimTemplates(claimRes?.data || []);
       } catch {
         toast({ title: "Failed to load templates", variant: "destructive" });
       } finally {
@@ -180,6 +184,7 @@ export function MarkupTemplatesTab() {
           defaultMaintenanceFeePercent: tmpl.defaultMaintenanceFeePercent,
           defaultTenderMarkupPercent: tmpl.defaultTenderMarkupPercent,
           chargePoAllocations: tmpl.chargePoAllocations || {},
+          claimStageTemplateId: tmpl.claimStageTemplateId,
         },
       }));
     }
@@ -247,6 +252,7 @@ export function MarkupTemplatesTab() {
           default_maintenance_fee_percent: edits.defaultMaintenanceFeePercent,
           default_tender_markup_percent: edits.defaultTenderMarkupPercent,
           charge_po_allocations: edits.chargePoAllocations || {},
+          claim_stage_template_id: edits.claimStageTemplateId || null,
         },
       });
       toast({ title: "Template markup saved" });
@@ -289,6 +295,20 @@ export function MarkupTemplatesTab() {
             const tasks = poTasksMap[tmpl.id] || [];
             const allocs = (edits.chargePoAllocations || {}) as Record<string, Record<string, number>>;
 
+            // Build claim-derived PO name → percentage map when a claim template is linked
+            const linkedClaimTemplate = edits.claimStageTemplateId
+              ? claimTemplates.find(ct => ct.id === edits.claimStageTemplateId)
+              : null;
+            // Map: task name → { stageName, percentage } from claim template lines
+            const claimPoMap: Record<string, { stageName: string; percentage: number }> = {};
+            if (linkedClaimTemplate) {
+              for (const line of linkedClaimTemplate.lines) {
+                if (line.overheadPoName) {
+                  claimPoMap[line.overheadPoName] = { stageName: line.name, percentage: line.percentage };
+                }
+              }
+            }
+
             return (
               <Card key={tmpl.id}>
                 <button
@@ -307,12 +327,31 @@ export function MarkupTemplatesTab() {
 
                 {isExpanded && (
                   <CardContent className="pt-0 pb-4 px-4 space-y-4">
-                    {/* Import button */}
-                    <div className="flex justify-end">
+                    {/* Import button + Claim template link */}
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <Label className="text-xs shrink-0">Claim Template</Label>
+                        <div className="w-64">
+                          <ComboboxDropdown
+                            items={claimTemplates.map(ct => ({ id: ct.id.toString(), label: ct.name }))}
+                            selectedItem={
+                              edits.claimStageTemplateId
+                                ? { id: edits.claimStageTemplateId.toString(), label: claimTemplates.find(ct => ct.id === edits.claimStageTemplateId)?.name || "" }
+                                : undefined
+                            }
+                            onSelect={(item) => updateField(tmpl.id, "claimStageTemplateId", parseInt(item.id, 10))}
+                            onClear={() => updateField(tmpl.id, "claimStageTemplateId", null)}
+                            clearable
+                            placeholder="Link claim template..."
+                            searchPlaceholder="Search claim templates..."
+                          />
+                        </div>
+                      </div>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 text-xs"
+                        className="h-7 text-xs shrink-0"
                         onClick={() => importGlobalDefaults(tmpl.id)}
                         disabled={!globalDefaults}
                       >
@@ -371,21 +410,31 @@ export function MarkupTemplatesTab() {
                                 <span className="text-xs text-muted-foreground">Split:</span>
                                 {smIds.map(smId => {
                                   const task = tasks.find(t => t.id === smId);
-                                  const pct = rateAllocs[smId.toString()] ?? Math.round(100 / smIds.length);
+                                  const taskName = task?.name || `#${smId}`;
+                                  const claimMatch = claimPoMap[taskName];
+                                  const pct = claimMatch
+                                    ? claimMatch.percentage
+                                    : (rateAllocs[smId.toString()] ?? Math.round(100 / smIds.length));
                                   return (
                                     <div key={smId} className="flex items-center gap-1">
-                                      <span className="text-xs truncate max-w-[120px]">{task?.name || `#${smId}`}</span>
-                                      <Input
-                                        type="number"
-                                        min={0}
-                                        max={100}
-                                        step={1}
-                                        value={pct}
-                                        onChange={e => updateAllocation(tmpl.id, rate.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
-                                        onFocus={e => e.target.select()}
-                                        className="h-6 text-xs w-14 px-1"
-                                      />
-                                      <span className="text-xs text-muted-foreground">%</span>
+                                      <span className="text-xs truncate max-w-[120px]">{taskName}</span>
+                                      {claimMatch ? (
+                                        <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded" title={`From claim stage: ${claimMatch.stageName}`}>
+                                          {claimMatch.percentage}%
+                                        </span>
+                                      ) : (
+                                        <Input
+                                          type="number"
+                                          min={0}
+                                          max={100}
+                                          step={1}
+                                          value={pct}
+                                          onChange={e => updateAllocation(tmpl.id, rate.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
+                                          onFocus={e => e.target.select()}
+                                          className="h-6 text-xs w-14 px-1"
+                                        />
+                                      )}
+                                      {!claimMatch && <span className="text-xs text-muted-foreground">%</span>}
                                     </div>
                                   );
                                 })}
@@ -450,21 +499,31 @@ export function MarkupTemplatesTab() {
                                 <span className="text-xs text-muted-foreground">Split:</span>
                                 {smIds.map(smId => {
                                   const task = tasks.find(t => t.id === smId);
-                                  const pct = chargeAllocs[smId.toString()] ?? Math.round(100 / smIds.length);
+                                  const taskName = task?.name || `#${smId}`;
+                                  const claimMatch = claimPoMap[taskName];
+                                  const pct = claimMatch
+                                    ? claimMatch.percentage
+                                    : (chargeAllocs[smId.toString()] ?? Math.round(100 / smIds.length));
                                   return (
                                     <div key={smId} className="flex items-center gap-1">
-                                      <span className="text-xs truncate max-w-[120px]">{task?.name || `#${smId}`}</span>
-                                      <Input
-                                        type="number"
-                                        min={0}
-                                        max={100}
-                                        step={1}
-                                        value={pct}
-                                        onChange={e => updateAllocation(tmpl.id, charge.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
-                                        onFocus={e => e.target.select()}
-                                        className="h-6 text-xs w-14 px-1"
-                                      />
-                                      <span className="text-xs text-muted-foreground">%</span>
+                                      <span className="text-xs truncate max-w-[120px]">{taskName}</span>
+                                      {claimMatch ? (
+                                        <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded" title={`From claim stage: ${claimMatch.stageName}`}>
+                                          {claimMatch.percentage}%
+                                        </span>
+                                      ) : (
+                                        <Input
+                                          type="number"
+                                          min={0}
+                                          max={100}
+                                          step={1}
+                                          value={pct}
+                                          onChange={e => updateAllocation(tmpl.id, charge.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
+                                          onFocus={e => e.target.select()}
+                                          className="h-6 text-xs w-14 px-1"
+                                        />
+                                      )}
+                                      {!claimMatch && <span className="text-xs text-muted-foreground">%</span>}
                                     </div>
                                   );
                                 })}

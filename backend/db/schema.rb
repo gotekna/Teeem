@@ -1364,6 +1364,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "match_keywords"
+    t.string "overhead_po_name", limit: 100
     t.index ["claim_stage_template_id", "name"], name: "idx_cstl_template_name", unique: true
     t.index ["claim_stage_template_id", "sequence_order"], name: "idx_cstl_template_sequence"
     t.index ["tenant_id"], name: "index_claim_stage_template_lines_on_tenant_id"
@@ -8995,7 +8996,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "charge_pc_ps_cap_sm_ids", default: []
     t.decimal "default_tender_markup_percent", precision: 5, scale: 2
     t.jsonb "charge_tender_markup_sm_ids", default: []
+    t.bigint "claim_stage_template_id"
     t.index ["canonical_record_id"], name: "idx_sm_schedule_master_templates_canonical_record_id"
+    t.index ["claim_stage_template_id"], name: "idx_sm_templates_claim_stage_template"
     t.index ["copied_from_id"], name: "idx_sm_templates_copied_from"
     t.index ["created_by_id"], name: "index_sm_schedule_master_templates_on_created_by_id"
     t.index ["is_active"], name: "index_sm_schedule_master_templates_on_is_active"
@@ -12695,6 +12698,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_schedule_master_document_types", "tenants", on_delete: :cascade
   add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters"
   add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters", column: "related_sm_schedule_master_id"
+  add_foreign_key "sm_schedule_master_templates", "claim_stage_templates"
   add_foreign_key "sm_schedule_master_templates", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_schedule_master_templates", "sm_schedule_master_templates", column: "copied_from_id"
   add_foreign_key "sm_schedule_master_templates", "tenants"
