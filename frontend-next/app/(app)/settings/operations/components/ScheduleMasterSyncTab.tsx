@@ -248,50 +248,19 @@ export function ScheduleMasterSyncTab() {
     const nextMode = SYNC_MODES[(currentIndex + 1) % SYNC_MODES.length];
     // Optimistic update - header mode
     setTableModes((prev) => ({ ...prev, [tableKey]: nextMode }));
-    // Optimistic update - cascade children synced status
-    const prevCoverage = syncCoverage;
-    setSyncCoverage((prev) => {
-      const entry = prev[tableKey];
-      if (!entry || typeof entry !== "object") return prev;
-      const cov = entry as CoverageEntry;
-      if (cov.records) {
-        const synced = nextMode !== "independent";
-        const updatedRecords = cov.records.map((r) => ({ ...r, synced }));
-        return {
-          ...prev,
-          [tableKey]: {
-            ...cov,
-            linked: synced ? updatedRecords.length : 0,
-            local_only: synced ? 0 : updatedRecords.length,
-            records: updatedRecords,
-          },
-        };
-      }
-      if (cov.templates) {
-        const synced = nextMode !== "independent";
-        const updatedTemplates = cov.templates.map((t) => ({ ...t, synced }));
-        return {
-          ...prev,
-          [tableKey]: {
-            ...cov,
-            linked: synced ? updatedTemplates.reduce((s, t) => s + t.tasks, 0) : 0,
-            local_only: synced ? 0 : updatedTemplates.reduce((s, t) => s + t.tasks, 0),
-            templates: updatedTemplates,
-          },
-        };
-      }
-      return prev;
-    });
     try {
       await api.put("/api/v1/config_sync/update_table_mode", { table: tableKey, mode: nextMode, cascade: true });
-      // Refresh coverage from server to get accurate child sync states
-      const res = await api.get<{ success: boolean; sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>> }>("/api/v1/config_sync/tables");
-      if (res?.sync_coverage) setSyncCoverage(res.sync_coverage);
+      // Mode saved - refresh coverage from server to get accurate child sync states
+      try {
+        const res = await api.get<{ success: boolean; sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>> }>("/api/v1/config_sync/tables");
+        if (res?.sync_coverage) setSyncCoverage(res.sync_coverage);
+      } catch {
+        // Coverage refresh failed but mode is saved - don't revert
+      }
     } catch (err) {
       console.error("[SMSync] Failed to update table mode:", err);
-      // Revert on failure
+      // Only revert mode if the PUT itself failed
       setTableModes((prev) => ({ ...prev, [tableKey]: currentMode }));
-      setSyncCoverage(prevCoverage);
     }
   };
 

@@ -8980,10 +8980,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.decimal "default_construction_insurance_percent", precision: 5, scale: 2
     t.decimal "default_overheads_percent", precision: 5, scale: 2
     t.decimal "default_qleave_rate_percent", precision: 6, scale: 4
-    t.jsonb "charge_construction_insurance_sm_ids", default: []
-    t.jsonb "charge_qleave_sm_ids", default: []
-    t.jsonb "charge_overheads_sm_ids", default: []
-    t.jsonb "charge_qbcc_insurance_sm_ids", default: []
     t.jsonb "charge_builds_contingency_sm_ids", default: []
     t.jsonb "charge_project_prelims_sm_ids", default: []
     t.jsonb "charge_project_management_sm_ids", default: []
@@ -8998,6 +8994,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "charge_pc_ps_cap_sm_ids", default: []
     t.decimal "default_tender_markup_percent", precision: 5, scale: 2
     t.jsonb "charge_tender_markup_sm_ids", default: []
+    t.jsonb "charge_construction_insurance_sm_ids", default: []
+    t.jsonb "charge_qleave_sm_ids", default: []
+    t.jsonb "charge_overheads_sm_ids", default: []
+    t.jsonb "charge_qbcc_insurance_sm_ids", default: []
     t.bigint "claim_stage_template_id"
     t.index ["canonical_record_id"], name: "idx_sm_schedule_master_templates_canonical_record_id"
     t.index ["claim_stage_template_id"], name: "idx_sm_templates_claim_stage_template"

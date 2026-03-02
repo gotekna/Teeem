@@ -837,29 +837,35 @@ module Api
 
         # Cascade sync_key changes to all records when mode changes
         cascaded = 0
+        cascade_error = nil
         if params[:cascade].present?
-          config = TenantConfigSyncService::CONFIG_TABLES[table_key.to_sym]
-          if config
-            model = config[:model].constantize
-            if model.column_names.include?("sync_key")
-              if mode == "independent"
-                # Clear all sync_keys → records become independent
-                cascaded = model.where.not(sync_key: nil).update_all(sync_key: nil)
-              else
-                # Regenerate sync_keys for records missing them
-                model.where(sync_key: nil).find_each do |record|
-                  record.generate_sync_key
-                  if record.sync_key_changed?
-                    record.save!
-                    cascaded += 1
+          begin
+            config = TenantConfigSyncService::CONFIG_TABLES[table_key.to_sym]
+            if config
+              model = config[:model].constantize
+              if model.column_names.include?("sync_key")
+                if mode == "independent"
+                  # Clear all sync_keys → records become independent
+                  cascaded = model.where.not(sync_key: nil).update_all(sync_key: nil)
+                else
+                  # Regenerate sync_keys for records missing them
+                  model.where(sync_key: nil).find_each do |record|
+                    record.generate_sync_key
+                    if record.sync_key_changed?
+                      record.save!
+                      cascaded += 1
+                    end
                   end
                 end
               end
             end
+          rescue => e
+            Rails.logger.warn "[ConfigSync] Cascade error for #{table_key}: #{e.message}"
+            cascade_error = e.message
           end
         end
 
-        render json: { success: true, modes: modes, cascaded: cascaded }
+        render json: { success: true, modes: modes, cascaded: cascaded, cascade_error: cascade_error }
       end
 
       private
