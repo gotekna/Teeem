@@ -254,7 +254,12 @@ module Api
           :notify_on_rollover,
           :default_builder_margin_percent,
           :default_escalation_percent,
-          :pc_ps_markup_cap_percent
+          :pc_ps_markup_cap_percent,
+          :default_construction_insurance_percent,
+          :default_overheads_percent,
+          :default_qleave_rate_percent,
+          :qleave_threshold,
+          :qbcc_minimum_threshold
         )
 
         # Handle gantt_column_config as arbitrary JSON (array of column configs)
@@ -288,6 +293,12 @@ module Api
           defaultBuilderMarginPercent: settings.default_builder_margin_percent&.to_f || 0,
           defaultEscalationPercent: settings.default_escalation_percent&.to_f || 0,
           pcPsMarkupCapPercent: settings.pc_ps_markup_cap_percent&.to_f || 25.0,
+          # Charge defaults
+          defaultConstructionInsurancePercent: settings.default_construction_insurance_percent&.to_f || 0,
+          defaultOverheadsPercent: settings.default_overheads_percent&.to_f || 0,
+          defaultQleaveRatePercent: settings.default_qleave_rate_percent&.to_f || 0.575,
+          qleaveThreshold: settings.qleave_threshold&.to_f || 150_000,
+          qbccMinimumThreshold: settings.qbcc_minimum_threshold&.to_f || 3_300,
           # Computed values
           current_time: settings.current_time,
           today: settings.today,

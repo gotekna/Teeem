@@ -180,33 +180,82 @@ module Api
 
       # GET /api/v1/sm_schedule_master/template_links/:id
       # Returns which PO Template Packs and Custom Quote Templates reference this SM task
+      # Use ?detail=true to get full template content (items, line items, tree structure)
       def template_links
         sm = SmScheduleMaster.find(params[:id])
 
-        po_items = PoTemplateItem.includes(:po_template_pack)
+        po_items = PoTemplateItem.includes(:po_template_pack, :supplier, :po_template_line_items, :profit_centre)
                                   .where(sm_schedule_master_id: sm.id)
-        cq_lines = CustomQuoteTemplateLine.includes(:custom_quote_template)
+        cq_lines = CustomQuoteTemplateLine.includes(custom_quote_template: { root_lines: :children })
                                            .where(sm_schedule_master_id: sm.id)
+
+        include_detail = params[:detail] == "true"
+
+        po_packs_data = po_items.group_by(&:po_template_pack_id).map { |pack_id, items|
+          pack = items.first.po_template_pack
+          next unless pack
+
+          pack_data = {
+            id: pack_id,
+            pack_name: pack.name,
+            description: pack.description,
+            item_count: pack.po_template_items.size,
+            estimated_total: pack.estimated_total&.to_f
+          }
+
+          if include_detail
+            # Include ALL items in this pack (not just the one linked to this SM task)
+            all_items = pack.po_template_items.includes(:supplier, :profit_centre, :po_template_line_items, :sm_schedule_master)
+                            .sort_by { |i| i.sm_schedule_master&.sequence_order || Float::INFINITY }
+            pack_data[:items] = all_items.map { |item|
+              item_data = {
+                id: item.id,
+                name: item.effective_name,
+                sm_schedule_master_id: item.sm_schedule_master_id,
+                is_current_task: item.sm_schedule_master_id == sm.id,
+                supplier_name: item.supplier&.display_name,
+                profit_centre_name: item.profit_centre&.code,
+                budget: item.effective_budget&.to_f,
+                notes: item.effective_notes,
+                status_on_create: item.status_on_create,
+                line_item_total: item.line_item_total&.to_f,
+                line_items: item.po_template_line_items.map { |li|
+                  {
+                    id: li.id,
+                    description: li.description,
+                    quantity: li.quantity&.to_f,
+                    unit_price: li.unit_price&.to_f,
+                    pricebook_item_code: li.pricebook_item_code
+                  }
+                }
+              }
+              item_data
+            }
+          end
+
+          pack_data
+        }.compact
+
+        cq_templates_data = cq_lines.map(&:custom_quote_template).compact.uniq.map { |template|
+          tmpl_data = {
+            id: template.id,
+            template_name: template.name,
+            description: template.description,
+            line_count: template.line_count
+          }
+
+          if include_detail
+            tmpl_data[:tree] = template.as_tree
+          end
+
+          tmpl_data
+        }
 
         render json: {
           success: true,
           data: {
-            po_template_packs: po_items.map { |item|
-              {
-                id: item.po_template_pack_id,
-                pack_name: item.po_template_pack&.name,
-                item_name: item.name,
-                item_id: item.id
-              }
-            }.uniq { |h| h[:id] },
-            custom_quote_templates: cq_lines.map { |line|
-              {
-                id: line.custom_quote_template_id,
-                template_name: line.custom_quote_template&.name,
-                line_name: line.name,
-                line_id: line.id
-              }
-            }.uniq { |h| h[:id] }
+            po_template_packs: po_packs_data,
+            custom_quote_templates: cq_templates_data
           }
         }
       end

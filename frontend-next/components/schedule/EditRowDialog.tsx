@@ -12,7 +12,8 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import MultipleSelector from "@/components/ui/multiple-selector";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, AlertCircle, FileText, Package, RefreshCw } from "lucide-react";
+import { Check, AlertCircle, FileText, Package, RefreshCw, ChevronRight, DollarSign, User, Layers } from "lucide-react";
+import { DependencyInfoPanel, getDependencyTypeLabel, DEPENDENCY_GRID_COLS } from "./DependencyInfoPanel";
 import { api } from "@/lib/api";
 import { UI_AUTOSAVE_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
@@ -257,10 +258,68 @@ export function EditRowDialog({
 
   // Template links state (lazy-loaded when Tender & Quotes tab is opened)
   const [templateLinks, setTemplateLinks] = React.useState<{
-    po_template_packs: Array<{ id: number; pack_name: string; item_name: string; item_id: number }>;
-    custom_quote_templates: Array<{ id: number; template_name: string; line_name: string; line_id: number }>;
+    po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null }>;
+    custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number }>;
   } | null>(null);
   const [templateLinksLoaded, setTemplateLinksLoaded] = React.useState(false);
+
+  // Detailed template data (lazy-loaded when Templates tab is opened)
+  interface PoPackLineItem {
+    id: number;
+    description: string;
+    quantity: number | null;
+    unit_price: number | null;
+    pricebook_item_code: string | null;
+  }
+  interface PoPackItem {
+    id: number;
+    name: string;
+    sm_schedule_master_id: number | null;
+    is_current_task: boolean;
+    supplier_name: string | null;
+    profit_centre_name: string | null;
+    budget: number | null;
+    notes: string | null;
+    status_on_create: string | null;
+    line_item_total: number | null;
+    line_items: PoPackLineItem[];
+  }
+  interface PoPackDetail {
+    id: number;
+    pack_name: string;
+    description: string | null;
+    item_count: number;
+    estimated_total: number | null;
+    items?: PoPackItem[];
+  }
+  interface CqTreeNode {
+    id: number;
+    name: string;
+    quote_level: string;
+    cost_centre_id: string | null;
+    sm_schedule_master_id: number | null;
+    tender_description: string | null;
+    po_description: string | null;
+    default_instructions: string | null;
+    default_supplier_ids: number[];
+    document_type_ids: number[];
+    budget_amount: number | null;
+    position: number;
+    children: CqTreeNode[];
+  }
+  interface CqTemplateDetail {
+    id: number;
+    template_name: string;
+    description: string | null;
+    line_count: number;
+    tree?: CqTreeNode[];
+  }
+  const [templateDetail, setTemplateDetail] = React.useState<{
+    po_template_packs: PoPackDetail[];
+    custom_quote_templates: CqTemplateDetail[];
+  } | null>(null);
+  const [templateDetailLoaded, setTemplateDetailLoaded] = React.useState(false);
+  const [loadingTemplateDetail, setLoadingTemplateDetail] = React.useState(false);
 
   // Filter document types: "Plans" folder vs everything else
   const planDocTypes = React.useMemo(
@@ -279,6 +338,8 @@ export function EditRowDialog({
       setAutoSaveStatus('idle');
       setTemplateLinksLoaded(false);
       setTemplateLinks(null);
+      setTemplateDetailLoaded(false);
+      setTemplateDetail(null);
       setEditRowForm({
         name: row.name,
         description: row.description,
@@ -406,8 +467,8 @@ export function EditRowDialog({
       const data = await api.get<{
         success: boolean;
         data: {
-          po_template_packs: Array<{ id: number; pack_name: string; item_name: string; item_id: number }>;
-          custom_quote_templates: Array<{ id: number; template_name: string; line_name: string; line_id: number }>;
+          po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null }>;
+          custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number }>;
         };
       }>(`/api/v1/sm_schedule_master/template_links/${row.id}`);
       if (data?.data) {
@@ -419,6 +480,29 @@ export function EditRowDialog({
       setTemplateLinksLoaded(true);
     }
   }, [templateLinksLoaded, row?.id]);
+
+  // Lazy-load detailed template data (full PO Pack items + Quote Template tree)
+  const loadTemplateDetail = React.useCallback(async () => {
+    if (templateDetailLoaded || loadingTemplateDetail || !row?.id) return;
+    setLoadingTemplateDetail(true);
+    try {
+      const data = await api.get<{
+        success: boolean;
+        data: {
+          po_template_packs: PoPackDetail[];
+          custom_quote_templates: CqTemplateDetail[];
+        };
+      }>(`/api/v1/sm_schedule_master/template_links/${row.id}?detail=true`);
+      if (data?.data) {
+        setTemplateDetail(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to load template details:", error);
+    } finally {
+      setTemplateDetailLoaded(true);
+      setLoadingTemplateDetail(false);
+    }
+  }, [templateDetailLoaded, loadingTemplateDetail, row?.id]);
 
   // Handle save (supports both manual and auto-save)
   const handleSaveRow = async (options?: { silent?: boolean }) => {
@@ -638,6 +722,7 @@ export function EditRowDialog({
                 <TabsTrigger value="tender-quotes">Tender & Quotes</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
                 <TabsTrigger value="relationships">Relationships</TabsTrigger>
+                <TabsTrigger value="templates">Templates</TabsTrigger>
               </TabsList>
 
               {/* ============================================================
@@ -1136,42 +1221,54 @@ export function EditRowDialog({
 
               {/* ============================================================
                   TAB 3: DEPENDENCIES - Predecessors & Successors
+                  Uses shared DependencyInfoPanel for consistency with Gantt
                  ============================================================ */}
               <TabsContent value="dependencies" className="mt-3">
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Left: Predecessors (tasks this depends on) */}
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="text-xs font-medium">Predecessors</Label>
-                      <p className="text-[10px] text-muted-foreground mb-2">Tasks that must complete before this task can start</p>
+                <div className="flex gap-4">
+                  {/* Left Sidebar - Shared Info Panel (same as Gantt) */}
+                  <DependencyInfoPanel showDragGuide={false} />
+
+                  {/* Main Content - Predecessors & Successors */}
+                  <div className="flex-1 overflow-y-auto space-y-4 min-w-0">
+                    {/* Predecessors Section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                        <h3 className="text-sm font-semibold">Predecessors</h3>
+                        <span className="text-xs text-muted-foreground">
+                          ({row?.predecessor_ids?.length || 0})
+                        </span>
+                      </div>
+
+                      {/* Header row */}
+                      <div className={`grid ${DEPENDENCY_GRID_COLS} gap-2 text-xs font-medium text-muted-foreground px-1`}>
+                        <span>Row #</span>
+                        <span>ID</span>
+                        <span>Task</span>
+                        <span>Type</span>
+                        <span>Lag</span>
+                      </div>
+
                       {row?.predecessor_ids && row.predecessor_ids.length > 0 ? (
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           {row.predecessor_ids.map((pred) => {
                             const predTask = allRows.find(r => r.task_number === pred.id || r.id === pred.id);
-                            const depType = pred.type || "FS";
-                            const lag = pred.lag || 0;
-                            const depLabel = depType === "FS" ? "Finish-to-Start"
-                              : depType === "SS" ? "Start-to-Start"
-                              : depType === "FF" ? "Finish-to-Finish"
-                              : depType === "SF" ? "Start-to-Finish"
-                              : depType;
                             return (
-                              <div key={`pred-${pred.id}`} className="flex items-center gap-2 p-2 rounded-md border bg-muted/30 dark:bg-muted/10">
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-medium truncate">
-                                    {predTask ? predTask.name : `Task #${pred.id}`}
-                                  </div>
-                                  <div className="text-[10px] text-muted-foreground flex items-center gap-2">
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
-                                      {depLabel}
-                                    </Badge>
-                                    {lag !== 0 && (
-                                      <span>{lag > 0 ? `+${lag}` : lag} day{Math.abs(lag) !== 1 ? 's' : ''} lag</span>
-                                    )}
-                                    {predTask && (
-                                      <span className="text-muted-foreground/60">#{predTask.task_number} · {predTask.duration_days}d</span>
-                                    )}
-                                  </div>
+                              <div key={`pred-${pred.id}`} className={`grid ${DEPENDENCY_GRID_COLS} gap-2 items-center`}>
+                                <div className="h-8 flex items-center justify-center text-sm rounded-md border border-input bg-background">
+                                  {predTask?.task_number || pred.id}
+                                </div>
+                                <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-background">
+                                  {predTask?.id || ""}
+                                </div>
+                                <div className="h-8 flex items-center px-2 text-sm rounded-md border border-input bg-background truncate">
+                                  {predTask ? predTask.name : `Task #${pred.id}`}
+                                </div>
+                                <div className="h-8 flex items-center px-2 text-sm rounded-md border border-input bg-background">
+                                  {getDependencyTypeLabel(pred.type || "FS")}
+                                </div>
+                                <div className="h-8 flex items-center justify-center text-sm rounded-md border border-input bg-background">
+                                  {pred.lag || 0}
                                 </div>
                               </div>
                             );
@@ -1181,13 +1278,29 @@ export function EditRowDialog({
                         <p className="text-xs text-muted-foreground italic py-2">No predecessors — this task has no dependencies</p>
                       )}
                     </div>
-                  </div>
 
-                  {/* Right: Successors (tasks that depend on this) */}
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="text-xs font-medium">Successors</Label>
-                      <p className="text-[10px] text-muted-foreground mb-2">Tasks that depend on this task completing</p>
+                    {/* Successors Section */}
+                    <div className="space-y-2 border-t pt-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-purple-500" />
+                        <h3 className="text-sm font-semibold">Successors</h3>
+                        {(() => {
+                          const successorCount = allRows.filter(r =>
+                            r.predecessor_ids?.some(p => p.id === row?.task_number || p.id === row?.id)
+                          ).length;
+                          return <span className="text-xs text-muted-foreground">({successorCount})</span>;
+                        })()}
+                      </div>
+
+                      {/* Header row */}
+                      <div className={`grid ${DEPENDENCY_GRID_COLS} gap-2 text-xs font-medium text-muted-foreground px-1`}>
+                        <span>Row #</span>
+                        <span>ID</span>
+                        <span>Task</span>
+                        <span>Type</span>
+                        <span>Lag</span>
+                      </div>
+
                       {(() => {
                         const successors = allRows.filter(r =>
                           r.predecessor_ids?.some(p => p.id === row?.task_number || p.id === row?.id)
@@ -1196,31 +1309,25 @@ export function EditRowDialog({
                           return <p className="text-xs text-muted-foreground italic py-2">No successors — no tasks depend on this one</p>;
                         }
                         return (
-                          <div className="space-y-1.5">
+                          <div className="space-y-2">
                             {successors.map((succ) => {
                               const pred = succ.predecessor_ids?.find(p => p.id === row?.task_number || p.id === row?.id);
-                              const depType = pred?.type || "FS";
-                              const lag = pred?.lag || 0;
-                              const depLabel = depType === "FS" ? "Finish-to-Start"
-                                : depType === "SS" ? "Start-to-Start"
-                                : depType === "FF" ? "Finish-to-Finish"
-                                : depType === "SF" ? "Start-to-Finish"
-                                : depType;
                               return (
-                                <div key={`succ-${succ.id}`} className="flex items-center gap-2 p-2 rounded-md border bg-muted/30 dark:bg-muted/10">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-medium truncate">
-                                      {succ.name}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground flex items-center gap-2">
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
-                                        {depLabel}
-                                      </Badge>
-                                      {lag !== 0 && (
-                                        <span>{lag > 0 ? `+${lag}` : lag} day{Math.abs(lag) !== 1 ? 's' : ''} lag</span>
-                                      )}
-                                      <span className="text-muted-foreground/60">#{succ.task_number} · {succ.duration_days}d</span>
-                                    </div>
+                                <div key={`succ-${succ.id}`} className={`grid ${DEPENDENCY_GRID_COLS} gap-2 items-center`}>
+                                  <div className="h-8 flex items-center justify-center text-sm rounded-md border border-input bg-background">
+                                    {succ.task_number}
+                                  </div>
+                                  <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-background">
+                                    {succ.id}
+                                  </div>
+                                  <div className="h-8 flex items-center px-2 text-sm rounded-md border border-input bg-background truncate">
+                                    {succ.name}
+                                  </div>
+                                  <div className="h-8 flex items-center px-2 text-sm rounded-md border border-input bg-background">
+                                    {getDependencyTypeLabel(pred?.type || "FS")}
+                                  </div>
+                                  <div className="h-8 flex items-center justify-center text-sm rounded-md border border-input bg-background">
+                                    {pred?.lag || 0}
                                   </div>
                                 </div>
                               );
@@ -2128,6 +2235,187 @@ export function EditRowDialog({
                     </div>
                   </div>
                 </div>
+              </TabsContent>
+
+              {/* ============================================================
+                  TAB 7: TEMPLATES - Linked PO Packs & Custom Quote Templates
+                 ============================================================ */}
+              <TabsContent value="templates" className="mt-3" onFocusCapture={loadTemplateDetail}>
+                {loadingTemplateDetail && (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner className="h-5 w-5 mr-2" />
+                    <span className="text-sm text-muted-foreground">Loading template details...</span>
+                  </div>
+                )}
+
+                {templateDetailLoaded && !templateDetail && (
+                  <p className="text-sm text-muted-foreground py-4">Failed to load template details.</p>
+                )}
+
+                {templateDetail && templateDetail.po_template_packs.length === 0 && templateDetail.custom_quote_templates.length === 0 && (
+                  <div className="text-center py-8">
+                    <Package className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No linked templates</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This task is not referenced by any PO Template Pack or Custom Quote Template
+                    </p>
+                  </div>
+                )}
+
+                {templateDetail && (templateDetail.po_template_packs.length > 0 || templateDetail.custom_quote_templates.length > 0) && (
+                  <div className="space-y-6">
+                    {/* PO Template Packs */}
+                    {templateDetail.po_template_packs.map(pack => (
+                      <div key={pack.id} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm font-medium">{pack.pack_name}</span>
+                          {pack.estimated_total != null && pack.estimated_total > 0 && (
+                            <Badge variant="outline" className="text-[10px] ml-auto">
+                              ${pack.estimated_total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </Badge>
+                          )}
+                        </div>
+                        {pack.description && (
+                          <p className="text-xs text-muted-foreground ml-6">{pack.description}</p>
+                        )}
+
+                        {pack.items && pack.items.length > 0 && (
+                          <div className="ml-6 space-y-1">
+                            {pack.items.map(item => (
+                              <div
+                                key={item.id}
+                                className={`rounded-md border p-2.5 text-xs ${
+                                  item.is_current_task
+                                    ? "border-primary/50 bg-primary/5 dark:bg-primary/10"
+                                    : "border-border/50 bg-muted/20 dark:bg-muted/10"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium">{item.name}</span>
+                                  {item.is_current_task && (
+                                    <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4">This Task</Badge>
+                                  )}
+                                  {item.status_on_create && (
+                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 capitalize">{item.status_on_create}</Badge>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-muted-foreground">
+                                  {item.supplier_name && (
+                                    <span className="flex items-center gap-1">
+                                      <User className="h-3 w-3" /> {item.supplier_name}
+                                    </span>
+                                  )}
+                                  {item.budget != null && item.budget > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      <DollarSign className="h-3 w-3" /> Budget: ${item.budget.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
+                                  )}
+                                  {item.profit_centre_name && (
+                                    <span>PC: {item.profit_centre_name}</span>
+                                  )}
+                                  {item.line_item_total != null && item.line_item_total > 0 && (
+                                    <span>Lines: ${item.line_item_total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                  )}
+                                </div>
+                                {item.notes && (
+                                  <p className="mt-1 text-muted-foreground/80 italic">{item.notes}</p>
+                                )}
+                                {item.line_items.length > 0 && (
+                                  <div className="mt-1.5 pl-2 border-l-2 border-border/40 space-y-0.5">
+                                    {item.line_items.map(li => (
+                                      <div key={li.id} className="flex items-center gap-2 text-[11px]">
+                                        <ChevronRight className="h-2.5 w-2.5 text-muted-foreground/50" />
+                                        <span className="flex-1 truncate">{li.description || li.pricebook_item_code || "Line item"}</span>
+                                        {li.quantity != null && li.unit_price != null && (
+                                          <span className="text-muted-foreground shrink-0">
+                                            {li.quantity} × ${li.unit_price.toFixed(2)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Custom Quote Templates */}
+                    {templateDetail.custom_quote_templates.map(tmpl => (
+                      <div key={tmpl.id} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-green-500" />
+                          <span className="text-sm font-medium">{tmpl.template_name}</span>
+                          <Badge variant="outline" className="text-[10px] ml-auto">
+                            {tmpl.line_count} line{tmpl.line_count !== 1 ? "s" : ""}
+                          </Badge>
+                        </div>
+                        {tmpl.description && (
+                          <p className="text-xs text-muted-foreground ml-6">{tmpl.description}</p>
+                        )}
+
+                        {tmpl.tree && tmpl.tree.length > 0 && (
+                          <div className="ml-6 space-y-1">
+                            {tmpl.tree.map(ccNode => (
+                              <div key={ccNode.id} className="space-y-1">
+                                {/* Cost Centre (root) node */}
+                                <div className="rounded-md border p-2 text-xs border-border/60 bg-muted/30 dark:bg-muted/15">
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <Layers className="h-3 w-3 text-muted-foreground" />
+                                    <span className="font-medium">{ccNode.name}</span>
+                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 capitalize">
+                                      {ccNode.quote_level === "cost_centre" ? "CC-level quoting" : "PO-level quoting"}
+                                    </Badge>
+                                  </div>
+                                  {ccNode.tender_description && (
+                                    <p className="text-muted-foreground/80 mt-0.5 italic text-[11px]">{ccNode.tender_description}</p>
+                                  )}
+                                </div>
+
+                                {/* PO children under this CC */}
+                                {ccNode.children.length > 0 && (
+                                  <div className="ml-4 space-y-1">
+                                    {ccNode.children.map(poNode => (
+                                      <div
+                                        key={poNode.id}
+                                        className={`rounded-md border p-2 text-xs ${
+                                          poNode.sm_schedule_master_id === row?.id
+                                            ? "border-primary/50 bg-primary/5 dark:bg-primary/10"
+                                            : "border-border/40 bg-background"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
+                                          <span className="font-medium">{poNode.name}</span>
+                                          {poNode.sm_schedule_master_id === row?.id && (
+                                            <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4">This Task</Badge>
+                                          )}
+                                        </div>
+                                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground mt-0.5 ml-5">
+                                          {poNode.budget_amount != null && poNode.budget_amount > 0 && (
+                                            <span className="flex items-center gap-1">
+                                              <DollarSign className="h-2.5 w-2.5" /> ${poNode.budget_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </span>
+                                          )}
+                                          {poNode.po_description && (
+                                            <span className="italic">{poNode.po_description}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>

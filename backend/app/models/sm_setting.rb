@@ -116,6 +116,11 @@ class SmSetting < ApplicationRecord
   validates :default_builder_margin_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :default_escalation_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :pc_ps_markup_cap_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :default_construction_insurance_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :default_overheads_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :default_qleave_rate_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :qleave_threshold, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :qbcc_minimum_threshold, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   # Available timezones (Australian focus)
   TIMEZONES = [

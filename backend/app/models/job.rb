@@ -57,6 +57,9 @@ class Job < ApplicationRecord
   has_many :sm_tasks, dependent: :destroy
   has_many :sm_rollover_logs, dependent: :destroy
 
+  # Markup charges (insurance, levies, overheads)
+  has_many :job_markup_charges, dependent: :destroy
+
   # Site Presence & Cost Intelligence
   has_many :site_presence_sessions, dependent: :destroy
   has_many :labour_cost_entries, dependent: :destroy
@@ -109,14 +112,28 @@ class Job < ApplicationRecord
             .sum(&:sell_price)
   end
 
-  # Contract price ex-GST after builder margin
+  # Contract price ex-GST after builder margin (includes charges)
   def calculated_contract_price_ex_gst
-    (markup_subtotal * (1 + (builder_margin_percent || 0) / 100.0)).round(2)
+    subtotal = markup_subtotal + markup_charges_total
+    (subtotal * (1 + (builder_margin_percent || 0) / 100.0)).round(2)
   end
 
   # Contract price inc-GST (10% GST)
   def calculated_contract_price_inc_gst
     (calculated_contract_price_ex_gst * 1.10).round(2)
+  end
+
+  # Final contract price including QBCC (computed via MarkupChargeCalculator)
+  def calculated_final_contract_inc_gst
+    result = MarkupChargeCalculator.new(self).calculate
+    result[:final_contract_inc_gst]
+  end
+
+  # Sum of non-QBCC charges (construction insurance, QLeave, overheads)
+  def markup_charges_total
+    job_markup_charges
+      .where.not(charge_type: "qbcc_insurance")
+      .sum { |c| c.effective_amount }
   end
 
   # Alias title to name for backwards compatibility

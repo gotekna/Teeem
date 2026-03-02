@@ -15,6 +15,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Save,
   RotateCcw,
   Lock,
@@ -23,6 +30,11 @@ import {
   Percent,
   ChevronDown,
   ChevronRight,
+  Star,
+  Shield,
+  HardHat,
+  Building2,
+  Calculator,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/utils/formatters";
@@ -49,14 +61,37 @@ interface MarkupItem {
   sellPrice: number;
 }
 
+interface ChargeData {
+  chargeType: string;
+  label: string;
+  ratePercent: number | null;
+  overrideAmount: number | null;
+  calculatedAmount: number;
+  effectiveAmount: number;
+  basisValue: number;
+  usingOverride: boolean;
+  purchaseOrderId: number | null;
+  purchaseOrderNumber: string | null;
+}
+
 interface MarkupSummary {
   costTotal: number;
   escalatedTotal: number;
   sellSubtotal: number;
+  chargesTotal: number;
+  subtotalWithCharges: number;
   builderMarginPercent: number;
   contractExGst: number;
+  gstAmount: number;
   contractIncGst: number;
+  qbccAmount: number;
+  finalContractIncGst: number;
   existingContractPrice: number | null;
+}
+
+interface PurchaseOrderOption {
+  id: number;
+  purchaseOrderNumber: string;
 }
 
 interface MarkupData {
@@ -67,7 +102,18 @@ interface MarkupData {
     pcPsMarkupCap: number;
   };
   items: MarkupItem[];
+  charges: ChargeData[];
   summary: MarkupSummary;
+}
+
+// Local mutable state for charges
+interface ChargeEdit {
+  chargeType: string;
+  label: string;
+  ratePercent: number | null;
+  overrideAmount: number | null;
+  purchaseOrderId: number | null;
+  purchaseOrderNumber: string | null;
 }
 
 interface JobMarkupTabProps {
@@ -85,6 +131,17 @@ function recalcItem(item: MarkupItem, cap: number): { escalatedCost: number; sel
   return { escalatedCost: Math.round(escalatedCost * 100) / 100, sellPrice: Math.round(sellPrice * 100) / 100 };
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+const CHARGE_ORDER = ["construction_insurance", "qleave", "overheads", "qbcc_insurance"] as const;
+
+const CHARGE_ICONS: Record<string, React.ReactNode> = {
+  construction_insurance: <Shield className="h-3.5 w-3.5" />,
+  qleave: <HardHat className="h-3.5 w-3.5" />,
+  overheads: <Building2 className="h-3.5 w-3.5" />,
+  qbcc_insurance: <Calculator className="h-3.5 w-3.5" />,
+};
+
 // ============================================
 // Component
 // ============================================
@@ -96,6 +153,8 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
   const [data, setData] = useState<MarkupData | null>(null);
   const [items, setItems] = useState<MarkupItem[]>([]);
   const [builderMargin, setBuilderMargin] = useState(0);
+  const [charges, setCharges] = useState<ChargeEdit[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderOption[]>([]);
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<string>>(new Set());
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -108,13 +167,35 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get<MarkupData>(`/api/v1/jobs/${jobId}/markup`);
-      if (res) {
-        setData(res);
-        setItems(res.items);
-        setBuilderMargin(res.job.builderMarginPercent);
+      const [markupRes, posRes] = await Promise.all([
+        api.get<MarkupData>(`/api/v1/jobs/${jobId}/markup`),
+        api.get<{ data: Array<{ id: number; purchase_order_number: string }> }>(`/api/v1/purchase_orders?job_id=${jobId}`),
+      ]);
+
+      if (markupRes) {
+        setData(markupRes);
+        setItems(markupRes.items);
+        setBuilderMargin(markupRes.job.builderMarginPercent);
+        setCharges(
+          markupRes.charges.map(c => ({
+            chargeType: c.chargeType,
+            label: c.label,
+            ratePercent: c.ratePercent,
+            overrideAmount: c.overrideAmount,
+            purchaseOrderId: c.purchaseOrderId,
+            purchaseOrderNumber: c.purchaseOrderNumber,
+          }))
+        );
         setHasChanges(false);
       }
+
+      // Parse PO list from API response (handles various response shapes)
+      const poList = posRes?.data ?? (Array.isArray(posRes) ? posRes : []);
+      setPurchaseOrders(
+        (poList as Array<{ id: number; purchase_order_number: string }>)
+          .filter(po => po.id && po.purchase_order_number)
+          .map(po => ({ id: po.id, purchaseOrderNumber: po.purchase_order_number }))
+      );
     } catch {
       toast({ title: "Error", description: "Failed to load pricing data", variant: "destructive" });
     } finally {
@@ -131,28 +212,57 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
   // ============================================
 
   const summary = useMemo(() => {
-    const costTotal = items.reduce((sum, it) => sum + it.cost, 0);
-    const escalatedTotal = items.reduce((sum, it) => {
-      const { escalatedCost } = recalcItem(it, pcPsMarkupCap);
-      return sum + escalatedCost;
-    }, 0);
-    const sellSubtotal = items.reduce((sum, it) => {
-      const { sellPrice } = recalcItem(it, pcPsMarkupCap);
-      return sum + sellPrice;
-    }, 0);
-    const contractExGst = Math.round(sellSubtotal * (1 + builderMargin / 100) * 100) / 100;
-    const contractIncGst = Math.round(contractExGst * 1.10 * 100) / 100;
+    const costTotal = round2(items.reduce((sum, it) => sum + it.cost, 0));
+    const escalatedTotal = round2(items.reduce((sum, it) => sum + recalcItem(it, pcPsMarkupCap).escalatedCost, 0));
+    const sellSubtotal = round2(items.reduce((sum, it) => sum + recalcItem(it, pcPsMarkupCap).sellPrice, 0));
+
+    // Calculate non-QBCC charges locally
+    let chargesTotal = 0;
+    const chargeAmounts: Record<string, number> = {};
+
+    for (const c of charges) {
+      if (c.chargeType === "qbcc_insurance") continue; // QBCC requires server-side lookup
+      const override = c.overrideAmount != null && c.overrideAmount > 0;
+      if (override) {
+        chargeAmounts[c.chargeType] = c.overrideAmount!;
+      } else {
+        const rate = c.ratePercent ?? 0;
+        const basis = c.chargeType === "qleave" ? costTotal : sellSubtotal;
+        chargeAmounts[c.chargeType] = round2(basis * rate / 100);
+      }
+      chargesTotal += chargeAmounts[c.chargeType];
+    }
+    chargesTotal = round2(chargesTotal);
+
+    const subtotalWithCharges = round2(sellSubtotal + chargesTotal);
+    const contractExGst = round2(subtotalWithCharges * (1 + builderMargin / 100));
+    const gstAmount = round2(contractExGst * 0.10);
+    const contractIncGst = round2(contractExGst + gstAmount);
+
+    // QBCC is server-calculated; use last known value from data
+    const qbccCharge = charges.find(c => c.chargeType === "qbcc_insurance");
+    const qbccOverride = qbccCharge?.overrideAmount != null && qbccCharge.overrideAmount > 0;
+    const qbccAmount = qbccOverride
+      ? qbccCharge!.overrideAmount!
+      : (data?.summary.qbccAmount ?? 0);
+    const finalContractIncGst = round2(contractIncGst + qbccAmount);
 
     return {
-      costTotal: Math.round(costTotal * 100) / 100,
-      escalatedTotal: Math.round(escalatedTotal * 100) / 100,
-      sellSubtotal: Math.round(sellSubtotal * 100) / 100,
+      costTotal,
+      escalatedTotal,
+      sellSubtotal,
+      chargesTotal,
+      chargeAmounts,
+      subtotalWithCharges,
       builderMarginPercent: builderMargin,
       contractExGst,
+      gstAmount,
       contractIncGst,
+      qbccAmount,
+      finalContractIncGst,
       existingContractPrice: data?.summary.existingContractPrice ?? null,
     };
-  }, [items, builderMargin, pcPsMarkupCap, data]);
+  }, [items, builderMargin, charges, pcPsMarkupCap, data]);
 
   // ============================================
   // Grouping by tender header
@@ -181,13 +291,17 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
     setItems(prev => prev.map(it => {
       if (it.smTaskId !== smTaskId) return it;
       const updated = { ...it, [field]: value };
-      // Enforce PC/PS cap
       if (field === "markupPercent" && updated.isPcPs) {
         updated.markupPercent = Math.min(updated.markupPercent, pcPsMarkupCap);
       }
       const calc = recalcItem(updated, pcPsMarkupCap);
       return { ...updated, ...calc };
     }));
+    setHasChanges(true);
+  };
+
+  const updateCharge = (chargeType: string, field: keyof ChargeEdit, value: unknown) => {
+    setCharges(prev => prev.map(c => c.chargeType === chargeType ? { ...c, [field]: value } : c));
     setHasChanges(true);
   };
 
@@ -205,24 +319,33 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
     });
   };
 
+  const buildSavePayload = () => {
+    const changedItems = items.filter((it, i) => {
+      const orig = data?.items[i];
+      if (!orig) return true;
+      return it.escalationPercent !== orig.escalationPercent || it.markupPercent !== orig.markupPercent;
+    });
+
+    return {
+      items: changedItems.map(it => ({
+        smTaskId: it.smTaskId,
+        escalationPercent: it.escalationPercent,
+        markupPercent: it.markupPercent,
+      })),
+      builderMarginPercent: builderMargin,
+      charges: charges.map(c => ({
+        chargeType: c.chargeType,
+        ratePercent: c.ratePercent,
+        overrideAmount: c.overrideAmount,
+        purchaseOrderId: c.purchaseOrderId,
+      })),
+    };
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      const changedItems = items.filter((it, i) => {
-        const orig = data?.items[i];
-        if (!orig) return true;
-        return it.escalationPercent !== orig.escalationPercent || it.markupPercent !== orig.markupPercent;
-      });
-
-      await api.patch(`/api/v1/jobs/${jobId}/markup`, {
-        items: changedItems.map(it => ({
-          smTaskId: it.smTaskId,
-          escalationPercent: it.escalationPercent,
-          markupPercent: it.markupPercent,
-        })),
-        builderMarginPercent: builderMargin,
-      });
-
+      await api.patch(`/api/v1/jobs/${jobId}/markup`, buildSavePayload());
       toast({ title: "Saved", description: "Pricing updated successfully" });
       fetchData();
     } catch {
@@ -235,24 +358,11 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
   const handleApplyToContract = async () => {
     setSaving(true);
     try {
-      // Save current changes first, then apply
-      const changedItems = items.filter((it, i) => {
-        const orig = data?.items[i];
-        if (!orig) return true;
-        return it.escalationPercent !== orig.escalationPercent || it.markupPercent !== orig.markupPercent;
-      });
-
       await api.patch(`/api/v1/jobs/${jobId}/markup`, {
-        items: changedItems.map(it => ({
-          smTaskId: it.smTaskId,
-          escalationPercent: it.escalationPercent,
-          markupPercent: it.markupPercent,
-        })),
-        builderMarginPercent: builderMargin,
+        ...buildSavePayload(),
         applyToContractPrice: true,
       });
-
-      toast({ title: "Applied", description: `Contract price updated to ${formatCurrency(summary.contractIncGst)}` });
+      toast({ title: "Applied", description: `Contract price updated to ${formatCurrency(summary.finalContractIncGst)}` });
       fetchData();
     } catch {
       toast({ title: "Error", description: "Failed to apply to contract price", variant: "destructive" });
@@ -265,6 +375,16 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
     if (data) {
       setItems(data.items);
       setBuilderMargin(data.job.builderMarginPercent);
+      setCharges(
+        data.charges.map(c => ({
+          chargeType: c.chargeType,
+          label: c.label,
+          ratePercent: c.ratePercent,
+          overrideAmount: c.overrideAmount,
+          purchaseOrderId: c.purchaseOrderId,
+          purchaseOrderNumber: c.purchaseOrderNumber,
+        }))
+      );
       setHasChanges(false);
     }
   };
@@ -291,24 +411,25 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
     );
   }
 
+  // Sort charges by defined order, separating QBCC (rendered after contract)
+  const nonQbccCharges = charges
+    .filter(c => c.chargeType !== "qbcc_insurance")
+    .sort((a, b) => CHARGE_ORDER.indexOf(a.chargeType as typeof CHARGE_ORDER[number]) - CHARGE_ORDER.indexOf(b.chargeType as typeof CHARGE_ORDER[number]));
+  const qbccCharge = charges.find(c => c.chargeType === "qbcc_insurance");
+
   return (
     <div className="space-y-4 p-4">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <SummaryCard
-          label="Cost Total"
-          value={formatCurrency(summary.costTotal)}
-          icon={<DollarSign className="h-4 w-4" />}
-        />
-        <SummaryCard
-          label="Escalated Total"
-          value={formatCurrency(summary.escalatedTotal)}
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <SummaryCard
           label="Sell Subtotal"
           value={formatCurrency(summary.sellSubtotal)}
           icon={<DollarSign className="h-4 w-4" />}
+        />
+        <SummaryCard
+          label="Charges"
+          value={formatCurrency(summary.chargesTotal + summary.qbccAmount)}
+          icon={<Shield className="h-4 w-4" />}
         />
         <SummaryCard
           label="Builder Margin"
@@ -316,14 +437,14 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
           icon={<Percent className="h-4 w-4" />}
         />
         <SummaryCard
-          label="Contract (inc GST)"
-          value={formatCurrency(summary.contractIncGst)}
-          icon={<DollarSign className="h-4 w-4" />}
+          label="Final Contract (inc GST)"
+          value={formatCurrency(summary.finalContractIncGst)}
+          icon={<Star className="h-4 w-4" />}
           highlight
         />
       </div>
 
-      {/* Builder Margin Control */}
+      {/* Builder Margin & Actions */}
       <Card>
         <CardContent className="pt-4 pb-4">
           <div className="flex items-center gap-4 flex-wrap">
@@ -361,9 +482,9 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
           {summary.existingContractPrice != null && summary.existingContractPrice > 0 && (
             <div className="text-xs text-muted-foreground mt-2">
               Current contract price: {formatCurrency(summary.existingContractPrice)}
-              {Math.abs(summary.contractIncGst - summary.existingContractPrice) > 0.01 && (
-                <span className={summary.contractIncGst > summary.existingContractPrice ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
-                  {" "}({summary.contractIncGst > summary.existingContractPrice ? "+" : ""}{formatCurrency(summary.contractIncGst - summary.existingContractPrice)} difference)
+              {Math.abs(summary.finalContractIncGst - summary.existingContractPrice) > 0.01 && (
+                <span className={summary.finalContractIncGst > summary.existingContractPrice ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                  {" "}({summary.finalContractIncGst > summary.existingContractPrice ? "+" : ""}{formatCurrency(summary.finalContractIncGst - summary.existingContractPrice)} difference)
                 </span>
               )}
             </div>
@@ -393,7 +514,6 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
                   const groupSell = group.items.reduce((s, it) => s + recalcItem(it, pcPsMarkupCap).sellPrice, 0);
 
                   return [
-                    // Group header row
                     <TableRow
                       key={`header-${group.header}`}
                       className="bg-muted/50 dark:bg-muted/20 cursor-pointer hover:bg-muted/70 dark:hover:bg-muted/30"
@@ -412,7 +532,6 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
                         {formatCurrency(groupSell)}
                       </TableCell>
                     </TableRow>,
-                    // Item rows
                     ...(!isCollapsed ? group.items.map(item => {
                       const calc = recalcItem(item, pcPsMarkupCap);
                       return (
@@ -462,21 +581,63 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
                   ];
                 })}
 
-                {/* Summary rows */}
+                {/* ── SELL SUBTOTAL ── */}
                 <TableRow className="border-t-2 border-border">
-                  <TableCell colSpan={6} className="font-semibold text-sm">SUBTOTAL</TableCell>
+                  <TableCell colSpan={6} className="font-semibold text-sm">SELL SUBTOTAL</TableCell>
                   <TableCell className="text-right font-semibold text-sm tabular-nums">
                     {formatCurrency(summary.sellSubtotal)}
                   </TableCell>
                 </TableRow>
+
+                {/* ── JOB CHARGES ── */}
+                {nonQbccCharges.length > 0 && (
+                  <>
+                    <TableRow className="bg-amber-50/50 dark:bg-amber-950/20">
+                      <TableCell colSpan={7} className="py-1.5">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                          Job Charges
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    {nonQbccCharges.map(charge => {
+                      const amount = summary.chargeAmounts[charge.chargeType] ?? 0;
+                      const isOverride = charge.overrideAmount != null && charge.overrideAmount > 0;
+                      return (
+                        <ChargeRow
+                          key={charge.chargeType}
+                          charge={charge}
+                          amount={amount}
+                          isOverride={isOverride}
+                          purchaseOrders={purchaseOrders}
+                          onRateChange={(v) => updateCharge(charge.chargeType, "ratePercent", v)}
+                          onOverrideChange={(v) => updateCharge(charge.chargeType, "overrideAmount", v)}
+                          onPoChange={(id, num) => {
+                            updateCharge(charge.chargeType, "purchaseOrderId", id);
+                            updateCharge(charge.chargeType, "purchaseOrderNumber", num);
+                          }}
+                        />
+                      );
+                    })}
+                    <TableRow className="border-t border-amber-200 dark:border-amber-800">
+                      <TableCell colSpan={6} className="font-semibold text-sm">SUBTOTAL WITH CHARGES</TableCell>
+                      <TableCell className="text-right font-semibold text-sm tabular-nums">
+                        {formatCurrency(summary.subtotalWithCharges)}
+                      </TableCell>
+                    </TableRow>
+                  </>
+                )}
+
+                {/* ── BUILDER MARGIN ── */}
                 <TableRow>
                   <TableCell colSpan={6} className="text-sm">
                     Builder Margin ({builderMargin}%)
                   </TableCell>
                   <TableCell className="text-right text-sm tabular-nums">
-                    {formatCurrency(summary.contractExGst - summary.sellSubtotal)}
+                    {formatCurrency(summary.contractExGst - summary.subtotalWithCharges)}
                   </TableCell>
                 </TableRow>
+
+                {/* ── CONTRACT LINES ── */}
                 <TableRow>
                   <TableCell colSpan={6} className="font-semibold text-sm">CONTRACT (ex GST)</TableCell>
                   <TableCell className="text-right font-semibold text-sm tabular-nums">
@@ -486,13 +647,55 @@ export default function JobMarkupTab({ jobId }: JobMarkupTabProps) {
                 <TableRow>
                   <TableCell colSpan={6} className="text-sm text-muted-foreground">GST (10%)</TableCell>
                   <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-                    {formatCurrency(summary.contractIncGst - summary.contractExGst)}
+                    {formatCurrency(summary.gstAmount)}
                   </TableCell>
                 </TableRow>
                 <TableRow className="bg-muted/30 dark:bg-muted/10">
                   <TableCell colSpan={6} className="font-bold">CONTRACT (inc GST)</TableCell>
                   <TableCell className="text-right font-bold tabular-nums">
                     {formatCurrency(summary.contractIncGst)}
+                  </TableCell>
+                </TableRow>
+
+                {/* ── QBCC (after contract inc GST) ── */}
+                {qbccCharge && (
+                  <>
+                    <TableRow className="bg-blue-50/50 dark:bg-blue-950/20">
+                      <TableCell colSpan={7} className="py-1.5">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                          QBCC Home Warranty Insurance
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-2">
+                          (insurable value: {formatCurrency(summary.contractIncGst)})
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    <ChargeRow
+                      charge={qbccCharge}
+                      amount={summary.qbccAmount}
+                      isOverride={qbccCharge.overrideAmount != null && qbccCharge.overrideAmount > 0}
+                      purchaseOrders={purchaseOrders}
+                      isQbcc
+                      onRateChange={() => {}}
+                      onOverrideChange={(v) => updateCharge("qbcc_insurance", "overrideAmount", v)}
+                      onPoChange={(id, num) => {
+                        updateCharge("qbcc_insurance", "purchaseOrderId", id);
+                        updateCharge("qbcc_insurance", "purchaseOrderNumber", num);
+                      }}
+                    />
+                  </>
+                )}
+
+                {/* ── FINAL CONTRACT ── */}
+                <TableRow className="bg-primary/5 dark:bg-primary/10 border-t-2 border-primary/30">
+                  <TableCell colSpan={6} className="font-bold text-primary">
+                    <div className="flex items-center gap-1.5">
+                      <Star className="h-4 w-4" />
+                      FINAL CONTRACT (inc GST)
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-bold tabular-nums text-primary text-base">
+                    {formatCurrency(summary.finalContractIncGst)}
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -552,5 +755,100 @@ function PercentInput({ value, onChange, max }: {
       />
       <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
     </div>
+  );
+}
+
+function ChargeRow({
+  charge,
+  amount,
+  isOverride,
+  purchaseOrders,
+  isQbcc,
+  onRateChange,
+  onOverrideChange,
+  onPoChange,
+}: {
+  charge: ChargeEdit;
+  amount: number;
+  isOverride: boolean;
+  purchaseOrders: PurchaseOrderOption[];
+  isQbcc?: boolean;
+  onRateChange: (v: number | null) => void;
+  onOverrideChange: (v: number | null) => void;
+  onPoChange: (id: number | null, num: string | null) => void;
+}) {
+  return (
+    <TableRow>
+      <TableCell className="py-1.5" colSpan={2}>
+        <div className="flex items-center gap-2">
+          {CHARGE_ICONS[charge.chargeType]}
+          <span className="text-sm">{charge.label}</span>
+          {isOverride && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+              override
+            </Badge>
+          )}
+        </div>
+      </TableCell>
+      {/* Rate % (not for QBCC which uses table lookup) */}
+      <TableCell className="text-right py-1.5" colSpan={2}>
+        {!isQbcc ? (
+          <PercentInput
+            value={charge.ratePercent ?? 0}
+            onChange={v => onRateChange(v)}
+          />
+        ) : (
+          <span className="text-xs text-muted-foreground">table lookup</span>
+        )}
+      </TableCell>
+      {/* $ Override */}
+      <TableCell className="text-right py-1.5">
+        <div className="relative w-28 ml-auto">
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+          <Input
+            type="number"
+            min={0}
+            step={100}
+            value={charge.overrideAmount ?? ""}
+            placeholder="auto"
+            onChange={e => {
+              const raw = e.target.value;
+              onOverrideChange(raw === "" ? null : parseFloat(raw) || null);
+            }}
+            className="pl-5 text-right h-7 text-sm"
+          />
+        </div>
+      </TableCell>
+      {/* PO Link */}
+      <TableCell className="py-1.5">
+        <Select
+          value={charge.purchaseOrderId?.toString() ?? "none"}
+          onValueChange={v => {
+            if (v === "none") {
+              onPoChange(null, null);
+            } else {
+              const po = purchaseOrders.find(p => p.id.toString() === v);
+              onPoChange(parseInt(v), po?.purchaseOrderNumber ?? null);
+            }
+          }}
+        >
+          <SelectTrigger className="h-7 text-xs w-28">
+            <SelectValue placeholder="Link PO" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No PO</SelectItem>
+            {purchaseOrders.map(po => (
+              <SelectItem key={po.id} value={po.id.toString()}>
+                {po.purchaseOrderNumber}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      {/* Amount */}
+      <TableCell className="text-right font-medium text-sm tabular-nums py-1.5">
+        {formatCurrency(amount)}
+      </TableCell>
+    </TableRow>
   );
 }

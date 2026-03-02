@@ -2287,6 +2287,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # QBCC Premium Brackets (lookup table for home warranty insurance)
+      resources :qbcc_premium_brackets, only: [:index, :create, :update, :destroy] do
+        collection do
+          post :bulk_import
+          post :lookup
+        end
+      end
+
       # ============================================
       # SM Gantt Phase 2 - Resource Allocation
       # ============================================

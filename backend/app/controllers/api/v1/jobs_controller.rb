@@ -1612,6 +1612,10 @@ module Api
 
         sm_setting = SmSetting.instance
 
+        # Calculate charges via SSoT calculator
+        calculator = MarkupChargeCalculator.new(@job)
+        calc_result = calculator.calculate
+
         render json: {
           success: true,
           job: {
@@ -1640,20 +1644,39 @@ module Api
               sellPrice: task.sell_price.round(2)
             }
           },
+          charges: calc_result[:charges].map { |_type, c|
+            {
+              chargeType: c[:charge_type],
+              label: JobMarkupCharge::LABELS[c[:charge_type]] || c[:charge_type].humanize,
+              ratePercent: c[:rate_percent]&.to_f,
+              overrideAmount: c[:override_amount]&.to_f,
+              calculatedAmount: c[:calculated_amount].to_f,
+              effectiveAmount: c[:effective_amount].to_f,
+              basisValue: c[:basis_value].to_f,
+              usingOverride: c[:using_override],
+              purchaseOrderId: c[:purchase_order_id],
+              purchaseOrderNumber: c[:purchase_order_number]
+            }
+          },
           summary: {
-            costTotal: tasks.sum(&:cost_basis).round(2),
+            costTotal: calc_result[:cost_total],
             escalatedTotal: tasks.sum(&:escalated_cost).round(2),
-            sellSubtotal: tasks.sum(&:sell_price).round(2),
+            sellSubtotal: calc_result[:sell_subtotal],
+            chargesTotal: calc_result[:charges_total],
+            subtotalWithCharges: calc_result[:subtotal_with_charges],
             builderMarginPercent: @job.builder_margin_percent&.to_f || 0,
-            contractExGst: @job.calculated_contract_price_ex_gst,
-            contractIncGst: @job.calculated_contract_price_inc_gst,
+            contractExGst: calc_result[:contract_ex_gst],
+            gstAmount: calc_result[:gst_amount],
+            contractIncGst: calc_result[:contract_inc_gst],
+            qbccAmount: calc_result[:qbcc_amount],
+            finalContractIncGst: calc_result[:final_contract_inc_gst],
             existingContractPrice: @job.contract_price&.to_f
           }
         }
       end
 
       # PATCH /api/v1/jobs/:id/markup
-      # Update escalation %, markup %, builder margin, and optionally apply to contract price
+      # Update escalation %, markup %, builder margin, charges, and optionally apply to contract price
       def update_markup
         ActiveRecord::Base.transaction do
           if params[:items].present?
@@ -1673,9 +1696,28 @@ module Api
             @job.update!(builder_margin_percent: params[:builderMarginPercent])
           end
 
+          # Update charges (insurance, QLeave, overheads, QBCC)
+          if params[:charges].present?
+            params[:charges].each do |charge_params|
+              charge_type = charge_params[:chargeType]
+              next unless JobMarkupCharge::CHARGE_TYPES.include?(charge_type)
+
+              record = @job.job_markup_charges.find_or_initialize_by(charge_type: charge_type)
+              record.tenant_id = @job.tenant_id
+              record.rate_percent = charge_params[:ratePercent] if charge_params.key?(:ratePercent)
+              record.override_amount = charge_params[:overrideAmount] if charge_params.key?(:overrideAmount)
+              record.purchase_order_id = charge_params[:purchaseOrderId] if charge_params.key?(:purchaseOrderId)
+              record.save!
+            end
+          end
+
+          # Recalculate and persist charge amounts
+          @job.reload
+          calculator = MarkupChargeCalculator.new(@job)
+          calc_result = calculator.calculate(persist: true)
+
           if params[:applyToContractPrice]
-            @job.reload
-            @job.update!(contract_price: @job.calculated_contract_price_inc_gst)
+            @job.update!(contract_price: calc_result[:final_contract_inc_gst])
           end
         end
 

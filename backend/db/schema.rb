@@ -6297,6 +6297,22 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["parent_id"], name: "index_job_documentation_tabs_on_parent_id"
   end
 
+  create_table "job_markup_charges", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "tenant_id"
+    t.string "charge_type", limit: 50, null: false
+    t.decimal "rate_percent", precision: 8, scale: 4
+    t.decimal "override_amount", precision: 12, scale: 2
+    t.decimal "calculated_amount", precision: 12, scale: 2, default: "0.0"
+    t.decimal "basis_value", precision: 12, scale: 2
+    t.bigint "purchase_order_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "charge_type"], name: "idx_job_markup_charges_job_type", unique: true
+    t.index ["purchase_order_id"], name: "index_job_markup_charges_on_purchase_order_id"
+    t.index ["tenant_id"], name: "index_job_markup_charges_on_tenant_id"
+  end
+
   create_table "job_plan_revisions", force: :cascade do |t|
     t.bigint "job_plan_id", null: false
     t.string "revision", null: false
@@ -8115,6 +8131,18 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["xero_invoice_id"], name: "index_purchase_orders_on_xero_invoice_id_unique", unique: true, where: "(xero_invoice_id IS NOT NULL)"
   end
 
+  create_table "qbcc_premium_brackets", force: :cascade do |t|
+    t.string "category", limit: 50, default: "new_home", null: false
+    t.decimal "min_value", precision: 12, scale: 2, null: false
+    t.decimal "max_value", precision: 12, scale: 2
+    t.decimal "premium", precision: 10, scale: 2, null: false
+    t.decimal "rate_per_thousand", precision: 8, scale: 4
+    t.integer "sort_order", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category", "min_value"], name: "idx_qbcc_brackets_cat_min"
+  end
+
   create_table "quantity_variables", force: :cascade do |t|
     t.string "variable_name", null: false
     t.string "display_name", null: false
@@ -9081,6 +9109,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.decimal "default_builder_margin_percent", precision: 5, scale: 2, default: "0.0"
     t.decimal "default_escalation_percent", precision: 5, scale: 2, default: "0.0"
     t.decimal "pc_ps_markup_cap_percent", precision: 5, scale: 2, default: "25.0"
+    t.decimal "default_construction_insurance_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "default_overheads_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "default_qleave_rate_percent", precision: 6, scale: 4, default: "0.575"
+    t.decimal "qleave_threshold", precision: 12, scale: 2, default: "150000.0"
+    t.decimal "qbcc_minimum_threshold", precision: 12, scale: 2, default: "3300.0"
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|
@@ -12336,6 +12369,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "job_cost_budgets", "users", column: "alert_acknowledged_by_id", on_delete: :nullify
   add_foreign_key "job_documentation_tabs", "job_documentation_tabs", column: "parent_id", on_delete: :cascade
   add_foreign_key "job_documentation_tabs", "jobs"
+  add_foreign_key "job_markup_charges", "jobs"
+  add_foreign_key "job_markup_charges", "purchase_orders"
+  add_foreign_key "job_markup_charges", "tenants"
   add_foreign_key "job_plan_revisions", "job_plans"
   add_foreign_key "job_plan_revisions", "users", column: "issued_by_id"
   add_foreign_key "job_plan_tabs", "job_plan_tabs", column: "parent_id"
