@@ -608,16 +608,29 @@ module Api
 
         # Add which pricebook items each supplier has price histories for
         # This helps the frontend show which items aren't covered by a supplier
+        # Mirrors PricebookItem.by_supplier scope: checks PriceHistory OR default_supplier_id OR supplier_id
         if params[:for_pricebook_items].present? && params[:type] == "suppliers"
           pricebook_item_ids = params[:for_pricebook_items].to_s.split(",").map(&:to_i).reject(&:zero?)
           if pricebook_item_ids.any?
-            # Get supplier -> item mappings
-            supplier_items = PriceHistory
+            supplier_items = Hash.new { |h, k| h[k] = [] }
+
+            # 1. Items via price history
+            PriceHistory
               .where(pricebook_item_id: pricebook_item_ids)
               .where.not(supplier_id: nil)
-              .group(:supplier_id)
-              .pluck(:supplier_id, Arel.sql("array_agg(DISTINCT pricebook_item_id)"))
-              .to_h
+              .pluck(:supplier_id, :pricebook_item_id)
+              .each { |sid, iid| supplier_items[sid] << iid }
+
+            # 2. Items assigned directly via default_supplier_id or supplier_id on the pricebook item
+            PricebookItem
+              .where(id: pricebook_item_ids)
+              .pluck(:id, :default_supplier_id, :supplier_id)
+              .each do |iid, default_sid, sid|
+                supplier_items[default_sid] << iid if default_sid.present?
+                supplier_items[sid] << iid if sid.present? && sid != default_sid
+              end
+
+            supplier_items.transform_values!(&:uniq)
 
             contacts_json.each do |contact_json|
               contact_json["supplied_pricebook_item_ids"] = supplier_items[contact_json["id"]] || []

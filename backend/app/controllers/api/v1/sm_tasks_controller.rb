@@ -481,8 +481,9 @@ module Api
       def update
         @task.updated_by = current_user
 
-        # Track if predecessor_ids is changing (for date recalculation)
+        # Track if predecessor_ids or dates are changing (for date recalculation/cascade)
         predecessor_ids_changing = params[:sm_task]&.key?(:predecessor_ids)
+        dates_changing = params[:sm_task]&.key?(:start_date) || params[:sm_task]&.key?(:end_date)
 
         # Auto-backup predecessors when breaking dependencies
         # SSoT: When dependency_broken is set to true, backup current predecessors
@@ -504,6 +505,10 @@ module Api
           # Recalculate dates if dependencies changed and task is not locked
           if predecessor_ids_changing && !@task.locked?
             recalculate_task_dates_from_predecessors(@task)
+          # Cascade to unlocked successors when dates change directly (e.g. drag/popup edit)
+          elsif dates_changing && !@task.locked? && @task.active_successor_dependencies.any?
+            calendar = WorkingDaysCalculator.new(TenantSetting.instance)
+            cascade_unlocked_successors(@task, calendar)
           end
 
           render json: {

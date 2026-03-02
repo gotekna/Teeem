@@ -110,14 +110,34 @@ module Api
         )
 
         # Add supplied_pricebook_item_ids to supplier for frontend line item warnings
+        # Mirrors PricebookItem.by_supplier scope: checks PriceHistory OR default_supplier_id OR supplier_id
         if @purchase_order.supplier_id.present?
           pricebook_item_ids = @purchase_order.line_items.pluck(:pricebook_item_id).compact
           if pricebook_item_ids.any?
-            supplied_ids = PriceHistory
-              .where(supplier_id: @purchase_order.supplier_id, pricebook_item_id: pricebook_item_ids)
+            sid = @purchase_order.supplier_id
+            supplied_ids = PricebookItem
+              .where(id: pricebook_item_ids)
+              .left_joins(:price_histories)
+              .where(
+                "pricebooks.default_supplier_id = :sid OR pricebooks.supplier_id = :sid OR price_histories.supplier_id = :sid",
+                sid: sid
+              )
               .distinct
-              .pluck(:pricebook_item_id)
+              .pluck(:id)
             po_json["supplier"]["supplied_pricebook_item_ids"] = supplied_ids
+
+            # Enrich each line item's pricebook_item with the supplier's latest price.
+            # "Refresh Prices" should use THIS supplier's price, not the global current_price.
+            supplier_prices = PriceHistory
+              .where(supplier_id: sid, pricebook_item_id: pricebook_item_ids)
+              .order(date_effective: :desc, created_at: :desc)
+              .pluck(:pricebook_item_id, :new_price)
+              .each_with_object({}) { |(item_id, price), h| h[item_id] ||= price }
+
+            po_json["line_items"]&.each do |li|
+              next unless (pb = li["pricebook_item"])
+              pb["supplier_price"] = supplier_prices[pb["id"]]
+            end
           end
         end
 

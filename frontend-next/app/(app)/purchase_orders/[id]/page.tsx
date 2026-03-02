@@ -841,8 +841,9 @@ export default function PurchaseOrderDetailPage() {
       const isNotSupplied = selectedSupplier && item.pricebook_item_id &&
         selectedSupplier.supplied_pricebook_item_ids &&
         !selectedSupplier.supplied_pricebook_item_ids.includes(item.pricebook_item_id);
-      const hasPriceChanged = item.pricebook_item?.active_price != null &&
-        Number(item.unit_price) !== Number(item.pricebook_item.active_price);
+      const effectivePrice = item.pricebook_item?.supplier_price ?? item.pricebook_item?.active_price;
+      const hasPriceChanged = effectivePrice != null &&
+        Number(item.unit_price) !== Number(effectivePrice);
       if (isNotSupplied || hasPriceChanged) count++;
     }
     return count;
@@ -1029,10 +1030,11 @@ export default function PurchaseOrderDetailPage() {
   // Refresh all line item prices from their linked pricebook items
   const refreshPricesFromPricebook = () => {
     // Count how many prices will be reset
-    const itemsToReset = lineItems.filter(
-      (item) => item.pricebook_item?.active_price != null &&
-        Number(item.unit_price) !== Number(item.pricebook_item.active_price)
-    );
+    // Prefer supplier_price (this PO's supplier) over global active_price
+    const itemsToReset = lineItems.filter((item) => {
+      const effectivePrice = item.pricebook_item?.supplier_price ?? item.pricebook_item?.active_price;
+      return effectivePrice != null && Number(item.unit_price) !== Number(effectivePrice);
+    });
 
     if (itemsToReset.length === 0) {
       return; // Nothing to reset
@@ -1046,12 +1048,10 @@ export default function PurchaseOrderDetailPage() {
   // Execute the price refresh after confirmation
   const executeRefreshPrices = () => {
     const updated = lineItems.map((item) => {
-      // Only update items that have a linked pricebook item with an active price
-      if (item.pricebook_item?.active_price != null) {
-        return {
-          ...item,
-          unit_price: item.pricebook_item.active_price,
-        };
+      // Prefer supplier_price (this PO's supplier) over global active_price
+      const effectivePrice = item.pricebook_item?.supplier_price ?? item.pricebook_item?.active_price;
+      if (effectivePrice != null) {
+        return { ...item, unit_price: effectivePrice };
       }
       return item;
     });
@@ -1674,9 +1674,10 @@ export default function PurchaseOrderDetailPage() {
                   const shouldGreyOut = isLastItem && isBlank;
 
                   // Check if price has changed from pricebook
-                  // Convert to numbers for comparison to handle both string and number types
-                  const hasPriceChanged = item.pricebook_item?.active_price != null &&
-                    Number(item.unit_price) !== Number(item.pricebook_item.active_price);
+                  // Prefer supplier_price (this PO's supplier) over global active_price
+                  const effectivePbPrice = item.pricebook_item?.supplier_price ?? item.pricebook_item?.active_price;
+                  const hasPriceChanged = effectivePbPrice != null &&
+                    Number(item.unit_price) !== Number(effectivePbPrice);
 
                   // Check if item is NOT supplied by the selected supplier
                   const isNotSuppliedBySelectedSupplier =
