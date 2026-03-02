@@ -144,7 +144,7 @@ export function ScheduleMasterSyncTab() {
   // Non-master: { table: { linked, local_only, master_only } }
   // Master: { table: { tenantSlug: { linked, local_only, master_only } } }
   type TemplateBreakdown = { id: number; name: string; tasks: number; master_tasks?: number; synced: boolean };
-  type RecordBreakdown = { id: number; name: string; synced: boolean; count?: number };
+  type RecordBreakdown = { id: number; name: string; synced: boolean; count?: number; master_count?: number };
   type CoverageEntry = { linked: number; local_only: number; master_only: number; templates?: TemplateBreakdown[]; records?: RecordBreakdown[] };
   const [syncCoverage, setSyncCoverage] = useState<Record<string, CoverageEntry | Record<string, CoverageEntry>>>({});
 
@@ -970,11 +970,11 @@ export function ScheduleMasterSyncTab() {
                               <TableCell className="py-1.5 pl-10">
                                 <span className="text-xs text-muted-foreground">{rec.name}</span>
                               </TableCell>
-                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5" />
                               <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
-                                {rec.count != null && (
-                                  <span className="text-xs text-muted-foreground">{rec.count}</span>
-                                )}
+                                {rec.master_count != null && rec.master_count > 0 ? rec.master_count.toLocaleString() : ""}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
+                                {rec.count != null && rec.count > 0 ? rec.count.toLocaleString() : "0"}
                               </TableCell>
                               <TableCell className="text-center py-1.5">
                                 <button

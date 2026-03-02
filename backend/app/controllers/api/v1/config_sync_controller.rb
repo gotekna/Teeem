@@ -1043,17 +1043,17 @@ module Api
                 entry[:templates] = combined_template_breakdown(master_template_keys)
               end
 
-              # Per-record breakdown for all ConfigSyncable tables
+              # Per-record breakdown with BOTH master and local counts
               # PO Items & Line Items grouped by parent pack for consistency
               if table_key == :po_template_items || table_key == :po_template_line_items
                 master_pack_keys = master_sync_keys_cache[:po_template_packs] || Set.new
-                entry[:records] = table_key == :po_template_items ? po_items_by_pack(master_pack_keys) : po_lines_by_pack(master_pack_keys)
+                entry[:records] = table_key == :po_template_items ? combined_po_items_by_pack(master_pack_keys) : combined_po_lines_by_pack(master_pack_keys)
               elsif table_key == :claim_stage_template_lines
                 master_claim_keys = master_sync_keys_cache[:claim_stage_templates] || Set.new
-                entry[:records] = claim_lines_by_template(master_claim_keys)
+                entry[:records] = combined_claim_lines_by_template(master_claim_keys)
               elsif table_key != :sm_schedule_masters && model.column_names.include?("sync_key")
                 mk = master_sync_keys_cache[table_key] || Set.new
-                entry[:records] = syncable_records_breakdown(model, mk)
+                entry[:records] = combined_syncable_records_breakdown(model, mk)
               end
 
               coverage[table_key.to_s] = entry
@@ -1180,6 +1180,135 @@ module Api
           synced = tpl.sync_key.present? && master_template_keys.include?(tpl.sync_key)
           { id: tpl.id, name: tpl.name, count: tpl.lines.size, synced: synced }
         end.compact
+      end
+
+      # Combined record breakdowns (non-master): show BOTH master + local counts per record
+      # Mirrors combined_template_breakdown pattern for SM Tasks
+
+      def combined_po_items_by_pack(master_pack_keys)
+        # Master counts
+        master_data = ActsAsTenant.with_tenant(master_tenant) do
+          PoTemplatePack.includes(:po_template_items).all.map do |pack|
+            items = pack.po_template_items
+            next nil if items.empty?
+            { name: pack.name, sync_key: pack.sync_key, count: items.size }
+          end.compact
+        end
+
+        # Local counts (current tenant)
+        local_data = PoTemplatePack.includes(:po_template_items).all.map do |pack|
+          items = pack.po_template_items
+          next nil if items.empty?
+          synced = pack.sync_key.present? && master_pack_keys.include?(pack.sync_key)
+          { id: pack.id, name: pack.name, sync_key: pack.sync_key, count: items.size, synced: synced }
+        end.compact
+
+        merge_master_local_records(master_data, local_data)
+      end
+
+      def combined_po_lines_by_pack(master_pack_keys)
+        master_data = ActsAsTenant.with_tenant(master_tenant) do
+          PoTemplatePack.includes(po_template_items: :po_template_line_items).all.map do |pack|
+            count = pack.po_template_items.sum { |item| item.po_template_line_items.size }
+            next nil if count == 0
+            { name: pack.name, sync_key: pack.sync_key, count: count }
+          end.compact
+        end
+
+        local_data = PoTemplatePack.includes(po_template_items: :po_template_line_items).all.map do |pack|
+          count = pack.po_template_items.sum { |item| item.po_template_line_items.size }
+          next nil if count == 0
+          synced = pack.sync_key.present? && master_pack_keys.include?(pack.sync_key)
+          { id: pack.id, name: pack.name, sync_key: pack.sync_key, count: count, synced: synced }
+        end.compact
+
+        merge_master_local_records(master_data, local_data)
+      end
+
+      def combined_claim_lines_by_template(master_template_keys)
+        master_data = ActsAsTenant.with_tenant(master_tenant) do
+          ClaimStageTemplate.includes(:lines).all.map do |tpl|
+            next nil if tpl.lines.empty?
+            { name: tpl.name, sync_key: tpl.sync_key, count: tpl.lines.size }
+          end.compact
+        end
+
+        local_data = ClaimStageTemplate.includes(:lines).all.map do |tpl|
+          next nil if tpl.lines.empty?
+          synced = tpl.sync_key.present? && master_template_keys.include?(tpl.sync_key)
+          { id: tpl.id, name: tpl.name, sync_key: tpl.sync_key, count: tpl.lines.size, synced: synced }
+        end.compact
+
+        merge_master_local_records(master_data, local_data)
+      end
+
+      def combined_syncable_records_breakdown(model, master_sync_keys)
+        name_col = %w[name display_name item_name account_name].find { |c| model.column_names.include?(c) }
+        name_col ||= "id"
+
+        master_data = ActsAsTenant.with_tenant(master_tenant) do
+          model.pluck(:id, name_col.to_sym, :sync_key).map do |_id, display, sync_key|
+            { name: display.to_s, sync_key: sync_key }
+          end
+        end
+
+        local_data = model.pluck(:id, name_col.to_sym, :sync_key).map do |id, display, sync_key|
+          synced = sync_key.present? && master_sync_keys.include?(sync_key)
+          { id: id, name: display.to_s, sync_key: sync_key, synced: synced }
+        end
+
+        merge_master_local_records(master_data, local_data)
+      end
+
+      # Merge master + local record lists by sync_key/name, returning combined counts
+      # Returns: [{ id:, name:, master_count:, count:, synced: }]
+      def merge_master_local_records(master_data, local_data)
+        # Build master lookup by sync_key then name
+        master_by_key = {}
+        master_by_name = {}
+        master_data.each do |m|
+          master_by_key[m[:sync_key]] = m if m[:sync_key].present?
+          master_by_name[m[:name].downcase.strip] = m
+        end
+        used_master_keys = Set.new
+
+        # Start with local records, attach master counts
+        result = local_data.map do |local|
+          master = nil
+          if local[:sync_key].present?
+            master = master_by_key[local[:sync_key]]
+          end
+          master ||= master_by_name[local[:name].downcase.strip]
+
+          if master
+            used_master_keys.add(master[:sync_key]) if master[:sync_key].present?
+            used_master_keys.add(master[:name].downcase.strip)
+          end
+
+          {
+            id: local[:id],
+            name: local[:name],
+            master_count: master ? (master[:count] || 1) : 0,
+            count: local[:count] || 1,
+            synced: local[:synced]
+          }
+        end
+
+        # Add master-only records not in local
+        master_data.each do |m|
+          next if m[:sync_key].present? && used_master_keys.include?(m[:sync_key])
+          next if used_master_keys.include?(m[:name].downcase.strip)
+
+          result << {
+            id: 0,
+            name: m[:name],
+            master_count: m[:count] || 1,
+            count: 0,
+            synced: false
+          }
+        end
+
+        result
       end
 
       # Pluck match keys from a model as a Set for fast intersection
