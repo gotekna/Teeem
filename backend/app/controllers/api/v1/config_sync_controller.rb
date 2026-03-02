@@ -434,10 +434,15 @@ module Api
             }
           end
 
+          # FRC: two_way tables own their records locally — pull only adds NEW records,
+          # never overwrites existing local values (Tekna pushes changes UP to TEEEM,
+          # not the other way). one_way tables always replace with master's version.
+          pull_mode = table_mode(table) == "two_way" ? :add_new : :replace_existing
+
           result = service.pull_from_master(
             table: table.to_s,
             record_ids: batch_ids,
-            mode: :replace_existing
+            mode: pull_mode
           )
 
           imported_count = result[:imported]&.length || 0
