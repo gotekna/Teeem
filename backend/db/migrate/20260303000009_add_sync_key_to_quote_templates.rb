@@ -21,17 +21,26 @@ class AddSyncKeyToQuoteTemplates < ActiveRecord::Migration[7.2]
               where: "(sync_key IS NOT NULL)"
 
     # Backfill sync_key for existing records from name
+    # Order: LOWER first, then replace spaces/underscores → hyphens, strip non-alphanum, collapse multi-hyphens
     reversible do |dir|
       dir.up do
         execute <<-SQL
           UPDATE quote_templates
-          SET sync_key = LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(name), '[_\\s.]+', '-', 'g'), '[^a-z0-9\\-]', '', 'g'))
+          SET sync_key = REGEXP_REPLACE(
+            REGEXP_REPLACE(
+              REGEXP_REPLACE(LOWER(TRIM(name)), '[_\\s.]+', '-', 'g'),
+              '[^a-z0-9\\-]', '', 'g'),
+            '-{2,}', '-', 'g')
           WHERE sync_key IS NULL AND name IS NOT NULL;
         SQL
 
         execute <<-SQL
           UPDATE custom_quote_templates
-          SET sync_key = LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(name), '[_\\s.]+', '-', 'g'), '[^a-z0-9\\-]', '', 'g'))
+          SET sync_key = REGEXP_REPLACE(
+            REGEXP_REPLACE(
+              REGEXP_REPLACE(LOWER(TRIM(name)), '[_\\s.]+', '-', 'g'),
+              '[^a-z0-9\\-]', '', 'g'),
+            '-{2,}', '-', 'g')
           WHERE sync_key IS NULL AND name IS NOT NULL;
         SQL
       end

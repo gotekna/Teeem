@@ -262,43 +262,55 @@ class MarkupChargeCalculator
     }
   end
 
-  # Map charge type → SmScheduleMasterTemplate FK column for the linked SM template task
+  # Map charge type → SmScheduleMasterTemplate JSONB array column for linked SM template tasks
   CHARGE_SM_FIELDS = {
-    "construction_insurance" => :charge_construction_insurance_sm_id,
-    "qleave" => :charge_qleave_sm_id,
-    "overheads" => :charge_overheads_sm_id,
-    "qbcc_insurance" => :charge_qbcc_insurance_sm_id
+    "construction_insurance" => :charge_construction_insurance_sm_ids,
+    "qleave" => :charge_qleave_sm_ids,
+    "overheads" => :charge_overheads_sm_ids,
+    "qbcc_insurance" => :charge_qbcc_insurance_sm_ids
   }.freeze
 
-  # Auto-link charges to POs by finding the job's SmTask that was copied from
-  # the SM template task configured on the job's template.
-  # Only sets PO if the charge doesn't already have one (won't override manual selection).
+  # Auto-link charges to POs by finding the job's SmTasks that were copied from
+  # the SM template tasks configured on the job's template.
+  # Each charge can link to multiple POs (amount split evenly across them).
+  # Only sets POs if the charge doesn't already have any linked (won't override manual selection).
   def auto_link_charge_pos(charges)
     return unless @template
 
     charges.each do |type, data|
-      # Skip if charge already has a PO linked (manual selection takes precedence)
-      next if data[:purchase_order_id].present?
+      # Skip if charge already has PO(s) linked (manual selection takes precedence)
+      next if data[:purchase_order_ids].present? && data[:purchase_order_ids].any?
 
       sm_field = CHARGE_SM_FIELDS[type.to_s]
       next unless sm_field
 
-      template_sm_id = @template.send(sm_field)
-      next unless template_sm_id
+      template_sm_ids = @template.send(sm_field)
+      next if template_sm_ids.blank?
 
-      # Find the SmTask on this job that was copied from the template task
-      sm_task = job.sm_tasks.find_by(sm_schedule_master_id: template_sm_id)
-      next unless sm_task&.purchase_order_id
+      # Find SmTasks on this job that were copied from the template tasks
+      po_ids = []
+      po_numbers = []
+      template_sm_ids.each do |template_sm_id|
+        sm_task = job.sm_tasks.find_by(sm_schedule_master_id: template_sm_id)
+        next unless sm_task&.purchase_order_id
 
-      # Update the charge record with the PO link
+        po_ids << sm_task.purchase_order_id
+        po_numbers << sm_task.purchase_order&.purchase_order_number
+      end
+
+      next if po_ids.empty?
+
+      # Update the charge record with the first PO link (primary)
       charge_record = job.job_markup_charges.find_or_initialize_by(charge_type: type.to_s)
-      charge_record.purchase_order_id = sm_task.purchase_order_id
+      charge_record.purchase_order_id = po_ids.first
       charge_record.tenant_id = job.tenant_id
       charge_record.save!
 
-      # Update the in-memory hash so sync_charge_purchase_orders sees it
-      data[:purchase_order_id] = sm_task.purchase_order_id
-      data[:purchase_order_number] = sm_task.purchase_order&.purchase_order_number
+      # Update the in-memory hash with all linked POs for sync_charge_purchase_orders
+      data[:purchase_order_id] = po_ids.first
+      data[:purchase_order_number] = po_numbers.first
+      data[:purchase_order_ids] = po_ids
+      data[:purchase_order_numbers] = po_numbers
     end
   end
 

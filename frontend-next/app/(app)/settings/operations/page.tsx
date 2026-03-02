@@ -24,6 +24,7 @@ import { TenderSectionsTab } from "./components/TenderSectionsTab";
 import { TenderDocumentTemplatesTab } from "./components/TenderDocumentTemplatesTab";
 import { MarkupDefaultsTab } from "./components/MarkupDefaultsTab";
 import { QbccBracketsTab } from "./components/QbccBracketsTab";
+import { MarkupTemplatesTab } from "./components/MarkupTemplatesTab";
 
 
 /**
@@ -97,6 +98,7 @@ function MarkupWrapper() {
         <div className="flex items-center gap-2 mx-4 mt-2">
           <TabsList className="w-fit">
             <TabsTrigger value="defaults">Defaults</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
             <TabsTrigger value="qbcc">QBCC Brackets</TabsTrigger>
           </TabsList>
           <ExpandButton expanded={subExpanded} onToggle={toggleSubExpanded} />
@@ -104,6 +106,9 @@ function MarkupWrapper() {
         <div className="flex-1 min-h-0 mt-2">
           <TabsContent value="defaults" className="h-full overflow-auto">
             <MarkupDefaultsTab />
+          </TabsContent>
+          <TabsContent value="templates" className="h-full overflow-auto">
+            <MarkupTemplatesTab />
           </TabsContent>
           <TabsContent value="qbcc" className="h-full overflow-auto">
             <QbccBracketsTab />

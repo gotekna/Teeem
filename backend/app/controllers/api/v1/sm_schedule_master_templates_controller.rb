@@ -1053,11 +1053,13 @@ module Api
       def template_params
         params.require(:sm_schedule_master_template).permit(
           :name, :description, :is_default, :is_canonical, :sync_key,
-          :charge_construction_insurance_sm_id, :charge_qleave_sm_id,
-          :charge_overheads_sm_id, :charge_qbcc_insurance_sm_id,
           :default_builder_margin_percent, :default_escalation_percent,
           :pc_ps_markup_cap_percent, :default_construction_insurance_percent,
-          :default_overheads_percent, :default_qleave_rate_percent
+          :default_overheads_percent, :default_qleave_rate_percent,
+          charge_construction_insurance_sm_ids: [],
+          charge_qleave_sm_ids: [],
+          charge_overheads_sm_ids: [],
+          charge_qbcc_insurance_sm_ids: []
         )
       end
 
@@ -1079,15 +1081,15 @@ module Api
           canonical_version: template.canonical_version,
           field_overrides: template.field_overrides,
           sync_status: build_sync_status(template),
-          # Charge → SM task auto-link config (per-template)
-          charge_construction_insurance_sm_id: template.charge_construction_insurance_sm_id,
-          charge_construction_insurance_sm_name: template.charge_construction_insurance_sm&.name,
-          charge_qleave_sm_id: template.charge_qleave_sm_id,
-          charge_qleave_sm_name: template.charge_qleave_sm&.name,
-          charge_overheads_sm_id: template.charge_overheads_sm_id,
-          charge_overheads_sm_name: template.charge_overheads_sm&.name,
-          charge_qbcc_insurance_sm_id: template.charge_qbcc_insurance_sm_id,
-          charge_qbcc_insurance_sm_name: template.charge_qbcc_insurance_sm&.name,
+          # Charge → SM task auto-link config (per-template, arrays for multi-PO)
+          charge_construction_insurance_sm_ids: template.charge_construction_insurance_sm_ids || [],
+          charge_construction_insurance_sm_tasks: resolve_sm_task_names(template.charge_construction_insurance_sm_ids),
+          charge_qleave_sm_ids: template.charge_qleave_sm_ids || [],
+          charge_qleave_sm_tasks: resolve_sm_task_names(template.charge_qleave_sm_ids),
+          charge_overheads_sm_ids: template.charge_overheads_sm_ids || [],
+          charge_overheads_sm_tasks: resolve_sm_task_names(template.charge_overheads_sm_ids),
+          charge_qbcc_insurance_sm_ids: template.charge_qbcc_insurance_sm_ids || [],
+          charge_qbcc_insurance_sm_tasks: resolve_sm_task_names(template.charge_qbcc_insurance_sm_ids),
           # Per-template markup rate overrides (null = use global SmSetting default)
           defaultBuilderMarginPercent: template.default_builder_margin_percent&.to_f,
           defaultEscalationPercent: template.default_escalation_percent&.to_f,
@@ -1155,6 +1157,13 @@ module Api
           tags: row.tags,
           is_active: row.is_active
         }
+      end
+
+      # Resolve SM task IDs to [{id, name}] for charge auto-link display
+      def resolve_sm_task_names(ids)
+        return [] if ids.blank?
+
+        SmScheduleMaster.where(id: ids).pluck(:id, :name).map { |id, name| { id: id, name: name } }
       end
 
       # Load trades lookup map (ID => name) using Foundation

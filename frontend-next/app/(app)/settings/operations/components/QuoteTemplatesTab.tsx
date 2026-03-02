@@ -33,6 +33,8 @@ import {
   BarChart3,
   ExternalLink,
   Paperclip,
+  RefreshCw,
+  Link2Off,
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -102,6 +104,7 @@ interface QuoteTemplate {
   smTemplateName: string | null;
   tradeCount: number;
   supplierCount: number;
+  syncStatus?: { syncedTenants: string[] } | null;
   createdAt: string;
   updatedAt: string;
   trades?: QuoteTemplateTask[];
@@ -643,6 +646,12 @@ export function QuoteTemplatesTab() {
                         {template.smTemplateName}
                       </Badge>
                     )}
+                    {template.syncStatus?.syncedTenants && template.syncStatus.syncedTenants.length > 0 && (
+                      <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800 shrink-0">
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Synced: {template.syncStatus.syncedTenants.join(", ")}
+                      </Badge>
+                    )}
                     {template.description && (
                       <span className="text-sm text-muted-foreground truncate hidden sm:inline">
                         — {template.description}
@@ -826,6 +835,48 @@ export function QuoteTemplatesTab() {
                 rows={2}
               />
             </div>
+
+            {/* Sync status + disconnect */}
+            {dialogMode === "rename" && (() => {
+              const t = templates.find(t => t.id === dialogTemplateId);
+              if (!t?.syncStatus?.syncedTenants?.length) return null;
+              return (
+                <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                        Synced with {t.syncStatus.syncedTenants.join(", ")}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={async () => {
+                        try {
+                          await api.patch(`/api/v1/quote_templates/${t.id}`, {
+                            quote_template: { sync_key: null },
+                          });
+                          toast.success("Disconnected from sync");
+                          setShowDialog(false);
+                          loadTemplates();
+                        } catch (err) {
+                          console.error("[QuoteTemplatesTab] disconnect error:", err);
+                          toast.error("Failed to disconnect");
+                        }
+                      }}
+                    >
+                      <Link2Off className="h-3.5 w-3.5 mr-1" />
+                      Disconnect
+                    </Button>
+                  </div>
+                  <p className="text-xs text-green-700 dark:text-green-300">
+                    Disconnecting makes this template local-only. Other tenants keep their copy.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>
