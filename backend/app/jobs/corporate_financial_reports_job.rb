@@ -63,9 +63,13 @@ class CorporateFinancialReportsJob < ApplicationJob
   private
 
   def fetch_companies(company_ids = nil)
-    scope = Corporate.includes(:company_xero_connection)
-                            .joins(:company_xero_connection)
-                            .where(company_xero_connections: { status: "connected" })
+    # FRC (Mar 2026): Fixed 3 bugs:
+    # 1. :company_xero_connection is an alias_method, not a Rails association — joins/includes need :corporate_xero_connection
+    # 2. corporate_xero_connections has no `status` column — status is computed by XeroConnectionHealth service
+    # 3. Filter by xero_credential presence instead (connected = has credential)
+    scope = Corporate.includes(corporate_xero_connection: :xero_credential)
+                     .joins(:corporate_xero_connection)
+                     .where.not(corporate_xero_connections: { xero_credential_id: nil })
 
     if company_ids.present?
       scope = scope.where(id: company_ids)

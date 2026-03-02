@@ -782,7 +782,8 @@ module Api
         purchase_orders = @job.purchase_orders
                               .where.not(status: "cancelled")
                               .includes(:supplier, :tender, :po_status, line_items: [:pricebook_item, :profit_centre],
-                                        sm_task: [:sm_schedule_master, :tender])
+                                        sm_task: [:sm_stage_ref, :sm_trade_ref, :cost_centre_ref, :tender,
+                                                  sm_schedule_master: [:sm_stage_ref, :sm_trade_ref, :cost_centre_ref, :tender]])
 
         cost_budgets = @job.job_cost_budgets.includes(:cost_centre)
 
@@ -1096,18 +1097,24 @@ module Api
         # Uses DISTINCT ON to get the most recent price history per pricebook item
         reference_prices = {}
         if pricebook_item_ids.any? && price_only_ids.any?
-          PriceHistory
+          # FRC (Mar 2026): Batch load suppliers to fix N+1 (was 317x Contact.find_by per request)
+          price_histories = PriceHistory
             .where(pricebook_item_id: pricebook_item_ids, supplier_id: price_only_ids)
             .select("DISTINCT ON (pricebook_item_id) pricebook_item_id, new_price, supplier_id, date_effective, created_at")
             .order("pricebook_item_id, date_effective DESC NULLS LAST, created_at DESC")
-            .each do |ph|
-              supplier = Contact.find_by(id: ph.supplier_id)
-              reference_prices[ph.pricebook_item_id] = {
-                price: ph.new_price,
-                supplier_id: ph.supplier_id,
-                supplier_name: supplier&.display_name || supplier&.company_name_or_trust || "Unknown",
-              }
-            end
+            .to_a
+
+          supplier_ids = price_histories.map(&:supplier_id).compact.uniq
+          suppliers_by_id = Contact.where(id: supplier_ids).index_by(&:id)
+
+          price_histories.each do |ph|
+            supplier = suppliers_by_id[ph.supplier_id]
+            reference_prices[ph.pricebook_item_id] = {
+              price: ph.new_price,
+              supplier_id: ph.supplier_id,
+              supplier_name: supplier&.display_name || supplier&.company_name_or_trust || "Unknown",
+            }
+          end
         end
 
         # Build response

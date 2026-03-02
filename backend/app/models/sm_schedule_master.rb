@@ -44,6 +44,7 @@ class SmScheduleMaster < ApplicationRecord
   # SmTasks created from this template - nullify on delete so tasks remain but lose template link
   has_many :sm_tasks, dependent: :nullify
   has_many :custom_quote_template_lines, dependent: :nullify
+  has_many :custom_quote_lines, dependent: :nullify
 
   # Photo storage WarehouseFolder
   # NOTE: photo_entity_tab_id column was removed (migration 20251227010022).

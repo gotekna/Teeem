@@ -23,6 +23,22 @@ module Api
       def index
         @definitions = ColumnTypeDefinition.where(is_active: true).order(:category, :display_name)
 
+        # FRC (Mar 2026): Batch compute column_count and compliance_percentage to fix N+1
+        # Was 72x individual COUNT queries per definition (144 total with compliance)
+        definition_ids = @definitions.pluck(:id)
+        @column_counts = Column.joins(:foundation)
+          .where.not(foundations: { table_type: "system" })
+          .where(column_type_definition_id: definition_ids)
+          .group(:column_type_definition_id)
+          .count
+        @compliant_counts = Column.joins(:foundation)
+          .where.not(foundations: { table_type: "system" })
+          .where(column_type_definition_id: definition_ids)
+          .where("columns.type_version_applied = column_type_definitions.version")
+          .joins(:column_type_definition)
+          .group(:column_type_definition_id)
+          .count
+
         render json: {
           success: true,
           data: @definitions.map { |d| definition_json(d) },
@@ -183,9 +199,14 @@ module Api
           is_active: definition.is_active,
           version: definition.version,
 
-          # Stats
-          column_count: definition.column_count,
-          compliance_percentage: definition.compliance_percentage
+          # Stats - use pre-computed counts if available (batch query in index action)
+          column_count: @column_counts ? (@column_counts[definition.id] || 0) : definition.column_count,
+          compliance_percentage: if @column_counts
+            total = @column_counts[definition.id] || 0
+            total.zero? ? 100.0 : ((@compliant_counts[definition.id] || 0).to_f / total * 100).round(1)
+          else
+            definition.compliance_percentage
+          end
         }
       end
     end

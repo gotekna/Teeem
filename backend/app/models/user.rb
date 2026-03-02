@@ -484,13 +484,15 @@ class User < ApplicationRecord
     self.roles = new_roles
   end
 
+  # FRC (Mar 2026): Memoized to fix N+1 in NavigationController#index
+  # visible_to? calls role_names per nav item; without memoization = 6+ queries per request
   def role_names
-    roles.pluck(:name)
+    @role_names ||= roles.pluck(:name)
   end
 
   # Check if user has a specific role (from user_roles table)
   def has_role?(role_name)
-    roles.exists?(name: role_name.to_s)
+    role_names.include?(role_name.to_s)
   end
 
   # =============================================================================

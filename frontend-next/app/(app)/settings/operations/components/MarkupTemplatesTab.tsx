@@ -473,7 +473,17 @@ export function MarkupTemplatesTab() {
                               {hasSmField && tasks.length > 0 && (
                                 <div className="flex-1 min-w-0">
                                   <ComboboxMultiSelect
-                                    items={tasks.map(t => ({ id: t.id.toString(), label: t.task_code ? `${t.task_code} — ${t.name}` : t.name, searchText: t.task_code || undefined }))}
+                                    items={tasks.map(t => {
+                                      const baseLabel = t.task_code ? `${t.task_code} — ${t.name}` : t.name;
+                                      const claimMatch = claimPoMap[t.name];
+                                      const alloc = rateAllocs[t.id.toString()];
+                                      const pct = claimMatch?.percentage ?? (smIds.includes(t.id) && smIds.length > 1 ? alloc : undefined);
+                                      return {
+                                        id: t.id.toString(),
+                                        label: pct !== undefined ? `${baseLabel} (${pct}%)` : baseLabel,
+                                        searchText: t.task_code || t.name,
+                                      };
+                                    })}
                                     selectedIds={smIds.map(v => v.toString())}
                                     onChange={ids => updateField(tmpl.id, rate.smField!, ids.map(id => parseInt(id, 10)))}
                                     placeholder="Link to PO..."
@@ -564,7 +574,18 @@ export function MarkupTemplatesTab() {
                               {tasks.length > 0 && (
                                 <div className="flex-1 min-w-0">
                                   <ComboboxMultiSelect
-                                    items={tasks.map(t => ({ id: t.id.toString(), label: t.task_code ? `${t.task_code} — ${t.name}` : t.name, searchText: t.task_code || undefined }))}
+                                    items={tasks.map(t => {
+                                      const baseLabel = t.task_code ? `${t.task_code} — ${t.name}` : t.name;
+                                      // Show claim % on tag when linked to a claim template
+                                      const claimMatch = claimPoMap[t.name];
+                                      const alloc = chargeAllocs[t.id.toString()];
+                                      const pct = claimMatch?.percentage ?? (smIds.includes(t.id) && smIds.length > 1 ? alloc : undefined);
+                                      return {
+                                        id: t.id.toString(),
+                                        label: pct !== undefined ? `${baseLabel} (${pct}%)` : baseLabel,
+                                        searchText: t.task_code || t.name,
+                                      };
+                                    })}
                                     selectedIds={smIds.map(v => v.toString())}
                                     onChange={ids => updateField(tmpl.id, charge.smField, ids.map(id => parseInt(id, 10)))}
                                     placeholder="Link to PO..."

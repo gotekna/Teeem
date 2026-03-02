@@ -399,7 +399,8 @@ module Api
         # FRC (Jan 2026): Fixed from :corporate_group (doesn't exist) to :company_groups_via_membership (has_many through)
         # contact_emails needed for email method (used by email composer autocomplete)
         # FRC (Feb 2026): Always include :primary_company - needed by display_name method for team contacts
-        @contacts = @contacts.includes(:portal_user, :company_groups_via_membership, :contact_emails, :primary_company)
+        # FRC (Mar 2026): Added :contact_addresses to fix N+1 (352x queries from primary_street_address in as_json)
+        @contacts = @contacts.includes(:portal_user, :company_groups_via_membership, :contact_emails, :primary_company, :contact_addresses)
 
         # Conditional eager loading for company relationships
         if include_companies
