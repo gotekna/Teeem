@@ -816,6 +816,7 @@ module Api
       def update_table_mode
         table_key = params[:table]
         mode = params[:mode]
+        record_id = params[:record_id]
 
         unless table_key.present? && mode.present?
           return render_error("table and mode are required", status: :bad_request)
@@ -832,7 +833,9 @@ module Api
         end
 
         modes = (ts.config_sync_table_modes || {}).dup
-        modes[table_key] = mode
+        # Per-record override: "table_key:record_id", table-level: "table_key"
+        mode_key = record_id.present? ? "#{table_key}:#{record_id}" : table_key
+        modes[mode_key] = mode
         ts.update!(config_sync_table_modes: modes)
 
         # Cascade sync_key changes to all records when mode changes

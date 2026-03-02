@@ -248,6 +248,11 @@ export function ScheduleMasterSyncTab() {
     return tableModes[tableKey] || (defaultMode as SyncMode);
   };
 
+  // Get effective sync mode for a specific record (per-record override > table mode > default)
+  const getRecordMode = (tableKey: string, recordId: number, defaultMode: string): SyncMode => {
+    return tableModes[`${tableKey}:${recordId}`] || tableModes[tableKey] || (defaultMode as SyncMode);
+  };
+
   // Cycle sync mode: two_way → one_way → independent → two_way
   // Cascades to child records: independent clears sync_keys, two_way/one_way regenerates them
   // Also cascades mode to linked child tables (e.g. Claim Templates → Claim Template Lines)
@@ -284,6 +289,23 @@ export function ScheduleMasterSyncTab() {
         for (const child of childKeys) delete reverted[child];
         return reverted;
       });
+    }
+  };
+
+  // Cycle sync mode for a specific record (per-record override)
+  const handleCycleRecordMode = async (tableKey: string, recordId: number, currentMode: SyncMode) => {
+    const currentIndex = SYNC_MODES.indexOf(currentMode);
+    const nextMode = SYNC_MODES[(currentIndex + 1) % SYNC_MODES.length];
+    const modeKey = `${tableKey}:${recordId}`;
+    // Optimistic update
+    setTableModes((prev) => ({ ...prev, [modeKey]: nextMode }));
+    try {
+      await api.put("/api/v1/config_sync/update_table_mode", {
+        table: tableKey, mode: nextMode, record_id: recordId,
+      });
+    } catch (err) {
+      console.error("[SMSync] Failed to update record mode:", err);
+      setTableModes((prev) => ({ ...prev, [modeKey]: currentMode }));
     }
   };
 
@@ -851,78 +873,82 @@ export function ScheduleMasterSyncTab() {
 
                       {/* Template breakdown sub-rows */}
                       {expandedTables.has(table.key) && (() => {
-                        const mode = getTableMode(table.key, table.defaultMode);
                         const cov = !isMasterTenant
                           ? (syncCoverage[table.key] as CoverageEntry | undefined)
                           : undefined;
                         const templates = cov && "templates" in cov ? cov.templates : undefined;
                         if (!templates || templates.length === 0) return null;
 
-                        return templates.map((tmpl) => (
-                          <TableRow key={`${table.key}-tmpl-${tmpl.name}`} className="bg-muted/30">
-                            <TableCell className="py-1.5" />
-                            <TableCell className="py-1.5 pl-10">
-                              <span className="text-xs text-muted-foreground">{tmpl.name}</span>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
-                              {tmpl.master_tasks != null ? tmpl.master_tasks.toLocaleString() : ""}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
-                              {tmpl.tasks.toLocaleString()}
-                            </TableCell>
-                            <TableCell className="text-center py-1.5">
-                              <button
-                                className={cn(
-                                  "text-[11px] font-medium cursor-pointer hover:underline",
-                                  SYNC_MODE_LABELS[mode].color,
-                                )}
-                                title="Click to change sync direction (Two-way → One-way → Independent)"
-                                onClick={() => handleCycleSyncMode(table.key, mode)}
-                              >
-                                {SYNC_MODE_LABELS[mode].label}
-                              </button>
-                            </TableCell>
-                            <TableCell className="py-1.5" />
-                          </TableRow>
-                        ));
+                        return templates.map((tmpl) => {
+                          const recMode = getRecordMode(table.key, tmpl.id, table.defaultMode);
+                          return (
+                            <TableRow key={`${table.key}-tmpl-${tmpl.id}`} className="bg-muted/30">
+                              <TableCell className="py-1.5" />
+                              <TableCell className="py-1.5 pl-10">
+                                <span className="text-xs text-muted-foreground">{tmpl.name}</span>
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
+                                {tmpl.master_tasks != null ? tmpl.master_tasks.toLocaleString() : ""}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
+                                {tmpl.tasks.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-center py-1.5">
+                                <button
+                                  className={cn(
+                                    "text-[11px] font-medium cursor-pointer hover:underline",
+                                    SYNC_MODE_LABELS[recMode].color,
+                                  )}
+                                  title="Click to change sync direction for this record"
+                                  onClick={() => handleCycleRecordMode(table.key, tmpl.id, recMode)}
+                                >
+                                  {SYNC_MODE_LABELS[recMode].label}
+                                </button>
+                              </TableCell>
+                              <TableCell className="py-1.5" />
+                            </TableRow>
+                          );
+                        });
                       })()}
 
                       {/* Records breakdown sub-rows (Quote Templates, PO Packs, PO Items, PO Line Items) */}
                       {expandedTables.has(table.key) && (() => {
-                        const mode = getTableMode(table.key, table.defaultMode);
                         const cov = !isMasterTenant
                           ? (syncCoverage[table.key] as CoverageEntry | undefined)
                           : undefined;
                         const records = cov && "records" in cov ? cov.records : undefined;
                         if (!records || records.length === 0) return null;
 
-                        return records.map((rec) => (
-                          <TableRow key={`${table.key}-rec-${rec.id}`} className="bg-muted/30">
-                            <TableCell className="py-1.5" />
-                            <TableCell className="py-1.5 pl-10">
-                              <span className="text-xs text-muted-foreground">{rec.name}</span>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5" />
-                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
-                              {rec.count != null && (
-                                <span className="text-xs text-muted-foreground">{rec.count}</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center py-1.5">
-                              <button
-                                className={cn(
-                                  "text-[11px] font-medium cursor-pointer hover:underline",
-                                  SYNC_MODE_LABELS[mode].color,
+                        return records.map((rec) => {
+                          const recMode = getRecordMode(table.key, rec.id, table.defaultMode);
+                          return (
+                            <TableRow key={`${table.key}-rec-${rec.id}`} className="bg-muted/30">
+                              <TableCell className="py-1.5" />
+                              <TableCell className="py-1.5 pl-10">
+                                <span className="text-xs text-muted-foreground">{rec.name}</span>
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5" />
+                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
+                                {rec.count != null && (
+                                  <span className="text-xs text-muted-foreground">{rec.count}</span>
                                 )}
-                                title="Click to change sync direction (Two-way → One-way → Independent)"
-                                onClick={() => handleCycleSyncMode(table.key, mode)}
-                              >
-                                {SYNC_MODE_LABELS[mode].label}
-                              </button>
-                            </TableCell>
-                            <TableCell className="py-1.5" />
-                          </TableRow>
-                        ));
+                              </TableCell>
+                              <TableCell className="text-center py-1.5">
+                                <button
+                                  className={cn(
+                                    "text-[11px] font-medium cursor-pointer hover:underline",
+                                    SYNC_MODE_LABELS[recMode].color,
+                                  )}
+                                  title="Click to change sync direction for this record"
+                                  onClick={() => handleCycleRecordMode(table.key, rec.id, recMode)}
+                                >
+                                  {SYNC_MODE_LABELS[recMode].label}
+                                </button>
+                              </TableCell>
+                              <TableCell className="py-1.5" />
+                            </TableRow>
+                          );
+                        });
                       })()}
 
                       {/* Inline diff panel */}
