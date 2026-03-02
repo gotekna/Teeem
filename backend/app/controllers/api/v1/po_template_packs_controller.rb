@@ -405,11 +405,16 @@ module Api
         other_tenants = Tenant.where.not(id: current_tenant.id)
 
         synced_tenants = other_tenants.filter_map do |tenant|
-          has_match = ActsAsTenant.with_tenant(tenant) do
-            PoTemplatePack.exists?(sync_key: pack.sync_key)
-          end
+          ActsAsTenant.with_tenant(tenant) do
+            other_pack = PoTemplatePack.find_by(sync_key: pack.sync_key)
+            next nil unless other_pack
 
-          tenant.name if has_match
+            # Skip if the other tenant has set their pack to "independent"
+            other_modes = tenant.tenant_setting&.config_sync_table_modes || {}
+            next nil if other_modes["po_template_packs:#{other_pack.id}"] == "independent"
+
+            tenant.name
+          end
         end
 
         return nil if synced_tenants.empty?

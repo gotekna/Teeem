@@ -1365,8 +1365,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.string "match_keywords"
     t.string "overhead_po_name", limit: 100
+    t.string "sync_key"
     t.index ["claim_stage_template_id", "name"], name: "idx_cstl_template_name", unique: true
     t.index ["claim_stage_template_id", "sequence_order"], name: "idx_cstl_template_sequence"
+    t.index ["tenant_id", "sync_key"], name: "idx_claim_stage_template_lines_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_claim_stage_template_lines_on_tenant_id"
   end
 
