@@ -284,6 +284,9 @@ export function ScheduleMasterSyncTab() {
     });
     try {
       await api.put("/api/v1/config_sync/update_table_mode", { table: tableKey, mode: nextMode, cascade: true });
+      // Refresh coverage from server to get accurate child sync states
+      const res = await api.get<{ success: boolean; sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>> }>("/api/v1/config_sync/tables");
+      if (res?.sync_coverage) setSyncCoverage(res.sync_coverage);
     } catch (err) {
       console.error("[SMSync] Failed to update table mode:", err);
       // Revert on failure
