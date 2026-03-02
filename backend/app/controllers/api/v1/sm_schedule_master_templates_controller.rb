@@ -1058,7 +1058,8 @@ module Api
           is_canonical: template.is_canonical,
           canonical_record_id: template.canonical_record_id,
           canonical_version: template.canonical_version,
-          field_overrides: template.field_overrides
+          field_overrides: template.field_overrides,
+          sync_status: build_sync_status(template)
         }
 
         if include_rows
@@ -1164,6 +1165,49 @@ module Api
       # Headers are tasks that act as group parents for other tasks
       def load_header_map
         SmScheduleMaster.pluck(:id, :name).to_h
+      end
+
+      # Build sync status for a template (canonical sync + dependent tables)
+      # Returns nil for local-only templates (no canonical link)
+      def build_sync_status(template)
+        # Templates without canonical link are local-only
+        return nil unless template.canonical?
+
+        # Get other bidirectional tenants (Tekna/Pilgrim/Teeem minus current)
+        sync_members = CanonicalSyncGroupMember.bidirectional
+                         .where.not(tenant_id: current_tenant.id)
+                         .includes(:tenant)
+
+        synced_tenants = sync_members.filter_map do |member|
+          tenant = member.tenant
+          next unless tenant
+
+          # Check if tenant has a record linked to the same canonical record
+          has_match = ActsAsTenant.with_tenant(tenant) do
+            SmScheduleMasterTemplate.where(canonical_record_id: template.canonical_record_id).exists?
+          end
+
+          { id: tenant.id, name: tenant.name } if has_match
+        end
+
+        # Count dependent tables synced via canonical/config_sync
+        po_packs = template.po_template_packs
+        po_pack_count = po_packs.size
+        po_item_count = po_packs.sum { |p| p.po_template_items.size }
+
+        # CQ templates linked via po_template_pack
+        cq_count = CustomQuoteTemplate.where(po_template_pack_id: po_packs.pluck(:id)).count
+
+        {
+          is_canonical: true,
+          synced_tenants: synced_tenants.map { |t| t[:name] },
+          dependent_tables: [
+            { name: "SM Tasks", count: template.row_count, sync_type: "canonical" },
+            { name: "PO Template Packs", count: po_pack_count, sync_type: "config_sync" },
+            { name: "PO Template Items", count: po_item_count, sync_type: "config_sync" },
+            { name: "Custom Quote Templates", count: cq_count, sync_type: "none" }
+          ].select { |t| t[:count] > 0 }
+        }
       end
     end
   end

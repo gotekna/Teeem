@@ -9114,6 +9114,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.decimal "default_qleave_rate_percent", precision: 6, scale: 4, default: "0.575"
     t.decimal "qleave_threshold", precision: 12, scale: 2, default: "150000.0"
     t.decimal "qbcc_minimum_threshold", precision: 12, scale: 2, default: "3300.0"
+    t.bigint "charge_construction_insurance_sm_id"
+    t.bigint "charge_qleave_sm_id"
+    t.bigint "charge_overheads_sm_id"
+    t.bigint "charge_qbcc_insurance_sm_id"
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|
@@ -12677,6 +12681,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_schedule_masters", "tenants"
   add_foreign_key "sm_schedule_masters", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_masters", "users", column: "updated_by_id"
+  add_foreign_key "sm_settings", "sm_schedule_masters", column: "charge_construction_insurance_sm_id", on_delete: :nullify
+  add_foreign_key "sm_settings", "sm_schedule_masters", column: "charge_overheads_sm_id", on_delete: :nullify
+  add_foreign_key "sm_settings", "sm_schedule_masters", column: "charge_qbcc_insurance_sm_id", on_delete: :nullify
+  add_foreign_key "sm_settings", "sm_schedule_masters", column: "charge_qleave_sm_id", on_delete: :nullify
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify

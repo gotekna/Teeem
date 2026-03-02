@@ -2262,6 +2262,7 @@ Rails.application.routes.draw do
 
       # SM Schedule Master - standalone endpoints (not nested under template)
       get "sm_schedule_master/template_links/:id", to: "sm_schedule_master#template_links", as: :sm_schedule_master_template_links
+      post "sm_schedule_master/template_links/:id/add", to: "sm_schedule_master#add_template_link", as: :sm_schedule_master_add_template_link
 
       # SM Settings (singleton - admin)
       resource :sm_settings, only: [ :show, :update ] do
@@ -2285,6 +2286,9 @@ Rails.application.routes.draw do
 
           # SSoT: Role.for_select for task dropdowns
           get :assignable_roles
+
+          # SM template tasks list for charge → PO auto-link config
+          get :template_tasks
         end
       end
 

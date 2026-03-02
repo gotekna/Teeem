@@ -38,6 +38,15 @@ interface PricingSettings {
   defaultQleaveRatePercent: number;
   qleaveThreshold: number;
   qbccMinimumThreshold: number;
+  chargeConstructionInsuranceSmId: number | null;
+  chargeQleaveSmId: number | null;
+  chargeOverheadsSmId: number | null;
+  chargeQbccInsuranceSmId: number | null;
+}
+
+interface SmTemplateTask {
+  id: number;
+  name: string;
 }
 
 interface QbccBracket {
@@ -62,6 +71,7 @@ export function MarkupDefaultsTab() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [savingBrackets, setSavingBrackets] = React.useState(false);
+  const [templateTasks, setTemplateTasks] = React.useState<SmTemplateTask[]>([]);
 
   // ============================================
   // Fetch
@@ -70,26 +80,36 @@ export function MarkupDefaultsTab() {
   React.useEffect(() => {
     (async () => {
       try {
-        const [settingsRes, bracketsRes] = await Promise.all([
+        const [settingsRes, bracketsRes, tasksRes] = await Promise.all([
           api.get<{ settings: PricingSettings }>("/api/v1/sm_settings"),
           api.get<{ brackets: QbccBracket[] }>("/api/v1/qbcc_premium_brackets"),
+          api.get<{ tasks: SmTemplateTask[] }>("/api/v1/sm_settings/template_tasks"),
         ]);
 
         if (settingsRes?.settings) {
+          const s = settingsRes.settings;
           setSettings({
-            defaultBuilderMarginPercent: settingsRes.settings.defaultBuilderMarginPercent ?? 0,
-            defaultEscalationPercent: settingsRes.settings.defaultEscalationPercent ?? 0,
-            pcPsMarkupCapPercent: settingsRes.settings.pcPsMarkupCapPercent ?? 25,
-            defaultConstructionInsurancePercent: settingsRes.settings.defaultConstructionInsurancePercent ?? 0,
-            defaultOverheadsPercent: settingsRes.settings.defaultOverheadsPercent ?? 0,
-            defaultQleaveRatePercent: settingsRes.settings.defaultQleaveRatePercent ?? 0.575,
-            qleaveThreshold: settingsRes.settings.qleaveThreshold ?? 150000,
-            qbccMinimumThreshold: settingsRes.settings.qbccMinimumThreshold ?? 3300,
+            defaultBuilderMarginPercent: s.defaultBuilderMarginPercent ?? 0,
+            defaultEscalationPercent: s.defaultEscalationPercent ?? 0,
+            pcPsMarkupCapPercent: s.pcPsMarkupCapPercent ?? 25,
+            defaultConstructionInsurancePercent: s.defaultConstructionInsurancePercent ?? 0,
+            defaultOverheadsPercent: s.defaultOverheadsPercent ?? 0,
+            defaultQleaveRatePercent: s.defaultQleaveRatePercent ?? 0.575,
+            qleaveThreshold: s.qleaveThreshold ?? 150000,
+            qbccMinimumThreshold: s.qbccMinimumThreshold ?? 3300,
+            chargeConstructionInsuranceSmId: s.chargeConstructionInsuranceSmId ?? null,
+            chargeQleaveSmId: s.chargeQleaveSmId ?? null,
+            chargeOverheadsSmId: s.chargeOverheadsSmId ?? null,
+            chargeQbccInsuranceSmId: s.chargeQbccInsuranceSmId ?? null,
           });
         }
 
         if (bracketsRes?.brackets) {
           setBrackets(bracketsRes.brackets);
+        }
+
+        if (tasksRes?.tasks) {
+          setTemplateTasks(tasksRes.tasks);
         }
       } catch {
         toast({ title: "Failed to load markup settings", variant: "destructive" });
@@ -117,6 +137,10 @@ export function MarkupDefaultsTab() {
           default_qleave_rate_percent: settings.defaultQleaveRatePercent,
           qleave_threshold: settings.qleaveThreshold,
           qbcc_minimum_threshold: settings.qbccMinimumThreshold,
+          charge_construction_insurance_sm_id: settings.chargeConstructionInsuranceSmId,
+          charge_qleave_sm_id: settings.chargeQleaveSmId,
+          charge_overheads_sm_id: settings.chargeOverheadsSmId,
+          charge_qbcc_insurance_sm_id: settings.chargeQbccInsuranceSmId,
         },
       });
       toast({ title: "Markup defaults saved" });
@@ -280,20 +304,39 @@ export function MarkupDefaultsTab() {
 
       <Card>
         <CardContent className="space-y-6 p-6">
-          <SettingField
-            label="Default Construction Insurance (%)"
-            value={settings?.defaultConstructionInsurancePercent ?? 0}
-            onChange={v => updateSetting("defaultConstructionInsurancePercent", v)}
-            help="Builder's construction insurance as % of sell subtotal."
-            step={0.1}
-          />
-          <SettingField
-            label="Default Overheads (%)"
-            value={settings?.defaultOverheadsPercent ?? 0}
-            onChange={v => updateSetting("defaultOverheadsPercent", v)}
-            help="General overheads as % of sell subtotal."
-            step={0.1}
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <SettingField
+              label="Default Construction Insurance (%)"
+              value={settings?.defaultConstructionInsurancePercent ?? 0}
+              onChange={v => updateSetting("defaultConstructionInsurancePercent", v)}
+              help="Builder's construction insurance as % of sell subtotal."
+              step={0.1}
+            />
+            <SmTaskSelect
+              label="Auto-link PO from SM Task"
+              value={settings?.chargeConstructionInsuranceSmId ?? null}
+              onChange={v => setSettings(prev => prev ? { ...prev, chargeConstructionInsuranceSmId: v } : null)}
+              tasks={templateTasks}
+              help="When markup is calculated, auto-link this charge to the PO on this SM task."
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <SettingField
+              label="Default Overheads (%)"
+              value={settings?.defaultOverheadsPercent ?? 0}
+              onChange={v => updateSetting("defaultOverheadsPercent", v)}
+              help="General overheads as % of sell subtotal."
+              step={0.1}
+            />
+            <SmTaskSelect
+              label="Auto-link PO from SM Task"
+              value={settings?.chargeOverheadsSmId ?? null}
+              onChange={v => setSettings(prev => prev ? { ...prev, chargeOverheadsSmId: v } : null)}
+              tasks={templateTasks}
+              help="When markup is calculated, auto-link this charge to the PO on this SM task."
+            />
+          </div>
 
           <div className="border-t pt-4">
             <h3 className="text-sm font-semibold mb-3">QLeave</h3>
@@ -314,18 +357,36 @@ export function MarkupDefaultsTab() {
                 prefix="$"
               />
             </div>
+            <div className="mt-4">
+              <SmTaskSelect
+                label="Auto-link PO from SM Task"
+                value={settings?.chargeQleaveSmId ?? null}
+                onChange={v => setSettings(prev => prev ? { ...prev, chargeQleaveSmId: v } : null)}
+                tasks={templateTasks}
+                help="When markup is calculated, auto-link this charge to the PO on this SM task."
+              />
+            </div>
           </div>
 
           <div className="border-t pt-4">
             <h3 className="text-sm font-semibold mb-3">QBCC Home Warranty Insurance</h3>
-            <SettingField
-              label="QBCC Minimum Threshold ($)"
-              value={settings?.qbccMinimumThreshold ?? 3300}
-              onChange={v => updateSetting("qbccMinimumThreshold", v)}
-              help="Contract value below which QBCC premium doesn't apply (currently $3,300)."
-              step={100}
-              prefix="$"
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <SettingField
+                label="QBCC Minimum Threshold ($)"
+                value={settings?.qbccMinimumThreshold ?? 3300}
+                onChange={v => updateSetting("qbccMinimumThreshold", v)}
+                help="Contract value below which QBCC premium doesn't apply (currently $3,300)."
+                step={100}
+                prefix="$"
+              />
+              <SmTaskSelect
+                label="Auto-link PO from SM Task"
+                value={settings?.chargeQbccInsuranceSmId ?? null}
+                onChange={v => setSettings(prev => prev ? { ...prev, chargeQbccInsuranceSmId: v } : null)}
+                tasks={templateTasks}
+                help="When markup is calculated, auto-link this charge to the PO on this SM task."
+              />
+            </div>
           </div>
 
           <Button onClick={handleSave} disabled={saving}>
@@ -467,6 +528,43 @@ export function MarkupDefaultsTab() {
 // ============================================
 // Sub-components
 // ============================================
+
+function SmTaskSelect({
+  label,
+  value,
+  onChange,
+  tasks,
+  help,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (v: number | null) => void;
+  tasks: SmTemplateTask[];
+  help?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Select
+        value={value?.toString() ?? "none"}
+        onValueChange={v => onChange(v === "none" ? null : parseInt(v, 10))}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="None (no auto-link)" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">None (no auto-link)</SelectItem>
+          {tasks.map(t => (
+            <SelectItem key={t.id} value={t.id.toString()}>
+              {t.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {help && <p className="text-xs text-muted-foreground">{help}</p>}
+    </div>
+  );
+}
 
 function SettingField({
   label,

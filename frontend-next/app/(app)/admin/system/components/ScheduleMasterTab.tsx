@@ -92,7 +92,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Phone, MessageSquare, Mail } from "lucide-react";
+import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Phone, MessageSquare, Mail, RefreshCw } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { useAtom, useStore } from "jotai";
 import { smDataViewTemplateIdAtom, showEditRecordModalAtom, selectedRecordForModalAtom } from "@/lib/table-atoms";
@@ -277,6 +277,16 @@ interface SmScheduleMasterTemplate {
   copied_from_name?: string | null;
   created_at: string;
   updated_at: string;
+  is_canonical?: boolean;
+  sync_status?: {
+    is_canonical: boolean;
+    synced_tenants: string[];
+    dependent_tables: Array<{
+      name: string;
+      count: number;
+      sync_type: string;
+    }>;
+  } | null;
 }
 
 // PO Task picker - shared component (SSoT: components/settings/PoTaskPicker.tsx)
@@ -614,7 +624,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Checklists from Supervisor Checklist Template foundation
   const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Job-scoped document types for spawn scan task dropdown
-  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string>; folder?: string; primary_folder_name?: string }[]>([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; abbreviation?: string; form_number_mapping?: Record<string, string>; folder?: string; primary_folder_name?: string }[]>([]);
   // SSoT: Claim invoice templates for styling claim invoices
   const [claimInvoiceTemplates, setClaimInvoiceTemplates] = React.useState<ClaimInvoiceTemplate[]>([]);
   const [templatePreviewHtml, setTemplatePreviewHtml] = React.useState<string | null>(null);
@@ -1114,7 +1124,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // Fetch both "job" and "both" scoped document types
   const loadDocumentTypes = async () => {
     try {
-      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name?: string; scope?: string; folder?: string; primary_folder_name?: string; form_number_mapping?: Record<string, string> }> }>(
+      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name?: string; abbreviation?: string; scope?: string; folder?: string; primary_folder_name?: string; form_number_mapping?: Record<string, string> }> }>(
         "/api/v1/document_types"
       );
       if (data?.data) {
@@ -2750,6 +2760,17 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                                 Inactive
                               </Badge>
                             )}
+                            {template.sync_status?.synced_tenants && template.sync_status.synced_tenants.length > 0 && (
+                              <Badge variant="outline" className="text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30">
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                Synced with {template.sync_status.synced_tenants.join(", ")}
+                              </Badge>
+                            )}
+                            {template.is_canonical && !template.sync_status?.synced_tenants?.length && (
+                              <Badge variant="outline" className="text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                                Canonical (no sync targets)
+                              </Badge>
+                            )}
                           </div>
                           {template.description && (
                             <CardDescription className="mt-1">{template.description}</CardDescription>
@@ -2849,6 +2870,40 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                                 </div>
                               ))}
                           </div>
+
+                          {/* Sync status detail (when template is canonical) */}
+                          {template.sync_status && template.sync_status.dependent_tables.length > 0 && (
+                            <div className="mt-4 bg-muted/30 border rounded-lg p-3">
+                              <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                                <RefreshCw className="h-3 w-3" />
+                                Synced Tables
+                              </h4>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {template.sync_status.dependent_tables.map((table) => (
+                                  <div key={table.name} className="flex items-center gap-2 text-xs">
+                                    <Badge
+                                      variant="outline"
+                                      className={
+                                        table.sync_type === "canonical"
+                                          ? "text-green-700 dark:text-green-400 border-green-300 dark:border-green-700"
+                                          : table.sync_type === "config_sync"
+                                            ? "text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700"
+                                            : "text-muted-foreground"
+                                      }
+                                    >
+                                      {table.count}
+                                    </Badge>
+                                    <span className="text-muted-foreground">{table.name}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground mt-2">
+                                <span className="text-green-600 dark:text-green-400">Green</span> = canonical sync &middot;{" "}
+                                <span className="text-blue-600 dark:text-blue-400">Blue</span> = config sync &middot;{" "}
+                                Grey = not synced
+                              </p>
+                            </div>
+                          )}
 
                           <div className="mt-4 flex justify-end">
                             <Button variant="outline" size="sm" asChild>

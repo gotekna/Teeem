@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmScheduleMasterController < ApplicationController
-      before_action :set_template, except: [:template_links]
+      before_action :set_template, except: [:template_links, :add_template_link]
       before_action :set_row, only: [ :show, :update, :destroy, :move ]
 
       # GET /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
@@ -192,9 +192,28 @@ module Api
 
         include_detail = params[:detail] == "true"
 
+        # ConfigSync status: which other bidirectional tenants have matching records
+        sync_tenants = CanonicalSyncGroupMember.bidirectional
+                         .where.not(tenant_id: current_tenant.id)
+                         .includes(:tenant)
+                         .map(&:tenant)
+                         .compact
+
         po_packs_data = po_items.group_by(&:po_template_pack_id).map { |pack_id, items|
           pack = items.first.po_template_pack
           next unless pack
+
+          # Check sync status in other bidirectional tenants
+          pack_sync = sync_tenants.map { |t|
+            match = ActsAsTenant.with_tenant(t) {
+              if pack.sync_key.present?
+                PoTemplatePack.find_by(sync_key: pack.sync_key)
+              else
+                PoTemplatePack.find_by(name: pack.name)
+              end
+            }
+            { tenant_name: t.name, synced: match.present? } if match
+          }.compact
 
           pack_data = {
             id: pack_id,
@@ -202,7 +221,8 @@ module Api
             description: pack.description,
             item_count: pack.po_template_items.size,
             estimated_total: pack.estimated_total&.to_f,
-            is_primary: sm_template_ids.include?(pack.sm_schedule_master_template_id)
+            is_primary: sm_template_ids.include?(pack.sm_schedule_master_template_id),
+            synced_tenants: pack_sync.map { |s| s[:tenant_name] }
           }
 
           if include_detail
@@ -239,12 +259,21 @@ module Api
         }.compact
 
         cq_templates_data = cq_lines.map(&:custom_quote_template).compact.uniq.map { |template|
+          # CQ templates match by name in other tenants
+          cq_sync = sync_tenants.map { |t|
+            match = ActsAsTenant.with_tenant(t) {
+              CustomQuoteTemplate.find_by(name: template.name)
+            }
+            { tenant_name: t.name } if match
+          }.compact
+
           tmpl_data = {
             id: template.id,
             template_name: template.name,
             description: template.description,
             line_count: template.line_count,
-            is_primary: sm_template_ids.include?(template.po_template_pack&.sm_schedule_master_template_id)
+            is_primary: sm_template_ids.include?(template.po_template_pack&.sm_schedule_master_template_id),
+            synced_tenants: cq_sync.map { |s| s[:tenant_name] }
           }
 
           if include_detail
@@ -257,10 +286,58 @@ module Api
         render json: {
           success: true,
           data: {
+            current_tenant: current_tenant.name,
+            sync_tenants: sync_tenants.map { |t| { id: t.id, name: t.name } },
             po_template_packs: po_packs_data,
             custom_quote_templates: cq_templates_data
           }
         }
+      end
+
+      # POST /api/v1/sm_schedule_master/template_links/:id/add
+      # Add this SM task to a PO Template Pack or Custom Quote Template
+      # Params: type ("po_template_pack" or "custom_quote_template"), template_id
+      def add_template_link
+        sm = SmScheduleMaster.find(params[:id])
+
+        case params[:type]
+        when "po_template_pack"
+          pack = PoTemplatePack.find(params[:template_id])
+          next_position = (pack.po_template_items.maximum(:position) || 0) + 1
+          item = pack.po_template_items.create!(
+            name: sm.name,
+            sm_schedule_master_id: sm.id,
+            supplier_id: sm.po_supplier_id,
+            budget: sm.budget_amount,
+            notes: sm.po_description,
+            position: next_position,
+            status_on_create: "draft"
+          )
+          render json: { success: true, message: "Added to #{pack.name}", item_id: item.id }
+
+        when "custom_quote_template"
+          template = CustomQuoteTemplate.find(params[:template_id])
+          next_position = (template.lines.maximum(:position) || 0) + 1
+          # Create as PO-level line (child) - needs a parent CC line
+          # For now, create as a root line (cost centre level)
+          line = template.lines.create!(
+            name: sm.name,
+            sm_schedule_master_id: sm.id,
+            cost_centre_id: sm.cost_centre,
+            budget_amount: sm.budget_amount,
+            tender_description: sm.tender_description,
+            po_description: sm.po_description,
+            default_instructions: sm.rfq_instructions,
+            quote_level: "po",
+            position: next_position
+          )
+          render json: { success: true, message: "Added to #{template.name}", line_id: line.id }
+
+        else
+          render json: { success: false, error: "Invalid type. Use 'po_template_pack' or 'custom_quote_template'" }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
       private

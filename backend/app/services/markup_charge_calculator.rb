@@ -80,6 +80,9 @@ class MarkupChargeCalculator
     qbcc_amount = charges[:qbcc_insurance][:effective_amount]
     final_contract_inc_gst = (contract_inc_gst + qbcc_amount).round(2)
 
+    # Auto-link charges to POs via SM template task mapping
+    auto_link_charge_pos(charges) if persist
+
     # Persist if requested
     persist_charges(charges) if persist
 
@@ -247,6 +250,44 @@ class MarkupChargeCalculator
       purchase_order_id: charge_record&.purchase_order_id,
       purchase_order_number: charge_record&.purchase_order&.purchase_order_number
     }
+  end
+
+  # Map charge type → SmSetting FK column for the linked SM template task
+  CHARGE_SM_FIELDS = {
+    "construction_insurance" => :charge_construction_insurance_sm_id,
+    "qleave" => :charge_qleave_sm_id,
+    "overheads" => :charge_overheads_sm_id,
+    "qbcc_insurance" => :charge_qbcc_insurance_sm_id
+  }.freeze
+
+  # Auto-link charges to POs by finding the job's SmTask that was copied from
+  # the SM template task configured in SmSettings.
+  # Only sets PO if the charge doesn't already have one (won't override manual selection).
+  def auto_link_charge_pos(charges)
+    charges.each do |type, data|
+      # Skip if charge already has a PO linked (manual selection takes precedence)
+      next if data[:purchase_order_id].present?
+
+      sm_field = CHARGE_SM_FIELDS[type.to_s]
+      next unless sm_field
+
+      template_sm_id = settings.send(sm_field)
+      next unless template_sm_id
+
+      # Find the SmTask on this job that was copied from the template task
+      sm_task = job.sm_tasks.find_by(sm_schedule_master_id: template_sm_id)
+      next unless sm_task&.purchase_order_id
+
+      # Update the charge record with the PO link
+      charge_record = job.job_markup_charges.find_or_initialize_by(charge_type: type.to_s)
+      charge_record.purchase_order_id = sm_task.purchase_order_id
+      charge_record.tenant_id = job.tenant_id
+      charge_record.save!
+
+      # Update the in-memory hash so sync_charge_purchase_orders sees it
+      data[:purchase_order_id] = sm_task.purchase_order_id
+      data[:purchase_order_number] = sm_task.purchase_order&.purchase_order_number
+    end
   end
 
   def existing_charges

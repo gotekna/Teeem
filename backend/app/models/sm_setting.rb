@@ -9,6 +9,12 @@ class SmSetting < ApplicationRecord
   # Note: default_template_id column removed in Phase 6 Tier 2
   # Default template is now determined by SmScheduleMasterTemplate.default_template scope
 
+  # Linked SM template tasks for auto-PO on job creation
+  belongs_to :charge_construction_insurance_sm, class_name: "SmScheduleMaster", optional: true
+  belongs_to :charge_qleave_sm, class_name: "SmScheduleMaster", optional: true
+  belongs_to :charge_overheads_sm, class_name: "SmScheduleMaster", optional: true
+  belongs_to :charge_qbcc_insurance_sm, class_name: "SmScheduleMaster", optional: true
+
   # Singleton pattern - always use instance method
   def self.instance
     first || create!(id: 1)

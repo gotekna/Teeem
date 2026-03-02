@@ -12,8 +12,9 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import MultipleSelector from "@/components/ui/multiple-selector";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, AlertCircle, FileText, Package, RefreshCw, X } from "lucide-react";
+import { Check, AlertCircle, FileText, Package, Plus, RefreshCw, X } from "lucide-react";
 import { DependencyInfoPanel, DEPENDENCY_GRID_COLS, DEPENDENCY_GRID_COLS_EDITABLE } from "./DependencyInfoPanel";
+import { DocumentTypeTreePicker } from "@/components/jobs/custom-quotes/DocumentTypeTreePicker";
 import { api } from "@/lib/api";
 import { UI_AUTOSAVE_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
@@ -189,7 +190,7 @@ export interface EditRowDialogProps {
   costCentres: Array<{ id: number; name: string }>;
   tenderSections?: Array<{ id: number; name: string }>;
   checklists: Array<{ id: number; name: string }>;
-  documentTypes: Array<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string>; folder?: string; primary_folder_name?: string }>;
+  documentTypes: Array<{ id: number; name: string; display_name?: string; abbreviation?: string; form_number_mapping?: Record<string, string>; folder?: string; primary_folder_name?: string }>;
   tradingNames: Array<{ id: number; name: string }>;
   invoiceTemplates: ClaimInvoiceTemplate[];
   workflows?: Array<{ id: number; name: string }>;
@@ -258,18 +259,29 @@ export function EditRowDialog({
 
   // Template links state (lazy-loaded when Tender & Quotes tab is opened)
   const [templateLinks, setTemplateLinks] = React.useState<{
-    po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null; is_primary?: boolean }>;
-    custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number; is_primary?: boolean }>;
+    current_tenant?: string;
+    sync_tenants?: Array<{ id: number; name: string }>;
+    po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null; is_primary?: boolean; synced_tenants?: string[] }>;
+    custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number; is_primary?: boolean; synced_tenants?: string[] }>;
   } | null>(null);
   const [templateLinksLoaded, setTemplateLinksLoaded] = React.useState(false);
+  // Available templates for "Add to" dropdowns (lazy-loaded)
+  const [availablePoPacksLoaded, setAvailablePoPacksLoaded] = React.useState(false);
+  const [availablePoPacks, setAvailablePoPacks] = React.useState<Array<{ id: number; name: string }>>([]);
+  const [availableCqTemplates, setAvailableCqTemplates] = React.useState<Array<{ id: number; name: string }>>([]);
+  const [addingToTemplate, setAddingToTemplate] = React.useState(false);
 
   // Filter document types: "Plans" folder vs everything else
   const planDocTypes = React.useMemo(
-    () => documentTypes.filter(dt => dt.folder === "Plans" || dt.primary_folder_name === "Plans"),
+    () => documentTypes
+      .filter(dt => dt.folder === "Plans" || dt.primary_folder_name === "Plans")
+      .sort((a, b) => (a.abbreviation || "").localeCompare(b.abbreviation || "")),
     [documentTypes]
   );
   const nonPlanDocTypes = React.useMemo(
-    () => documentTypes.filter(dt => dt.folder !== "Plans" && dt.primary_folder_name !== "Plans"),
+    () => documentTypes
+      .filter(dt => dt.folder !== "Plans" && dt.primary_folder_name !== "Plans")
+      .sort((a, b) => (a.abbreviation || "").localeCompare(b.abbreviation || "")),
     [documentTypes]
   );
 
@@ -409,8 +421,10 @@ export function EditRowDialog({
       const data = await api.get<{
         success: boolean;
         data: {
-          po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null; is_primary?: boolean }>;
-          custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number; is_primary?: boolean }>;
+          current_tenant?: string;
+          sync_tenants?: Array<{ id: number; name: string }>;
+          po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null; is_primary?: boolean; synced_tenants?: string[] }>;
+          custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number; is_primary?: boolean; synced_tenants?: string[] }>;
         };
       }>(`/api/v1/sm_schedule_master/template_links/${row.id}`);
       if (data?.data) {
@@ -422,6 +436,52 @@ export function EditRowDialog({
       setTemplateLinksLoaded(true);
     }
   }, [templateLinksLoaded, row?.id]);
+
+  // Load available PO Packs and CQ Templates for "Add to" dropdowns
+  const loadAvailableTemplates = React.useCallback(async () => {
+    if (availablePoPacksLoaded) return;
+    try {
+      const [poRes, cqRes] = await Promise.all([
+        api.get<{ success: boolean; data: Array<{ id: number; name: string }> }>("/api/v1/po_template_packs"),
+        api.get<{ success: boolean; data: Array<{ id: number; name: string }> }>("/api/v1/custom_quote_templates"),
+      ]);
+      setAvailablePoPacks((poRes?.data || []).map(p => ({ id: p.id, name: p.name })));
+      setAvailableCqTemplates((cqRes?.data || []).map(t => ({ id: t.id, name: t.name })));
+    } catch (error) {
+      console.error("Failed to load available templates:", error);
+    } finally {
+      setAvailablePoPacksLoaded(true);
+    }
+  }, [availablePoPacksLoaded]);
+
+  // Add this task to a PO Template Pack or Custom Quote Template
+  const addToTemplate = async (type: "po_template_pack" | "custom_quote_template", templateId: number) => {
+    if (!row?.id || addingToTemplate) return;
+    setAddingToTemplate(true);
+    try {
+      await api.post(`/api/v1/sm_schedule_master/template_links/${row.id}/add`, {
+        type,
+        template_id: templateId,
+      });
+      // Reload template links directly (bypass the loaded guard)
+      const data = await api.get<{
+        success: boolean;
+        data: {
+          current_tenant?: string;
+          sync_tenants?: Array<{ id: number; name: string }>;
+          po_template_packs: Array<{ id: number; pack_name: string; description?: string | null; item_count?: number; estimated_total?: number | null; is_primary?: boolean; synced_tenants?: string[] }>;
+          custom_quote_templates: Array<{ id: number; template_name: string; description?: string | null; line_count?: number; is_primary?: boolean; synced_tenants?: string[] }>;
+        };
+      }>(`/api/v1/sm_schedule_master/template_links/${row.id}`);
+      if (data?.data) {
+        setTemplateLinks(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to add to template:", error);
+    } finally {
+      setAddingToTemplate(false);
+    }
+  };
 
   // Handle save (supports both manual and auto-save)
   const handleSaveRow = async (options?: { silent?: boolean }) => {
@@ -483,7 +543,7 @@ export function EditRowDialog({
     <>
       {/* Row Edit Dialog - Full-screen modal (90%) for better UX */}
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="max-w-[90vw] h-[95vh] flex flex-col p-0 overflow-hidden">
           {/* Sticky Header - Compact single line */}
           <div className="sticky top-0 z-10 bg-background border-b px-6 py-3 flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-base font-semibold">
@@ -1374,7 +1434,7 @@ export function EditRowDialog({
                 {/* SSoT Info Banner */}
                 <div className="mb-4 p-2.5 rounded-md border border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/30">
                   <p className="text-[11px] text-blue-700 dark:text-blue-300">
-                    These fields are the <span className="font-semibold">Single Source of Truth</span> &mdash; PO Templates and Custom Quote Templates read from here when linked to this task.
+                    <span className="font-semibold">Two-way sync</span> &mdash; Changes here sync to linked PO Templates and Custom Quote Templates. Editing in either place updates both.
                   </p>
                 </div>
 
@@ -1724,7 +1784,8 @@ export function EditRowDialog({
                       <MultipleSelector
                         value={(editRowForm.plan_type_ids || []).map(id => {
                           const dt = planDocTypes.find(d => d.id === id);
-                          return { value: String(id), label: dt?.display_name || dt?.name || `Type ${id}` };
+                          const label = dt ? (dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name) : `Type ${id}`;
+                          return { value: String(id), label };
                         })}
                         onChange={(options) => {
                           setEditRowForm({
@@ -1734,13 +1795,19 @@ export function EditRowDialog({
                         }}
                         defaultOptions={planDocTypes.map(dt => ({
                           value: String(dt.id),
-                          label: dt.display_name || dt.name
+                          label: dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name
                         }))}
                         onSearchSync={(search) => {
                           const lower = search.toLowerCase();
                           return planDocTypes
-                            .filter(dt => (dt.display_name || dt.name).toLowerCase().includes(lower))
-                            .map(dt => ({ value: String(dt.id), label: dt.display_name || dt.name }));
+                            .filter(dt => {
+                              const label = dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name;
+                              return label.toLowerCase().includes(lower);
+                            })
+                            .map(dt => ({
+                              value: String(dt.id),
+                              label: dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name
+                            }));
                         }}
                         placeholder="Select plan types..."
                         emptyIndicator={
@@ -1760,14 +1827,15 @@ export function EditRowDialog({
                       <div className="flex gap-2">
                         <div className="flex-1">
                           <ComboboxDropdown
-                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.name }))}
+                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name }))}
                             selectedItem={(() => {
                               const firstDocType = editRowForm.document_types?.[0];
                               if (!firstDocType) return undefined;
                               const docType = documentTypes.find(dt => dt.id === firstDocType.document_type_id);
+                              const label = docType ? (docType.abbreviation ? `${docType.abbreviation} - ${docType.display_name || docType.name}` : docType.display_name || docType.name) : firstDocType.document_type_name;
                               return {
                                 id: String(firstDocType.document_type_id),
-                                label: docType?.name || firstDocType.document_type_name
+                                label
                               };
                             })()}
                             onSelect={(item) => setEditRowForm({
@@ -1847,39 +1915,11 @@ export function EditRowDialog({
                   {/* Right: Attached Documents + Completion Doc Requirement */}
                   <div className="space-y-4">
                     {/* Attached Documents */}
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Attached Documents</Label>
-                      <MultipleSelector
-                        value={(editRowForm.document_ref_type_ids || []).map(id => {
-                          const dt = nonPlanDocTypes.find(d => d.id === id) || documentTypes.find(d => d.id === id);
-                          return { value: String(id), label: dt?.display_name || dt?.name || `Type ${id}` };
-                        })}
-                        onChange={(options) => {
-                          setEditRowForm({
-                            ...editRowForm,
-                            document_ref_type_ids: options.map(o => parseInt(o.value))
-                          });
-                        }}
-                        defaultOptions={nonPlanDocTypes.map(dt => ({
-                          value: String(dt.id),
-                          label: dt.display_name || dt.name
-                        }))}
-                        onSearchSync={(search) => {
-                          const lower = search.toLowerCase();
-                          return nonPlanDocTypes
-                            .filter(dt => (dt.display_name || dt.name).toLowerCase().includes(lower))
-                            .map(dt => ({ value: String(dt.id), label: dt.display_name || dt.name }));
-                        }}
-                        placeholder="Select document types..."
-                        emptyIndicator={
-                          <p className="text-center text-xs text-muted-foreground">
-                            No document types available
-                          </p>
-                        }
+                    <div>
+                      <DocumentTypeTreePicker
+                        selectedIds={editRowForm.document_ref_type_ids || []}
+                        onChange={(ids) => setEditRowForm({ ...editRowForm, document_ref_type_ids: ids })}
                       />
-                      <p className="text-[10px] text-muted-foreground">
-                        Document types associated with this task for reference when working on jobs
-                      </p>
                     </div>
 
                     {/* Completion Document Requirement */}
@@ -1899,10 +1939,10 @@ export function EditRowDialog({
                       {editRowForm.requires_document_to_complete && (
                         <>
                           <ComboboxDropdown
-                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.display_name || dt.name }))}
+                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name }))}
                             selectedItem={editRowForm.completion_document_type_id ? {
                               id: String(editRowForm.completion_document_type_id),
-                              label: editRowForm.completion_document_type_name || documentTypes.find(dt => dt.id === editRowForm.completion_document_type_id)?.name || ''
+                              label: (() => { const dt = documentTypes.find(d => d.id === editRowForm.completion_document_type_id); return dt ? (dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name) : editRowForm.completion_document_type_name || ''; })()
                             } : undefined}
                             onSelect={(item) => setEditRowForm({
                               ...editRowForm,
@@ -2265,8 +2305,8 @@ export function EditRowDialog({
                   TAB 7: TEMPLATES - Which PO Packs & Quote Templates link here
                  ============================================================ */}
               <TabsContent value="templates" className="mt-3">
-                {/* Trigger lazy-load of template links when this tab renders */}
-                <div ref={(el) => { if (el) { loadTemplateLinks(); } }} />
+                {/* Trigger lazy-load of template links + available templates when this tab renders */}
+                <div ref={(el) => { if (el) { loadTemplateLinks(); loadAvailableTemplates(); } }} />
 
                 {!templateLinksLoaded && (
                   <div className="flex items-center justify-center py-8">
@@ -2287,24 +2327,49 @@ export function EditRowDialog({
 
                 {templateLinksLoaded && templateLinks && (templateLinks.po_template_packs.length > 0 || templateLinks.custom_quote_templates.length > 0) && (
                   <div className="space-y-5">
-                    {/* SSoT Banner */}
+                    {/* Sync Status Banner */}
                     <div className="flex items-start gap-2 p-3 rounded-md border border-primary/30 bg-primary/5 dark:bg-primary/10 text-xs">
                       <RefreshCw className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-medium text-primary">Schedule Master is the primary source</p>
+                        <p className="font-medium text-primary">
+                          Single source — always in sync
+                          {templateLinks.sync_tenants && templateLinks.sync_tenants.length > 0 && (
+                            <span className="font-normal text-muted-foreground ml-1">
+                              with {templateLinks.sync_tenants.map(t => t.name).join(", ")}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-muted-foreground mt-0.5">
-                          Name, supplier, budget, descriptions, and RFQ instructions set on the Tender &amp; Quotes tab
-                          flow to these linked templates automatically.
+                          Templates read directly from Schedule Master. No copies, no drift.
+                          {templateLinks.sync_tenants && templateLinks.sync_tenants.length > 0 && (
+                            <> ConfigSync keeps {templateLinks.current_tenant} and {templateLinks.sync_tenants.map(t => t.name).join(", ")} aligned automatically.</>
+                          )}
                         </p>
                       </div>
                     </div>
 
                     {/* PO Template Packs */}
                     <div>
-                      <Label className="text-xs font-medium flex items-center gap-1.5 mb-2">
-                        <Package className="h-3.5 w-3.5 text-blue-500" />
-                        PO Template Packs ({templateLinks.po_template_packs.length})
-                      </Label>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-xs font-medium flex items-center gap-1.5">
+                          <Package className="h-3.5 w-3.5 text-blue-500" />
+                          PO Template Packs ({templateLinks.po_template_packs.length})
+                        </Label>
+                        {availablePoPacks.length > 0 && (
+                          <div className="w-[200px]">
+                            <ComboboxDropdown
+                              items={availablePoPacks
+                                .filter(p => !templateLinks.po_template_packs.some(linked => linked.id === p.id))
+                                .map(p => ({ id: String(p.id), label: p.name }))}
+                              onSelect={(item) => addToTemplate("po_template_pack", Number(item.id))}
+                              placeholder="+ Add to pack..."
+                              searchPlaceholder="Search packs..."
+                              disabled={addingToTemplate}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                        )}
+                      </div>
                       {templateLinks.po_template_packs.length > 0 ? (
                         <>
                           <div className="space-y-1.5">
@@ -2314,6 +2379,12 @@ export function EditRowDialog({
                                 <span className="font-medium flex-1">{pack.pack_name}</span>
                                 {pack.is_primary && (
                                   <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">Primary</span>
+                                )}
+                                {pack.synced_tenants && pack.synced_tenants.length > 0 && (
+                                  <span className="text-[10px] text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                    <RefreshCw className="h-2.5 w-2.5" />
+                                    {pack.synced_tenants.join(", ")}
+                                  </span>
                                 )}
                                 {pack.item_count != null && (
                                   <span className="text-xs text-muted-foreground">{pack.item_count} items</span>
@@ -2332,10 +2403,26 @@ export function EditRowDialog({
 
                     {/* Custom Quote Templates */}
                     <div>
-                      <Label className="text-xs font-medium flex items-center gap-1.5 mb-2">
-                        <FileText className="h-3.5 w-3.5 text-green-500" />
-                        Custom Quote Templates ({templateLinks.custom_quote_templates.length})
-                      </Label>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-xs font-medium flex items-center gap-1.5">
+                          <FileText className="h-3.5 w-3.5 text-green-500" />
+                          Custom Quote Templates ({templateLinks.custom_quote_templates.length})
+                        </Label>
+                        {availableCqTemplates.length > 0 && (
+                          <div className="w-[220px]">
+                            <ComboboxDropdown
+                              items={availableCqTemplates
+                                .filter(t => !templateLinks.custom_quote_templates.some(linked => linked.id === t.id))
+                                .map(t => ({ id: String(t.id), label: t.name }))}
+                              onSelect={(item) => addToTemplate("custom_quote_template", Number(item.id))}
+                              placeholder="+ Add to template..."
+                              searchPlaceholder="Search templates..."
+                              disabled={addingToTemplate}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                        )}
+                      </div>
                       {templateLinks.custom_quote_templates.length > 0 ? (
                         <>
                           <div className="space-y-1.5">
@@ -2345,6 +2432,12 @@ export function EditRowDialog({
                                 <span className="font-medium flex-1">{tmpl.template_name}</span>
                                 {tmpl.is_primary && (
                                   <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">Primary</span>
+                                )}
+                                {tmpl.synced_tenants && tmpl.synced_tenants.length > 0 && (
+                                  <span className="text-[10px] text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                    <RefreshCw className="h-2.5 w-2.5" />
+                                    {tmpl.synced_tenants.join(", ")}
+                                  </span>
                                 )}
                                 {tmpl.line_count != null && (
                                   <span className="text-xs text-muted-foreground">{tmpl.line_count} lines</span>
