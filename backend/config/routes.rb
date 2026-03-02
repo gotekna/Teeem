@@ -1147,6 +1147,7 @@ Rails.application.routes.draw do
           post :apply_selected_prices
           post :bulk_set_default_supplier
           post :bulk_delete_price_histories
+          get :supplier_prices
         end
       end
 

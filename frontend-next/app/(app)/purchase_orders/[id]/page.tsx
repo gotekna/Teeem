@@ -1541,6 +1541,34 @@ export default function PurchaseOrderDetailPage() {
                     setDueDate(calculatedDueDate);
                   }
                 }
+
+                // Fetch this supplier's prices for all current line items and update supplier_price
+                // so Refresh Prices uses the correct supplier's price history
+                if (typedSupplier?.id) {
+                  const itemIds = lineItems
+                    .filter((li) => li.pricebook_item_id && !li._destroy)
+                    .map((li) => li.pricebook_item_id!)
+                    .filter(Boolean);
+                  if (itemIds.length > 0) {
+                    api.get<{ prices: Record<number, number> }>(
+                      `/api/v1/pricebook/supplier_prices?supplier_id=${typedSupplier.id}&item_ids=${itemIds.join(",")}`
+                    ).then((res) => {
+                      if (res?.prices) {
+                        setLineItems((prev) => prev.map((li) => {
+                          if (!li.pricebook_item) return li;
+                          const supplierPrice = res.prices[li.pricebook_item.id] ?? null;
+                          return { ...li, pricebook_item: { ...li.pricebook_item, supplier_price: supplierPrice } };
+                        }));
+                      }
+                    }).catch(() => {});
+                  }
+                } else {
+                  // Supplier cleared - remove supplier_price so we fall back to active_price
+                  setLineItems((prev) => prev.map((li) => {
+                    if (!li.pricebook_item) return li;
+                    return { ...li, pricebook_item: { ...li.pricebook_item, supplier_price: null } };
+                  }));
+                }
               }}
               placeholder="Search suppliers..."
               clearable
