@@ -434,6 +434,14 @@ export function ScheduleMasterSyncTab() {
       const table = SM_SYNC_TABLES[i];
       setCurrentTableIndex(i);
       setBatchProgress(null);
+
+      // Skip tables set to "independent" - they should not be synced
+      const mode = getTableMode(table.key, table.defaultMode);
+      if (mode === "independent") {
+        setTableStatus((prev) => ({ ...prev, [table.key]: "skipped" }));
+        continue;
+      }
+
       setTableStatus((prev) => ({ ...prev, [table.key]: "syncing" }));
 
       try {
@@ -474,18 +482,22 @@ export function ScheduleMasterSyncTab() {
       // Non-critical
     }
 
-    // Refresh counts
+    // Refresh counts + coverage (so +N differences update after sync)
     try {
       const refreshed = await api.get<{
         success: boolean;
         counts?: Record<string, { master: number; tenant: number }>;
         all_tenant_counts?: Record<string, Record<string, number>>;
+        sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>>;
       }>("/api/v1/config_sync/tables");
       if (refreshed?.success) {
         if (refreshed.all_tenant_counts) {
           setAllTenantCounts(refreshed.all_tenant_counts);
         } else if (refreshed.counts) {
           setSimpleCounts(refreshed.counts);
+        }
+        if (refreshed.sync_coverage) {
+          setSyncCoverage(refreshed.sync_coverage);
         }
       }
     } catch {

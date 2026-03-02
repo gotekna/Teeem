@@ -2351,6 +2351,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
     const silent = options?.silent ?? false;
 
+    // Skip auto-save when name is blank (backend validates presence)
+    if (silent && !editRowForm.name?.trim()) return;
+
     if (silent) {
       setAutoSaveStatus('saving');
     } else {

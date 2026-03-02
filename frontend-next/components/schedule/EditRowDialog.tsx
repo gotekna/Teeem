@@ -495,6 +495,9 @@ export function EditRowDialog({
 
     const silent = options?.silent ?? false;
 
+    // Skip auto-save when name is blank (backend validates presence)
+    if (silent && !editRowForm.name?.trim()) return;
+
     if (silent) {
       setAutoSaveStatus('saving');
     }
