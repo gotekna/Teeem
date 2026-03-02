@@ -293,19 +293,62 @@ export function ScheduleMasterSyncTab() {
   };
 
   // Cycle sync mode for a specific record (per-record override)
+  // Cascades to same-named records in LINKED_CHILDREN tables
+  // e.g. "Standard House" in po_template_packs → also sets in po_template_items + po_template_line_items
   const handleCycleRecordMode = async (tableKey: string, recordId: number, currentMode: SyncMode) => {
     const currentIndex = SYNC_MODES.indexOf(currentMode);
     const nextMode = SYNC_MODES[(currentIndex + 1) % SYNC_MODES.length];
     const modeKey = `${tableKey}:${recordId}`;
-    // Optimistic update
-    setTableModes((prev) => ({ ...prev, [modeKey]: nextMode }));
+
+    // Find matching records by name in linked child tables
+    const childUpdates: { tableKey: string; recordId: number; modeKey: string }[] = [];
+    const childKeys = LINKED_CHILDREN[tableKey] || [];
+    if (childKeys.length > 0) {
+      const cov = syncCoverage[tableKey] as CoverageEntry | undefined;
+      const allItems = [...(cov?.records || []), ...(cov?.templates || [])];
+      const thisRecord = allItems.find((r) => r.id === recordId);
+
+      if (thisRecord) {
+        for (const childKey of childKeys) {
+          const childCov = syncCoverage[childKey] as CoverageEntry | undefined;
+          const allChildItems = [...(childCov?.records || []), ...(childCov?.templates || [])];
+          for (const childRec of allChildItems) {
+            if (childRec.name === thisRecord.name) {
+              childUpdates.push({
+                tableKey: childKey,
+                recordId: childRec.id,
+                modeKey: `${childKey}:${childRec.id}`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Optimistic update - parent + matched children
+    setTableModes((prev) => {
+      const updated = { ...prev, [modeKey]: nextMode };
+      for (const child of childUpdates) updated[child.modeKey] = nextMode;
+      return updated;
+    });
     try {
-      await api.put("/api/v1/config_sync/update_table_mode", {
-        table: tableKey, mode: nextMode, record_id: recordId,
-      });
+      await Promise.all([
+        api.put("/api/v1/config_sync/update_table_mode", {
+          table: tableKey, mode: nextMode, record_id: recordId,
+        }),
+        ...childUpdates.map((child) =>
+          api.put("/api/v1/config_sync/update_table_mode", {
+            table: child.tableKey, mode: nextMode, record_id: child.recordId,
+          })
+        ),
+      ]);
     } catch (err) {
       console.error("[SMSync] Failed to update record mode:", err);
-      setTableModes((prev) => ({ ...prev, [modeKey]: currentMode }));
+      setTableModes((prev) => {
+        const reverted = { ...prev, [modeKey]: currentMode };
+        for (const child of childUpdates) delete reverted[child.modeKey];
+        return reverted;
+      });
     }
   };
 
