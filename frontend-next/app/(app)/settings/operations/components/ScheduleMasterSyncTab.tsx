@@ -126,6 +126,9 @@ export function ScheduleMasterSyncTab() {
   // Per-table sync direction modes (admin-configurable)
   const [tableModes, setTableModes] = useState<Record<string, SyncMode>>({});
 
+  // Expandable template breakdown rows
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
+
   // Sync coverage: linked vs local-only vs master-only per table
   // Non-master: { table: { linked, local_only, master_only } }
   // Master: { table: { tenantSlug: { linked, local_only, master_only } } }
@@ -646,6 +649,36 @@ export function ScheduleMasterSyncTab() {
                         </TableCell>
                         <TableCell className="py-2">
                           <div className="flex items-center gap-2">
+                            {/* Expandable chevron for tables with template breakdown */}
+                            {(() => {
+                              const cov = !isMasterTenant
+                                ? (syncCoverage[table.key] as CoverageEntry | undefined)
+                                : undefined;
+                              const hasTemplates = cov && "templates" in cov && cov.templates && cov.templates.length > 1;
+                              if (hasTemplates) {
+                                const isExpanded = expandedTables.has(table.key);
+                                return (
+                                  <button
+                                    type="button"
+                                    className="text-muted-foreground hover:text-foreground transition-colors -ml-1"
+                                    onClick={() => {
+                                      setExpandedTables(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(table.key)) next.delete(table.key);
+                                        else next.add(table.key);
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    {isExpanded
+                                      ? <ChevronDown className="h-4 w-4" />
+                                      : <ChevronRight className="h-4 w-4" />
+                                    }
+                                  </button>
+                                );
+                              }
+                              return null;
+                            })()}
                             <span className="text-sm font-medium">{table.label}</span>
                             {isMasterTenant && !syncing && (
                               <Button
@@ -813,6 +846,39 @@ export function ScheduleMasterSyncTab() {
                           </div>
                         </TableCell>
                       </TableRow>
+
+                      {/* Template breakdown sub-rows */}
+                      {expandedTables.has(table.key) && (() => {
+                        const cov = !isMasterTenant
+                          ? (syncCoverage[table.key] as CoverageEntry | undefined)
+                          : undefined;
+                        const templates = cov && "templates" in cov ? cov.templates : undefined;
+                        if (!templates || templates.length === 0) return null;
+
+                        return templates.map((tmpl) => (
+                          <TableRow key={`${table.key}-tmpl-${tmpl.name}`} className="bg-muted/30">
+                            <TableCell className="py-1.5" />
+                            <TableCell className="py-1.5 pl-10">
+                              <span className="text-xs text-muted-foreground">{tmpl.name}</span>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5" />
+                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
+                              {tmpl.tasks.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-center py-1.5">
+                              <span className={cn(
+                                "text-[11px] font-medium",
+                                tmpl.synced
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-muted-foreground",
+                              )}>
+                                {tmpl.synced ? "Two-way" : "Independent"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="py-1.5" />
+                          </TableRow>
+                        ));
+                      })()}
 
                       {/* Inline diff panel */}
                       {isComparing && diffData && (

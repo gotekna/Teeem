@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ComboboxMultiSelect } from "@/components/ui/combobox-multi-select";
-import { ChevronDown, ChevronRight, Save } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Save } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 
@@ -34,6 +34,7 @@ interface TemplateMarkup {
   charge_builds_contingency_sm_ids: number[];
   charge_project_prelims_sm_ids: number[];
   charge_project_management_sm_ids: number[];
+  charge_maintenance_fee_sm_ids: number[];
   // Per-template markup rate overrides
   defaultBuilderMarginPercent: number | null;
   defaultEscalationPercent: number | null;
@@ -55,14 +56,31 @@ export function MarkupTemplatesTab() {
   const [poTasksMap, setPoTasksMap] = React.useState<Record<number, SmPoTask[]>>({});
   const [editState, setEditState] = React.useState<Record<number, Partial<TemplateMarkup>>>({});
   const [savingId, setSavingId] = React.useState<number | null>(null);
+  const [globalDefaults, setGlobalDefaults] = React.useState<{
+    defaultBuilderMarginPercent: number;
+    defaultEscalationPercent: number;
+    pcPsMarkupCapPercent: number;
+    defaultConstructionInsurancePercent: number;
+    defaultOverheadsPercent: number;
+    defaultQleaveRatePercent: number;
+  } | null>(null);
 
   React.useEffect(() => {
     (async () => {
       try {
-        const res = await api.get<{ sm_schedule_master_templates: TemplateMarkup[] }>(
-          "/api/v1/sm_schedule_master_templates"
-        );
-        setTemplates(res?.sm_schedule_master_templates || []);
+        const [templatesRes, settingsRes] = await Promise.all([
+          api.get<{ sm_schedule_master_templates: TemplateMarkup[] }>("/api/v1/sm_schedule_master_templates"),
+          api.get<{ settings: {
+            defaultBuilderMarginPercent: number;
+            defaultEscalationPercent: number;
+            pcPsMarkupCapPercent: number;
+            defaultConstructionInsurancePercent: number;
+            defaultOverheadsPercent: number;
+            defaultQleaveRatePercent: number;
+          } }>("/api/v1/sm_settings"),
+        ]);
+        setTemplates(templatesRes?.sm_schedule_master_templates || []);
+        if (settingsRes?.settings) setGlobalDefaults(settingsRes.settings);
       } catch {
         toast({ title: "Failed to load templates", variant: "destructive" });
       } finally {
@@ -70,6 +88,23 @@ export function MarkupTemplatesTab() {
       }
     })();
   }, [toast]);
+
+  const importGlobalDefaults = (templateId: number) => {
+    if (!globalDefaults) return;
+    setEditState(prev => ({
+      ...prev,
+      [templateId]: {
+        ...prev[templateId],
+        defaultBuilderMarginPercent: globalDefaults.defaultBuilderMarginPercent,
+        defaultEscalationPercent: globalDefaults.defaultEscalationPercent,
+        pcPsMarkupCapPercent: globalDefaults.pcPsMarkupCapPercent,
+        defaultConstructionInsurancePercent: globalDefaults.defaultConstructionInsurancePercent,
+        defaultOverheadsPercent: globalDefaults.defaultOverheadsPercent,
+        defaultQleaveRatePercent: globalDefaults.defaultQleaveRatePercent,
+      },
+    }));
+    toast({ title: "Global defaults imported — adjust and save" });
+  };
 
   const toggleExpand = async (id: number) => {
     if (expandedId === id) {
@@ -91,6 +126,7 @@ export function MarkupTemplatesTab() {
           charge_builds_contingency_sm_ids: tmpl.charge_builds_contingency_sm_ids || [],
           charge_project_prelims_sm_ids: tmpl.charge_project_prelims_sm_ids || [],
           charge_project_management_sm_ids: tmpl.charge_project_management_sm_ids || [],
+          charge_maintenance_fee_sm_ids: tmpl.charge_maintenance_fee_sm_ids || [],
           defaultBuilderMarginPercent: tmpl.defaultBuilderMarginPercent,
           defaultEscalationPercent: tmpl.defaultEscalationPercent,
           pcPsMarkupCapPercent: tmpl.pcPsMarkupCapPercent,
@@ -136,6 +172,7 @@ export function MarkupTemplatesTab() {
           charge_builds_contingency_sm_ids: edits.charge_builds_contingency_sm_ids || [],
           charge_project_prelims_sm_ids: edits.charge_project_prelims_sm_ids || [],
           charge_project_management_sm_ids: edits.charge_project_management_sm_ids || [],
+          charge_maintenance_fee_sm_ids: edits.charge_maintenance_fee_sm_ids || [],
           default_builder_margin_percent: edits.defaultBuilderMarginPercent,
           default_escalation_percent: edits.defaultEscalationPercent,
           pc_ps_markup_cap_percent: edits.pcPsMarkupCapPercent,
@@ -203,7 +240,18 @@ export function MarkupTemplatesTab() {
                   <CardContent className="pt-0 pb-4 px-4 space-y-5">
                     {/* Markup Rate Overrides */}
                     <div className="space-y-3">
-                      <Label className="text-sm font-semibold">Markup Rate Overrides</Label>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold">Markup Rate Overrides</Label>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => importGlobalDefaults(tmpl.id)}
+                          disabled={!globalDefaults}
+                        >
+                          <Download className="h-3 w-3 mr-1" /> Import Global Defaults
+                        </Button>
+                      </div>
                       <div className="grid grid-cols-3 gap-3">
                         <RateField
                           label="Builder Margin %"
@@ -293,6 +341,12 @@ export function MarkupTemplatesTab() {
                           label="Project Management"
                           values={(edits.charge_project_management_sm_ids as number[]) || []}
                           onChange={v => updateField(tmpl.id, "charge_project_management_sm_ids", v)}
+                          tasks={tasks}
+                        />
+                        <ChargeTaskMultiSelect
+                          label="Maintenance Fee"
+                          values={(edits.charge_maintenance_fee_sm_ids as number[]) || []}
+                          onChange={v => updateField(tmpl.id, "charge_maintenance_fee_sm_ids", v)}
                           tasks={tasks}
                         />
                       </div>

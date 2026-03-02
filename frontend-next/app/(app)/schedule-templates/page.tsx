@@ -64,6 +64,8 @@ interface SmScheduleMasterTemplate {
   charge_project_prelims_sm_tasks: { id: number; name: string }[];
   charge_project_management_sm_ids: number[];
   charge_project_management_sm_tasks: { id: number; name: string }[];
+  charge_maintenance_fee_sm_ids: number[];
+  charge_maintenance_fee_sm_tasks: { id: number; name: string }[];
   // Per-template markup rate overrides (null = use global default)
   defaultBuilderMarginPercent: number | null;
   defaultEscalationPercent: number | null;
@@ -101,6 +103,7 @@ export default function ScheduleTemplatesPage() {
     charge_builds_contingency_sm_ids: [] as number[],
     charge_project_prelims_sm_ids: [] as number[],
     charge_project_management_sm_ids: [] as number[],
+    charge_maintenance_fee_sm_ids: [] as number[],
     default_builder_margin_percent: null as number | null,
     default_escalation_percent: null as number | null,
     pc_ps_markup_cap_percent: null as number | null,
@@ -141,6 +144,7 @@ export default function ScheduleTemplatesPage() {
       charge_builds_contingency_sm_ids: [],
       charge_project_prelims_sm_ids: [],
       charge_project_management_sm_ids: [],
+      charge_maintenance_fee_sm_ids: [],
       default_builder_margin_percent: null,
       default_escalation_percent: null,
       pc_ps_markup_cap_percent: null,
@@ -165,6 +169,7 @@ export default function ScheduleTemplatesPage() {
       charge_builds_contingency_sm_ids: template.charge_builds_contingency_sm_ids || [],
       charge_project_prelims_sm_ids: template.charge_project_prelims_sm_ids || [],
       charge_project_management_sm_ids: template.charge_project_management_sm_ids || [],
+      charge_maintenance_fee_sm_ids: template.charge_maintenance_fee_sm_ids || [],
       default_builder_margin_percent: template.defaultBuilderMarginPercent,
       default_escalation_percent: template.defaultEscalationPercent,
       pc_ps_markup_cap_percent: template.pcPsMarkupCapPercent,
@@ -549,6 +554,12 @@ export default function ScheduleTemplatesPage() {
                   label="Project Management"
                   values={formData.charge_project_management_sm_ids}
                   onChange={v => setFormData(f => ({ ...f, charge_project_management_sm_ids: v }))}
+                  tasks={poTasks}
+                />
+                <ChargeSmTaskMultiSelect
+                  label="Maintenance Fee"
+                  values={formData.charge_maintenance_fee_sm_ids}
+                  onChange={v => setFormData(f => ({ ...f, charge_maintenance_fee_sm_ids: v }))}
                   tasks={poTasks}
                 />
               </div>

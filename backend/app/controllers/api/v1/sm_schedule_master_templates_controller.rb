@@ -1051,19 +1051,29 @@ module Api
       end
 
       def template_params
-        params.require(:sm_schedule_master_template).permit(
+        permitted = params.require(:sm_schedule_master_template).permit(
           :name, :description, :is_default, :is_canonical, :sync_key,
           :default_builder_margin_percent, :default_escalation_percent,
           :pc_ps_markup_cap_percent, :default_construction_insurance_percent,
           :default_overheads_percent, :default_qleave_rate_percent,
+          :default_builds_contingency_percent, :default_project_prelims_percent,
+          :default_project_management_percent, :default_maintenance_fee_percent,
           charge_construction_insurance_sm_ids: [],
           charge_qleave_sm_ids: [],
           charge_overheads_sm_ids: [],
           charge_qbcc_insurance_sm_ids: [],
           charge_builds_contingency_sm_ids: [],
           charge_project_prelims_sm_ids: [],
-          charge_project_management_sm_ids: []
+          charge_project_management_sm_ids: [],
+          charge_maintenance_fee_sm_ids: []
         )
+
+        # Permit charge_po_allocations as arbitrary nested JSONB
+        if params[:sm_schedule_master_template][:charge_po_allocations].present?
+          permitted[:charge_po_allocations] = params[:sm_schedule_master_template][:charge_po_allocations].to_unsafe_h
+        end
+
+        permitted
       end
 
       def template_json(template, include_rows: false)
@@ -1099,13 +1109,21 @@ module Api
           charge_project_prelims_sm_tasks: resolve_sm_task_names(template.charge_project_prelims_sm_ids),
           charge_project_management_sm_ids: template.charge_project_management_sm_ids || [],
           charge_project_management_sm_tasks: resolve_sm_task_names(template.charge_project_management_sm_ids),
+          charge_maintenance_fee_sm_ids: template.charge_maintenance_fee_sm_ids || [],
+          charge_maintenance_fee_sm_tasks: resolve_sm_task_names(template.charge_maintenance_fee_sm_ids),
           # Per-template markup rate overrides (null = use global SmSetting default)
           defaultBuilderMarginPercent: template.default_builder_margin_percent&.to_f,
           defaultEscalationPercent: template.default_escalation_percent&.to_f,
           pcPsMarkupCapPercent: template.pc_ps_markup_cap_percent&.to_f,
           defaultConstructionInsurancePercent: template.default_construction_insurance_percent&.to_f,
           defaultOverheadsPercent: template.default_overheads_percent&.to_f,
-          defaultQleaveRatePercent: template.default_qleave_rate_percent&.to_f
+          defaultQleaveRatePercent: template.default_qleave_rate_percent&.to_f,
+          defaultBuildsContingencyPercent: template.default_builds_contingency_percent&.to_f,
+          defaultProjectPrelimsPercent: template.default_project_prelims_percent&.to_f,
+          defaultProjectManagementPercent: template.default_project_management_percent&.to_f,
+          defaultMaintenanceFeePercent: template.default_maintenance_fee_percent&.to_f,
+          # Per-PO allocation percentages (all charges in one column)
+          chargePoAllocations: template.charge_po_allocations || {}
         }
 
         if include_rows

@@ -73,25 +73,32 @@ class MarkupChargeCalculator
       default_rate: effective_rate(:default_overheads_percent)
     )
 
-    # Builds Contingency: PO-link charge (% of sell subtotal, or $ override)
+    # Builds Contingency: % of sell subtotal (template override → 0 default)
     charges[:builds_contingency] = calc_charge(
       :builds_contingency,
       basis: sell_subtotal,
-      default_rate: 0
+      default_rate: effective_rate(:default_builds_contingency_percent) || 0
     )
 
-    # Project Prelims: PO-link charge (% of sell subtotal, or $ override)
+    # Project Prelims: % of sell subtotal (template override → 0 default)
     charges[:project_prelims] = calc_charge(
       :project_prelims,
       basis: sell_subtotal,
-      default_rate: 0
+      default_rate: effective_rate(:default_project_prelims_percent) || 0
     )
 
-    # Project Management: PO-link charge (% of sell subtotal, or $ override)
+    # Project Management: % of sell subtotal (template override → 0 default)
     charges[:project_management] = calc_charge(
       :project_management,
       basis: sell_subtotal,
-      default_rate: 0
+      default_rate: effective_rate(:default_project_management_percent) || 0
+    )
+
+    # Maintenance Fee: % of sell subtotal (template override → 0 default)
+    charges[:maintenance_fee] = calc_charge(
+      :maintenance_fee,
+      basis: sell_subtotal,
+      default_rate: effective_rate(:default_maintenance_fee_percent) || 0
     )
 
     # Sum non-QBCC charges
@@ -202,25 +209,40 @@ class MarkupChargeCalculator
   #
   # For each charge with linked PO(s), finds or creates a line item
   # prefixed with "[Charge]" and sets its unit_price to the effective amount.
-  # When a charge links to multiple POs, the amount is split evenly.
+  # Uses charge_po_allocations for custom % splits; falls back to even split.
   # Skips POs that are cancelled or paid.
   def sync_charge_purchase_orders(calculated_charges)
+    allocations = @template&.charge_po_allocations || {}
+
     calculated_charges.each do |_type, charge_data|
       po_ids = charge_data[:purchase_order_ids] || [charge_data[:purchase_order_id]].compact
       next if po_ids.empty?
 
-      label = JobMarkupCharge::LABELS[charge_data[:charge_type]] || charge_data[:charge_type].humanize
+      charge_type = charge_data[:charge_type]
+      label = JobMarkupCharge::LABELS[charge_type] || charge_type.humanize
       description = "[Charge] #{label}"
       total_amount = charge_data[:effective_amount].to_f
-      split_amount = (total_amount / po_ids.size).round(2)
+
+      # Look up per-PO allocation percentages for this charge type
+      charge_allocs = allocations[charge_type] || {}
+      has_custom_allocs = charge_allocs.any?
 
       po_ids.each_with_index do |po_id, idx|
         po = PurchaseOrder.find_by(id: po_id)
         next unless po
         next if po.cancelled? || po.paid?
 
-        # Last PO gets remainder to avoid rounding errors
-        amount = (idx == po_ids.size - 1) ? (total_amount - split_amount * (po_ids.size - 1)).round(2) : split_amount
+        # Use custom allocation % if configured, otherwise split evenly
+        if has_custom_allocs
+          # Look up SM ID for this PO to find its allocation percentage
+          sm_id = charge_data[:sm_ids]&.at(idx)&.to_s
+          pct = charge_allocs[sm_id]&.to_f || charge_allocs[po_id.to_s]&.to_f || (100.0 / po_ids.size)
+          amount = (total_amount * pct / 100.0).round(2)
+        else
+          split_amount = (total_amount / po_ids.size).round(2)
+          # Last PO gets remainder to avoid rounding errors
+          amount = (idx == po_ids.size - 1) ? (total_amount - split_amount * (po_ids.size - 1)).round(2) : split_amount
+        end
 
         line_item = po.line_items.find_by(description: description)
         line_item ||= po.line_items.build(
@@ -298,7 +320,8 @@ class MarkupChargeCalculator
     "qbcc_insurance" => :charge_qbcc_insurance_sm_ids,
     "builds_contingency" => :charge_builds_contingency_sm_ids,
     "project_prelims" => :charge_project_prelims_sm_ids,
-    "project_management" => :charge_project_management_sm_ids
+    "project_management" => :charge_project_management_sm_ids,
+    "maintenance_fee" => :charge_maintenance_fee_sm_ids
   }.freeze
 
   # Auto-link charges to POs by finding the job's SmTasks that were copied from

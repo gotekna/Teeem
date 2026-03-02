@@ -24,7 +24,7 @@ class SmScheduleMasterTemplate < ApplicationRecord
   # Columns: charge_construction_insurance_sm_ids, charge_qleave_sm_ids,
   #          charge_overheads_sm_ids, charge_qbcc_insurance_sm_ids,
   #          charge_builds_contingency_sm_ids, charge_project_prelims_sm_ids,
-  #          charge_project_management_sm_ids
+  #          charge_project_management_sm_ids, charge_maintenance_fee_sm_ids
   # Each stores an array of SmScheduleMaster IDs, e.g. [12, 45]
 
   has_many :copies, class_name: "SmScheduleMasterTemplate", foreign_key: :copied_from_id, dependent: :nullify
