@@ -174,7 +174,7 @@ interface SmScheduleMaster {
   trade_name?: string;  // SSoT: Resolved from Foundation SM Trades by backend
   stage_name?: string;  // SSoT: Resolved from Foundation SM Stages by backend
   assigned_role?: string | null;
-  cost_centre?: string;
+  cost_centre?: string | { id: number; display: string };
   tender_id?: string;
   header_gantt?: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
   allow_header?: boolean;  // If true, this row can be selected as a header for other tasks
@@ -1512,6 +1512,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       stage_name: row.stage_name || extractLookupDisplay(row.stage) || undefined,
       assigned_role: extractLookupId(row.assigned_role) || null,
       cost_centre: extractLookupId(row.cost_centre) || undefined,
+      cost_centre_name: extractLookupDisplay(row.cost_centre) || undefined,
       tender_id: extractLookupId(row.tender_id) || undefined,
       header_gantt: extractLookupId(row.header_gantt) || undefined,
       allow_header: row.allow_header || false,

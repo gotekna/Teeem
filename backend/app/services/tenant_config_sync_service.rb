@@ -289,6 +289,7 @@ class TenantConfigSyncService
         predecessor_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
         trade: { model: "SmTrade", match_field: :name },
         stage: { model: "SmStage", match_field: :name },
+        cost_centre: { model: "CostCentre", match_field: :code },
         checklist_id: { model: "SupervisorChecklistTemplate", match_field: :sync_key },
         completion_document_type_id: { model: "DocumentType", match_field: :sync_key },
         spawn_scan_task_id: { model: "SmScheduleMaster", match_field: :sync_key },

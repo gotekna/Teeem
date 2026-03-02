@@ -1738,7 +1738,21 @@ module Api
             string_values = lookup_ids.reject { |v| v.is_a?(Integer) || (v.is_a?(String) && v.match?(/\A\d+\z/)) }
 
             model = column.lookup_foundation.dynamic_model
-            by_id = numeric_ids.any? ? model.where(id: numeric_ids).index_by(&:id) : {}
+            # FRC: Unscope tenant for lookup cache to handle cross-tenant FKs from template sync.
+            # Safe: we only query by specific FK IDs from existing records, only used for display.
+            by_id = if numeric_ids.any?
+              result = model.where(id: numeric_ids).index_by(&:id)
+              # Fallback: if some IDs not found in current tenant, try unscoped (cross-tenant FK from sync)
+              missing_ids = numeric_ids - result.keys
+              if missing_ids.any? && model.column_names.include?("tenant_id")
+                cross_tenant = ActsAsTenant.without_tenant { model.where(id: missing_ids).index_by(&:id) }
+                result.merge(cross_tenant)
+              else
+                result
+              end
+            else
+              {}
+            end
 
             # Also pre-load by name for string-value lookups (e.g., role names, stage names)
             by_name = string_values.any? ? model.where(name: string_values).index_by(&:name) : {}

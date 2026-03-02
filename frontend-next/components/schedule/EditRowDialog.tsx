@@ -64,6 +64,7 @@ export interface EditRowData {
   stage_name?: string;
   assigned_role?: string | null;
   cost_centre?: string;
+  cost_centre_name?: string;
   tender_id?: string;
   header_gantt?: string | { id: number; display: string } | null;
   allow_header?: boolean;
@@ -307,6 +308,7 @@ export function EditRowDialog({
         stage: row.stage,
         assigned_role: row.assigned_role,
         cost_centre: row.cost_centre,
+        cost_centre_name: row.cost_centre_name,
         tender_id: row.tender_id,
         header_gantt: row.header_gantt as string | null,
         po_required: row.po_required,
@@ -778,7 +780,7 @@ export function EditRowDialog({
                       <Label className="text-xs">Cost Centre</Label>
                       <ComboboxDropdown
                         items={costCentres.map(c => ({ id: String(c.id), label: c.name }))}
-                        selectedItem={editRowForm.cost_centre ? { id: editRowForm.cost_centre, label: costCentres.find(c => String(c.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre } : undefined}
+                        selectedItem={editRowForm.cost_centre ? { id: editRowForm.cost_centre, label: costCentres.find(c => String(c.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre_name || editRowForm.cost_centre } : undefined}
                         onSelect={(item) => setEditRowForm({ ...editRowForm, cost_centre: item.id })}
                         placeholder="Cost centre..."
                         emptyResults="No cost centres found"
@@ -1712,7 +1714,7 @@ export function EditRowDialog({
                                 <div className="flex items-center gap-1.5 text-xs">
                                   <span className="text-muted-foreground">Cost Centre:</span>
                                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-                                    {costCentres.find(cc => String(cc.id) === editRowForm.cost_centre)?.name || `CC ${editRowForm.cost_centre}`}
+                                    {costCentres.find(cc => String(cc.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre_name || `CC ${editRowForm.cost_centre}`}
                                   </Badge>
                                 </div>
                               )}
@@ -1733,7 +1735,7 @@ export function EditRowDialog({
                         {/* Cost Centre Grouping - shows tasks that share the same CC */}
                         {editRowForm.cost_centre && (() => {
                           const ccId = editRowForm.cost_centre;
-                          const ccName = costCentres.find(cc => String(cc.id) === ccId)?.name || `CC ${ccId}`;
+                          const ccName = costCentres.find(cc => String(cc.id) === ccId)?.name || editRowForm.cost_centre_name || `CC ${ccId}`;
                           const ccTasks = allRows.filter(r =>
                             r.id !== row?.id && r.cost_centre === ccId && r.po_required
                           );
