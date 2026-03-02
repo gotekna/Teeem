@@ -11998,7 +11998,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "custom_quote_lines", "cost_centres"
   add_foreign_key "custom_quote_lines", "custom_quote_lines", column: "parent_id"
   add_foreign_key "custom_quote_lines", "custom_quotes"
-  add_foreign_key "custom_quote_lines", "sm_schedule_masters"
+  add_foreign_key "custom_quote_lines", "sm_schedule_masters", on_delete: :nullify
   add_foreign_key "custom_quote_lines", "sm_tasks"
   add_foreign_key "custom_quote_suppliers", "contact_persons"
   add_foreign_key "custom_quote_suppliers", "contacts", column: "supplier_id"
@@ -12010,7 +12010,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "custom_quote_template_lines", "cost_centres"
   add_foreign_key "custom_quote_template_lines", "custom_quote_template_lines", column: "parent_id"
   add_foreign_key "custom_quote_template_lines", "custom_quote_templates"
-  add_foreign_key "custom_quote_template_lines", "sm_schedule_masters"
+  add_foreign_key "custom_quote_template_lines", "sm_schedule_masters", on_delete: :nullify
   add_foreign_key "custom_quote_templates", "po_template_packs"
   add_foreign_key "custom_quote_templates", "tenants"
   add_foreign_key "custom_quote_templates", "users", column: "created_by_id"
@@ -12746,7 +12746,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_recurring_task_definitions", column: "recurring_task_definition_id"
   add_foreign_key "sm_tasks", "sm_schedule_masters"
-  add_foreign_key "sm_tasks", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_tasks", column: "parent_task_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "tenants"
