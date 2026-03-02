@@ -498,6 +498,32 @@ class TenantConfigSyncService
     },
 
     # ============================================================================
+    # Quote Templates (Standard + Custom)
+    # ============================================================================
+    quote_templates: {
+      model: "QuoteTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :is_active, :position, :po_template_pack_id],
+      description: "Standard quote templates for RFQ workflows",
+      group: "po_templates",
+      remap_fks: {
+        po_template_pack_id: { model: "PoTemplatePack", match_field: :name }
+      }
+    },
+    custom_quote_templates: {
+      model: "CustomQuoteTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :is_active, :position, :po_template_pack_id],
+      description: "Custom quote templates (CC/PO tree structure)",
+      group: "po_templates",
+      remap_fks: {
+        po_template_pack_id: { model: "PoTemplatePack", match_field: :name }
+      }
+    },
+
+    # ============================================================================
     # Estimating Group
     # ============================================================================
     takeoff_templates: {

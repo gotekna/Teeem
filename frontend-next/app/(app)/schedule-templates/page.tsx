@@ -50,14 +50,14 @@ interface SmScheduleMasterTemplate {
   row_count: number;
   created_at: string;
   updated_at: string;
-  charge_construction_insurance_sm_id: number | null;
-  charge_construction_insurance_sm_name: string | null;
-  charge_qleave_sm_id: number | null;
-  charge_qleave_sm_name: string | null;
-  charge_overheads_sm_id: number | null;
-  charge_overheads_sm_name: string | null;
-  charge_qbcc_insurance_sm_id: number | null;
-  charge_qbcc_insurance_sm_name: string | null;
+  charge_construction_insurance_sm_ids: number[];
+  charge_construction_insurance_sm_tasks: { id: number; name: string }[];
+  charge_qleave_sm_ids: number[];
+  charge_qleave_sm_tasks: { id: number; name: string }[];
+  charge_overheads_sm_ids: number[];
+  charge_overheads_sm_tasks: { id: number; name: string }[];
+  charge_qbcc_insurance_sm_ids: number[];
+  charge_qbcc_insurance_sm_tasks: { id: number; name: string }[];
   // Per-template markup rate overrides (null = use global default)
   defaultBuilderMarginPercent: number | null;
   defaultEscalationPercent: number | null;
@@ -88,10 +88,10 @@ export default function ScheduleTemplatesPage() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    charge_construction_insurance_sm_id: null as number | null,
-    charge_qleave_sm_id: null as number | null,
-    charge_overheads_sm_id: null as number | null,
-    charge_qbcc_insurance_sm_id: null as number | null,
+    charge_construction_insurance_sm_ids: [] as number[],
+    charge_qleave_sm_ids: [] as number[],
+    charge_overheads_sm_ids: [] as number[],
+    charge_qbcc_insurance_sm_ids: [] as number[],
     default_builder_margin_percent: null as number | null,
     default_escalation_percent: null as number | null,
     pc_ps_markup_cap_percent: null as number | null,
@@ -125,10 +125,10 @@ export default function ScheduleTemplatesPage() {
   const handleCreate = () => {
     setFormData({
       name: "", description: "",
-      charge_construction_insurance_sm_id: null,
-      charge_qleave_sm_id: null,
-      charge_overheads_sm_id: null,
-      charge_qbcc_insurance_sm_id: null,
+      charge_construction_insurance_sm_ids: [],
+      charge_qleave_sm_ids: [],
+      charge_overheads_sm_ids: [],
+      charge_qbcc_insurance_sm_ids: [],
       default_builder_margin_percent: null,
       default_escalation_percent: null,
       pc_ps_markup_cap_percent: null,
@@ -146,10 +146,10 @@ export default function ScheduleTemplatesPage() {
     setFormData({
       name: template.name,
       description: template.description || "",
-      charge_construction_insurance_sm_id: template.charge_construction_insurance_sm_id,
-      charge_qleave_sm_id: template.charge_qleave_sm_id,
-      charge_overheads_sm_id: template.charge_overheads_sm_id,
-      charge_qbcc_insurance_sm_id: template.charge_qbcc_insurance_sm_id,
+      charge_construction_insurance_sm_ids: template.charge_construction_insurance_sm_ids || [],
+      charge_qleave_sm_ids: template.charge_qleave_sm_ids || [],
+      charge_overheads_sm_ids: template.charge_overheads_sm_ids || [],
+      charge_qbcc_insurance_sm_ids: template.charge_qbcc_insurance_sm_ids || [],
       default_builder_margin_percent: template.defaultBuilderMarginPercent,
       default_escalation_percent: template.defaultEscalationPercent,
       pc_ps_markup_cap_percent: template.pcPsMarkupCapPercent,
@@ -494,28 +494,28 @@ export default function ScheduleTemplatesPage() {
                     When markup is calculated, auto-link each charge to the PO on the selected SM task.
                   </p>
                 </div>
-                <ChargeSmTaskSelect
+                <ChargeSmTaskMultiSelect
                   label="Construction Insurance"
-                  value={formData.charge_construction_insurance_sm_id}
-                  onChange={v => setFormData(f => ({ ...f, charge_construction_insurance_sm_id: v }))}
+                  values={formData.charge_construction_insurance_sm_ids}
+                  onChange={v => setFormData(f => ({ ...f, charge_construction_insurance_sm_ids: v }))}
                   tasks={poTasks}
                 />
-                <ChargeSmTaskSelect
+                <ChargeSmTaskMultiSelect
                   label="Overheads"
-                  value={formData.charge_overheads_sm_id}
-                  onChange={v => setFormData(f => ({ ...f, charge_overheads_sm_id: v }))}
+                  values={formData.charge_overheads_sm_ids}
+                  onChange={v => setFormData(f => ({ ...f, charge_overheads_sm_ids: v }))}
                   tasks={poTasks}
                 />
-                <ChargeSmTaskSelect
+                <ChargeSmTaskMultiSelect
                   label="QLeave"
-                  value={formData.charge_qleave_sm_id}
-                  onChange={v => setFormData(f => ({ ...f, charge_qleave_sm_id: v }))}
+                  values={formData.charge_qleave_sm_ids}
+                  onChange={v => setFormData(f => ({ ...f, charge_qleave_sm_ids: v }))}
                   tasks={poTasks}
                 />
-                <ChargeSmTaskSelect
+                <ChargeSmTaskMultiSelect
                   label="QBCC Insurance"
-                  value={formData.charge_qbcc_insurance_sm_id}
-                  onChange={v => setFormData(f => ({ ...f, charge_qbcc_insurance_sm_id: v }))}
+                  values={formData.charge_qbcc_insurance_sm_ids}
+                  onChange={v => setFormData(f => ({ ...f, charge_qbcc_insurance_sm_ids: v }))}
                   tasks={poTasks}
                 />
               </div>
@@ -575,39 +575,57 @@ function MarkupRateField({
   );
 }
 
-// ── Charge → SM Task dropdown ──
-function ChargeSmTaskSelect({
+// ── Charge → SM Task multi-select ──
+function ChargeSmTaskMultiSelect({
   label,
-  value,
+  values,
   onChange,
   tasks,
 }: {
   label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
+  values: number[];
+  onChange: (v: number[]) => void;
   tasks: SmPoTask[];
 }) {
-  const items: ComboboxItem[] = tasks.map(t => ({
-    id: t.id.toString(),
-    label: t.name,
-  }));
+  // Available tasks = tasks not yet selected
+  const available: ComboboxItem[] = tasks
+    .filter(t => !values.includes(t.id))
+    .map(t => ({ id: t.id.toString(), label: t.name }));
 
-  const selectedItem = value ? items.find(i => i.id === value.toString()) : undefined;
+  const selectedTasks = values
+    .map(id => tasks.find(t => t.id === id))
+    .filter(Boolean) as SmPoTask[];
 
   return (
-    <div className="flex items-center gap-3">
-      <Label className="w-44 shrink-0 text-sm">{label}</Label>
-      <div className="flex-1">
+    <div className="space-y-1.5">
+      <Label className="text-sm">{label}</Label>
+      {selectedTasks.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedTasks.map(task => (
+            <span
+              key={task.id}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-xs"
+            >
+              {task.name}
+              <button
+                type="button"
+                onClick={() => onChange(values.filter(id => id !== task.id))}
+                className="text-muted-foreground hover:text-foreground ml-0.5"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {available.length > 0 && (
         <ComboboxDropdown
-          items={items}
-          selectedItem={selectedItem}
-          onSelect={item => onChange(parseInt(item.id, 10))}
-          placeholder="None"
+          items={available}
+          onSelect={item => onChange([...values, parseInt(item.id, 10)])}
+          placeholder={values.length > 0 ? "Add another task..." : "Select task..."}
           searchPlaceholder="Search tasks..."
-          clearable
-          onClear={() => onChange(null)}
         />
-      </div>
+      )}
     </div>
   );
 }

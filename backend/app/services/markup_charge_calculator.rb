@@ -179,35 +179,42 @@ class MarkupChargeCalculator
 
   # Sync charge amounts to linked Purchase Orders.
   #
-  # For each charge with a purchase_order_id, finds or creates a line item
+  # For each charge with linked PO(s), finds or creates a line item
   # prefixed with "[Charge]" and sets its unit_price to the effective amount.
+  # When a charge links to multiple POs, the amount is split evenly.
   # Skips POs that are cancelled or paid.
   def sync_charge_purchase_orders(calculated_charges)
     calculated_charges.each do |_type, charge_data|
-      po_id = charge_data[:purchase_order_id]
-      next unless po_id
-
-      po = PurchaseOrder.find_by(id: po_id)
-      next unless po
-      next if po.cancelled? || po.paid?
+      po_ids = charge_data[:purchase_order_ids] || [charge_data[:purchase_order_id]].compact
+      next if po_ids.empty?
 
       label = JobMarkupCharge::LABELS[charge_data[:charge_type]] || charge_data[:charge_type].humanize
       description = "[Charge] #{label}"
-      amount = charge_data[:effective_amount].to_f
+      total_amount = charge_data[:effective_amount].to_f
+      split_amount = (total_amount / po_ids.size).round(2)
 
-      line_item = po.line_items.find_by(description: description)
-      line_item ||= po.line_items.build(
-        description: description,
-        line_number: (po.line_items.maximum(:line_number) || 0) + 1,
-        gst_code: "GST"
-      )
+      po_ids.each_with_index do |po_id, idx|
+        po = PurchaseOrder.find_by(id: po_id)
+        next unless po
+        next if po.cancelled? || po.paid?
 
-      line_item.quantity = 1
-      line_item.unit_price = amount
-      line_item.save!
+        # Last PO gets remainder to avoid rounding errors
+        amount = (idx == po_ids.size - 1) ? (total_amount - split_amount * (po_ids.size - 1)).round(2) : split_amount
 
-      # Trigger PO totals recalculation
-      po.save!
+        line_item = po.line_items.find_by(description: description)
+        line_item ||= po.line_items.build(
+          description: description,
+          line_number: (po.line_items.maximum(:line_number) || 0) + 1,
+          gst_code: "GST"
+        )
+
+        line_item.quantity = 1
+        line_item.unit_price = amount
+        line_item.save!
+
+        # Trigger PO totals recalculation
+        po.save!
+      end
     end
   end
 

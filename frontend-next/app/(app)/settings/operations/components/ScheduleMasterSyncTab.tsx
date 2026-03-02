@@ -30,21 +30,33 @@ import { cn } from "@/lib/utils";
  */
 
 // Tables to sync in dependency order
+// syncType: "canonical" = two-way via SmCanonicalRecord, "config" = one-way pull from TEEEM, "independent" = local only
 const SM_SYNC_TABLES = [
-  { key: "sm_trades", label: "Trades" },
-  { key: "sm_stages", label: "Stages" },
-  { key: "cost_centres", label: "Cost Centres" },
-  { key: "supervisor_checklist_templates", label: "Checklists" },
-  { key: "document_types", label: "Document Types" },
-  { key: "sm_schedule_master_templates", label: "SM Templates" },
-  { key: "sm_task_groups", label: "Task Groups" },
-  { key: "bpmn_processes", label: "Workflows" },
-  { key: "sm_schedule_masters", label: "SM Tasks" },
-  { key: "sm_schedule_master_document_types", label: "SM Document Types" },
-  { key: "sm_schedule_master_related_pos", label: "Related PO Links" },
-  { key: "sm_hold_reasons", label: "Hold Reasons" },
-  { key: "sm_resources", label: "Resources" },
+  { key: "sm_trades", label: "Trades", syncType: "canonical" as const },
+  { key: "sm_stages", label: "Stages", syncType: "canonical" as const },
+  { key: "cost_centres", label: "Cost Centres", syncType: "config" as const },
+  { key: "supervisor_checklist_templates", label: "Checklists", syncType: "config" as const },
+  { key: "document_types", label: "Document Types", syncType: "config" as const },
+  { key: "sm_schedule_master_templates", label: "SM Templates", syncType: "canonical" as const },
+  { key: "sm_task_groups", label: "Task Groups", syncType: "canonical" as const },
+  { key: "bpmn_processes", label: "Workflows", syncType: "canonical" as const },
+  { key: "sm_schedule_masters", label: "SM Tasks", syncType: "canonical" as const },
+  { key: "sm_schedule_master_document_types", label: "SM Document Types", syncType: "canonical" as const },
+  { key: "sm_schedule_master_related_pos", label: "Related PO Links", syncType: "config" as const },
+  { key: "sm_hold_reasons", label: "Hold Reasons", syncType: "canonical" as const },
+  { key: "sm_resources", label: "Resources", syncType: "canonical" as const },
+  { key: "po_template_packs", label: "PO Template Packs", syncType: "config" as const },
+  { key: "po_template_items", label: "PO Template Items", syncType: "config" as const },
+  { key: "po_template_line_items", label: "PO Line Items", syncType: "config" as const },
+  { key: "quote_templates", label: "Quote Templates (Std)", syncType: "config" as const },
+  { key: "custom_quote_templates", label: "Quote Templates (Custom)", syncType: "config" as const },
 ] as const;
+
+const SYNC_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  canonical: { label: "Two-way", color: "text-green-600 dark:text-green-400" },
+  config: { label: "One-way", color: "text-blue-600 dark:text-blue-400" },
+  independent: { label: "Independent", color: "text-muted-foreground" },
+};
 
 type TableKey = typeof SM_SYNC_TABLES[number]["key"];
 type TableSyncStatus = "pending" | "syncing" | "done" | "error" | "skipped";
@@ -555,6 +567,7 @@ export function ScheduleMasterSyncTab() {
                       <TableHead className="text-right w-[70px]">{localLabel}</TableHead>
                     </>
                   )}
+                  <TableHead className="w-[80px] text-center">Sync</TableHead>
                   <TableHead className="w-[180px] text-right">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -642,6 +655,14 @@ export function ScheduleMasterSyncTab() {
                             </TableCell>
                           </>
                         )}
+                        <TableCell className="text-center py-2">
+                          {(() => {
+                            const st = SYNC_TYPE_LABELS[table.syncType];
+                            return st ? (
+                              <span className={cn("text-xs font-medium", st.color)}>{st.label}</span>
+                            ) : null;
+                          })()}
+                        </TableCell>
                         <TableCell className="text-right py-2">
                           <div className="flex items-center justify-end gap-1.5">
                             {renderStatusIcon(status)}
@@ -673,7 +694,7 @@ export function ScheduleMasterSyncTab() {
                       {/* Inline diff panel */}
                       {isComparing && diffData && (
                         <TableRow>
-                          <TableCell colSpan={isMasterTenant && allTenants.length > 0 ? allTenants.length + 3 : 5} className="p-0">
+                          <TableCell colSpan={isMasterTenant && allTenants.length > 0 ? allTenants.length + 4 : 6} className="p-0">
                             <DiffPanel
                               diffData={diffData}
                               diffError={diffError}
