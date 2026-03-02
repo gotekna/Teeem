@@ -126,6 +126,49 @@ export function MarkupTemplatesTab() {
     })();
   }, [toast]);
 
+  // Auto-populate overheads PO links when template already has a claim template linked on load
+  React.useEffect(() => {
+    if (!expandedId) return;
+    const edits = editState[expandedId];
+    const tasks = poTasksMap[expandedId];
+    if (!edits || !tasks || tasks.length === 0) return;
+    if (!edits.claimStageTemplateId) return;
+
+    // Only auto-populate if overheads PO links are empty (not yet populated)
+    const currentOverheadIds = edits.charge_overheads_sm_ids || [];
+    if (currentOverheadIds.length > 0) return;
+
+    const ct = claimTemplates.find(c => c.id === edits.claimStageTemplateId);
+    if (!ct) return;
+
+    const matchedIds: number[] = [];
+    const overheadAllocs: Record<string, number> = {};
+    for (const line of ct.lines) {
+      if (line.overheadPoName) {
+        const matchTask = tasks.find(t => t.name === line.overheadPoName);
+        if (matchTask) {
+          matchedIds.push(matchTask.id);
+          overheadAllocs[matchTask.id.toString()] = line.percentage;
+        }
+      }
+    }
+    if (matchedIds.length > 0) {
+      setEditState(prev => {
+        const current = prev[expandedId] || {};
+        const existingAllocs = { ...(current.chargePoAllocations || {}) };
+        existingAllocs["overheads"] = overheadAllocs;
+        return {
+          ...prev,
+          [expandedId]: {
+            ...current,
+            charge_overheads_sm_ids: matchedIds,
+            chargePoAllocations: existingAllocs,
+          },
+        };
+      });
+    }
+  }, [expandedId, poTasksMap, claimTemplates, editState]);
+
   const importGlobalDefaults = (templateId: number) => {
     if (!globalDefaults) return;
     setEditState(prev => ({
