@@ -2041,8 +2041,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                       let activeCCName: string | null = null;
 
                       // Pre-compute cost centre subtotals for preview
-                      // When markup is per_cc, include ALL non-excluded items (with markup for non-PC/PS)
-                      // Otherwise only PC/PS items (which show prices in the tender)
+                      // Always includes ALL non-excluded items; non-PC/PS get markup applied
                       const ccSubtotals = new Map<string, number>();
                       const ccCostTotals = new Map<string, number>(); // cost-only totals for showing markup delta
                       {
@@ -2056,14 +2055,11 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                               const c = getClassification(r.key, r.poId, r.sectionName);
                               if (c === "excluded") continue;
                               const isPcPs = c === "pc" || c === "ps";
-                              const isIncluded = !isPcPs;
-                              // Always count PC/PS at cost
+                              // PC/PS at cost; included items at sell price (with markup)
                               if (isPcPs) {
                                 ccSubtotals.set(currentCCKey, (ccSubtotals.get(currentCCKey) || 0) + r.amount);
                                 ccCostTotals.set(currentCCKey, (ccCostTotals.get(currentCCKey) || 0) + r.amount);
-                              }
-                              // Count included items when markup is per_cc (at sell price) or per_po
-                              if (isIncluded && (markupLevel === "per_cc" || markupLevel === "per_po")) {
+                              } else {
                                 const sellAmount = tenderMarkupPercent > 0
                                   ? applySmartRoundup(r.unitPrice * (1 + tenderMarkupPercent / 100)) * r.quantity
                                   : r.amount;
@@ -2571,8 +2567,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
 
                                 {/* PO footer row — spans both panels */}
                                 {!isPOCollapsed && pg.footer && (() => {
-                                  // Compute sell total for this PO when markup is per_po
-                                  const poSellTotal = (markupLevel === "per_po" && tenderMarkupPercent > 0)
+                                  // Compute sell total for this PO (always when markup > 0)
+                                  const poSellTotal = tenderMarkupPercent > 0
                                     ? includedItems.reduce((sum, r) => {
                                         const c = getClassification(r.key, r.poId, r.sectionName);
                                         if (c === "pc" || c === "ps" || c === "excluded") return sum + r.amount;
@@ -2580,7 +2576,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                       }, 0)
                                     : pg.footer.subtotal;
                                   const poMarkupDelta = poSellTotal - pg.footer.subtotal;
-                                  const showPoMarkup = markupLevel === "per_po" && tenderMarkupPercent > 0 && poMarkupDelta > 0;
+                                  const showPoMarkup = tenderMarkupPercent > 0 && poMarkupDelta > 0;
                                   return (
                                   <div className="flex">
                                     <div className="w-3/5 min-w-0 flex items-center border-b-2 border-border bg-muted/10 py-1">
@@ -2634,7 +2630,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                 const ccSell = ccSubtotals.get(activeCostCentreKey) || 0;
                                 const ccCost = ccCostTotals.get(activeCostCentreKey) || 0;
                                 const ccMarkupDelta = ccSell - ccCost;
-                                const showCCMarkup = markupLevel === "per_cc" && tenderMarkupPercent > 0 && ccMarkupDelta > 0;
+                                const showCCMarkup = tenderMarkupPercent > 0 && ccMarkupDelta > 0;
                                 return (
                                 <div className="flex">
                                   <div className="w-3/5 min-w-0">

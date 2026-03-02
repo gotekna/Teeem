@@ -881,6 +881,27 @@ export function ScheduleMasterSyncTab() {
                               );
                             }
 
+                            // Per-record breakdown: derive header from child sync statuses
+                            const records = cov && "records" in cov ? cov.records : undefined;
+                            if (records && records.length > 0) {
+                              const syncedCount = records.filter(r => r.synced).length;
+                              const indepCount = records.filter(r => !r.synced).length;
+                              return (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  {syncedCount > 0 && (
+                                    <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                                      Two-way ({syncedCount})
+                                    </span>
+                                  )}
+                                  {indepCount > 0 && (
+                                    <span className="text-[10px] text-muted-foreground leading-tight">
+                                      {indepCount} independent
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            }
+
                             return (
                               <button
                                 type="button"
