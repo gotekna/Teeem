@@ -61,7 +61,7 @@ const MARKUP_RATES = [
   { key: "defaultBuilderMarginPercent", label: "Builder Margin", smField: "charge_builder_margin_sm_ids", chargeType: "builder_margin", step: 0.5 },
   { key: "defaultEscalationPercent", label: "Escalation", smField: "charge_escalation_sm_ids", chargeType: "escalation", step: 0.5 },
   { key: "pcPsMarkupCapPercent", label: "PC/PS Cap", smField: "charge_pc_ps_cap_sm_ids", chargeType: "pc_ps_cap", step: 0.5 },
-  { key: "defaultTenderMarkupPercent", label: "Tender Markup", smField: "charge_tender_markup_sm_ids", chargeType: "tender_markup", step: 0.5 },
+  { key: "defaultTenderMarkupPercent", label: "Tender Markup", smField: null, chargeType: "tender_markup", step: 0.5 },
 ] as const;
 
 const CHARGE_TYPES = [
@@ -309,7 +309,8 @@ export function MarkupTemplatesTab() {
                     <div className="space-y-3">
                       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Markup Rates</Label>
                       {MARKUP_RATES.map(rate => {
-                        const smIds = ((edits as Record<string, unknown>)[rate.smField] as number[]) || [];
+                        const hasSmField = rate.smField !== null;
+                        const smIds = hasSmField ? (((edits as Record<string, unknown>)[rate.smField!] as number[]) || []) : [];
                         const rateAllocs = allocs[rate.chargeType] || {};
                         const hasMultiplePOs = smIds.length > 1;
 
@@ -334,16 +335,19 @@ export function MarkupTemplatesTab() {
                               />
                               <span className="text-xs text-muted-foreground pt-2 shrink-0">%</span>
 
-                              {tasks.length > 0 && (
+                              {hasSmField && tasks.length > 0 && (
                                 <div className="flex-1 min-w-0">
                                   <ComboboxMultiSelect
                                     items={tasks.map(t => ({ id: t.id.toString(), label: t.name }))}
                                     selectedIds={smIds.map(v => v.toString())}
-                                    onChange={ids => updateField(tmpl.id, rate.smField, ids.map(id => parseInt(id, 10)))}
+                                    onChange={ids => updateField(tmpl.id, rate.smField!, ids.map(id => parseInt(id, 10)))}
                                     placeholder="Link to PO..."
                                     searchPlaceholder="Search tasks..."
                                   />
                                 </div>
+                              )}
+                              {!hasSmField && (
+                                <span className="text-xs text-muted-foreground pt-2 italic">Applied to tenders (smart roundup)</span>
                               )}
                             </div>
 

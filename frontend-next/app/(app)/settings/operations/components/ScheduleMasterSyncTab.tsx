@@ -133,7 +133,7 @@ export function ScheduleMasterSyncTab() {
   // Non-master: { table: { linked, local_only, master_only } }
   // Master: { table: { tenantSlug: { linked, local_only, master_only } } }
   type TemplateBreakdown = { id: number; name: string; tasks: number; synced: boolean };
-  type RecordBreakdown = { id: number; name: string; synced: boolean };
+  type RecordBreakdown = { id: number; name: string; synced: boolean; count?: number };
   type CoverageEntry = { linked: number; local_only: number; master_only: number; templates?: TemplateBreakdown[]; records?: RecordBreakdown[] };
   const [syncCoverage, setSyncCoverage] = useState<Record<string, CoverageEntry | Record<string, CoverageEntry>>>({});
 
@@ -962,13 +962,16 @@ export function ScheduleMasterSyncTab() {
                         ));
                       })()}
 
-                      {/* Records breakdown sub-rows (Quote Templates, PO Packs, etc.) */}
+                      {/* Records breakdown sub-rows (Quote Templates, PO Packs, PO Items, PO Line Items) */}
                       {expandedTables.has(table.key) && (() => {
                         const cov = !isMasterTenant
                           ? (syncCoverage[table.key] as CoverageEntry | undefined)
                           : undefined;
                         const records = cov && "records" in cov ? cov.records : undefined;
                         if (!records || records.length === 0) return null;
+
+                        // PO Line Items are read-only (no sync_key, inherit from parent item)
+                        const isReadOnly = table.key === "po_template_line_items";
 
                         return records.map((rec) => (
                           <TableRow key={`${table.key}-rec-${rec.id}`} className="bg-muted/30">
@@ -977,24 +980,39 @@ export function ScheduleMasterSyncTab() {
                               <span className="text-xs text-muted-foreground">{rec.name}</span>
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5" />
-                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5" />
+                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
+                              {rec.count != null && (
+                                <span className="text-xs text-muted-foreground">{rec.count}</span>
+                              )}
+                            </TableCell>
                             <TableCell className="text-center py-1.5">
-                              <button
-                                type="button"
-                                className={cn(
-                                  "text-[11px] font-medium cursor-pointer hover:underline transition-colors",
+                              {isReadOnly ? (
+                                <span className={cn(
+                                  "text-[11px] font-medium",
                                   rec.synced
                                     ? "text-green-600 dark:text-green-400"
                                     : "text-muted-foreground",
-                                )}
-                                onClick={() => handleToggleRecordSync(table.key, rec.id, rec.synced)}
-                                title={rec.synced
-                                  ? "Click to disconnect — make independent"
-                                  : "Click to reconnect — sync with TEEEM"
-                                }
-                              >
-                                {rec.synced ? "Two-way" : "Independent"}
-                              </button>
+                                )}>
+                                  {rec.synced ? "Two-way" : "Independent"}
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={cn(
+                                    "text-[11px] font-medium cursor-pointer hover:underline transition-colors",
+                                    rec.synced
+                                      ? "text-green-600 dark:text-green-400"
+                                      : "text-muted-foreground",
+                                  )}
+                                  onClick={() => handleToggleRecordSync(table.key, rec.id, rec.synced)}
+                                  title={rec.synced
+                                    ? "Click to disconnect — make independent"
+                                    : "Click to reconnect — sync with TEEEM"
+                                  }
+                                >
+                                  {rec.synced ? "Two-way" : "Independent"}
+                                </button>
+                              )}
                             </TableCell>
                             <TableCell className="py-1.5" />
                           </TableRow>

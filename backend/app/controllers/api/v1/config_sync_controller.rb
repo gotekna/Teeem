@@ -942,6 +942,13 @@ module Api
                   end
                 end
 
+                # PO Line Items: group by parent item, inherit item's sync status
+                if table_key == :po_template_line_items
+                  entry[:records] = ActsAsTenant.with_tenant(t) do
+                    line_items_breakdown
+                  end
+                end
+
                 per_tenant[t.slug] = entry
               end
               coverage[table_key.to_s] = per_tenant
@@ -979,6 +986,11 @@ module Api
                 entry[:records] = syncable_records_breakdown(model, master_sync_keys)
               end
 
+              # PO Line Items: group by parent item, inherit item's sync status
+              if table_key == :po_template_line_items
+                entry[:records] = line_items_breakdown
+              end
+
               coverage[table_key.to_s] = entry
             rescue => e
               Rails.logger.warn "[ConfigSync] Coverage error for #{table_key}: #{e.message}"
@@ -1000,12 +1012,37 @@ module Api
       end
 
       # Generic per-record breakdown for ConfigSyncable tables
+      # For po_template_items: groups by parent pack name
       # Must be called within ActsAsTenant.with_tenant context
       def syncable_records_breakdown(model, master_sync_keys)
-        model.all.map do |record|
-          synced = record.sync_key.present? && master_sync_keys.include?(record.sync_key)
-          { id: record.id, name: record.name, synced: synced }
+        if model == PoTemplateItem
+          # Group PO Items by parent pack
+          packs = PoTemplatePack.includes(po_template_items: :po_template_line_items).all
+          packs.map do |pack|
+            items = pack.po_template_items
+            next nil if items.empty?
+            pack_synced = pack.sync_key.present? && master_sync_keys.include?(pack.sync_key)
+            { id: pack.id, name: pack.name, count: items.size, synced: pack_synced }
+          end.compact
+        else
+          model.all.map do |record|
+            synced = record.sync_key.present? && master_sync_keys.include?(record.sync_key)
+            { id: record.id, name: record.name, synced: synced }
+          end
         end
+      end
+
+      # PO Line Items breakdown: group by parent PO Template Pack
+      # Inherits sync status from parent pack (line items have no sync_key)
+      # Must be called within ActsAsTenant.with_tenant context
+      def line_items_breakdown
+        packs = PoTemplatePack.includes(po_template_items: :po_template_line_items).all
+        packs.map do |pack|
+          count = pack.po_template_items.sum { |item| item.po_template_line_items.size }
+          next nil if count == 0
+          synced = pack.sync_key.present?
+          { id: pack.id, name: pack.name, count: count, synced: synced }
+        end.compact
       end
 
       # Pluck match keys from a model as a Set for fast intersection
