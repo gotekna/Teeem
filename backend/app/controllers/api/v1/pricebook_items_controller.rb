@@ -944,6 +944,26 @@ module Api
         render json: { success: true, deleted_count: deleted_count }
       end
 
+      # GET /api/v1/pricebook/supplier_prices?supplier_id=X&item_ids=1,2,3
+      # Returns { pricebook_item_id => latest_price } for the given supplier.
+      # Used by the PO page when the supplier changes, to update line item prices without a full reload.
+      def supplier_prices
+        supplier_id = params[:supplier_id].to_i
+        item_ids = params[:item_ids].to_s.split(",").map(&:to_i).reject(&:zero?)
+
+        if supplier_id.zero? || item_ids.empty?
+          return render json: { success: false, error: "supplier_id and item_ids required" }, status: :unprocessable_entity
+        end
+
+        prices = PriceHistory
+          .where(supplier_id: supplier_id, pricebook_item_id: item_ids)
+          .order(date_effective: :desc, created_at: :desc)
+          .pluck(:pricebook_item_id, :new_price)
+          .each_with_object({}) { |(item_id, price), h| h[item_id] ||= price }
+
+        render json: { success: true, prices: prices }
+      end
+
       def recalculate_current_price(item)
         # Find the active price history (most recent price from default supplier that's effective today or earlier)
         if item.default_supplier_id
