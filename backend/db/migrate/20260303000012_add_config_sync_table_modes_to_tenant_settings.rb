@@ -6,6 +6,6 @@
 #
 class AddConfigSyncTableModesToTenantSettings < ActiveRecord::Migration[7.2]
   def change
-    add_column :tenant_settings, :config_sync_table_modes, :jsonb, default: {} unless column_exists?(:tenant_settings, :config_sync_table_modes)
+    add_column :tenant_settings, :config_sync_table_modes, :jsonb, default: {}, if_not_exists: true
   end
 end

@@ -14,11 +14,11 @@ class AddTenantScopingToBpmnProcessesAndSmTaskGroups < ActiveRecord::Migration[7
     # ========================================================================
     # Step 1: Add columns
     # ========================================================================
-    add_column :sm_task_groups, :tenant_id, :bigint unless column_exists?(:sm_task_groups, :tenant_id)
-    add_column :sm_task_groups, :sync_key, :string unless column_exists?(:sm_task_groups, :sync_key)
+    add_column :sm_task_groups, :tenant_id, :bigint, if_not_exists: true
+    add_column :sm_task_groups, :sync_key, :string, if_not_exists: true
 
-    add_column :bpmn_processes, :tenant_id, :bigint unless column_exists?(:bpmn_processes, :tenant_id)
-    add_column :bpmn_processes, :sync_key, :string unless column_exists?(:bpmn_processes, :sync_key)
+    add_column :bpmn_processes, :tenant_id, :bigint, if_not_exists: true
+    add_column :bpmn_processes, :sync_key, :string, if_not_exists: true
 
     # ========================================================================
     # Step 2: Backfill sm_task_groups

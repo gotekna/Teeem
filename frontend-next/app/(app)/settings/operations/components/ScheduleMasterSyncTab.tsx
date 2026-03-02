@@ -56,6 +56,13 @@ const SM_SYNC_TABLES = [
   { key: "claim_stage_template_lines", label: "Claim Template Lines", defaultMode: "two_way" as const },
 ] as const;
 
+// Parent → child table links: changing parent mode also changes children
+const LINKED_CHILDREN: Record<string, string[]> = {
+  claim_stage_templates: ["claim_stage_template_lines"],
+  po_template_packs: ["po_template_items", "po_template_line_items"],
+  tender_headers: ["tenders"],
+};
+
 type SyncMode = "two_way" | "one_way" | "independent";
 const SYNC_MODES: SyncMode[] = ["two_way", "one_way", "independent"];
 
@@ -243,13 +250,25 @@ export function ScheduleMasterSyncTab() {
 
   // Cycle sync mode: two_way → one_way → independent → two_way
   // Cascades to child records: independent clears sync_keys, two_way/one_way regenerates them
+  // Also cascades mode to linked child tables (e.g. Claim Templates → Claim Template Lines)
   const handleCycleSyncMode = async (tableKey: string, currentMode: SyncMode) => {
     const currentIndex = SYNC_MODES.indexOf(currentMode);
     const nextMode = SYNC_MODES[(currentIndex + 1) % SYNC_MODES.length];
-    // Optimistic update - header mode
-    setTableModes((prev) => ({ ...prev, [tableKey]: nextMode }));
+    const childKeys = LINKED_CHILDREN[tableKey] || [];
+    // Optimistic update - header mode + linked children
+    setTableModes((prev) => {
+      const updated = { ...prev, [tableKey]: nextMode };
+      for (const child of childKeys) updated[child] = nextMode;
+      return updated;
+    });
     try {
-      await api.put("/api/v1/config_sync/update_table_mode", { table: tableKey, mode: nextMode, cascade: true });
+      // Update parent + all linked children in parallel
+      await Promise.all([
+        api.put("/api/v1/config_sync/update_table_mode", { table: tableKey, mode: nextMode, cascade: true }),
+        ...childKeys.map((child) =>
+          api.put("/api/v1/config_sync/update_table_mode", { table: child, mode: nextMode, cascade: true })
+        ),
+      ]);
       // Mode saved - refresh coverage from server to get accurate child sync states
       try {
         const res = await api.get<{ success: boolean; sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>> }>("/api/v1/config_sync/tables");
@@ -260,7 +279,11 @@ export function ScheduleMasterSyncTab() {
     } catch (err) {
       console.error("[SMSync] Failed to update table mode:", err);
       // Only revert mode if the PUT itself failed
-      setTableModes((prev) => ({ ...prev, [tableKey]: currentMode }));
+      setTableModes((prev) => {
+        const reverted = { ...prev, [tableKey]: currentMode };
+        for (const child of childKeys) delete reverted[child];
+        return reverted;
+      });
     }
   };
 
