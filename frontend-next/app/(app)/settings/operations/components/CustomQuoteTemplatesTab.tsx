@@ -348,6 +348,7 @@ export function CustomQuoteTemplatesTab() {
                       </span>
                     </div>
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
                       className="text-destructive border-destructive/30 hover:bg-destructive/10"
@@ -383,13 +384,16 @@ export function CustomQuoteTemplatesTab() {
                       </span>
                     </div>
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
                       onClick={async () => {
+                        console.log("[CustomQuoteTemplatesTab] Connect clicked, id:", tmpl.id);
                         try {
-                          await api.post("/api/v1/config_sync/toggle_record_sync", {
+                          const res = await api.post("/api/v1/config_sync/toggle_record_sync", {
                             table_key: "custom_quote_templates", record_id: tmpl.id,
                           });
+                          console.log("[CustomQuoteTemplatesTab] Connect response:", res);
                           toast.success("Connected to sync");
                           setRenameDialog(null);
                           fetchTemplates();

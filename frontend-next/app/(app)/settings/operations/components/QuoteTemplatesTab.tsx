@@ -852,6 +852,7 @@ export function QuoteTemplatesTab() {
                       </span>
                     </div>
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
                       className="text-destructive border-destructive/30 hover:bg-destructive/10"
@@ -887,13 +888,16 @@ export function QuoteTemplatesTab() {
                       </span>
                     </div>
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
                       onClick={async () => {
+                        console.log("[QuoteTemplatesTab] Connect clicked, id:", t.id);
                         try {
-                          await api.post("/api/v1/config_sync/toggle_record_sync", {
+                          const res = await api.post("/api/v1/config_sync/toggle_record_sync", {
                             table_key: "quote_templates", record_id: t.id,
                           });
+                          console.log("[QuoteTemplatesTab] Connect response:", res);
                           toast.success("Connected to sync");
                           setShowDialog(false);
                           loadTemplates();

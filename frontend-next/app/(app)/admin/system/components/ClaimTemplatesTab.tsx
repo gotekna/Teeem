@@ -88,6 +88,8 @@ export function ClaimTemplatesTab() {
   const [editDefaultRetainage, setEditDefaultRetainage] = useState("");
   const [editLines, setEditLines] = useState<EditingLine[]>([]);
   const [saving, setSaving] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -166,6 +168,36 @@ export function ClaimTemplatesTab() {
     setEditLines((prev) =>
       prev.map((line, i) => (i === index ? { ...line, [field]: value } : line))
     );
+  };
+
+  const handleDragStart = (index: number) => {
+    setDragIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (index: number) => {
+    if (dragIndex === null || dragIndex === index) {
+      setDragIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    setEditLines((prev) => {
+      const updated = [...prev];
+      const [moved] = updated.splice(dragIndex, 1);
+      updated.splice(index, 0, moved);
+      return updated;
+    });
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setDragOverIndex(null);
   };
 
   const editTotalPercentage = editLines
@@ -425,7 +457,7 @@ export function ClaimTemplatesTab() {
 
       {/* Edit/Create Template Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[800px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingTemplate ? "Edit Claim Template" : "New Claim Template"}
@@ -489,8 +521,20 @@ export function ClaimTemplatesTab() {
               <div className="border rounded-md divide-y">
                 {editLines.map((line, index) =>
                   line._destroy ? null : (
-                    <div key={line.id || `new-${index}`} className="flex items-center gap-2 p-2">
-                      <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div
+                      key={line.id || `new-${index}`}
+                      className={cn(
+                        "flex items-center gap-2 p-2",
+                        dragIndex === index && "opacity-50",
+                        dragOverIndex === index && dragIndex !== index && "border-t-2 border-primary"
+                      )}
+                      draggable
+                      onDragStart={() => handleDragStart(index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={() => handleDrop(index)}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing" />
                       <Input
                         value={line.name}
                         onChange={(e) => handleUpdateLine(index, "name", e.target.value)}
@@ -511,21 +555,21 @@ export function ClaimTemplatesTab() {
                         value={line.description}
                         onChange={(e) => handleUpdateLine(index, "description", e.target.value)}
                         placeholder="Description"
-                        className="w-32 h-8 text-sm"
+                        className="w-28 h-8 text-sm"
                       />
                       <Input
                         value={line.matchKeywords}
                         onChange={(e) => handleUpdateLine(index, "matchKeywords", e.target.value)}
                         placeholder="Keywords"
                         title="Comma-separated keywords for auto-matching Xero invoices (e.g., lock,lockup,enclosed)"
-                        className="w-36 h-8 text-sm text-muted-foreground"
+                        className="w-28 h-8 text-sm text-muted-foreground"
                       />
                       <Input
                         value={line.overheadPoName}
                         onChange={(e) => handleUpdateLine(index, "overheadPoName", e.target.value)}
                         placeholder="Overhead PO"
                         title="SM template task name to map this stage's % as the overhead split (e.g., Pay Overhead Slab)"
-                        className="w-36 h-8 text-sm text-muted-foreground"
+                        className="w-32 h-8 text-sm text-muted-foreground"
                       />
                       <Button
                         variant="ghost"
