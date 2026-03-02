@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, memo } from "react";
 import {
   ArrowUp,
   ArrowDown,
+  ArrowUpToLine,
   ChevronDown,
   Check,
   X,
@@ -29,6 +30,8 @@ interface ResizableColumnHeaderProps {
   width: number;
   onResize: (key: string, width: number) => void;
   onSort: (key: string) => void;
+  onSortEmptyFirst?: (key: string) => void;
+  onClearSort?: (key: string) => void;
   onHide: (key: string) => void;
   onGroupBy: (key: string | null) => void;
   onAddFilter: (key: string) => void;
@@ -44,6 +47,8 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
   width,
   onResize,
   onSort,
+  onSortEmptyFirst,
+  onClearSort,
   onHide,
   onGroupBy,
   onAddFilter,
@@ -179,6 +184,8 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
             {sortInfo && (
               sortInfo.dir === "asc" ? (
                 <ArrowUp className="h-3 w-3 shrink-0 text-primary" />
+              ) : sortInfo.dir === "empty_first" ? (
+                <ArrowUpToLine className="h-3 w-3 shrink-0 text-primary" />
               ) : (
                 <ArrowDown className="h-3 w-3 shrink-0 text-primary" />
               )
@@ -222,15 +229,30 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
                 {getSortLabel("desc")}
                 {sortInfo?.dir === "desc" && <Check className="h-4 w-4 ml-auto" />}
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  onSortEmptyFirst?.(column.key);
+                  setDropdownOpen(false);
+                }}
+                className={cn(sortInfo?.dir === "empty_first" && "bg-muted")}
+              >
+                <ArrowUpToLine className="h-4 w-4 mr-2" />
+                Empty First
+                {sortInfo?.dir === "empty_first" && <Check className="h-4 w-4 ml-auto" />}
+              </DropdownMenuItem>
               {sortInfo && (
                 <DropdownMenuItem
                   onClick={() => {
-                    // Clear sort by clicking until removed
-                    if (sortInfo.dir === "asc") {
-                      onSort(column.key); // asc -> desc
-                      onSort(column.key); // desc -> removed
+                    if (onClearSort) {
+                      onClearSort(column.key);
                     } else {
-                      onSort(column.key); // desc -> removed
+                      // Fallback: cycle through until removed
+                      if (sortInfo.dir === "asc") {
+                        onSort(column.key); // asc -> desc
+                        onSort(column.key); // desc -> removed
+                      } else {
+                        onSort(column.key); // desc -> removed
+                      }
                     }
                     setDropdownOpen(false);
                   }}

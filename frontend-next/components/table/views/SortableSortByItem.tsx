@@ -39,7 +39,7 @@ interface SortableSortByItemProps {
   sort: SortColumn;
   columns: Column[];
   onChangeColumn: (col: string) => void;
-  onChangeDir: (dir: "asc" | "desc" | "custom") => void;
+  onChangeDir: (dir: "asc" | "desc" | "custom" | "empty_first") => void;
   onChangeCustomOrder?: (order: string[]) => void;
   onRemove: () => void;
   allRows?: Record<string, unknown>[];
@@ -147,13 +147,14 @@ export function SortableSortByItem({
             popoverProps={{ className: "w-[200px]" }}
           />
         </div>
-        <Select value={sort.dir} onValueChange={(v) => onChangeDir(v as "asc" | "desc" | "custom")}>
-          <SelectTrigger className="w-[110px] h-8">
+        <Select value={sort.dir} onValueChange={(v) => onChangeDir(v as "asc" | "desc" | "custom" | "empty_first")}>
+          <SelectTrigger className="w-[130px] h-8">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="asc">A → Z</SelectItem>
             <SelectItem value="desc">Z → A</SelectItem>
+            <SelectItem value="empty_first">Empty First</SelectItem>
             <SelectItem value="custom">Custom</SelectItem>
           </SelectContent>
         </Select>

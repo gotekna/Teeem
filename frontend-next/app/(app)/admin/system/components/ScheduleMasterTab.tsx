@@ -6,6 +6,7 @@ import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-util
 import { copyToClipboard } from "@/utils/formatters";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -355,6 +356,7 @@ interface ScheduleMasterTabProps {
 const DEFAULT_SM_BASE_PATH = "/admin/system/schedule-master";
 
 export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleMasterTabProps) {
+  const [smExpanded, toggleSmExpanded] = useExpandedState("schedule-master");
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const router = useRouter();
@@ -2623,9 +2625,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   }
 
   return (
+    <ExpandableSection expanded={smExpanded} onToggle={toggleSmExpanded}>
     <div className="h-full w-full flex flex-col">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col relative">
-        <TabsList className="shrink-0 justify-start gap-1">
+        <div className="flex items-center gap-2">
+        <TabsList className="shrink-0 justify-start gap-1 flex-1">
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
             Schedule Templates
@@ -2655,6 +2659,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             Tables
           </TabsTrigger>
         </TabsList>
+        <ExpandButton expanded={smExpanded} onToggle={toggleSmExpanded} />
+        </div>
 
         {/* Tab content container - flex-1 to fill remaining space, relative for absolute children */}
         <div className="flex-1 min-h-0 relative mt-2 h-full">
@@ -5238,5 +5244,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       {/* NOTE: Trades/Stages are managed in Tables tab (SSoT: Foundation SM Trades ID 542, SM Stages ID 543) */}
       {/* NOTE: Roles are managed in Admin > System > Company > Security > Roles (SSoT) */}
     </div>
+    </ExpandableSection>
   );
 }

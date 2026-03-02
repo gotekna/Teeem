@@ -62,7 +62,7 @@ export interface TableHeaderSectionProps {
   filteredAndSortedEntries: Array<{ id: number | string; [key: string]: unknown }>;
 
   /** Sort configuration */
-  sortColumns: Array<{ column: string; dir: 'asc' | 'desc' | 'custom'; customOrder?: string[] }>;
+  sortColumns: Array<{ column: string; dir: 'asc' | 'desc' | 'custom' | 'empty_first'; customOrder?: string[] }>;
 
   /** Currently grouped column */
   groupByColumn: string | null;
@@ -78,6 +78,12 @@ export interface TableHeaderSectionProps {
 
   /** Sort handler */
   handleSort: (columnKey: string) => void;
+
+  /** Sort empty first handler */
+  handleSortEmptyFirst?: (columnKey: string) => void;
+
+  /** Clear sort handler */
+  handleClearSort?: (columnKey: string) => void;
 
   /** Hide column handler */
   hideColumn: (columnKey: string) => void;
@@ -139,6 +145,8 @@ export function TableHeaderSection({
   toggleSelectAll,
   handleColumnResize,
   handleSort,
+  handleSortEmptyFirst,
+  handleClearSort,
   hideColumn,
   handleGroupByColumn,
   addFilterForColumn,
@@ -314,6 +322,8 @@ export function TableHeaderSection({
                   width={columnWidths[column.key] || column.width || 150}
                   onResize={handleColumnResize}
                   onSort={handleSort}
+                  onSortEmptyFirst={handleSortEmptyFirst}
+                  onClearSort={handleClearSort}
                   onHide={hideColumn}
                   onGroupBy={handleGroupByColumn}
                   onAddFilter={addFilterForColumn}

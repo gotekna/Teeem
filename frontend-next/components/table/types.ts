@@ -51,7 +51,7 @@ export interface TableRow {
 // Sort configuration
 export interface SortColumn {
   column: string;
-  dir: "asc" | "desc" | "custom";
+  dir: "asc" | "desc" | "custom" | "empty_first";
   customOrder?: string[]; // Custom order of values for lookup columns
 }
 

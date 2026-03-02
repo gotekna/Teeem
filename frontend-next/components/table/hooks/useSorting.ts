@@ -44,6 +44,8 @@ export interface SortingActions {
   removeSort: (columnKey: string) => void;
   /** Clear all sorting */
   clearSort: () => void;
+  /** Set sort to empty-first (nulls/empty at top, then A→Z) */
+  setSortEmptyFirst: (columnKey: string) => void;
   /** Set custom sort order for a column */
   setCustomOrder: (columnKey: string, order: string[]) => void;
   /** Replace entire sort configuration */
@@ -150,6 +152,10 @@ export function useSorting(): UseSortingReturn {
     setSortColumns([]);
   }, [setSortColumns]);
 
+  const setSortEmptyFirst = useCallback((columnKey: string) => {
+    setSortColumns([{ column: columnKey, dir: 'empty_first' as const }]);
+  }, [setSortColumns]);
+
   const setCustomOrder = useCallback((columnKey: string, order: string[]) => {
     setSortColumns((prev) => {
       const existing = prev.find((s) => s.column === columnKey);
@@ -172,9 +178,10 @@ export function useSorting(): UseSortingReturn {
     addSort,
     removeSort,
     clearSort,
+    setSortEmptyFirst,
     setCustomOrder,
     setSortColumns,
-  }), [toggleSort, singleSort, setSort, addSort, removeSort, clearSort, setCustomOrder, setSortColumns]);
+  }), [toggleSort, singleSort, setSort, addSort, removeSort, clearSort, setSortEmptyFirst, setCustomOrder, setSortColumns]);
 
   // ============================================================================
   // APPLY (data transformation using headless core)
@@ -205,7 +212,7 @@ export function useSorting(): UseSortingReturn {
 export function getSortDirection(
   sortColumns: SortColumn[],
   columnKey: string
-): 'asc' | 'desc' | 'custom' | null {
+): 'asc' | 'desc' | 'custom' | 'empty_first' | null {
   const sort = sortColumns.find((s) => s.column === columnKey);
   return sort?.dir ?? null;
 }

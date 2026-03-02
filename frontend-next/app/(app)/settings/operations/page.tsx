@@ -53,7 +53,7 @@ const OPERATIONS_TABS = [
   { id: "tender-documents", label: "Tender Documents" },
 ];
 
-const DEFAULT_TAB = "sm-tasks";
+const DEFAULT_TAB = "schedule-master";
 
 /** Sub-tabs within Quote Templates: Std + Custom */
 function QuoteTemplatesWrapper() {

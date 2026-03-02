@@ -48,9 +48,28 @@ export function sortRows<TRow extends TableRow>(
       const aVal = a[column];
       const bVal = b[column];
 
-      if (aVal == null && bVal == null) continue;
-      if (aVal == null) return dir === "asc" ? 1 : -1;
-      if (bVal == null) return dir === "asc" ? -1 : 1;
+      // Check for empty/null: treat null, undefined, empty string, and empty lookup objects as "empty"
+      const isEmpty = (v: unknown): boolean => {
+        if (v == null || v === "") return true;
+        if (typeof v === "object") {
+          const obj = v as { display?: string; name?: string; id?: unknown };
+          return !obj.display && !obj.name && !obj.id;
+        }
+        return false;
+      };
+      const aEmpty = isEmpty(aVal);
+      const bEmpty = isEmpty(bVal);
+
+      if (aEmpty && bEmpty) continue;
+      if (dir === "empty_first") {
+        // Empty values sort to top, then A→Z for the rest
+        if (aEmpty) return -1;
+        if (bEmpty) return 1;
+      } else {
+        // Default: nulls sort to end regardless of direction
+        if (aEmpty) return dir === "asc" ? 1 : -1;
+        if (bEmpty) return dir === "asc" ? -1 : 1;
+      }
 
       const aDisplay = getSortDisplayValue(aVal);
       const bDisplay = getSortDisplayValue(bVal);

@@ -2686,6 +2686,8 @@ export default function TeeemTableView({
   // Sort handler - uses singleSort for column header clicks (replaces existing sorts)
   // Use toggleSort for multi-sort scenarios (shift+click, etc.)
   const handleSort = sorting.actions.singleSort;
+  const handleSortEmptyFirst = sorting.actions.setSortEmptyFirst;
+  const handleClearSort = sorting.actions.removeSort;
 
   // Filter handlers
   const addFilter = useCallback(() => {
@@ -4588,6 +4590,8 @@ export default function TeeemTableView({
       toggleSelectAll={toggleSelectAll}
       handleColumnResize={handleColumnResize}
       handleSort={handleSort}
+      handleSortEmptyFirst={handleSortEmptyFirst}
+      handleClearSort={handleClearSort}
       hideColumn={hideColumn}
       handleGroupByColumn={handleGroupByColumn}
       addFilterForColumn={addFilterForColumn}

@@ -219,10 +219,12 @@ class TenantConfigSyncService
     sm_schedule_masters: {
       model: "SmScheduleMaster",
       name_field: :name,
-      match_fields: [:task_number],
+      match_fields: [:name],
       # NOTE: hold, confirm, supplier_confirm EXCLUDED - job-reality flags that
       # should never be true on templates (they represent actual job commitments)
-      sync_fields: [:task_number, :name, :description, :sequence_order, :duration_days,
+      # NOTE: task_number EXCLUDED from sync_fields - each tenant auto-generates
+      # its own sequential task_numbers. Syncing would overwrite local numbering.
+      sync_fields: [:name, :description, :sequence_order, :duration_days,
                     :trade, :stage, :pass_fail_enabled, :order_time_days, :call_time_days,
                     :require_photo, :po_required, :critical_po, :has_subtasks,
                     :subtask_count, :subtask_names, :tags, :color, :is_active, :cost_centre,
@@ -234,6 +236,7 @@ class TenantConfigSyncService
       group: "schedule",
       remap_fks: {
         sm_template_ids: { model: "SmScheduleMasterTemplate", match_field: :name, array: true },
+        predecessor_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
         trade: { model: "SmTrade", match_field: :name },
         stage: { model: "SmStage", match_field: :name },
         checklist_id: { model: "SupervisorChecklistTemplate", match_field: :sync_key },

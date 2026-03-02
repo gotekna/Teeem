@@ -14,7 +14,7 @@ class SmScheduleMaster < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
   include ConfigSyncable
-  self.sync_key_source = :task_number
+  self.sync_key_source = :name
 
   # Table renamed from sm_schedule_master to sm_schedule_masters (Rails convention)
 

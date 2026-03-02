@@ -22,8 +22,8 @@ import {
 
 export interface ColumnState {
   // Sort state
-  sortColumns: Array<{ column: string; dir: 'asc' | 'desc' | 'custom'; customOrder?: string[] }>;
-  setSortColumns: (value: Array<{ column: string; dir: 'asc' | 'desc' | 'custom'; customOrder?: string[] }>) => void;
+  sortColumns: Array<{ column: string; dir: 'asc' | 'desc' | 'custom' | 'empty_first'; customOrder?: string[] }>;
+  setSortColumns: (value: Array<{ column: string; dir: 'asc' | 'desc' | 'custom' | 'empty_first'; customOrder?: string[] }>) => void;
 
   // Width state
   columnWidths: Record<string, number>;
