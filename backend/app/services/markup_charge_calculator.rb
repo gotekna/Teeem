@@ -252,7 +252,7 @@ class MarkupChargeCalculator
     }
   end
 
-  # Map charge type → SmSetting FK column for the linked SM template task
+  # Map charge type → SmScheduleMasterTemplate FK column for the linked SM template task
   CHARGE_SM_FIELDS = {
     "construction_insurance" => :charge_construction_insurance_sm_id,
     "qleave" => :charge_qleave_sm_id,
@@ -261,9 +261,12 @@ class MarkupChargeCalculator
   }.freeze
 
   # Auto-link charges to POs by finding the job's SmTask that was copied from
-  # the SM template task configured in SmSettings.
+  # the SM template task configured on the job's template.
   # Only sets PO if the charge doesn't already have one (won't override manual selection).
   def auto_link_charge_pos(charges)
+    template = job.schedule_template
+    return unless template
+
     charges.each do |type, data|
       # Skip if charge already has a PO linked (manual selection takes precedence)
       next if data[:purchase_order_id].present?
@@ -271,7 +274,7 @@ class MarkupChargeCalculator
       sm_field = CHARGE_SM_FIELDS[type.to_s]
       next unless sm_field
 
-      template_sm_id = settings.send(sm_field)
+      template_sm_id = template.send(sm_field)
       next unless template_sm_id
 
       # Find the SmTask on this job that was copied from the template task

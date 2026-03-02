@@ -226,23 +226,6 @@ module Api
         end
       end
 
-      # GET /api/v1/sm_settings/template_tasks
-      # Returns SM template tasks from the default template for charge auto-link dropdowns
-      def template_tasks
-        default_template = SmScheduleMasterTemplate.default_template.first
-        tasks = if default_template
-                  default_template.sm_schedule_master_rows.active
-                    .where(po_required: true)
-                    .order(:sequence_order)
-                    .pluck(:id, :name)
-                    .map { |id, name| { id: id, name: name } }
-                else
-                  []
-                end
-
-        render json: { success: true, tasks: tasks }
-      end
-
       # DELETE /api/v1/sm_settings/roles/:role
       def remove_role
         @settings = SmSetting.instance
@@ -276,11 +259,7 @@ module Api
           :default_overheads_percent,
           :default_qleave_rate_percent,
           :qleave_threshold,
-          :qbcc_minimum_threshold,
-          :charge_construction_insurance_sm_id,
-          :charge_qleave_sm_id,
-          :charge_overheads_sm_id,
-          :charge_qbcc_insurance_sm_id
+          :qbcc_minimum_threshold
         )
 
         # Handle gantt_column_config as arbitrary JSON (array of column configs)
@@ -320,15 +299,6 @@ module Api
           defaultQleaveRatePercent: settings.default_qleave_rate_percent&.to_f || 0.575,
           qleaveThreshold: settings.qleave_threshold&.to_f || 150_000,
           qbccMinimumThreshold: settings.qbcc_minimum_threshold&.to_f || 3_300,
-          # Charge → SM template task links (for auto-PO on job creation)
-          chargeConstructionInsuranceSmId: settings.charge_construction_insurance_sm_id,
-          chargeConstructionInsuranceSmName: settings.charge_construction_insurance_sm&.name,
-          chargeQleaveSmId: settings.charge_qleave_sm_id,
-          chargeQleaveSmName: settings.charge_qleave_sm&.name,
-          chargeOverheadsSmId: settings.charge_overheads_sm_id,
-          chargeOverheadsSmName: settings.charge_overheads_sm&.name,
-          chargeQbccInsuranceSmId: settings.charge_qbcc_insurance_sm_id,
-          chargeQbccInsuranceSmName: settings.charge_qbcc_insurance_sm&.name,
           # Computed values
           current_time: settings.current_time,
           today: settings.today,

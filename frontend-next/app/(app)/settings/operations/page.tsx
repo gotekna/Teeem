@@ -23,6 +23,7 @@ import { TenderHeadersTab } from "./components/TenderHeadersTab";
 import { TenderSectionsTab } from "./components/TenderSectionsTab";
 import { TenderDocumentTemplatesTab } from "./components/TenderDocumentTemplatesTab";
 import { MarkupDefaultsTab } from "./components/MarkupDefaultsTab";
+import { QbccBracketsTab } from "./components/QbccBracketsTab";
 
 
 /**
@@ -78,6 +79,34 @@ function QuoteTemplatesWrapper() {
           </TabsContent>
           <TabsContent value="custom" className="h-full overflow-auto">
             <CustomQuoteTemplatesTab />
+          </TabsContent>
+        </div>
+      </Tabs>
+    </ExpandableSection>
+  );
+}
+
+/** Sub-tabs within Markup: Defaults + QBCC Brackets */
+function MarkupWrapper() {
+  const [subTab, setSubTab] = React.useState("defaults");
+  const [subExpanded, toggleSubExpanded] = useExpandedState("markup");
+
+  return (
+    <ExpandableSection expanded={subExpanded} onToggle={toggleSubExpanded}>
+      <Tabs value={subTab} onValueChange={setSubTab} className="flex flex-col h-full">
+        <div className="flex items-center gap-2 mx-4 mt-2">
+          <TabsList className="w-fit">
+            <TabsTrigger value="defaults">Defaults</TabsTrigger>
+            <TabsTrigger value="qbcc">QBCC Brackets</TabsTrigger>
+          </TabsList>
+          <ExpandButton expanded={subExpanded} onToggle={toggleSubExpanded} />
+        </div>
+        <div className="flex-1 min-h-0 mt-2">
+          <TabsContent value="defaults" className="h-full overflow-auto">
+            <MarkupDefaultsTab />
+          </TabsContent>
+          <TabsContent value="qbcc" className="h-full overflow-auto">
+            <QbccBracketsTab />
           </TabsContent>
         </div>
       </Tabs>
@@ -165,7 +194,7 @@ export default function OperationsSettingsPage() {
             <TenderDocumentTemplatesTab />
           </TabsContent>
           <TabsContent value="markup" className="absolute inset-0 overflow-auto">
-            <MarkupDefaultsTab />
+            <MarkupWrapper />
           </TabsContent>
         </div>
       </Tabs>

@@ -4245,6 +4245,43 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
+            {/* Sync status section (edit mode only) */}
+            {editingTemplate?.sync_status?.synced_tenants && editingTemplate.sync_status.synced_tenants.length > 0 && (
+              <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                      Synced with {editingTemplate.sync_status.synced_tenants.join(", ")}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                    onClick={async () => {
+                      try {
+                        await api.patch(`/api/v1/sm_schedule_master_templates/${editingTemplate.id}`, {
+                          sm_schedule_master_template: { sync_key: null },
+                        });
+                        toast({ title: "Disconnected", description: "Template is now local-only and will no longer sync" });
+                        setShowDialog(false);
+                        loadTemplates();
+                      } catch (err) {
+                        console.error("Failed to disconnect sync:", err);
+                        toast({ title: "Error", description: "Failed to disconnect sync", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <Link2Off className="h-3.5 w-3.5 mr-1" />
+                    Disconnect
+                  </Button>
+                </div>
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  Changes to this template sync across tenants via ConfigSync. Disconnecting makes it local-only.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>

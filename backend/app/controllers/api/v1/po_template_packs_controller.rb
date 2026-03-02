@@ -357,7 +357,7 @@ module Api
 
       def pack_params
         params.require(:po_template_pack).permit(
-          :name, :description, :is_active, :position, :sm_schedule_master_template_id,
+          :name, :description, :is_active, :position, :sm_schedule_master_template_id, :sync_key,
           po_template_items_attributes: [
             :id, :name, :sm_schedule_master_id, :supplier_id, :supplier_sync_key,
             :profit_centre_id, :position, :budget, :notes, :status_on_create, :_destroy,
@@ -382,6 +382,7 @@ module Api
           smScheduleMasterTemplateId: template&.id,
           smScheduleMasterTemplateName: template&.name,
           smScheduleMasterTemplateRowCount: template&.row_count,
+          syncStatus: build_pack_sync_status(pack),
           createdAt: pack.created_at&.iso8601,
           updatedAt: pack.updated_at&.iso8601,
           items: pack.po_template_items
@@ -389,6 +390,27 @@ module Api
             .map { |item| item_json(item, include_line_items: include_line_items, template: template) }
         }
         json
+      end
+
+      # Build sync status for a PO template pack (ConfigSync-based)
+      # Checks all other tenants for matching sync_key
+      def build_pack_sync_status(pack)
+        return nil unless pack.sync_key.present?
+
+        # Check all other tenants for matching sync_key
+        other_tenants = Tenant.where.not(id: current_tenant.id)
+
+        synced_tenants = other_tenants.filter_map do |tenant|
+          has_match = ActsAsTenant.with_tenant(tenant) do
+            PoTemplatePack.exists?(sync_key: pack.sync_key)
+          end
+
+          tenant.name if has_match
+        end
+
+        return nil if synced_tenants.empty?
+
+        { syncedTenants: synced_tenants }
       end
 
       def item_json(item, include_line_items: false, template: nil)

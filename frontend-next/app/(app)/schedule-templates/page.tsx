@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { api } from "@/lib/api";
 
 interface SmScheduleMasterTemplate {
@@ -49,6 +50,19 @@ interface SmScheduleMasterTemplate {
   row_count: number;
   created_at: string;
   updated_at: string;
+  charge_construction_insurance_sm_id: number | null;
+  charge_construction_insurance_sm_name: string | null;
+  charge_qleave_sm_id: number | null;
+  charge_qleave_sm_name: string | null;
+  charge_overheads_sm_id: number | null;
+  charge_overheads_sm_name: string | null;
+  charge_qbcc_insurance_sm_id: number | null;
+  charge_qbcc_insurance_sm_name: string | null;
+}
+
+interface SmPoTask {
+  id: number;
+  name: string;
 }
 
 export default function ScheduleTemplatesPage() {
@@ -64,7 +78,15 @@ export default function ScheduleTemplatesPage() {
   const [duplicating, setDuplicating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [settingDefault, setSettingDefault] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ name: "", description: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    charge_construction_insurance_sm_id: null as number | null,
+    charge_qleave_sm_id: null as number | null,
+    charge_overheads_sm_id: null as number | null,
+    charge_qbcc_insurance_sm_id: null as number | null,
+  });
+  const [poTasks, setPoTasks] = useState<SmPoTask[]>([]);
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -88,16 +110,40 @@ export default function ScheduleTemplatesPage() {
 
   // Create template handler
   const handleCreate = () => {
-    setFormData({ name: "", description: "" });
+    setFormData({
+      name: "", description: "",
+      charge_construction_insurance_sm_id: null,
+      charge_qleave_sm_id: null,
+      charge_overheads_sm_id: null,
+      charge_qbcc_insurance_sm_id: null,
+    });
+    setPoTasks([]);
     setEditingTemplate(null);
     setShowDialog(true);
   };
 
   // Edit template handler
-  const handleEdit = (template: SmScheduleMasterTemplate) => {
-    setFormData({ name: template.name, description: template.description || "" });
+  const handleEdit = async (template: SmScheduleMasterTemplate) => {
+    setFormData({
+      name: template.name,
+      description: template.description || "",
+      charge_construction_insurance_sm_id: template.charge_construction_insurance_sm_id,
+      charge_qleave_sm_id: template.charge_qleave_sm_id,
+      charge_overheads_sm_id: template.charge_overheads_sm_id,
+      charge_qbcc_insurance_sm_id: template.charge_qbcc_insurance_sm_id,
+    });
     setEditingTemplate(template);
     setShowDialog(true);
+
+    // Fetch PO-required tasks for this template
+    try {
+      const res = await api.get<{ tasks: SmPoTask[] }>(
+        `/api/v1/sm_schedule_master_templates/${template.id}/po_tasks`
+      );
+      setPoTasks(res?.tasks || []);
+    } catch {
+      setPoTasks([]);
+    }
   };
 
   // Save template handler
@@ -365,6 +411,42 @@ export default function ScheduleTemplatesPage() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
+
+            {/* Charge Auto-Link PO - only show when editing (need tasks loaded) */}
+            {editingTemplate && poTasks.length > 0 && (
+              <div className="border-t pt-4 space-y-3">
+                <div>
+                  <Label className="text-sm font-semibold">Charge Auto-Link to PO</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    When markup is calculated, auto-link each charge to the PO on the selected SM task.
+                  </p>
+                </div>
+                <ChargeSmTaskSelect
+                  label="Construction Insurance"
+                  value={formData.charge_construction_insurance_sm_id}
+                  onChange={v => setFormData(f => ({ ...f, charge_construction_insurance_sm_id: v }))}
+                  tasks={poTasks}
+                />
+                <ChargeSmTaskSelect
+                  label="Overheads"
+                  value={formData.charge_overheads_sm_id}
+                  onChange={v => setFormData(f => ({ ...f, charge_overheads_sm_id: v }))}
+                  tasks={poTasks}
+                />
+                <ChargeSmTaskSelect
+                  label="QLeave"
+                  value={formData.charge_qleave_sm_id}
+                  onChange={v => setFormData(f => ({ ...f, charge_qleave_sm_id: v }))}
+                  tasks={poTasks}
+                />
+                <ChargeSmTaskSelect
+                  label="QBCC Insurance"
+                  value={formData.charge_qbcc_insurance_sm_id}
+                  onChange={v => setFormData(f => ({ ...f, charge_qbcc_insurance_sm_id: v }))}
+                  tasks={poTasks}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>
@@ -385,6 +467,43 @@ export default function ScheduleTemplatesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ── Charge → SM Task dropdown ──
+function ChargeSmTaskSelect({
+  label,
+  value,
+  onChange,
+  tasks,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (v: number | null) => void;
+  tasks: SmPoTask[];
+}) {
+  const items: ComboboxItem[] = tasks.map(t => ({
+    id: t.id.toString(),
+    label: t.name,
+  }));
+
+  const selectedItem = value ? items.find(i => i.id === value.toString()) : undefined;
+
+  return (
+    <div className="flex items-center gap-3">
+      <Label className="w-44 shrink-0 text-sm">{label}</Label>
+      <div className="flex-1">
+        <ComboboxDropdown
+          items={items}
+          selectedItem={selectedItem}
+          onSelect={item => onChange(parseInt(item.id, 10))}
+          placeholder="None"
+          searchPlaceholder="Search tasks..."
+          clearable
+          onClear={() => onChange(null)}
+        />
+      </div>
     </div>
   );
 }

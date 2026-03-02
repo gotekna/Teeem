@@ -20,6 +20,12 @@ class SmScheduleMasterTemplate < ApplicationRecord
   belongs_to :updated_by, class_name: "User", optional: true
   belongs_to :copied_from, class_name: "SmScheduleMasterTemplate", optional: true
 
+  # Charge → SM template task links (auto-link charge POs when markup is calculated)
+  belongs_to :charge_construction_insurance_sm, class_name: "SmScheduleMaster", optional: true
+  belongs_to :charge_qleave_sm, class_name: "SmScheduleMaster", optional: true
+  belongs_to :charge_overheads_sm, class_name: "SmScheduleMaster", optional: true
+  belongs_to :charge_qbcc_insurance_sm, class_name: "SmScheduleMaster", optional: true
+
   has_many :copies, class_name: "SmScheduleMasterTemplate", foreign_key: :copied_from_id, dependent: :nullify
   has_many :job_types, dependent: :nullify
   has_many :po_template_packs, dependent: :nullify

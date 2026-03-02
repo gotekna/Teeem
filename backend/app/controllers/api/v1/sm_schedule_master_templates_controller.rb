@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmScheduleMasterTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :reset_job_tasks, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows, :gantt_data, :validate_dates ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :reset_job_tasks, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows, :gantt_data, :validate_dates, :po_tasks ]
 
       # GET /api/v1/sm_schedule_master_templates
       # Params: include_inactive=true to include inactive templates
@@ -98,6 +98,18 @@ module Api
         @template.update!(is_active: false, updated_by: current_user)
 
         render json: { success: true, message: "Template archived" }
+      end
+
+      # GET /api/v1/sm_schedule_master_templates/:id/po_tasks
+      # Returns PO-required tasks for this template (for charge auto-link dropdowns)
+      def po_tasks
+        tasks = @template.sm_schedule_master_rows.active
+                  .where(po_required: true)
+                  .order(:sequence_order)
+                  .pluck(:id, :name)
+                  .map { |id, name| { id: id, name: name } }
+
+        render json: { success: true, tasks: tasks }
       end
 
       # POST /api/v1/sm_schedule_master_templates/:id/duplicate
@@ -1039,7 +1051,11 @@ module Api
       end
 
       def template_params
-        params.require(:sm_schedule_master_template).permit(:name, :description, :is_default, :is_canonical)
+        params.require(:sm_schedule_master_template).permit(
+          :name, :description, :is_default, :is_canonical, :sync_key,
+          :charge_construction_insurance_sm_id, :charge_qleave_sm_id,
+          :charge_overheads_sm_id, :charge_qbcc_insurance_sm_id
+        )
       end
 
       def template_json(template, include_rows: false)
@@ -1059,7 +1075,16 @@ module Api
           canonical_record_id: template.canonical_record_id,
           canonical_version: template.canonical_version,
           field_overrides: template.field_overrides,
-          sync_status: build_sync_status(template)
+          sync_status: build_sync_status(template),
+          # Charge → SM task auto-link config (per-template)
+          charge_construction_insurance_sm_id: template.charge_construction_insurance_sm_id,
+          charge_construction_insurance_sm_name: template.charge_construction_insurance_sm&.name,
+          charge_qleave_sm_id: template.charge_qleave_sm_id,
+          charge_qleave_sm_name: template.charge_qleave_sm&.name,
+          charge_overheads_sm_id: template.charge_overheads_sm_id,
+          charge_overheads_sm_name: template.charge_overheads_sm&.name,
+          charge_qbcc_insurance_sm_id: template.charge_qbcc_insurance_sm_id,
+          charge_qbcc_insurance_sm_name: template.charge_qbcc_insurance_sm&.name
         }
 
         if include_rows
@@ -1168,23 +1193,21 @@ module Api
       end
 
       # Build sync status for a template (canonical sync + dependent tables)
-      # Returns nil for local-only templates (no canonical link)
+      # Returns nil for local-only templates (no sync_key)
       def build_sync_status(template)
-        # Templates without canonical link are local-only
-        return nil unless template.canonical?
+        # Templates without a sync_key are local-only
+        return nil unless template.sync_key.present?
 
-        # Get other bidirectional tenants (Tekna/Pilgrim/Teeem minus current)
-        sync_members = CanonicalSyncGroupMember.bidirectional
-                         .where.not(tenant_id: current_tenant.id)
-                         .includes(:tenant)
+        # Check all other tenants for matching sync_key or canonical_record_id
+        other_tenants = Tenant.where.not(id: current_tenant.id)
 
-        synced_tenants = sync_members.filter_map do |member|
-          tenant = member.tenant
-          next unless tenant
-
-          # Check if tenant has a record linked to the same canonical record
+        synced_tenants = other_tenants.filter_map do |tenant|
           has_match = ActsAsTenant.with_tenant(tenant) do
-            SmScheduleMasterTemplate.where(canonical_record_id: template.canonical_record_id).exists?
+            if template.canonical_record_id.present?
+              SmScheduleMasterTemplate.where(canonical_record_id: template.canonical_record_id).exists?
+            else
+              SmScheduleMasterTemplate.exists?(sync_key: template.sync_key)
+            end
           end
 
           { id: tenant.id, name: tenant.name } if has_match

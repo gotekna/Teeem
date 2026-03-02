@@ -38,6 +38,8 @@ import {
   AlertTriangle,
   Minus,
   Calendar,
+  RefreshCw,
+  Link2Off,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -121,6 +123,7 @@ interface TemplatePack {
   smScheduleMasterTemplateId: number | null;
   smScheduleMasterTemplateName: string | null;
   smScheduleMasterTemplateRowCount: number | null;
+  syncStatus?: { syncedTenants: string[] } | null;
   createdAt: string;
   updatedAt: string;
   items: TemplateItem[];
@@ -631,6 +634,43 @@ export function PoTemplatesTab() {
                 clearable
               />
             </div>
+            {/* Sync status section (edit mode only) */}
+            {editingPack?.syncStatus?.syncedTenants && editingPack.syncStatus.syncedTenants.length > 0 && (
+              <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                      Synced with {editingPack.syncStatus.syncedTenants.join(", ")}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                    onClick={async () => {
+                      try {
+                        await api.patch(`/api/v1/po_template_packs/${editingPack.id}`, {
+                          po_template_pack: { sync_key: null },
+                        });
+                        toast.success("Disconnected — pack is now local-only");
+                        setShowEditDialog(false);
+                        loadPacks();
+                      } catch (err) {
+                        console.error("Failed to disconnect sync:", err);
+                        toast.error("Failed to disconnect sync");
+                      }
+                    }}
+                  >
+                    <Link2Off className="h-3.5 w-3.5 mr-1" />
+                    Disconnect
+                  </Button>
+                </div>
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  This pack syncs across tenants via ConfigSync. Disconnecting makes it local-only.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -740,6 +780,12 @@ function TemplatesView({
                       <Badge variant="secondary" className="text-xs gap-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30">
                         <Calendar className="h-3 w-3" />
                         {pack.smScheduleMasterTemplateName} ({pack.smScheduleMasterTemplateRowCount} tasks)
+                      </Badge>
+                    )}
+                    {pack.syncStatus?.syncedTenants && pack.syncStatus.syncedTenants.length > 0 && (
+                      <Badge variant="outline" className="text-xs gap-1 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30">
+                        <RefreshCw className="h-3 w-3" />
+                        {pack.syncStatus.syncedTenants.join(", ")}
                       </Badge>
                     )}
                     <Badge variant="secondary" className="text-xs">
