@@ -258,6 +258,10 @@ module Api
           :default_construction_insurance_percent,
           :default_overheads_percent,
           :default_qleave_rate_percent,
+          :default_builds_contingency_percent,
+          :default_project_prelims_percent,
+          :default_project_management_percent,
+          :default_maintenance_fee_percent,
           :qleave_threshold,
           :qbcc_minimum_threshold
         )
@@ -297,6 +301,10 @@ module Api
           defaultConstructionInsurancePercent: settings.default_construction_insurance_percent&.to_f || 0,
           defaultOverheadsPercent: settings.default_overheads_percent&.to_f || 0,
           defaultQleaveRatePercent: settings.default_qleave_rate_percent&.to_f || 0.575,
+          defaultBuildsContingencyPercent: settings.default_builds_contingency_percent&.to_f || 0,
+          defaultProjectPrelimsPercent: settings.default_project_prelims_percent&.to_f || 0,
+          defaultProjectManagementPercent: settings.default_project_management_percent&.to_f || 0,
+          defaultMaintenanceFeePercent: settings.default_maintenance_fee_percent&.to_f || 0,
           qleaveThreshold: settings.qleave_threshold&.to_f || 150_000,
           qbccMinimumThreshold: settings.qbcc_minimum_threshold&.to_f || 3_300,
           # Computed values

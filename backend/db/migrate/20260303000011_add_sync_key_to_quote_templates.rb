@@ -8,17 +8,21 @@
 #
 class AddSyncKeyToQuoteTemplates < ActiveRecord::Migration[7.2]
   def change
-    add_column :quote_templates, :sync_key, :string
-    add_index :quote_templates, [:tenant_id, :sync_key],
-              name: "idx_quote_templates_on_tenant_sync_key",
-              unique: true,
-              where: "(sync_key IS NOT NULL)"
+    add_column :quote_templates, :sync_key, :string unless column_exists?(:quote_templates, :sync_key)
+    unless index_exists?(:quote_templates, [:tenant_id, :sync_key], name: "idx_quote_templates_on_tenant_sync_key")
+      add_index :quote_templates, [:tenant_id, :sync_key],
+                name: "idx_quote_templates_on_tenant_sync_key",
+                unique: true,
+                where: "(sync_key IS NOT NULL)"
+    end
 
-    add_column :custom_quote_templates, :sync_key, :string
-    add_index :custom_quote_templates, [:tenant_id, :sync_key],
-              name: "idx_custom_quote_templates_on_tenant_sync_key",
-              unique: true,
-              where: "(sync_key IS NOT NULL)"
+    add_column :custom_quote_templates, :sync_key, :string unless column_exists?(:custom_quote_templates, :sync_key)
+    unless index_exists?(:custom_quote_templates, [:tenant_id, :sync_key], name: "idx_custom_quote_templates_on_tenant_sync_key")
+      add_index :custom_quote_templates, [:tenant_id, :sync_key],
+                name: "idx_custom_quote_templates_on_tenant_sync_key",
+                unique: true,
+                where: "(sync_key IS NOT NULL)"
+    end
 
     # Backfill sync_key for existing records from name
     # Order: LOWER first, then replace spaces/underscores → hyphens, strip non-alphanum, collapse multi-hyphens

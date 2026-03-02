@@ -765,6 +765,32 @@ module Api
         end
       end
 
+      # POST /api/v1/config_sync/toggle_record_sync
+      # Toggle any ConfigSyncable record between synced and independent
+      # Params: table_key (e.g. "quote_templates"), record_id
+      TOGGLEABLE_TABLES = {
+        "sm_schedule_master_templates" => SmScheduleMasterTemplate,
+        "quote_templates" => QuoteTemplate,
+        "custom_quote_templates" => CustomQuoteTemplate,
+        "po_template_packs" => PoTemplatePack,
+      }.freeze
+
+      def toggle_record_sync
+        model = TOGGLEABLE_TABLES[params[:table_key]]
+        return render json: { success: false, error: "Unknown table" }, status: :unprocessable_entity unless model
+
+        record = model.find(params[:record_id])
+
+        if record.sync_key.present?
+          record.update!(sync_key: nil)
+          render json: { success: true, synced: false, name: record.name }
+        else
+          new_key = model.build_sync_key(record.name)
+          record.update!(sync_key: new_key)
+          render json: { success: true, synced: true, sync_key: new_key, name: record.name }
+        end
+      end
+
       # GET /api/v1/config_sync/table_modes
       # Returns per-table sync direction preferences for current tenant
       def table_modes
@@ -905,6 +931,16 @@ module Api
                   end
                 end
 
+                # Syncable tables: add per-record breakdown showing synced vs independent
+                if table_key.in?([:quote_templates, :custom_quote_templates, :po_template_packs])
+                  master_sync_keys = ActsAsTenant.with_tenant(master_tenant) do
+                    model.where.not(sync_key: nil).pluck(:sync_key).to_set
+                  end
+                  entry[:records] = ActsAsTenant.with_tenant(t) do
+                    syncable_records_breakdown(model, master_sync_keys)
+                  end
+                end
+
                 per_tenant[t.slug] = entry
               end
               coverage[table_key.to_s] = per_tenant
@@ -936,6 +972,12 @@ module Api
                 entry[:templates] = template_breakdown(master_template_keys)
               end
 
+              # Syncable tables: add per-record breakdown
+              if table_key.in?([:quote_templates, :custom_quote_templates, :po_template_packs])
+                master_sync_keys = master_keys_cache[table_key] || Set.new
+                entry[:records] = syncable_records_breakdown(model, master_sync_keys)
+              end
+
               coverage[table_key.to_s] = entry
             rescue => e
               Rails.logger.warn "[ConfigSync] Coverage error for #{table_key}: #{e.message}"
@@ -953,6 +995,15 @@ module Api
           task_count = SmScheduleMaster.for_template(t.id).count
           synced = t.sync_key.present? && master_template_keys.include?(t.sync_key)
           { id: t.id, name: t.name, tasks: task_count, synced: synced }
+        end
+      end
+
+      # Generic per-record breakdown for ConfigSyncable tables
+      # Must be called within ActsAsTenant.with_tenant context
+      def syncable_records_breakdown(model, master_sync_keys)
+        model.all.map do |record|
+          synced = record.sync_key.present? && master_sync_keys.include?(record.sync_key)
+          { id: record.id, name: record.name, synced: synced }
         end
       end
 

@@ -285,8 +285,10 @@ export function CustomQuoteTemplatesTab() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => handleDelete(t.id, t.name)}
+                    className={`h-8 w-8 ${t.syncStatus?.syncedTenants?.length ? "text-muted-foreground cursor-not-allowed" : "text-destructive hover:text-destructive"}`}
+                    title={t.syncStatus?.syncedTenants?.length ? "Synced — cannot delete" : "Delete"}
+                    disabled={!!t.syncStatus?.syncedTenants?.length}
+                    onClick={() => !t.syncStatus?.syncedTenants?.length && handleDelete(t.id, t.name)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

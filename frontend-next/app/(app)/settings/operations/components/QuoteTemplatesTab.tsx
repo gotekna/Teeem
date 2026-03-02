@@ -699,9 +699,10 @@ export function QuoteTemplatesTab() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      title="Delete"
-                      onClick={() => setDeleteId(template.id)}
+                      className={`h-7 w-7 ${template.syncStatus?.syncedTenants?.length ? "text-muted-foreground cursor-not-allowed" : "text-destructive hover:text-destructive"}`}
+                      title={template.syncStatus?.syncedTenants?.length ? "Synced — cannot delete" : "Delete"}
+                      disabled={!!template.syncStatus?.syncedTenants?.length}
+                      onClick={() => !template.syncStatus?.syncedTenants?.length && setDeleteId(template.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>

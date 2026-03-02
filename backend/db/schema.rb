@@ -9132,6 +9132,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.decimal "default_qleave_rate_percent", precision: 6, scale: 4, default: "0.575"
     t.decimal "qleave_threshold", precision: 12, scale: 2, default: "150000.0"
     t.decimal "qbcc_minimum_threshold", precision: 12, scale: 2, default: "3300.0"
+    t.decimal "default_builds_contingency_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "default_project_prelims_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "default_project_management_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "default_maintenance_fee_percent", precision: 5, scale: 2, default: "0.0"
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|

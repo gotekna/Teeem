@@ -20,6 +20,10 @@ interface PricingSettings {
   defaultConstructionInsurancePercent: number;
   defaultOverheadsPercent: number;
   defaultQleaveRatePercent: number;
+  defaultBuildsContingencyPercent: number;
+  defaultProjectPrelimsPercent: number;
+  defaultProjectManagementPercent: number;
+  defaultMaintenanceFeePercent: number;
   qleaveThreshold: number;
   qbccMinimumThreshold: number;
 }
@@ -51,6 +55,10 @@ export function MarkupDefaultsTab() {
             defaultConstructionInsurancePercent: settingsRes.settings.defaultConstructionInsurancePercent ?? 0,
             defaultOverheadsPercent: settingsRes.settings.defaultOverheadsPercent ?? 0,
             defaultQleaveRatePercent: settingsRes.settings.defaultQleaveRatePercent ?? 0.575,
+            defaultBuildsContingencyPercent: settingsRes.settings.defaultBuildsContingencyPercent ?? 0,
+            defaultProjectPrelimsPercent: settingsRes.settings.defaultProjectPrelimsPercent ?? 0,
+            defaultProjectManagementPercent: settingsRes.settings.defaultProjectManagementPercent ?? 0,
+            defaultMaintenanceFeePercent: settingsRes.settings.defaultMaintenanceFeePercent ?? 0,
             qleaveThreshold: settingsRes.settings.qleaveThreshold ?? 150000,
             qbccMinimumThreshold: settingsRes.settings.qbccMinimumThreshold ?? 3300,
           });
@@ -79,6 +87,10 @@ export function MarkupDefaultsTab() {
           default_construction_insurance_percent: settings.defaultConstructionInsurancePercent,
           default_overheads_percent: settings.defaultOverheadsPercent,
           default_qleave_rate_percent: settings.defaultQleaveRatePercent,
+          default_builds_contingency_percent: settings.defaultBuildsContingencyPercent,
+          default_project_prelims_percent: settings.defaultProjectPrelimsPercent,
+          default_project_management_percent: settings.defaultProjectManagementPercent,
+          default_maintenance_fee_percent: settings.defaultMaintenanceFeePercent,
           qleave_threshold: settings.qleaveThreshold,
           qbcc_minimum_threshold: settings.qbccMinimumThreshold,
         },
@@ -158,6 +170,34 @@ export function MarkupDefaultsTab() {
             value={settings?.defaultOverheadsPercent ?? 0}
             onChange={v => updateSetting("defaultOverheadsPercent", v)}
             help="General overheads as % of sell subtotal."
+            step={0.1}
+          />
+          <SettingField
+            label="Default Builds Contingency (%)"
+            value={settings?.defaultBuildsContingencyPercent ?? 0}
+            onChange={v => updateSetting("defaultBuildsContingencyPercent", v)}
+            help="Contingency allowance as % of sell subtotal."
+            step={0.1}
+          />
+          <SettingField
+            label="Default Project Prelims (%)"
+            value={settings?.defaultProjectPrelimsPercent ?? 0}
+            onChange={v => updateSetting("defaultProjectPrelimsPercent", v)}
+            help="Preliminary costs as % of sell subtotal."
+            step={0.1}
+          />
+          <SettingField
+            label="Default Project Management (%)"
+            value={settings?.defaultProjectManagementPercent ?? 0}
+            onChange={v => updateSetting("defaultProjectManagementPercent", v)}
+            help="Project management fee as % of sell subtotal."
+            step={0.1}
+          />
+          <SettingField
+            label="Default Maintenance Fee (%)"
+            value={settings?.defaultMaintenanceFeePercent ?? 0}
+            onChange={v => updateSetting("defaultMaintenanceFeePercent", v)}
+            help="Maintenance fee as % of sell subtotal."
             step={0.1}
           />
 

@@ -133,7 +133,8 @@ export function ScheduleMasterSyncTab() {
   // Non-master: { table: { linked, local_only, master_only } }
   // Master: { table: { tenantSlug: { linked, local_only, master_only } } }
   type TemplateBreakdown = { id: number; name: string; tasks: number; synced: boolean };
-  type CoverageEntry = { linked: number; local_only: number; master_only: number; templates?: TemplateBreakdown[] };
+  type RecordBreakdown = { id: number; name: string; synced: boolean };
+  type CoverageEntry = { linked: number; local_only: number; master_only: number; templates?: TemplateBreakdown[]; records?: RecordBreakdown[] };
   const [syncCoverage, setSyncCoverage] = useState<Record<string, CoverageEntry | Record<string, CoverageEntry>>>({});
 
   // Compare mode state
@@ -284,6 +285,41 @@ export function ScheduleMasterSyncTab() {
           t.id === templateId ? { ...t, synced: currentlySynced } : t,
         );
         return { ...prev, sm_schedule_masters: { ...entry, templates: revertedTemplates } };
+      });
+    }
+  };
+
+  // Toggle any ConfigSyncable record between synced and independent
+  const handleToggleRecordSync = async (tableKey: string, recordId: number, currentlySynced: boolean) => {
+    // Optimistic update
+    setSyncCoverage((prev) => {
+      const entry = prev[tableKey] as CoverageEntry | undefined;
+      if (!entry || !entry.records) return prev;
+      const updatedRecords = entry.records.map((r) =>
+        r.id === recordId ? { ...r, synced: !currentlySynced } : r,
+      );
+      return {
+        ...prev,
+        [tableKey]: {
+          ...entry,
+          linked: updatedRecords.filter((r) => r.synced).length,
+          local_only: updatedRecords.filter((r) => !r.synced).length,
+          records: updatedRecords,
+        },
+      };
+    });
+    try {
+      await api.post("/api/v1/config_sync/toggle_record_sync", { table_key: tableKey, record_id: recordId });
+    } catch (err) {
+      console.error("[SMSync] Failed to toggle record sync:", err);
+      // Revert on failure
+      setSyncCoverage((prev) => {
+        const entry = prev[tableKey] as CoverageEntry | undefined;
+        if (!entry || !entry.records) return prev;
+        const revertedRecords = entry.records.map((r) =>
+          r.id === recordId ? { ...r, synced: currentlySynced } : r,
+        );
+        return { ...prev, [tableKey]: { ...entry, records: revertedRecords } };
       });
     }
   };
@@ -692,7 +728,8 @@ export function ScheduleMasterSyncTab() {
                                 ? (syncCoverage[table.key] as CoverageEntry | undefined)
                                 : undefined;
                               const hasTemplates = cov && "templates" in cov && cov.templates && cov.templates.length > 1;
-                              if (hasTemplates) {
+                              const hasRecords = cov && "records" in cov && cov.records && cov.records.length > 0;
+                              if (hasTemplates || hasRecords) {
                                 const isExpanded = expandedTables.has(table.key);
                                 return (
                                   <button
@@ -918,6 +955,45 @@ export function ScheduleMasterSyncTab() {
                                 }
                               >
                                 {tmpl.synced ? "Two-way" : "Independent"}
+                              </button>
+                            </TableCell>
+                            <TableCell className="py-1.5" />
+                          </TableRow>
+                        ));
+                      })()}
+
+                      {/* Records breakdown sub-rows (Quote Templates, PO Packs, etc.) */}
+                      {expandedTables.has(table.key) && (() => {
+                        const cov = !isMasterTenant
+                          ? (syncCoverage[table.key] as CoverageEntry | undefined)
+                          : undefined;
+                        const records = cov && "records" in cov ? cov.records : undefined;
+                        if (!records || records.length === 0) return null;
+
+                        return records.map((rec) => (
+                          <TableRow key={`${table.key}-rec-${rec.id}`} className="bg-muted/30">
+                            <TableCell className="py-1.5" />
+                            <TableCell className="py-1.5 pl-10">
+                              <span className="text-xs text-muted-foreground">{rec.name}</span>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5" />
+                            <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5" />
+                            <TableCell className="text-center py-1.5">
+                              <button
+                                type="button"
+                                className={cn(
+                                  "text-[11px] font-medium cursor-pointer hover:underline transition-colors",
+                                  rec.synced
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-muted-foreground",
+                                )}
+                                onClick={() => handleToggleRecordSync(table.key, rec.id, rec.synced)}
+                                title={rec.synced
+                                  ? "Click to disconnect — make independent"
+                                  : "Click to reconnect — sync with TEEEM"
+                                }
+                              >
+                                {rec.synced ? "Two-way" : "Independent"}
                               </button>
                             </TableCell>
                             <TableCell className="py-1.5" />
