@@ -5,9 +5,10 @@
 # These serve as fallback when a template doesn't override the rate.
 class AddExtraChargeDefaultsToSmSettings < ActiveRecord::Migration[7.2]
   def change
-    add_column :sm_settings, :default_builds_contingency_percent, :decimal, precision: 5, scale: 2, default: 0.0
-    add_column :sm_settings, :default_project_prelims_percent, :decimal, precision: 5, scale: 2, default: 0.0
-    add_column :sm_settings, :default_project_management_percent, :decimal, precision: 5, scale: 2, default: 0.0
-    add_column :sm_settings, :default_maintenance_fee_percent, :decimal, precision: 5, scale: 2, default: 0.0
+    t = :sm_settings
+    add_column t, :default_builds_contingency_percent, :decimal, precision: 5, scale: 2, default: 0.0 unless column_exists?(t, :default_builds_contingency_percent)
+    add_column t, :default_project_prelims_percent, :decimal, precision: 5, scale: 2, default: 0.0 unless column_exists?(t, :default_project_prelims_percent)
+    add_column t, :default_project_management_percent, :decimal, precision: 5, scale: 2, default: 0.0 unless column_exists?(t, :default_project_management_percent)
+    add_column t, :default_maintenance_fee_percent, :decimal, precision: 5, scale: 2, default: 0.0 unless column_exists?(t, :default_maintenance_fee_percent)
   end
 end

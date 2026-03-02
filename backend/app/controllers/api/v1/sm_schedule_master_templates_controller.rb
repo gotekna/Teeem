@@ -1065,7 +1065,10 @@ module Api
           charge_builds_contingency_sm_ids: [],
           charge_project_prelims_sm_ids: [],
           charge_project_management_sm_ids: [],
-          charge_maintenance_fee_sm_ids: []
+          charge_maintenance_fee_sm_ids: [],
+          charge_builder_margin_sm_ids: [],
+          charge_escalation_sm_ids: [],
+          charge_pc_ps_cap_sm_ids: []
         )
 
         # Permit charge_po_allocations as arbitrary nested JSONB
@@ -1111,6 +1114,13 @@ module Api
           charge_project_management_sm_tasks: resolve_sm_task_names(template.charge_project_management_sm_ids),
           charge_maintenance_fee_sm_ids: template.charge_maintenance_fee_sm_ids || [],
           charge_maintenance_fee_sm_tasks: resolve_sm_task_names(template.charge_maintenance_fee_sm_ids),
+          # Markup rate → PO auto-link config
+          charge_builder_margin_sm_ids: template.charge_builder_margin_sm_ids || [],
+          charge_builder_margin_sm_tasks: resolve_sm_task_names(template.charge_builder_margin_sm_ids),
+          charge_escalation_sm_ids: template.charge_escalation_sm_ids || [],
+          charge_escalation_sm_tasks: resolve_sm_task_names(template.charge_escalation_sm_ids),
+          charge_pc_ps_cap_sm_ids: template.charge_pc_ps_cap_sm_ids || [],
+          charge_pc_ps_cap_sm_tasks: resolve_sm_task_names(template.charge_pc_ps_cap_sm_ids),
           # Per-template markup rate overrides (null = use global SmSetting default)
           defaultBuilderMarginPercent: template.default_builder_margin_percent&.to_f,
           defaultEscalationPercent: template.default_escalation_percent&.to_f,

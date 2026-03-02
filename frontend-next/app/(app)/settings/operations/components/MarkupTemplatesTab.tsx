@@ -35,6 +35,10 @@ interface TemplateMarkup {
   charge_project_prelims_sm_ids: number[];
   charge_project_management_sm_ids: number[];
   charge_maintenance_fee_sm_ids: number[];
+  // Markup rate → PO auto-link
+  charge_builder_margin_sm_ids: number[];
+  charge_escalation_sm_ids: number[];
+  charge_pc_ps_cap_sm_ids: number[];
   // Per-template markup rate overrides
   defaultBuilderMarginPercent: number | null;
   defaultEscalationPercent: number | null;
@@ -52,9 +56,9 @@ interface TemplateMarkup {
 
 // Charge type config for unified row rendering
 const MARKUP_RATES = [
-  { key: "defaultBuilderMarginPercent", label: "Builder Margin", step: 0.5 },
-  { key: "defaultEscalationPercent", label: "Escalation", step: 0.5 },
-  { key: "pcPsMarkupCapPercent", label: "PC/PS Cap", step: 0.5 },
+  { key: "defaultBuilderMarginPercent", label: "Builder Margin", smField: "charge_builder_margin_sm_ids", chargeType: "builder_margin", step: 0.5 },
+  { key: "defaultEscalationPercent", label: "Escalation", smField: "charge_escalation_sm_ids", chargeType: "escalation", step: 0.5 },
+  { key: "pcPsMarkupCapPercent", label: "PC/PS Cap", smField: "charge_pc_ps_cap_sm_ids", chargeType: "pc_ps_cap", step: 0.5 },
 ] as const;
 
 const CHARGE_TYPES = [
@@ -141,6 +145,9 @@ export function MarkupTemplatesTab() {
           charge_project_prelims_sm_ids: tmpl.charge_project_prelims_sm_ids || [],
           charge_project_management_sm_ids: tmpl.charge_project_management_sm_ids || [],
           charge_maintenance_fee_sm_ids: tmpl.charge_maintenance_fee_sm_ids || [],
+          charge_builder_margin_sm_ids: tmpl.charge_builder_margin_sm_ids || [],
+          charge_escalation_sm_ids: tmpl.charge_escalation_sm_ids || [],
+          charge_pc_ps_cap_sm_ids: tmpl.charge_pc_ps_cap_sm_ids || [],
           defaultBuilderMarginPercent: tmpl.defaultBuilderMarginPercent,
           defaultEscalationPercent: tmpl.defaultEscalationPercent,
           pcPsMarkupCapPercent: tmpl.pcPsMarkupCapPercent,
@@ -203,6 +210,9 @@ export function MarkupTemplatesTab() {
           charge_project_prelims_sm_ids: edits.charge_project_prelims_sm_ids || [],
           charge_project_management_sm_ids: edits.charge_project_management_sm_ids || [],
           charge_maintenance_fee_sm_ids: edits.charge_maintenance_fee_sm_ids || [],
+          charge_builder_margin_sm_ids: edits.charge_builder_margin_sm_ids || [],
+          charge_escalation_sm_ids: edits.charge_escalation_sm_ids || [],
+          charge_pc_ps_cap_sm_ids: edits.charge_pc_ps_cap_sm_ids || [],
           default_builder_margin_percent: edits.defaultBuilderMarginPercent,
           default_escalation_percent: edits.defaultEscalationPercent,
           pc_ps_markup_cap_percent: edits.pcPsMarkupCapPercent,
