@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmScheduleMasterController < ApplicationController
-      before_action :set_template
+      before_action :set_template, except: [:template_links]
       before_action :set_row, only: [ :show, :update, :destroy, :move ]
 
       # GET /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
@@ -178,6 +178,39 @@ module Api
         }
       end
 
+      # GET /api/v1/sm_schedule_master/template_links/:id
+      # Returns which PO Template Packs and Custom Quote Templates reference this SM task
+      def template_links
+        sm = SmScheduleMaster.find(params[:id])
+
+        po_items = PoTemplateItem.includes(:po_template_pack)
+                                  .where(sm_schedule_master_id: sm.id)
+        cq_lines = CustomQuoteTemplateLine.includes(:custom_quote_template)
+                                           .where(sm_schedule_master_id: sm.id)
+
+        render json: {
+          success: true,
+          data: {
+            po_template_packs: po_items.map { |item|
+              {
+                id: item.po_template_pack_id,
+                pack_name: item.po_template_pack&.name,
+                item_name: item.name,
+                item_id: item.id
+              }
+            }.uniq { |h| h[:id] },
+            custom_quote_templates: cq_lines.map { |line|
+              {
+                id: line.custom_quote_template_id,
+                template_name: line.custom_quote_template&.name,
+                line_name: line.name,
+                line_id: line.id
+              }
+            }.uniq { |h| h[:id] }
+          }
+        }
+      end
+
       private
 
       # SSoT: All associations needed for row_json serialization
@@ -278,6 +311,8 @@ module Api
           :allow_header, :is_active,
           # Task group for PO/non-PO grouping
           :sm_task_group_id,
+          # PO/Quote SSoT fields
+          :tender_description, :po_description, :rfq_instructions, :budget_amount,
           # Claim task settings (SSoT for job claims)
           :is_claim_task, :is_variation, :claim_percentage, :claim_sequence_number, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
           predecessor_ids: [ :id, :type, :lag ],
@@ -431,6 +466,11 @@ module Api
           predecessor_ids_backup: row.predecessor_ids_backup || [],
           dependency_broken_at: row.dependency_broken_at,
           dependency_broken_by: row.dependency_broken_by_id.present? ? users_map[row.dependency_broken_by_id] : nil,
+          # PO/Quote SSoT fields (SM is the source; templates delegate here)
+          tender_description: row.tender_description,
+          po_description: row.po_description,
+          rfq_instructions: row.rfq_instructions,
+          budget_amount: row.budget_amount&.to_f,
           # Canonical sync status
           canonical_record_id: row.canonical_record_id,
           canonical_version: row.canonical_version,

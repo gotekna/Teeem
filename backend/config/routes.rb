@@ -2259,6 +2259,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # SM Schedule Master - standalone endpoints (not nested under template)
+      get "sm_schedule_master/template_links/:id", to: "sm_schedule_master#template_links", as: :sm_schedule_master_template_links
+
       # SM Settings (singleton - admin)
       resource :sm_settings, only: [ :show, :update ] do
         collection do

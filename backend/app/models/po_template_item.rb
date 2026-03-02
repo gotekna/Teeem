@@ -24,6 +24,24 @@ class PoTemplateItem < ApplicationRecord
   # Cache supplier display_name for cross-tenant matching
   before_save :cache_supplier_sync_key
 
+  # SSoT delegate methods: Read from SmScheduleMaster when linked, fall back to local columns.
+  # This ensures SM is the single source of truth for shared PO/quote data.
+  def effective_name
+    sm_schedule_master&.name || name
+  end
+
+  def effective_supplier_id
+    sm_schedule_master&.po_supplier_id || supplier_id
+  end
+
+  def effective_budget
+    sm_schedule_master&.budget_amount || budget
+  end
+
+  def effective_notes
+    sm_schedule_master&.po_description || notes
+  end
+
   def line_item_total
     po_template_line_items.sum { |li| (li.quantity || 0) * (li.unit_price || 0) }
   end

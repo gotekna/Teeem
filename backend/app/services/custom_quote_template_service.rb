@@ -39,19 +39,19 @@ class CustomQuoteTemplateService
             position: cc_idx
           )
 
-          # Create PO child lines from pack items
+          # Create PO child lines from pack items (uses effective_* for SSoT delegation)
           pack_items.each_with_index do |item, po_idx|
             next unless item.sm_schedule_master_id
 
-            supplier_ids = item.supplier_id ? [item.supplier_id] : []
+            supplier_ids = item.effective_supplier_id ? [item.effective_supplier_id] : []
 
             cc_line.children.create!(
               custom_quote_template: template,
               sm_schedule_master_id: item.sm_schedule_master_id,
-              name: item.sm_schedule_master&.name || item.name || "PO Task #{po_idx + 1}",
+              name: item.effective_name || "PO Task #{po_idx + 1}",
               quote_level: 'po',
               position: po_idx,
-              po_description: item.notes,
+              po_description: item.effective_notes,
               default_supplier_ids: supplier_ids
             )
           end

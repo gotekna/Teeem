@@ -117,6 +117,11 @@ export interface EditRowData {
   // Task group - for grouping PO and non-PO tasks
   sm_task_group_id?: number | null;
   sm_task_group_name?: string | null;
+  // PO/Quote SSoT fields (SM is the source; templates delegate here)
+  tender_description?: string | null;
+  po_description?: string | null;
+  rfq_instructions?: string | null;
+  budget_amount?: number | null;
   // Plan and document reference types (JSONB arrays of document_type IDs)
   plan_type_ids?: number[];
   plan_type_names?: string[];
@@ -250,6 +255,13 @@ export function EditRowDialog({
   const [tenderTreeLoaded, setTenderTreeLoaded] = React.useState(false);
   const [loadingTenderTree, setLoadingTenderTree] = React.useState(false);
 
+  // Template links state (lazy-loaded when Tender & Quotes tab is opened)
+  const [templateLinks, setTemplateLinks] = React.useState<{
+    po_template_packs: Array<{ id: number; pack_name: string; item_name: string; item_id: number }>;
+    custom_quote_templates: Array<{ id: number; template_name: string; line_name: string; line_id: number }>;
+  } | null>(null);
+  const [templateLinksLoaded, setTemplateLinksLoaded] = React.useState(false);
+
   // Filter document types: "Plans" folder vs everything else
   const planDocTypes = React.useMemo(
     () => documentTypes.filter(dt => dt.folder === "Plans" || dt.primary_folder_name === "Plans"),
@@ -265,6 +277,8 @@ export function EditRowDialog({
     if (row) {
       initialFormLoadRef.current = true;
       setAutoSaveStatus('idle');
+      setTemplateLinksLoaded(false);
+      setTemplateLinks(null);
       setEditRowForm({
         name: row.name,
         description: row.description,
@@ -313,6 +327,11 @@ export function EditRowDialog({
         requires_document_to_complete: row.requires_document_to_complete || false,
         completion_document_type_id: row.completion_document_type_id || null,
         completion_document_type_name: row.completion_document_type_name || null,
+        // PO/Quote SSoT fields
+        tender_description: row.tender_description || '',
+        po_description: row.po_description || '',
+        rfq_instructions: row.rfq_instructions || '',
+        budget_amount: row.budget_amount || null,
         // Plan and document reference types
         plan_type_ids: row.plan_type_ids || [],
         document_ref_type_ids: row.document_ref_type_ids || [],
@@ -379,6 +398,27 @@ export function EditRowDialog({
       setLoadingTenderTree(false);
     }
   }, [tenderTreeLoaded, loadingTenderTree]);
+
+  // Lazy-load template links (PO Packs + Quote Templates referencing this SM task)
+  const loadTemplateLinks = React.useCallback(async () => {
+    if (templateLinksLoaded || !row?.id) return;
+    try {
+      const data = await api.get<{
+        success: boolean;
+        data: {
+          po_template_packs: Array<{ id: number; pack_name: string; item_name: string; item_id: number }>;
+          custom_quote_templates: Array<{ id: number; template_name: string; line_name: string; line_id: number }>;
+        };
+      }>(`/api/v1/sm_schedule_master/template_links/${row.id}`);
+      if (data?.data) {
+        setTemplateLinks(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to load template links:", error);
+    } finally {
+      setTemplateLinksLoaded(true);
+    }
+  }, [templateLinksLoaded, row?.id]);
 
   // Handle save (supports both manual and auto-save)
   const handleSaveRow = async (options?: { silent?: boolean }) => {
@@ -1197,8 +1237,103 @@ export function EditRowDialog({
                   TAB: TENDER & QUOTES - Tender section mapping + quote flow
                  ============================================================ */}
               <TabsContent value="tender-quotes" className="mt-3" onFocusCapture={loadTenderTree}>
-                {/* Trigger load when tab becomes visible */}
-                <div ref={(el) => { if (el) loadTenderTree(); }} />
+                {/* Trigger lazy loads when tab becomes visible */}
+                <div ref={(el) => { if (el) { loadTenderTree(); loadTemplateLinks(); } }} />
+
+                {/* SSoT Info Banner */}
+                <div className="mb-4 p-2.5 rounded-md border border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/30">
+                  <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                    These fields are the <span className="font-semibold">Single Source of Truth</span> &mdash; PO Templates and Custom Quote Templates read from here when linked to this task.
+                  </p>
+                </div>
+
+                {/* SSoT Editable Fields */}
+                <div className="grid grid-cols-2 gap-4 mb-5">
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs">Tender Description</Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">Scope text for tender documents</p>
+                      <textarea
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px] resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={editRowForm.tender_description || ''}
+                        onChange={(e) => setEditRowForm({ ...editRowForm, tender_description: e.target.value })}
+                        placeholder="Description for tender document section..."
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">PO Description</Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">Scope of work / narrative for the Purchase Order</p>
+                      <textarea
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px] resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={editRowForm.po_description || ''}
+                        onChange={(e) => setEditRowForm({ ...editRowForm, po_description: e.target.value })}
+                        placeholder="PO scope of work..."
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs">RFQ Instructions</Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">Default instructions sent to suppliers with quote requests</p>
+                      <textarea
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px] resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={editRowForm.rfq_instructions || ''}
+                        onChange={(e) => setEditRowForm({ ...editRowForm, rfq_instructions: e.target.value })}
+                        placeholder="Instructions for supplier RFQ..."
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Budget Amount</Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">Budget estimate for this PO task</p>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editRowForm.budget_amount ?? ''}
+                        onChange={(e) => setEditRowForm({ ...editRowForm, budget_amount: e.target.value ? parseFloat(e.target.value) : null })}
+                        placeholder="0.00"
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Linked Templates (read-only) */}
+                {templateLinks && (templateLinks.po_template_packs.length > 0 || templateLinks.custom_quote_templates.length > 0) && (
+                  <div className="mb-5 p-3 rounded-md border bg-muted/30 dark:bg-muted/10">
+                    <Label className="text-xs font-medium">Linked Templates</Label>
+                    <p className="text-[10px] text-muted-foreground mb-2">These templates read their shared fields from this task</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {templateLinks.po_template_packs.length > 0 && (
+                        <div>
+                          <div className="text-[10px] font-medium text-muted-foreground mb-1">PO Template Packs</div>
+                          <div className="space-y-1">
+                            {templateLinks.po_template_packs.map(pack => (
+                              <div key={pack.id} className="flex items-center gap-1.5 text-[11px]">
+                                <Package className="h-3 w-3 text-muted-foreground shrink-0" />
+                                <span className="truncate">{pack.pack_name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {templateLinks.custom_quote_templates.length > 0 && (
+                        <div>
+                          <div className="text-[10px] font-medium text-muted-foreground mb-1">Custom Quote Templates</div>
+                          <div className="space-y-1">
+                            {templateLinks.custom_quote_templates.map(tmpl => (
+                              <div key={tmpl.id} className="flex items-center gap-1.5 text-[11px]">
+                                <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                                <span className="truncate">{tmpl.template_name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-6">
                   {/* Left: Tender Section Context */}
                   <div className="space-y-3">

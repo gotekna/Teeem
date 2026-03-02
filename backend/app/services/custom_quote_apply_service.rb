@@ -35,43 +35,43 @@ class CustomQuoteApplyService
         template.root_lines.includes(:children).each do |template_cc|
           cc_line = custom_quote.lines.create!(
             parent_id: nil,
-            cost_centre_id: template_cc.cost_centre_id,
+            cost_centre_id: template_cc.effective_cost_centre_id,
             sm_schedule_master_id: template_cc.sm_schedule_master_id,
             sm_task_id: resolve_task(template_cc, task_by_master_id),
-            name: template_cc.name,
+            name: template_cc.effective_name,
             quote_level: template_cc.quote_level,
             position: template_cc.position,
-            tender_description: template_cc.tender_description,
-            po_description: template_cc.po_description,
-            rfq_instructions: template_cc.default_instructions,
+            tender_description: template_cc.effective_tender_description,
+            po_description: template_cc.effective_po_description,
+            rfq_instructions: template_cc.effective_rfq_instructions,
             document_type_ids: template_cc.document_type_ids,
-            budget_amount: template_cc.budget_amount || lookup_budget(job, template_cc.cost_centre_id)
+            budget_amount: template_cc.effective_budget_amount || lookup_budget(job, template_cc.effective_cost_centre_id)
           )
 
           # Create default suppliers for CC line (if quote_level == 'cost_centre')
           if template_cc.quote_level == 'cost_centre'
-            create_default_suppliers!(cc_line, template_cc.default_supplier_ids)
+            create_default_suppliers!(cc_line, template_cc.effective_default_supplier_ids)
           end
 
           template_cc.children.order(:position).each do |template_po|
             po_line = custom_quote.lines.create!(
               parent_id: cc_line.id,
-              cost_centre_id: template_po.cost_centre_id,
+              cost_centre_id: template_po.effective_cost_centre_id,
               sm_schedule_master_id: template_po.sm_schedule_master_id,
               sm_task_id: resolve_task(template_po, task_by_master_id),
-              name: template_po.name,
+              name: template_po.effective_name,
               quote_level: 'po',
               position: template_po.position,
-              tender_description: template_po.tender_description,
-              po_description: template_po.po_description,
-              rfq_instructions: template_po.default_instructions,
+              tender_description: template_po.effective_tender_description,
+              po_description: template_po.effective_po_description,
+              rfq_instructions: template_po.effective_rfq_instructions,
               document_type_ids: template_po.document_type_ids,
-              budget_amount: template_po.budget_amount
+              budget_amount: template_po.effective_budget_amount
             )
 
             # Create default suppliers for PO line (if parent quote_level == 'po')
             if template_cc.quote_level == 'po'
-              create_default_suppliers!(po_line, template_po.default_supplier_ids)
+              create_default_suppliers!(po_line, template_po.effective_default_supplier_ids)
             end
           end
         end
@@ -232,15 +232,15 @@ class CustomQuoteApplyService
               cost_centre_id: cc_id,
               sm_schedule_master_id: item.sm_schedule_master_id,
               sm_task_id: item.sm_schedule_master_id ? task_by_master_id[item.sm_schedule_master_id]&.id : nil,
-              name: item.sm_schedule_master&.name || item.name,
+              name: item.effective_name,
               quote_level: 'po',
               position: po_idx,
-              po_description: item.notes
+              po_description: item.effective_notes
             )
 
-            # Create default supplier if specified in the pack
-            if item.supplier_id
-              create_default_suppliers!(po_line, [item.supplier_id])
+            # Create default supplier if specified (SSoT: effective_supplier_id delegates to SM)
+            if item.effective_supplier_id
+              create_default_suppliers!(po_line, [item.effective_supplier_id])
             end
           end
         end
@@ -261,14 +261,14 @@ class CustomQuoteApplyService
               parent_id: cc_line.id,
               sm_schedule_master_id: item.sm_schedule_master_id,
               sm_task_id: item.sm_schedule_master_id ? task_by_master_id[item.sm_schedule_master_id]&.id : nil,
-              name: item.sm_schedule_master&.name || item.name,
+              name: item.effective_name,
               quote_level: 'po',
               position: po_idx,
-              po_description: item.notes
+              po_description: item.effective_notes
             )
 
-            if item.supplier_id
-              create_default_suppliers!(po_line, [item.supplier_id])
+            if item.effective_supplier_id
+              create_default_suppliers!(po_line, [item.effective_supplier_id])
             end
           end
         end

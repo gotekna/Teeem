@@ -4152,6 +4152,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             ))}
           </div>
         </TabsContent>
+
         </div>
       </Tabs>
 

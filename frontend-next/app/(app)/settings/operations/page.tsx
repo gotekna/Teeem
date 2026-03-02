@@ -22,6 +22,7 @@ import { CostCentresTab } from "./components/CostCentresTab";
 import { TenderHeadersTab } from "./components/TenderHeadersTab";
 import { TenderSectionsTab } from "./components/TenderSectionsTab";
 import { TenderDocumentTemplatesTab } from "./components/TenderDocumentTemplatesTab";
+import { MarkupDefaultsTab } from "./components/MarkupDefaultsTab";
 
 
 /**
@@ -51,6 +52,7 @@ const OPERATIONS_TABS = [
   { id: "tender-headers", label: "Tender Headers" },
   { id: "tender-sections", label: "Tender Sections" },
   { id: "tender-documents", label: "Tender Documents" },
+  { id: "markup", label: "Markup" },
 ];
 
 const DEFAULT_TAB = "schedule-master";
@@ -161,6 +163,9 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="tender-documents" className="absolute inset-0 overflow-auto">
             <TenderDocumentTemplatesTab />
+          </TabsContent>
+          <TabsContent value="markup" className="absolute inset-0 overflow-auto">
+            <MarkupDefaultsTab />
           </TabsContent>
         </div>
       </Tabs>

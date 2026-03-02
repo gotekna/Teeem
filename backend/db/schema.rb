@@ -9031,6 +9031,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "canonical_version", default: 0
     t.decimal "default_escalation_percent", precision: 5, scale: 2, default: "0.0"
     t.decimal "default_markup_percent", precision: 5, scale: 2, default: "0.0"
+    t.text "tender_description"
+    t.text "po_description"
+    t.text "rfq_instructions"
+    t.decimal "budget_amount", precision: 12, scale: 2
     t.index ["canonical_record_id"], name: "idx_sm_schedule_masters_canonical_record_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"

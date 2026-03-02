@@ -675,141 +675,6 @@ function WorkingDaysTab() {
 }
 
 // ============================================
-// Pricing Defaults Tab
-// ============================================
-
-interface PricingSettings {
-  defaultBuilderMarginPercent: number;
-  defaultEscalationPercent: number;
-  pcPsMarkupCapPercent: number;
-}
-
-function PricingDefaultsTab() {
-  const { toast } = useToast();
-  const [settings, setSettings] = useState<PricingSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      const response = await api.get<{ settings: PricingSettings }>("/api/v1/sm_settings");
-      setSettings({
-        defaultBuilderMarginPercent: response.settings.defaultBuilderMarginPercent ?? 0,
-        defaultEscalationPercent: response.settings.defaultEscalationPercent ?? 0,
-        pcPsMarkupCapPercent: response.settings.pcPsMarkupCapPercent ?? 25,
-      });
-    } catch {
-      toast({ title: "Failed to load pricing settings", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!settings) return;
-    setSaving(true);
-    try {
-      await api.patch("/api/v1/sm_settings", {
-        settings: {
-          default_builder_margin_percent: settings.defaultBuilderMarginPercent,
-          default_escalation_percent: settings.defaultEscalationPercent,
-          pc_ps_markup_cap_percent: settings.pcPsMarkupCapPercent,
-        },
-      });
-      toast({ title: "Pricing defaults saved" });
-    } catch {
-      toast({ title: "Failed to save pricing defaults", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        Default pricing values applied when a Schedule Master template is copied to a new job.
-      </p>
-
-      <Card>
-        <CardContent className="space-y-6 p-6">
-          <div className="space-y-2">
-            <Label>Default Builder Margin (%)</Label>
-            <Input
-              type="number"
-              min={0}
-              step={0.5}
-              value={settings?.defaultBuilderMarginPercent ?? 0}
-              onChange={(e) =>
-                setSettings((prev) =>
-                  prev ? { ...prev, defaultBuilderMarginPercent: parseFloat(e.target.value) || 0 } : null
-                )
-              }
-              className="w-36"
-            />
-            <p className="text-xs text-muted-foreground">
-              Applied to new jobs when a template is copied. Editable per-job in the Pricing tab.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Default Escalation (%)</Label>
-            <Input
-              type="number"
-              min={0}
-              step={0.5}
-              value={settings?.defaultEscalationPercent ?? 0}
-              onChange={(e) =>
-                setSettings((prev) =>
-                  prev ? { ...prev, defaultEscalationPercent: parseFloat(e.target.value) || 0 } : null
-                )
-              }
-              className="w-36"
-            />
-            <p className="text-xs text-muted-foreground">
-              CPI/inflation adjustment applied to PO costs. Editable per-task in the Pricing tab.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>PC/PS Markup Cap (%)</Label>
-            <Input
-              type="number"
-              min={0}
-              step={0.5}
-              value={settings?.pcPsMarkupCapPercent ?? 25}
-              onChange={(e) =>
-                setSettings((prev) =>
-                  prev ? { ...prev, pcPsMarkupCapPercent: parseFloat(e.target.value) || 0 } : null
-                )
-              }
-              className="w-36"
-            />
-            <p className="text-xs text-muted-foreground">
-              Maximum markup allowed on Provisional Cost / Provisional Sum items (default 25%).
-            </p>
-          </div>
-
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save Pricing Defaults"}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 // ============================================
 // Main Page Component
 // ============================================
@@ -853,7 +718,7 @@ export default function SmSetupPage() {
 
           {/* Tabs */}
           <Tabs value={activeTab || "hold-reasons"} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="hold-reasons" className="gap-2">
                 <PauseIcon className="h-4 w-4" />
                 Hold Reasons
@@ -870,10 +735,6 @@ export default function SmSetupPage() {
                 <CalendarDaysIcon className="h-4 w-4" />
                 Working Days
               </TabsTrigger>
-              <TabsTrigger value="pricing" className="gap-2">
-                <Cog6ToothIcon className="h-4 w-4" />
-                Pricing
-              </TabsTrigger>
             </TabsList>
 
             <div className="mt-4">
@@ -888,9 +749,6 @@ export default function SmSetupPage() {
               </TabsContent>
               <TabsContent value="working-days">
                 <WorkingDaysTab />
-              </TabsContent>
-              <TabsContent value="pricing">
-                <PricingDefaultsTab />
               </TabsContent>
             </div>
           </Tabs>
