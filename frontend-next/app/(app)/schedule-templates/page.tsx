@@ -58,6 +58,13 @@ interface SmScheduleMasterTemplate {
   charge_overheads_sm_name: string | null;
   charge_qbcc_insurance_sm_id: number | null;
   charge_qbcc_insurance_sm_name: string | null;
+  // Per-template markup rate overrides (null = use global default)
+  defaultBuilderMarginPercent: number | null;
+  defaultEscalationPercent: number | null;
+  pcPsMarkupCapPercent: number | null;
+  defaultConstructionInsurancePercent: number | null;
+  defaultOverheadsPercent: number | null;
+  defaultQleaveRatePercent: number | null;
 }
 
 interface SmPoTask {
@@ -85,6 +92,12 @@ export default function ScheduleTemplatesPage() {
     charge_qleave_sm_id: null as number | null,
     charge_overheads_sm_id: null as number | null,
     charge_qbcc_insurance_sm_id: null as number | null,
+    default_builder_margin_percent: null as number | null,
+    default_escalation_percent: null as number | null,
+    pc_ps_markup_cap_percent: null as number | null,
+    default_construction_insurance_percent: null as number | null,
+    default_overheads_percent: null as number | null,
+    default_qleave_rate_percent: null as number | null,
   });
   const [poTasks, setPoTasks] = useState<SmPoTask[]>([]);
 
@@ -116,6 +129,12 @@ export default function ScheduleTemplatesPage() {
       charge_qleave_sm_id: null,
       charge_overheads_sm_id: null,
       charge_qbcc_insurance_sm_id: null,
+      default_builder_margin_percent: null,
+      default_escalation_percent: null,
+      pc_ps_markup_cap_percent: null,
+      default_construction_insurance_percent: null,
+      default_overheads_percent: null,
+      default_qleave_rate_percent: null,
     });
     setPoTasks([]);
     setEditingTemplate(null);
@@ -131,6 +150,12 @@ export default function ScheduleTemplatesPage() {
       charge_qleave_sm_id: template.charge_qleave_sm_id,
       charge_overheads_sm_id: template.charge_overheads_sm_id,
       charge_qbcc_insurance_sm_id: template.charge_qbcc_insurance_sm_id,
+      default_builder_margin_percent: template.defaultBuilderMarginPercent,
+      default_escalation_percent: template.defaultEscalationPercent,
+      pc_ps_markup_cap_percent: template.pcPsMarkupCapPercent,
+      default_construction_insurance_percent: template.defaultConstructionInsurancePercent,
+      default_overheads_percent: template.defaultOverheadsPercent,
+      default_qleave_rate_percent: template.defaultQleaveRatePercent,
     });
     setEditingTemplate(template);
     setShowDialog(true);
@@ -381,7 +406,7 @@ export default function ScheduleTemplatesPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingTemplate ? "Edit Template" : "Create Template"}
@@ -410,6 +435,54 @@ export default function ScheduleTemplatesPage() {
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               />
+            </div>
+
+            {/* Per-template Markup Rate Overrides */}
+            <div className="border-t pt-4 space-y-3">
+              <div>
+                <Label className="text-sm font-semibold">Markup Defaults</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Override global defaults for this template. Leave blank to use global settings.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <MarkupRateField
+                  label="Builder Margin %"
+                  value={formData.default_builder_margin_percent}
+                  onChange={v => setFormData(f => ({ ...f, default_builder_margin_percent: v }))}
+                  step={0.5}
+                />
+                <MarkupRateField
+                  label="Escalation %"
+                  value={formData.default_escalation_percent}
+                  onChange={v => setFormData(f => ({ ...f, default_escalation_percent: v }))}
+                  step={0.5}
+                />
+                <MarkupRateField
+                  label="PC/PS Markup Cap %"
+                  value={formData.pc_ps_markup_cap_percent}
+                  onChange={v => setFormData(f => ({ ...f, pc_ps_markup_cap_percent: v }))}
+                  step={0.5}
+                />
+                <MarkupRateField
+                  label="Construction Insurance %"
+                  value={formData.default_construction_insurance_percent}
+                  onChange={v => setFormData(f => ({ ...f, default_construction_insurance_percent: v }))}
+                  step={0.1}
+                />
+                <MarkupRateField
+                  label="Overheads %"
+                  value={formData.default_overheads_percent}
+                  onChange={v => setFormData(f => ({ ...f, default_overheads_percent: v }))}
+                  step={0.1}
+                />
+                <MarkupRateField
+                  label="QLeave Rate %"
+                  value={formData.default_qleave_rate_percent}
+                  onChange={v => setFormData(f => ({ ...f, default_qleave_rate_percent: v }))}
+                  step={0.001}
+                />
+              </div>
             </div>
 
             {/* Charge Auto-Link PO - only show when editing (need tasks loaded) */}
@@ -467,6 +540,37 @@ export default function ScheduleTemplatesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ── Per-template markup rate field ──
+function MarkupRateField({
+  label,
+  value,
+  onChange,
+  step = 0.5,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (v: number | null) => void;
+  step?: number;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input
+        type="number"
+        min={0}
+        step={step}
+        value={value ?? ""}
+        placeholder="Global default"
+        onChange={e => {
+          const raw = e.target.value;
+          onChange(raw === "" ? null : parseFloat(raw) || 0);
+        }}
+        className="h-8 text-sm"
+      />
     </div>
   );
 }

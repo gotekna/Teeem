@@ -133,7 +133,7 @@ module Api
 
       def template_params
         params.require(:quote_template).permit(
-          :name, :description, :is_active, :position, :po_template_pack_id,
+          :name, :description, :is_active, :position, :po_template_pack_id, :sync_key,
           quote_template_trades_attributes: [
             :id, :sm_schedule_master_id, :position, :default_instructions, :_destroy,
             { required_document_types: [] },
@@ -157,6 +157,7 @@ module Api
           smTemplateName: pack&.sm_schedule_master_template&.name,
           tradeCount: template.trade_count,
           supplierCount: template.supplier_count,
+          syncStatus: build_quote_sync_status(template),
           createdAt: template.created_at&.iso8601,
           updatedAt: template.updated_at&.iso8601,
         }
@@ -199,6 +200,19 @@ module Api
           position: supplier.position,
           isPreferred: supplier.is_preferred
         }
+      end
+
+      def build_quote_sync_status(template)
+        return nil unless template.sync_key.present?
+        other_tenants = Tenant.where.not(id: current_tenant.id)
+        synced_tenants = other_tenants.filter_map do |tenant|
+          has_match = ActsAsTenant.with_tenant(tenant) do
+            QuoteTemplate.exists?(sync_key: template.sync_key)
+          end
+          tenant.name if has_match
+        end
+        return nil if synced_tenants.empty?
+        { syncedTenants: synced_tenants }
       end
     end
   end

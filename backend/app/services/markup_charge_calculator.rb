@@ -26,6 +26,16 @@ class MarkupChargeCalculator
   def initialize(job)
     @job = job
     @settings = SmSetting.instance
+    @template = job.schedule_template
+  end
+
+  # Resolve a rate from template override → global default fallback.
+  # Template values are nullable — nil means "use global SmSetting".
+  def effective_rate(field)
+    template_val = @template&.send(field)
+    return template_val if template_val.present?
+
+    settings.send(field)
   end
 
   # Calculate all charges and return a comprehensive result hash.
@@ -40,11 +50,11 @@ class MarkupChargeCalculator
 
     charges = {}
 
-    # Construction Insurance: % of sell subtotal
+    # Construction Insurance: % of sell subtotal (template override → global default)
     charges[:construction_insurance] = calc_charge(
       :construction_insurance,
       basis: sell_subtotal,
-      default_rate: settings.default_construction_insurance_percent
+      default_rate: effective_rate(:default_construction_insurance_percent)
     )
 
     # QLeave: % of cost total (only if cost > threshold)
@@ -53,14 +63,14 @@ class MarkupChargeCalculator
     charges[:qleave] = calc_charge(
       :qleave,
       basis: qleave_basis,
-      default_rate: settings.default_qleave_rate_percent
+      default_rate: effective_rate(:default_qleave_rate_percent)
     )
 
-    # Overheads: % of sell subtotal
+    # Overheads: % of sell subtotal (template override → global default)
     charges[:overheads] = calc_charge(
       :overheads,
       basis: sell_subtotal,
-      default_rate: settings.default_overheads_percent
+      default_rate: effective_rate(:default_overheads_percent)
     )
 
     # Sum non-QBCC charges
@@ -264,8 +274,7 @@ class MarkupChargeCalculator
   # the SM template task configured on the job's template.
   # Only sets PO if the charge doesn't already have one (won't override manual selection).
   def auto_link_charge_pos(charges)
-    template = job.schedule_template
-    return unless template
+    return unless @template
 
     charges.each do |type, data|
       # Skip if charge already has a PO linked (manual selection takes precedence)
@@ -274,7 +283,7 @@ class MarkupChargeCalculator
       sm_field = CHARGE_SM_FIELDS[type.to_s]
       next unless sm_field
 
-      template_sm_id = template.send(sm_field)
+      template_sm_id = @template.send(sm_field)
       next unless template_sm_id
 
       # Find the SmTask on this job that was copied from the template task

@@ -533,7 +533,7 @@ module Api
       # ═══════════════════════════════════════════════════════════════════════════
 
       def template_params
-        params.permit(:name, :description, :is_active, :position, :po_template_pack_id)
+        params.permit(:name, :description, :is_active, :position, :po_template_pack_id, :sync_key)
       end
 
       def template_line_params
@@ -562,6 +562,7 @@ module Api
           position: template.position,
           poTemplatePackId: template.po_template_pack_id,
           lineCount: template.line_count,
+          syncStatus: build_custom_quote_sync_status(template),
           createdBy: template.created_by&.name,
           createdAt: template.created_at,
           updatedAt: template.updated_at
@@ -609,6 +610,19 @@ module Api
           notes: allocation.notes,
           purchaseOrderId: allocation.purchase_order_id
         }
+      end
+
+      def build_custom_quote_sync_status(template)
+        return nil unless template.sync_key.present?
+        other_tenants = Tenant.where.not(id: current_tenant.id)
+        synced_tenants = other_tenants.filter_map do |tenant|
+          has_match = ActsAsTenant.with_tenant(tenant) do
+            CustomQuoteTemplate.exists?(sync_key: template.sync_key)
+          end
+          tenant.name if has_match
+        end
+        return nil if synced_tenants.empty?
+        { syncedTenants: synced_tenants }
       end
 
       def clone_template_lines(source, target)

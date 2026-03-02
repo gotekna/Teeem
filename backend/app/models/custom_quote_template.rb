@@ -10,6 +10,7 @@
 #
 class CustomQuoteTemplate < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   # Associations
   belongs_to :po_template_pack, optional: true

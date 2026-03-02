@@ -1054,7 +1054,10 @@ module Api
         params.require(:sm_schedule_master_template).permit(
           :name, :description, :is_default, :is_canonical, :sync_key,
           :charge_construction_insurance_sm_id, :charge_qleave_sm_id,
-          :charge_overheads_sm_id, :charge_qbcc_insurance_sm_id
+          :charge_overheads_sm_id, :charge_qbcc_insurance_sm_id,
+          :default_builder_margin_percent, :default_escalation_percent,
+          :pc_ps_markup_cap_percent, :default_construction_insurance_percent,
+          :default_overheads_percent, :default_qleave_rate_percent
         )
       end
 
@@ -1084,7 +1087,14 @@ module Api
           charge_overheads_sm_id: template.charge_overheads_sm_id,
           charge_overheads_sm_name: template.charge_overheads_sm&.name,
           charge_qbcc_insurance_sm_id: template.charge_qbcc_insurance_sm_id,
-          charge_qbcc_insurance_sm_name: template.charge_qbcc_insurance_sm&.name
+          charge_qbcc_insurance_sm_name: template.charge_qbcc_insurance_sm&.name,
+          # Per-template markup rate overrides (null = use global SmSetting default)
+          defaultBuilderMarginPercent: template.default_builder_margin_percent&.to_f,
+          defaultEscalationPercent: template.default_escalation_percent&.to_f,
+          pcPsMarkupCapPercent: template.pc_ps_markup_cap_percent&.to_f,
+          defaultConstructionInsurancePercent: template.default_construction_insurance_percent&.to_f,
+          defaultOverheadsPercent: template.default_overheads_percent&.to_f,
+          defaultQleaveRatePercent: template.default_qleave_rate_percent&.to_f
         }
 
         if include_rows

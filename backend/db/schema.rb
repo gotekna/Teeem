@@ -2324,9 +2324,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "sync_key"
     t.index ["created_by_id"], name: "index_custom_quote_templates_on_created_by_id"
     t.index ["po_template_pack_id"], name: "index_custom_quote_templates_on_po_template_pack_id"
     t.index ["tenant_id", "name"], name: "index_custom_quote_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_custom_quote_templates_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_custom_quote_templates_on_tenant_id"
     t.index ["updated_by_id"], name: "index_custom_quote_templates_on_updated_by_id"
   end
@@ -8275,9 +8277,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "po_template_pack_id"
+    t.string "sync_key"
     t.index ["created_by_id"], name: "index_quote_templates_on_created_by_id"
     t.index ["po_template_pack_id"], name: "index_quote_templates_on_po_template_pack_id"
     t.index ["tenant_id", "name"], name: "index_quote_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_quote_templates_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_quote_templates_on_tenant_id"
     t.index ["updated_by_id"], name: "index_quote_templates_on_updated_by_id"
   end
@@ -8971,6 +8975,12 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "charge_qleave_sm_id"
     t.bigint "charge_overheads_sm_id"
     t.bigint "charge_qbcc_insurance_sm_id"
+    t.decimal "default_builder_margin_percent", precision: 5, scale: 2
+    t.decimal "default_escalation_percent", precision: 5, scale: 2
+    t.decimal "pc_ps_markup_cap_percent", precision: 5, scale: 2
+    t.decimal "default_construction_insurance_percent", precision: 5, scale: 2
+    t.decimal "default_overheads_percent", precision: 5, scale: 2
+    t.decimal "default_qleave_rate_percent", precision: 6, scale: 4
     t.index ["canonical_record_id"], name: "idx_sm_schedule_master_templates_canonical_record_id"
     t.index ["copied_from_id"], name: "idx_sm_templates_copied_from"
     t.index ["created_by_id"], name: "index_sm_schedule_master_templates_on_created_by_id"
