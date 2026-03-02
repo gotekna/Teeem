@@ -101,10 +101,10 @@ module Api
       end
 
       # GET /api/v1/sm_schedule_master_templates/:id/po_tasks
-      # Returns PO-required tasks for this template (for charge auto-link dropdowns)
+      # Returns all active tasks for this template (for charge auto-link dropdowns).
+      # No po_required filter — users need to link charges to any task.
       def po_tasks
         tasks = @template.sm_schedule_master_rows.active
-                  .where(po_required: true)
                   .order(:sequence_order)
                   .pluck(:id, :name, :task_code)
                   .map { |id, name, task_code| { id: id, name: name, task_code: task_code } }
