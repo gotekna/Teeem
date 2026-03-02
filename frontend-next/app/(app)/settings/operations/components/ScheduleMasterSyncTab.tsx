@@ -310,8 +310,9 @@ export function ScheduleMasterSyncTab() {
     });
     try {
       await api.post("/api/v1/config_sync/toggle_record_sync", { table_key: tableKey, record_id: recordId });
-      // Refresh all coverage data to cascade changes (e.g., PO Pack → PO Items/Line Items)
-      fetchCounts();
+      // Silent refresh — update coverage without blanking the screen
+      const res = await api.get<{ success: boolean; sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>> }>("/api/v1/config_sync/tables");
+      if (res?.sync_coverage) setSyncCoverage(res.sync_coverage);
     } catch (err) {
       console.error("[SMSync] Failed to toggle record sync:", err);
       // Revert on failure
