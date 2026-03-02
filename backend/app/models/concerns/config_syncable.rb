@@ -20,6 +20,7 @@ module ConfigSyncable
     class_attribute :sync_key_source, default: :name
 
     before_validation :generate_sync_key, on: :create, if: -> { respond_to?(:sync_key) && sync_key.blank? }
+    before_save :set_record_updated_at, if: -> { respond_to?(:record_updated_at=) }
   end
 
   # Generate a stable, slugified key from source field(s).
@@ -33,6 +34,23 @@ module ConfigSyncable
 
     self.sync_key = self.class.build_sync_key(*parts)
   end
+
+  private
+
+  # ⚠️ DO NOT SIMPLIFY - Bidirectional sync timestamp propagation (2026-03-03)
+  # ════════════════════════════════════════════════════════════════════════════
+  # Why: record_updated_at carries the ORIGINAL human edit time across sync hops.
+  #      Tekna edits at 10:00 → TEEEM gets record_updated_at=10:00 (not sync time).
+  #      TEEEM→Pilgrim: incoming 10:00 vs local 09:00 → 10:00 wins → correct update.
+  # ❌ WRONG: Always setting Time.current would lose the original edit time.
+  # ✅ CORRECT: If sync explicitly assigned record_updated_at (dirty + present),
+  #             preserve it. Otherwise (local user edit) → set to now.
+  # ════════════════════════════════════════════════════════════════════════════
+  def set_record_updated_at
+    self.record_updated_at = Time.current unless record_updated_at_changed? && record_updated_at.present?
+  end
+
+  public
 
   class_methods do
     # Build a sync_key from one or more string values.

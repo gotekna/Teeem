@@ -110,7 +110,7 @@ class TenantConfigSyncService
     document_types: {
       model: "DocumentType",
       name_field: :name,
-      match_fields: [:name, :scope],
+      match_fields: [:name],   # FRC (Mar 2026): scope is derived per-tenant (not stable cross-tenant)
       sync_fields: [:name, :scope, :download_name, :ui_name, :abbreviation,
                     :folder, :target_folder, :aliases, :requires_filing, :tracks_signing_status,
                     :generates_certificate, :certificate_template, :form_number_mapping,
@@ -1151,7 +1151,7 @@ class TenantConfigSyncService
 
     ActsAsTenant.with_tenant(tenant) do
       if existing
-        existing.update!(attrs)
+        existing.update!(attrs) if source_newer?(source_record, existing)
       else
         new_record = model.new
         attrs.each do |field, value|
@@ -1440,9 +1440,15 @@ class TenantConfigSyncService
           case mode.to_sym
           when :replace_existing
             begin
-              ActsAsTenant.with_tenant(tenant) { existing.update!(attrs) }
-              updated << existing
-              deferred_parents[existing.id] = deferred if deferred.any?
+              if source_newer?(master_record, existing)
+                ActsAsTenant.with_tenant(tenant) { existing.update!(attrs) }
+                updated << existing
+                deferred_parents[existing.id] = deferred if deferred.any?
+              else
+                skipped << { name: master_record.send(config[:name_field]), reason: "Local version is newer" }
+              end
+            rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+              skipped << { name: master_record.send(config[:name_field]), reason: e.message }
             rescue => e
               skipped << { name: master_record.send(config[:name_field]), reason: e.message }
             end
@@ -1989,11 +1995,13 @@ class TenantConfigSyncService
     end
 
     result = if existing
-      # Update existing
-      ActsAsTenant.with_tenant(tenant) do
-        existing.update!(attrs)
+      # Update existing — only if source is newer (true bidirectional sync)
+      if source_newer?(source_record, existing)
+        ActsAsTenant.with_tenant(tenant) { existing.update!(attrs) }
+        { imported: true, record: existing }
+      else
+        { imported: false, reason: "Local version is newer" }
       end
-      { imported: true, record: existing }
     else
       # Create new - copy sync_key to establish link
       ActsAsTenant.with_tenant(tenant) do
@@ -2014,15 +2022,16 @@ class TenantConfigSyncService
     # Attach deferred fields to result for second pass
     result[:deferred] = deferred if deferred.any?
     result
-  rescue ActiveRecord::RecordInvalid => e
-    # FRC (Feb 2026): Uniqueness collision — match didn't find the record but it exists.
-    # This happens when sync_key diverged and match_fields differ slightly.
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+    # FRC (Feb 2026 / Mar 2026): Uniqueness collision — match didn't find the record but it exists.
+    # Also catches PG::UniqueViolation wrapped as RecordNotUnique (Bug 3: PO Template Items).
     # Fallback: find the colliding record using sync attrs (actual DB columns) and update it.
-    if e.message.include?("already been taken") || e.message.include?("has already been") || e.message.include?("already exists")
+    if e.message.include?("already been taken") || e.message.include?("has already been") ||
+       e.message.include?("already exists") || e.is_a?(ActiveRecord::RecordNotUnique)
       fallback = find_uniqueness_collision(model, attrs, config[:match_fields], source_record)
 
       if fallback
-        ActsAsTenant.with_tenant(tenant) { fallback.update!(attrs) }
+        ActsAsTenant.with_tenant(tenant) { fallback.update!(attrs.except(:sync_key)) }
         return { imported: true, record: fallback }
       end
     end
@@ -2092,7 +2101,22 @@ class TenantConfigSyncService
       attrs = apply_price_markup(attrs, @price_markup_percent, model_name)
     end
 
+    # Always carry record_updated_at so it propagates across sync hops.
+    # (Tekna→TEEEM→Pilgrim carries the original human edit time, not the sync run time)
+    if source_record.respond_to?(:record_updated_at) && source_record.record_updated_at.present?
+      attrs[:record_updated_at] = source_record.record_updated_at
+    end
+
     attrs
+  end
+
+  # True bidirectional sync: compare original human edit times across tenants.
+  # Uses record_updated_at (original edit time) when available, falls back to updated_at.
+  # This prevents sync runs from always winning over local edits (they'd all have "now").
+  def source_newer?(source_record, existing_record)
+    source_time = source_record.try(:record_updated_at) || source_record.updated_at
+    existing_time = existing_record.try(:record_updated_at) || existing_record.updated_at
+    source_time > existing_time
   end
 
   # Apply percentage markup to price fields
