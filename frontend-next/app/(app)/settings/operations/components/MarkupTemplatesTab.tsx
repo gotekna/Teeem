@@ -21,6 +21,19 @@ interface SmPoTask {
   name: string;
 }
 
+interface ClaimTemplateLine {
+  id: number;
+  name: string;
+  percentage: number;
+  overheadPoName: string | null;
+}
+
+interface ClaimTemplate {
+  id: number;
+  name: string;
+  lines: ClaimTemplateLine[];
+}
+
 interface TemplateMarkup {
   id: number;
   name: string;
@@ -54,6 +67,8 @@ interface TemplateMarkup {
   defaultTenderMarkupPercent: number | null;
   // Per-PO allocation percentages
   chargePoAllocations: Record<string, Record<string, number>>;
+  // Claim stage template link
+  claimStageTemplateId: number | null;
 }
 
 // Charge type config for unified row rendering

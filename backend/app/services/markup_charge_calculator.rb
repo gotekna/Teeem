@@ -213,6 +213,7 @@ class MarkupChargeCalculator
   # Skips POs that are cancelled or paid.
   def sync_charge_purchase_orders(calculated_charges)
     allocations = @template&.charge_po_allocations || {}
+    claim_allocations = derive_claim_allocations
 
     calculated_charges.each do |_type, charge_data|
       po_ids = charge_data[:purchase_order_ids] || [charge_data[:purchase_order_id]].compact
@@ -223,8 +224,8 @@ class MarkupChargeCalculator
       description = "[Charge] #{label}"
       total_amount = charge_data[:effective_amount].to_f
 
-      # Look up per-PO allocation percentages for this charge type
-      charge_allocs = allocations[charge_type] || {}
+      # Claim-derived allocations override manual allocations when available
+      charge_allocs = claim_allocations[charge_type] || allocations[charge_type] || {}
       has_custom_allocs = charge_allocs.any?
 
       po_ids.each_with_index do |po_id, idx|
@@ -366,6 +367,41 @@ class MarkupChargeCalculator
       data[:purchase_order_ids] = po_ids
       data[:purchase_order_numbers] = po_numbers
     end
+  end
+
+  # Derive PO split allocations from the claim stage template linked to this SM template.
+  # Each claim stage line with an overhead_po_name is matched to an SM template task by name.
+  # Returns { charge_type => { sm_id_string => percentage } } or empty hash.
+  def derive_claim_allocations
+    return {} unless @template&.claim_stage_template_id
+
+    claim_template = ClaimStageTemplate.includes(:lines).find_by(id: @template.claim_stage_template_id)
+    return {} unless claim_template
+
+    # Build name → SM ID lookup from all charge SM ID fields
+    all_sm_ids = CHARGE_SM_FIELDS.values.flat_map { |f| @template.send(f) || [] }.uniq
+    return {} if all_sm_ids.empty?
+
+    name_to_sm_id = SmScheduleMaster.where(id: all_sm_ids).pluck(:id, :name).to_h { |id, name| [name, id] }
+
+    result = {}
+    claim_template.lines.each do |line|
+      next unless line.overhead_po_name.present?
+
+      sm_id = name_to_sm_id[line.overhead_po_name]
+      next unless sm_id
+
+      # Apply to all charge types that reference this SM task
+      CHARGE_SM_FIELDS.each do |charge_type, field|
+        sm_ids = @template.send(field) || []
+        if sm_ids.include?(sm_id)
+          result[charge_type] ||= {}
+          result[charge_type][sm_id.to_s] = line.percentage.to_f
+        end
+      end
+    end
+
+    result
   end
 
   def existing_charges

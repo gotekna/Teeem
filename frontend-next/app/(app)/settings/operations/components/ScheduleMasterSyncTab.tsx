@@ -846,62 +846,6 @@ export function ScheduleMasterSyncTab() {
                             const st = SYNC_MODE_LABELS[mode];
                             if (!st) return null;
 
-                            // Check if this table has per-template breakdown (SM Tasks)
-                            const cov = isMasterTenant
-                              ? undefined
-                              : (syncCoverage[table.key] as CoverageEntry | undefined);
-                            const templates = cov && "templates" in cov ? cov.templates : undefined;
-
-                            if (templates && templates.length > 0) {
-                              // Per-template breakdown: show each template's sync status
-                              const synced = templates.filter(t => t.synced);
-                              const independent = templates.filter(t => !t.synced);
-                              const syncedTasks = synced.reduce((s, t) => s + t.tasks, 0);
-                              const independentTasks = independent.reduce((s, t) => s + t.tasks, 0);
-
-                              return (
-                                <div className="flex flex-col items-center gap-0.5">
-                                  {syncedTasks > 0 && (
-                                    <span
-                                      className="text-xs font-medium text-green-600 dark:text-green-400"
-                                      title={synced.map(t => `${t.name} (${t.tasks})`).join(", ")}
-                                    >
-                                      Two-way ({syncedTasks})
-                                    </span>
-                                  )}
-                                  {independentTasks > 0 && (
-                                    <span
-                                      className="text-[10px] text-muted-foreground leading-tight"
-                                      title={independent.map(t => `${t.name} (${t.tasks})`).join(", ")}
-                                    >
-                                      {independentTasks} independent
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            }
-
-                            // Per-record breakdown: derive header from child sync statuses
-                            const records = cov && "records" in cov ? cov.records : undefined;
-                            if (records && records.length > 0) {
-                              const syncedCount = records.filter(r => r.synced).length;
-                              const indepCount = records.filter(r => !r.synced).length;
-                              return (
-                                <div className="flex flex-col items-center gap-0.5">
-                                  {syncedCount > 0 && (
-                                    <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                                      Two-way ({syncedCount})
-                                    </span>
-                                  )}
-                                  {indepCount > 0 && (
-                                    <span className="text-[10px] text-muted-foreground leading-tight">
-                                      {indepCount} independent
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            }
-
                             return (
                               <button
                                 type="button"

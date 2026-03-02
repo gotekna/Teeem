@@ -152,7 +152,7 @@ module Api
           :name, :description, :is_active, :position, :default_retainage_pct,
           lines_attributes: [
             :id, :name, :percentage, :sequence_order, :description,
-            :retainage_percentage, :match_keywords, :_destroy
+            :retainage_percentage, :match_keywords, :overhead_po_name, :_destroy
           ]
         )
       end
@@ -182,7 +182,8 @@ module Api
           sequenceOrder: line.sequence_order,
           description: line.description,
           retainagePercentage: line.retainage_percentage&.to_f,
-          matchKeywords: line.match_keywords
+          matchKeywords: line.match_keywords,
+          overheadPoName: line.overhead_po_name
         }
       end
 

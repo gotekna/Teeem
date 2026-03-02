@@ -19,6 +19,7 @@ class SmScheduleMasterTemplate < ApplicationRecord
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
   belongs_to :copied_from, class_name: "SmScheduleMasterTemplate", optional: true
+  belongs_to :claim_stage_template, optional: true
 
   # Charge → SM template task links (JSONB arrays — each charge can link to multiple SM tasks/POs)
   # Columns: charge_construction_insurance_sm_ids, charge_qleave_sm_ids,

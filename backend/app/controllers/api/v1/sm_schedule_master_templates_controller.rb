@@ -1053,6 +1053,7 @@ module Api
       def template_params
         permitted = params.require(:sm_schedule_master_template).permit(
           :name, :description, :is_default, :is_canonical, :sync_key,
+          :claim_stage_template_id,
           :default_builder_margin_percent, :default_escalation_percent,
           :pc_ps_markup_cap_percent, :default_construction_insurance_percent,
           :default_overheads_percent, :default_qleave_rate_percent,
@@ -1138,7 +1139,9 @@ module Api
           defaultMaintenanceFeePercent: template.default_maintenance_fee_percent&.to_f,
           defaultTenderMarkupPercent: template.default_tender_markup_percent&.to_f,
           # Per-PO allocation percentages (all charges in one column)
-          chargePoAllocations: template.charge_po_allocations || {}
+          chargePoAllocations: template.charge_po_allocations || {},
+          # Claim stage template link (for auto-deriving overhead PO splits)
+          claimStageTemplateId: template.claim_stage_template_id
         }
 
         if include_rows

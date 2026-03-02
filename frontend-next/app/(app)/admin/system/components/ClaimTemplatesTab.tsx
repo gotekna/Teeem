@@ -47,6 +47,7 @@ interface TemplateLine {
   description: string | null;
   retainagePercentage: number | null;
   matchKeywords: string | null;
+  overheadPoName: string | null;
 }
 
 interface ClaimTemplate {
@@ -72,6 +73,7 @@ interface EditingLine {
   description: string;
   retainagePercentage: string;
   matchKeywords: string;
+  overheadPoName: string;
   _destroy?: boolean;
 }
 
@@ -117,7 +119,7 @@ export function ClaimTemplatesTab() {
     setEditDescription("");
     setEditDefaultRetainage("");
     setEditLines([
-      { name: "", percentage: "", description: "", retainagePercentage: "", matchKeywords: "" },
+      { name: "", percentage: "", description: "", retainagePercentage: "", matchKeywords: "", overheadPoName: "" },
     ]);
     setShowEditDialog(true);
   };
@@ -135,6 +137,7 @@ export function ClaimTemplatesTab() {
         description: line.description || "",
         retainagePercentage: line.retainagePercentage?.toString() || "",
         matchKeywords: line.matchKeywords || "",
+        overheadPoName: line.overheadPoName || "",
       }))
     );
     setShowEditDialog(true);
@@ -143,7 +146,7 @@ export function ClaimTemplatesTab() {
   const handleAddLine = () => {
     setEditLines((prev) => [
       ...prev,
-      { name: "", percentage: "", description: "", retainagePercentage: "", matchKeywords: "" },
+      { name: "", percentage: "", description: "", retainagePercentage: "", matchKeywords: "", overheadPoName: "" },
     ]);
   };
 
@@ -209,6 +212,7 @@ export function ClaimTemplatesTab() {
               ? parseFloat(line.retainagePercentage)
               : null,
             match_keywords: line.matchKeywords || null,
+            overhead_po_name: line.overheadPoName || null,
             ...(line._destroy ? { _destroy: true } : {}),
           })),
         },
@@ -375,6 +379,7 @@ export function ClaimTemplatesTab() {
                           <TableHead className="text-right w-24">%</TableHead>
                           <TableHead className="w-40">Description</TableHead>
                           <TableHead className="w-40">Match Keywords</TableHead>
+                          <TableHead className="w-40">Overhead PO</TableHead>
                           {template.lines.some((l) => l.retainagePercentage && l.retainagePercentage > 0) && (
                             <TableHead className="text-right w-24">Retainage %</TableHead>
                           )}
@@ -397,6 +402,9 @@ export function ClaimTemplatesTab() {
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground font-mono">
                               {line.matchKeywords || ""}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {line.overheadPoName || ""}
                             </TableCell>
                             {template.lines.some((l) => l.retainagePercentage && l.retainagePercentage > 0) && (
                               <TableCell className="text-right text-sm font-mono">
@@ -510,6 +518,13 @@ export function ClaimTemplatesTab() {
                         onChange={(e) => handleUpdateLine(index, "matchKeywords", e.target.value)}
                         placeholder="Keywords"
                         title="Comma-separated keywords for auto-matching Xero invoices (e.g., lock,lockup,enclosed)"
+                        className="w-36 h-8 text-sm text-muted-foreground"
+                      />
+                      <Input
+                        value={line.overheadPoName}
+                        onChange={(e) => handleUpdateLine(index, "overheadPoName", e.target.value)}
+                        placeholder="Overhead PO"
+                        title="SM template task name to map this stage's % as the overhead split (e.g., Pay Overhead Slab)"
                         className="w-36 h-8 text-sm text-muted-foreground"
                       />
                       <Button
