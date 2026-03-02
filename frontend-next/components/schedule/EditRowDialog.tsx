@@ -12,7 +12,7 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import MultipleSelector from "@/components/ui/multiple-selector";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, AlertCircle, FileText, Package, Plus, RefreshCw, X } from "lucide-react";
+import { Check, AlertCircle, Copy, FileText, Package, Plus, RefreshCw, X } from "lucide-react";
 import { DependencyInfoPanel, DEPENDENCY_GRID_COLS, DEPENDENCY_GRID_COLS_EDITABLE } from "./DependencyInfoPanel";
 import { DocumentTypeTreePicker } from "@/components/jobs/custom-quotes/DocumentTypeTreePicker";
 import { api } from "@/lib/api";
@@ -205,6 +205,8 @@ export interface EditRowDialogProps {
   onCopyToTemplate?: (templateId: number, rowId: number) => Promise<void>;
   // Auto-PO dialog trigger (optional)
   onOpenAutoPODialog?: () => void;
+  // Duplicate row (optional - only in Schedule Master template context)
+  onDuplicate?: (rowId: number) => Promise<void>;
   // Job context for template preview (optional)
   jobId?: number;
 }
@@ -237,10 +239,14 @@ export function EditRowDialog({
   templates = [],
   onCopyToTemplate,
   onOpenAutoPODialog,
+  onDuplicate,
   jobId,
 }: EditRowDialogProps) {
   // Form state
   const [editRowForm, setEditRowForm] = React.useState<EditRowFormData>({});
+
+  // Duplicate state
+  const [duplicating, setDuplicating] = React.useState(false);
 
   // Auto-save state
   const [autoSaveStatus, setAutoSaveStatus] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -609,6 +615,24 @@ export function EditRowDialog({
                   <span className="text-muted-foreground">Auto-save enabled</span>
                 ) : null}
               </div>
+              {onDuplicate && row && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={duplicating}
+                  onClick={async () => {
+                    setDuplicating(true);
+                    try {
+                      await onDuplicate(row.id);
+                    } finally {
+                      setDuplicating(false);
+                    }
+                  }}
+                >
+                  {duplicating ? <Spinner size={14} className="mr-1.5" /> : <Copy className="h-3.5 w-3.5 mr-1.5" />}
+                  Duplicate
+                </Button>
+              )}
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Close
               </Button>

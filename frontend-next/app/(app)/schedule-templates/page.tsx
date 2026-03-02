@@ -551,7 +551,7 @@ export default function ScheduleTemplatesPage() {
                   tasks={poTasks}
                 />
                 <ChargeSmTaskMultiSelect
-                  label="Builds Contingency"
+                  label="Build Contingency"
                   values={formData.charge_builds_contingency_sm_ids}
                   onChange={v => setFormData(f => ({ ...f, charge_builds_contingency_sm_ids: v }))}
                   tasks={poTasks}

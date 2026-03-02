@@ -43,6 +43,7 @@ module Api
         if params[:row][:copy_from_id].present?
           source_row = SmScheduleMaster.find(params[:row][:copy_from_id])
           @row = source_row.dup
+          @row.name = params[:row][:name].presence || "#{source_row.name} 1"
           @row.sm_template_ids = [@template.id]  # New row only belongs to target template
           @row.task_number = nil  # Let DB assign new task_number
           @row.predecessor_ids = []  # Clear predecessors (they belong to source template context)

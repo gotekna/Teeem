@@ -179,7 +179,7 @@ export function MarkupDefaultsTab() {
               step={0.1}
             />
             <CompactField
-              label="Builds Contingency"
+              label="Build Contingency"
               suffix="%"
               value={settings?.defaultBuildsContingencyPercent ?? 0}
               onChange={v => updateSetting("defaultBuildsContingencyPercent", v)}

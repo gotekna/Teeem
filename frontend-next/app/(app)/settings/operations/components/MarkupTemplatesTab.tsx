@@ -86,7 +86,7 @@ const CHARGE_TYPES = [
   { key: "defaultOverheadsPercent", label: "Overheads", smField: "charge_overheads_sm_ids", chargeType: "overheads", step: 0.1 },
   { key: "defaultQleaveRatePercent", label: "QLeave Rate", smField: "charge_qleave_sm_ids", chargeType: "qleave", step: 0.001 },
   { key: null, label: "QBCC Insurance", smField: "charge_qbcc_insurance_sm_ids", chargeType: "qbcc_insurance", step: 0 },
-  { key: "defaultBuildsContingencyPercent", label: "Builds Contingency", smField: "charge_builds_contingency_sm_ids", chargeType: "builds_contingency", step: 0.1 },
+  { key: "defaultBuildsContingencyPercent", label: "Build Contingency", smField: "charge_builds_contingency_sm_ids", chargeType: "builds_contingency", step: 0.1 },
   { key: "defaultProjectPrelimsPercent", label: "Project Prelims", smField: "charge_project_prelims_sm_ids", chargeType: "project_prelims", step: 0.1 },
   { key: "defaultProjectManagementPercent", label: "Project Management", smField: "charge_project_management_sm_ids", chargeType: "project_management", step: 0.1 },
   { key: "defaultMaintenanceFeePercent", label: "Maintenance Fee", smField: "charge_maintenance_fee_sm_ids", chargeType: "maintenance_fee", step: 0.1 },

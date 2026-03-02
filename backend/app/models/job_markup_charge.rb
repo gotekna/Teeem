@@ -17,7 +17,7 @@ class JobMarkupCharge < ApplicationRecord
     "qleave" => "QLeave",
     "overheads" => "Overheads",
     "qbcc_insurance" => "QBCC Home Warranty Insurance",
-    "builds_contingency" => "Builds Contingency",
+    "builds_contingency" => "Build Contingency",
     "project_prelims" => "Project Prelims",
     "project_management" => "Project Management",
     "maintenance_fee" => "Maintenance Fee"

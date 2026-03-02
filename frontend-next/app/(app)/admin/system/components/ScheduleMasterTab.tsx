@@ -1696,6 +1696,21 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     handleEditRowRefresh();
   }, [activeEditTemplateId, handleEditRowRefresh]);
 
+  // SSoT: Duplicate row handler for EditRowDialog
+  const handleDuplicateRow = React.useCallback(async (rowId: number) => {
+    if (!activeEditTemplateId || activeEditTemplateId === -1) return;
+    try {
+      await api.post(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows`, {
+        row: { copy_from_id: rowId },
+      });
+      setShowEditSheet(false);
+      handleEditRowRefresh();
+      toast({ title: "Row duplicated", description: "New row created with copied fields" });
+    } catch {
+      toast({ title: "Failed to duplicate row", variant: "destructive" });
+    }
+  }, [activeEditTemplateId, handleEditRowRefresh, toast]);
+
   // Handle row double-click - open edit sheet
   // SSoT: Use row directly from TeeemTableView callback (Foundation API data)
   // Don't lookup from dataViewRows which comes from custom endpoint with broken lookup expansion
@@ -4328,6 +4343,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         onCopyToTemplate={handleCopyToTemplate}
         onChildTaskUpdate={handleChildTaskHeaderUpdate}
         onOpenAutoPODialog={() => setShowAutoPODialog(true)}
+        onDuplicate={activeEditTemplateId && activeEditTemplateId !== -1 ? handleDuplicateRow : undefined}
       />
 
       {/* Full-Size Invoice Preview Dialog */}
