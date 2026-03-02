@@ -2850,7 +2850,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                         <>
                           <div className="border rounded-lg divide-y">
                             {[...(template.rows || [])]
-                              .sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0))
+                              .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
                               .map((row, index) => (
                                 <div
                                   key={row.id}

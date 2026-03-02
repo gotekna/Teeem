@@ -47,9 +47,6 @@ import {
   RefreshCw,
   SkipForward,
   AlertTriangle,
-  ChevronRight,
-  ChevronDown,
-  Layers,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
@@ -300,10 +297,6 @@ export default function ScheduleTemplateDetailPage() {
   // Workflow and document type options
   const [workflows, setWorkflows] = React.useState<{ id: number; name: string }[]>([]);
   const [documentTypes, setDocumentTypes] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
-
-  // Cost Centre grouping state
-  const [groupByCostCentre, setGroupByCostCentre] = React.useState(true);
-  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
 
   // Load data
   const loadData = React.useCallback(async () => {
@@ -671,41 +664,6 @@ export default function ScheduleTemplateDetailPage() {
     label: tab.display_name || tab.tab_key,
   }));
 
-  // Group rows by cost_centre when grouping is active
-  const groupedRows = React.useMemo(() => {
-    if (!groupByCostCentre) return null;
-    const groups = new Map<string, SmScheduleMaster[]>();
-    rows.forEach((row) => {
-      const key = displayValue(row.cost_centre) || "Unassigned";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(row);
-    });
-    // Sort tasks within each group by sequence_order
-    groups.forEach((groupRows) => {
-      groupRows.sort((a, b) => a.sequence_order - b.sequence_order);
-    });
-    return groups;
-  }, [rows, groupByCostCentre]);
-
-  const toggleGroup = (groupName: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupName)) {
-        next.delete(groupName);
-      } else {
-        next.add(groupName);
-      }
-      return next;
-    });
-  };
-
-  const expandAllGroups = () => setCollapsedGroups(new Set());
-  const collapseAllGroups = () => {
-    if (groupedRows) {
-      setCollapsedGroups(new Set(groupedRows.keys()));
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -802,140 +760,9 @@ export default function ScheduleTemplateDetailPage() {
         <Card>
           <CardHeader className="py-3 flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Template Rows</CardTitle>
-            <div className="flex items-center gap-2">
-              {groupByCostCentre && groupedRows && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={expandAllGroups}
-                    className="text-xs h-7"
-                  >
-                    Expand All
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={collapseAllGroups}
-                    className="text-xs h-7"
-                  >
-                    Collapse All
-                  </Button>
-                </>
-              )}
-              <Button
-                variant={groupByCostCentre ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setGroupByCostCentre((prev) => !prev);
-                  setCollapsedGroups(new Set());
-                }}
-                className="h-7 text-xs"
-              >
-                <Layers className="h-3.5 w-3.5 mr-1.5" />
-                Group by Cost Centre
-              </Button>
-            </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              {groupByCostCentre && groupedRows ? (
-                /* Grouped view by Cost Centre */
-                <div>
-                  {Array.from(groupedRows.entries()).map(([groupName, groupRows]) => {
-                    const isCollapsed = collapsedGroups.has(groupName);
-                    const totalDays = groupRows.reduce((sum, r) => sum + r.duration_days, 0);
-                    return (
-                      <div key={groupName}>
-                        {/* Group header */}
-                        <button
-                          type="button"
-                          onClick={() => toggleGroup(groupName)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 bg-muted hover:bg-muted/80 dark:bg-muted/50 dark:hover:bg-muted/70 border-b transition-colors text-left sticky top-0 z-10"
-                        >
-                          {isCollapsed ? (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                          )}
-                          <span className="font-semibold text-sm">{groupName}</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {groupRows.length} {groupRows.length === 1 ? "task" : "tasks"}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground ml-auto">
-                            {totalDays} days total
-                          </span>
-                        </button>
-
-                        {/* Group rows */}
-                        {!isCollapsed && (
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-[60px]">#</TableHead>
-                                <TableHead>Name</TableHead>
-                                <TableHead className="w-[100px]">Trade</TableHead>
-                                <TableHead className="w-[100px]">Stage</TableHead>
-                                <TableHead className="w-[80px]">Days</TableHead>
-                                <TableHead className="w-[100px]">Predecessors</TableHead>
-                                <TableHead className="w-[80px] text-center">PO</TableHead>
-                                <TableHead className="w-[80px] text-center">Photo</TableHead>
-                                <TableHead className="w-[60px]"></TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {groupRows.map((row) => (
-                                <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleEditRow(row)}>
-                                  <TableCell className="font-mono text-muted-foreground">
-                                    {row.task_number}
-                                  </TableCell>
-                                  <TableCell className="font-medium">{row.name}</TableCell>
-                                  <TableCell className="text-muted-foreground text-sm">
-                                    {row.trade_name || "-"}
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground text-sm">
-                                    {row.stage_name || "-"}
-                                  </TableCell>
-                                  <TableCell>{row.duration_days}d</TableCell>
-                                  <TableCell className="text-muted-foreground text-sm">
-                                    {row.predecessor_display !== "None" ? row.predecessor_display : "-"}
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <div className="flex items-center justify-center gap-1">
-                                      {row.po_required && (
-                                        <Badge variant="secondary" className="text-xs">Req</Badge>
-                                      )}
-                                      {row.create_po_on_job_start && (
-                                        <Badge variant="outline" className="text-xs text-orange-600 dark:text-orange-400 border-orange-300">+PO</Badge>
-                                      )}
-                                      {!row.po_required && !row.create_po_on_job_start && (
-                                        <span className="text-muted-foreground">-</span>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    {row.require_photo ? (
-                                      <Camera className="h-4 w-4 mx-auto text-blue-500 dark:text-blue-400" />
-                                    ) : (
-                                      <span className="text-muted-foreground">-</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEditRow(row); }}>
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* Flat view (default) */
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1000,7 +827,6 @@ export default function ScheduleTemplateDetailPage() {
                     ))}
                   </TableBody>
                 </Table>
-              )}
             </div>
           </CardContent>
         </Card>
