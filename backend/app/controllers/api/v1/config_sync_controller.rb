@@ -1009,18 +1009,53 @@ module Api
       end
 
       # Pluck match keys from a model as a Set for fast intersection
+      # When remap_fks exist for match_fields, resolves FKs to logical keys
+      # so that master ID 123 and local ID 456 both resolve to "pack-name"
       def pluck_match_keys(model, config)
         match_fields = config[:match_fields]
+        remap_fks = config[:remap_fks] || {}
         base = scoped_model(model, config)
-        if match_fields.length == 1
-          base.where.not(match_fields.first => nil)
-              .pluck(match_fields.first)
-              .map { |v| v.to_s.downcase.strip }
-              .to_set
+
+        # Check if any match_fields need FK remapping
+        needs_remap = match_fields.any? { |f| remap_fks.key?(f) }
+
+        if !needs_remap
+          # Simple path: no FK remapping needed
+          if match_fields.length == 1
+            base.where.not(match_fields.first => nil)
+                .pluck(match_fields.first)
+                .map { |v| v.to_s.downcase.strip }
+                .to_set
+          else
+            base.pluck(*match_fields)
+                .map { |vals| Array(vals).map { |v| v.to_s.downcase.strip }.join("|") }
+                .to_set
+          end
         else
-          base.pluck(*match_fields)
-              .map { |vals| Array(vals).map { |v| v.to_s.downcase.strip }.join("|") }
-              .to_set
+          # FK remap path: build lookup caches for FK → logical key
+          fk_caches = {}
+          match_fields.each do |field|
+            next unless remap_fks.key?(field)
+            fk_config = remap_fks[field]
+            fk_model = fk_config[:model].constantize
+            match_field = fk_config[:match_field]
+            # Build id → logical_key map within current tenant context
+            fk_caches[field] = fk_model.pluck(:id, match_field).to_h
+          end
+
+          base.pluck(:id, *match_fields).map do |row|
+            _id = row[0]
+            vals = row[1..]
+            resolved = match_fields.each_with_index.map do |field, i|
+              if fk_caches.key?(field)
+                # Resolve FK to logical key
+                (fk_caches[field][vals[i]] || "").to_s.downcase.strip
+              else
+                vals[i].to_s.downcase.strip
+              end
+            end
+            resolved.join("|")
+          end.to_set
         end
       end
 
