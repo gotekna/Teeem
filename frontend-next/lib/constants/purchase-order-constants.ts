@@ -26,6 +26,8 @@ export interface POPricebookItem {
   item_code: string;
   item_name: string;
   active_price?: number;
+  /** Latest price from the PO's selected supplier (injected by backend on PO show). Preferred over active_price for refresh/drift. */
+  supplier_price?: number | null;
   current_price?: number;
   unit_of_measure?: string;
   gst_code?: string;

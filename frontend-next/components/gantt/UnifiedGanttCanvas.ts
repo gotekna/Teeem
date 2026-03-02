@@ -70,7 +70,7 @@ type DragOperation =
   | { type: 'task-resize'; taskId: string; edge: 'left' | 'right'; startX: number; originalStart: Date; originalEnd: Date }
   | { type: 'marquee'; startX: number; startY: number; currentX: number; currentY: number }
   | { type: 'pan'; startX: number; startY: number }
-  | { type: 'dependency-create'; fromTaskId: string; fromX: number; fromY: number; currentX: number; currentY: number }
+  | { type: 'dependency-create'; fromTaskId: string; fromX: number; fromY: number; currentX: number; currentY: number; direction: 'left' | 'right' }
   | { type: 'progress-drag'; taskId: string; barStartX: number; barWidth: number; originalProgress: number };
 
 /** Viewport state */
@@ -1541,10 +1541,9 @@ export class UnifiedGanttCanvas {
 
     // Check if clicking on a task bar in timeline area (start drag or resize)
     if (x > this.tableWidth && y > this.config.headerHeight) {
-      // Check for dependency connector click (click on connector circle, or Alt+click anywhere on bar)
+      // Check for right-edge dependency connector (drag right → create successor link)
       const connectorTask = this.getDependencyConnectorAtPosition(x, y);
       if (connectorTask) {
-        // Start dependency creation drag
         const dayWidth = this.config.dayWidth * this.zoom;
         const endX = this.tableWidth + this.daysBetween(this.startDate, connectorTask.endDate) * dayWidth + dayWidth - this.scrollX;
         const rowIndex = this.visibleTasks.findIndex(t => t.id === connectorTask.id);
@@ -1553,8 +1552,32 @@ export class UnifiedGanttCanvas {
 
         this.dragOperation = {
           type: 'dependency-create',
+          direction: 'right',
           fromTaskId: connectorTask.id,
           fromX: endX,
+          fromY: centerY,
+          currentX: x,
+          currentY: y,
+        };
+        this.canvas.style.cursor = 'crosshair';
+        e.preventDefault();
+        return;
+      }
+
+      // Check for left-edge predecessor connector (drag left → create predecessor link)
+      const predConnectorTask = this.getPredecessorConnectorAtPosition(x, y);
+      if (predConnectorTask) {
+        const dayWidth = this.config.dayWidth * this.zoom;
+        const startX = this.tableWidth + this.daysBetween(this.startDate, predConnectorTask.startDate) * dayWidth - this.scrollX;
+        const rowIndex = this.visibleTasks.findIndex(t => t.id === predConnectorTask.id);
+        const barY = this.config.headerHeight + rowIndex * this.config.rowHeight - this.scrollY + this.config.taskBarPadding;
+        const centerY = barY + this.config.taskBarHeight / 2;
+
+        this.dragOperation = {
+          type: 'dependency-create',
+          direction: 'left',
+          fromTaskId: predConnectorTask.id,
+          fromX: startX,
           fromY: centerY,
           currentX: x,
           currentY: y,
@@ -1660,9 +1683,16 @@ export class UnifiedGanttCanvas {
         }
         this.canvas.style.cursor = 'default';
       } else if (x > this.tableWidth) {
-        // Check for dependency connector (shows crosshair for drag-to-create)
+        // Check for right-edge dependency connector (shows crosshair for drag-to-successor)
         const connectorTask = this.getDependencyConnectorAtPosition(x, y);
         if (connectorTask) {
+          this.canvas.style.cursor = 'crosshair';
+          return;
+        }
+
+        // Check for left-edge predecessor connector (shows crosshair for drag-to-predecessor)
+        const predConnectorTask = this.getPredecessorConnectorAtPosition(x, y);
+        if (predConnectorTask) {
           this.canvas.style.cursor = 'crosshair';
           return;
         }
@@ -1936,13 +1966,16 @@ export class UnifiedGanttCanvas {
       const targetTask = this.getTaskBarAtPosition(op.currentX, y);
 
       if (targetTask && targetTask.id !== op.fromTaskId) {
-        // Show popup for dependency type selection (if callback provided)
+        // Right-edge drag: fromTask is predecessor, targetTask is successor → (from, target)
+        // Left-edge drag:  fromTask is successor, targetTask is predecessor → swap to (target, from)
+        const predecessorId = op.direction === 'left' ? targetTask.id : op.fromTaskId;
+        const successorId   = op.direction === 'left' ? op.fromTaskId : targetTask.id;
+
         if (this.callbacks.onDependencyPopupShow) {
-          this.pendingDependency = { fromTaskId: op.fromTaskId, toTaskId: targetTask.id };
-          this.callbacks.onDependencyPopupShow(op.fromTaskId, targetTask.id, e.clientX, e.clientY);
+          this.pendingDependency = { fromTaskId: predecessorId, toTaskId: successorId };
+          this.callbacks.onDependencyPopupShow(predecessorId, successorId, e.clientX, e.clientY);
         } else {
-          // No popup callback - create directly with default FS type
-          this.callbacks.onDependencyCreate?.(op.fromTaskId, targetTask.id, 'FS');
+          this.callbacks.onDependencyCreate?.(predecessorId, successorId, 'FS');
         }
       }
     } else if (op.type === 'progress-drag') {
@@ -2557,6 +2590,52 @@ export class UnifiedGanttCanvas {
     return null;
   }
 
+  /**
+   * Check if mouse is over a predecessor connector (circle on left edge of task bar)
+   * Returns the task if on a connector, null otherwise.
+   * Mirror of getDependencyConnectorAtPosition but for the left/startX side.
+   */
+  private getPredecessorConnectorAtPosition(x: number, y: number): GanttTask | null {
+    if (y < this.config.headerHeight) return null;
+
+    const dayWidth = this.config.dayWidth * this.zoom;
+    const { rowHeight, taskBarHeight, taskBarPadding, headerHeight } = this.config;
+    const connectorRadius = 5;
+
+    for (let i = 0; i < this.visibleTasks.length; i++) {
+      const task = this.visibleTasks[i];
+      const rowY = headerHeight + i * rowHeight - this.scrollY;
+
+      if (rowY + rowHeight < headerHeight || rowY > this.height) continue;
+
+      const startX = this.tableWidth + this.daysBetween(this.startDate, task.startDate) * dayWidth - this.scrollX;
+      const endX = this.tableWidth + this.daysBetween(this.startDate, task.endDate) * dayWidth + dayWidth - this.scrollX;
+      const barWidth = endX - startX;
+      const barY = rowY + taskBarPadding;
+      const connectorY = barY + taskBarHeight / 2;
+
+      const minBarWidthForFullConnector = 50;
+      let hitRadius = connectorRadius + 3; // 8px hit zone
+
+      if (barWidth < minBarWidthForFullConnector) {
+        // For short tasks, only trigger when on left half
+        const barCenter = startX + barWidth / 2;
+        if (x > barCenter) continue;
+        hitRadius = connectorRadius; // 5px tighter zone
+      }
+
+      const dx = x - startX;
+      const dy = y - connectorY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance <= hitRadius) {
+        return task;
+      }
+    }
+
+    return null;
+  }
+
   // =============================================================================
   // Private: Rendering
   // =============================================================================
@@ -2673,13 +2752,15 @@ export class UnifiedGanttCanvas {
 
     // Draw dependency creation line
     if (this.dragOperation.type === 'dependency-create') {
-      const { fromX, fromY, currentX, currentY } = this.dragOperation;
+      const { fromX, fromY, currentX, currentY, direction } = this.dragOperation;
 
-      // Draw connector line from source to cursor
+      // Right-edge (successor) drag uses blue; left-edge (predecessor) drag uses amber
+      const dragColor = direction === 'left' ? TAILWIND_COLORS.amber[500] : CANVAS_COLORS.ui.focusRing;
+
       this.ctx.save();
 
-      // Draw line
-      this.ctx.strokeStyle = CANVAS_COLORS.ui.focusRing;
+      // Draw dashed line from source to cursor
+      this.ctx.strokeStyle = dragColor;
       this.ctx.lineWidth = 2;
       this.ctx.setLineDash([5, 3]);
       this.ctx.beginPath();
@@ -2688,9 +2769,10 @@ export class UnifiedGanttCanvas {
       this.ctx.stroke();
       this.ctx.setLineDash([]);
 
-      // Draw arrow at cursor
+      // Draw arrowhead at cursor
       const angle = Math.atan2(currentY - fromY, currentX - fromX);
       const arrowLength = 10;
+      this.ctx.strokeStyle = dragColor;
       this.ctx.beginPath();
       this.ctx.moveTo(currentX, currentY);
       this.ctx.lineTo(
@@ -2705,7 +2787,7 @@ export class UnifiedGanttCanvas {
       this.ctx.stroke();
 
       // Draw source connector circle
-      this.ctx.fillStyle = CANVAS_COLORS.ui.focusRing;
+      this.ctx.fillStyle = dragColor;
       this.ctx.beginPath();
       this.ctx.arc(fromX, fromY, 5, 0, Math.PI * 2);
       this.ctx.fill();
@@ -2713,7 +2795,6 @@ export class UnifiedGanttCanvas {
       // Highlight target task if hovering
       const targetTask = this.getTaskBarAtPosition(currentX, currentY);
       if (targetTask && targetTask.id !== this.dragOperation.fromTaskId) {
-        // Draw highlight around target task bar
         const dayWidth = this.config.dayWidth * this.zoom;
         const { rowHeight, taskBarHeight, taskBarPadding, headerHeight } = this.config;
         const rowIndex = this.visibleTasks.findIndex(t => t.id === targetTask.id);
@@ -2722,7 +2803,7 @@ export class UnifiedGanttCanvas {
         const endX = this.tableWidth + this.daysBetween(this.startDate, targetTask.endDate) * dayWidth + dayWidth - this.scrollX;
         const barY = rowY + taskBarPadding;
 
-        this.ctx.strokeStyle = CANVAS_COLORS.ui.focusRing;
+        this.ctx.strokeStyle = dragColor;
         this.ctx.lineWidth = 3;
         this.ctx.strokeRect(startX - 2, barY - 2, endX - startX + 4, taskBarHeight + 4);
       }
