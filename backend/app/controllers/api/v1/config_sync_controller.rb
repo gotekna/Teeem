@@ -747,6 +747,24 @@ module Api
         render_error(e.message, status: :bad_request)
       end
 
+      # POST /api/v1/config_sync/toggle_template_sync
+      # Toggle a SM template between synced (Two-way) and independent
+      # Synced = has sync_key matching master, Independent = sync_key is nil
+      def toggle_template_sync
+        template = SmScheduleMasterTemplate.find(params[:template_id])
+
+        if template.sync_key.present?
+          # Disconnect: remove sync_key → becomes independent
+          template.update!(sync_key: nil)
+          render json: { success: true, synced: false, name: template.name }
+        else
+          # Reconnect: regenerate sync_key from name → becomes two-way (if master has match)
+          new_key = SmScheduleMasterTemplate.build_sync_key(template.name)
+          template.update!(sync_key: new_key)
+          render json: { success: true, synced: true, sync_key: new_key, name: template.name }
+        end
+      end
+
       # GET /api/v1/config_sync/table_modes
       # Returns per-table sync direction preferences for current tenant
       def table_modes
@@ -934,7 +952,7 @@ module Api
         SmScheduleMasterTemplate.all.map do |t|
           task_count = SmScheduleMaster.for_template(t.id).count
           synced = t.sync_key.present? && master_template_keys.include?(t.sync_key)
-          { name: t.name, tasks: task_count, synced: synced }
+          { id: t.id, name: t.name, tasks: task_count, synced: synced }
         end
       end
 

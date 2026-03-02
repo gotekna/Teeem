@@ -132,7 +132,7 @@ export function ScheduleMasterSyncTab() {
   // Sync coverage: linked vs local-only vs master-only per table
   // Non-master: { table: { linked, local_only, master_only } }
   // Master: { table: { tenantSlug: { linked, local_only, master_only } } }
-  type TemplateBreakdown = { name: string; tasks: number; synced: boolean };
+  type TemplateBreakdown = { id: number; name: string; tasks: number; synced: boolean };
   type CoverageEntry = { linked: number; local_only: number; master_only: number; templates?: TemplateBreakdown[] };
   const [syncCoverage, setSyncCoverage] = useState<Record<string, CoverageEntry | Record<string, CoverageEntry>>>({});
 
@@ -248,6 +248,43 @@ export function ScheduleMasterSyncTab() {
       console.error("[SMSync] Failed to update table mode:", err);
       // Revert on failure
       setTableModes((prev) => ({ ...prev, [tableKey]: currentMode }));
+    }
+  };
+
+  // Toggle a SM template between synced (Two-way) and independent
+  const handleToggleTemplateSync = async (templateId: number, currentlySynced: boolean) => {
+    // Optimistic update
+    setSyncCoverage((prev) => {
+      const entry = prev["sm_schedule_masters"] as CoverageEntry | undefined;
+      if (!entry || !entry.templates) return prev;
+      const updatedTemplates = entry.templates.map((t) =>
+        t.id === templateId ? { ...t, synced: !currentlySynced } : t,
+      );
+      const synced = updatedTemplates.filter((t) => t.synced);
+      const independent = updatedTemplates.filter((t) => !t.synced);
+      return {
+        ...prev,
+        sm_schedule_masters: {
+          ...entry,
+          linked: synced.reduce((s, t) => s + t.tasks, 0),
+          local_only: independent.reduce((s, t) => s + t.tasks, 0),
+          templates: updatedTemplates,
+        },
+      };
+    });
+    try {
+      await api.post("/api/v1/config_sync/toggle_template_sync", { template_id: templateId });
+    } catch (err) {
+      console.error("[SMSync] Failed to toggle template sync:", err);
+      // Revert on failure
+      setSyncCoverage((prev) => {
+        const entry = prev["sm_schedule_masters"] as CoverageEntry | undefined;
+        if (!entry || !entry.templates) return prev;
+        const revertedTemplates = entry.templates.map((t) =>
+          t.id === templateId ? { ...t, synced: currentlySynced } : t,
+        );
+        return { ...prev, sm_schedule_masters: { ...entry, templates: revertedTemplates } };
+      });
     }
   };
 
@@ -866,14 +903,22 @@ export function ScheduleMasterSyncTab() {
                               {tmpl.tasks.toLocaleString()}
                             </TableCell>
                             <TableCell className="text-center py-1.5">
-                              <span className={cn(
-                                "text-[11px] font-medium",
-                                tmpl.synced
-                                  ? "text-green-600 dark:text-green-400"
-                                  : "text-muted-foreground",
-                              )}>
+                              <button
+                                type="button"
+                                className={cn(
+                                  "text-[11px] font-medium cursor-pointer hover:underline transition-colors",
+                                  tmpl.synced
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-muted-foreground",
+                                )}
+                                onClick={() => handleToggleTemplateSync(tmpl.id, tmpl.synced)}
+                                title={tmpl.synced
+                                  ? "Click to disconnect — make this template independent"
+                                  : "Click to reconnect — sync this template with TEEEM"
+                                }
+                              >
                                 {tmpl.synced ? "Two-way" : "Independent"}
-                              </span>
+                              </button>
                             </TableCell>
                             <TableCell className="py-1.5" />
                           </TableRow>

@@ -73,6 +73,12 @@ interface SmScheduleMasterTemplate {
   defaultConstructionInsurancePercent: number | null;
   defaultOverheadsPercent: number | null;
   defaultQleaveRatePercent: number | null;
+  // Sync status - null if not synced, object if synced with other tenants
+  sync_status: {
+    is_canonical: boolean;
+    synced_tenants: string[];
+    dependent_tables: { name: string; count: number; sync_type: string }[];
+  } | null;
 }
 
 interface SmPoTask {
@@ -353,6 +359,11 @@ export default function ScheduleTemplatesPage() {
                         {template.is_default && (
                           <Star className="h-4 w-4 text-yellow-500 dark:text-yellow-400 fill-yellow-500" />
                         )}
+                        {template.sync_status && (
+                          <Badge variant="outline" className="text-xs font-normal text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-600">
+                            Synced
+                          </Badge>
+                        )}
                       </CardTitle>
                       {template.description && (
                         <CardDescription className="mt-1">{template.description}</CardDescription>
@@ -390,11 +401,12 @@ export default function ScheduleTemplatesPage() {
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => handleDelete(template.id)}
+                          className={template.sync_status ? "text-muted-foreground cursor-not-allowed" : "text-destructive"}
+                          disabled={!!template.sync_status}
+                          onClick={() => !template.sync_status && handleDelete(template.id)}
                         >
                           <Trash className="h-4 w-4 mr-2" />
-                          Delete
+                          {template.sync_status ? "Synced — cannot delete" : "Delete"}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

@@ -42,7 +42,31 @@ interface TemplateMarkup {
   defaultConstructionInsurancePercent: number | null;
   defaultOverheadsPercent: number | null;
   defaultQleaveRatePercent: number | null;
+  defaultBuildsContingencyPercent: number | null;
+  defaultProjectPrelimsPercent: number | null;
+  defaultProjectManagementPercent: number | null;
+  defaultMaintenanceFeePercent: number | null;
+  // Per-PO allocation percentages
+  chargePoAllocations: Record<string, Record<string, number>>;
 }
+
+// Charge type config for unified row rendering
+const MARKUP_RATES = [
+  { key: "defaultBuilderMarginPercent", label: "Builder Margin", step: 0.5 },
+  { key: "defaultEscalationPercent", label: "Escalation", step: 0.5 },
+  { key: "pcPsMarkupCapPercent", label: "PC/PS Cap", step: 0.5 },
+] as const;
+
+const CHARGE_TYPES = [
+  { key: "defaultConstructionInsurancePercent", label: "Constr. Insurance", smField: "charge_construction_insurance_sm_ids", chargeType: "construction_insurance", step: 0.1 },
+  { key: "defaultOverheadsPercent", label: "Overheads", smField: "charge_overheads_sm_ids", chargeType: "overheads", step: 0.1 },
+  { key: "defaultQleaveRatePercent", label: "QLeave Rate", smField: "charge_qleave_sm_ids", chargeType: "qleave", step: 0.001 },
+  { key: null, label: "QBCC Insurance", smField: "charge_qbcc_insurance_sm_ids", chargeType: "qbcc_insurance", step: 0 },
+  { key: "defaultBuildsContingencyPercent", label: "Builds Contingency", smField: "charge_builds_contingency_sm_ids", chargeType: "builds_contingency", step: 0.1 },
+  { key: "defaultProjectPrelimsPercent", label: "Project Prelims", smField: "charge_project_prelims_sm_ids", chargeType: "project_prelims", step: 0.1 },
+  { key: "defaultProjectManagementPercent", label: "Project Management", smField: "charge_project_management_sm_ids", chargeType: "project_management", step: 0.1 },
+  { key: "defaultMaintenanceFeePercent", label: "Maintenance Fee", smField: "charge_maintenance_fee_sm_ids", chargeType: "maintenance_fee", step: 0.1 },
+] as const;
 
 // ============================================
 // Component
@@ -56,28 +80,14 @@ export function MarkupTemplatesTab() {
   const [poTasksMap, setPoTasksMap] = React.useState<Record<number, SmPoTask[]>>({});
   const [editState, setEditState] = React.useState<Record<number, Partial<TemplateMarkup>>>({});
   const [savingId, setSavingId] = React.useState<number | null>(null);
-  const [globalDefaults, setGlobalDefaults] = React.useState<{
-    defaultBuilderMarginPercent: number;
-    defaultEscalationPercent: number;
-    pcPsMarkupCapPercent: number;
-    defaultConstructionInsurancePercent: number;
-    defaultOverheadsPercent: number;
-    defaultQleaveRatePercent: number;
-  } | null>(null);
+  const [globalDefaults, setGlobalDefaults] = React.useState<Record<string, number> | null>(null);
 
   React.useEffect(() => {
     (async () => {
       try {
         const [templatesRes, settingsRes] = await Promise.all([
           api.get<{ sm_schedule_master_templates: TemplateMarkup[] }>("/api/v1/sm_schedule_master_templates"),
-          api.get<{ settings: {
-            defaultBuilderMarginPercent: number;
-            defaultEscalationPercent: number;
-            pcPsMarkupCapPercent: number;
-            defaultConstructionInsurancePercent: number;
-            defaultOverheadsPercent: number;
-            defaultQleaveRatePercent: number;
-          } }>("/api/v1/sm_settings"),
+          api.get<{ settings: Record<string, number> }>("/api/v1/sm_settings"),
         ]);
         setTemplates(templatesRes?.sm_schedule_master_templates || []);
         if (settingsRes?.settings) setGlobalDefaults(settingsRes.settings);
@@ -95,12 +105,16 @@ export function MarkupTemplatesTab() {
       ...prev,
       [templateId]: {
         ...prev[templateId],
-        defaultBuilderMarginPercent: globalDefaults.defaultBuilderMarginPercent,
-        defaultEscalationPercent: globalDefaults.defaultEscalationPercent,
-        pcPsMarkupCapPercent: globalDefaults.pcPsMarkupCapPercent,
-        defaultConstructionInsurancePercent: globalDefaults.defaultConstructionInsurancePercent,
-        defaultOverheadsPercent: globalDefaults.defaultOverheadsPercent,
-        defaultQleaveRatePercent: globalDefaults.defaultQleaveRatePercent,
+        defaultBuilderMarginPercent: globalDefaults.defaultBuilderMarginPercent ?? null,
+        defaultEscalationPercent: globalDefaults.defaultEscalationPercent ?? null,
+        pcPsMarkupCapPercent: globalDefaults.pcPsMarkupCapPercent ?? null,
+        defaultConstructionInsurancePercent: globalDefaults.defaultConstructionInsurancePercent ?? null,
+        defaultOverheadsPercent: globalDefaults.defaultOverheadsPercent ?? null,
+        defaultQleaveRatePercent: globalDefaults.defaultQleaveRatePercent ?? null,
+        defaultBuildsContingencyPercent: globalDefaults.defaultBuildsContingencyPercent ?? null,
+        defaultProjectPrelimsPercent: globalDefaults.defaultProjectPrelimsPercent ?? null,
+        defaultProjectManagementPercent: globalDefaults.defaultProjectManagementPercent ?? null,
+        defaultMaintenanceFeePercent: globalDefaults.defaultMaintenanceFeePercent ?? null,
       },
     }));
     toast({ title: "Global defaults imported — adjust and save" });
@@ -133,6 +147,11 @@ export function MarkupTemplatesTab() {
           defaultConstructionInsurancePercent: tmpl.defaultConstructionInsurancePercent,
           defaultOverheadsPercent: tmpl.defaultOverheadsPercent,
           defaultQleaveRatePercent: tmpl.defaultQleaveRatePercent,
+          defaultBuildsContingencyPercent: tmpl.defaultBuildsContingencyPercent,
+          defaultProjectPrelimsPercent: tmpl.defaultProjectPrelimsPercent,
+          defaultProjectManagementPercent: tmpl.defaultProjectManagementPercent,
+          defaultMaintenanceFeePercent: tmpl.defaultMaintenanceFeePercent,
+          chargePoAllocations: tmpl.chargePoAllocations || {},
         },
       }));
     }
@@ -150,11 +169,22 @@ export function MarkupTemplatesTab() {
     }
   };
 
-  const updateField = (templateId: number, field: string, value: number | null | number[]) => {
+  const updateField = (templateId: number, field: string, value: number | null | number[] | Record<string, Record<string, number>>) => {
     setEditState(prev => ({
       ...prev,
       [templateId]: { ...prev[templateId], [field]: value },
     }));
+  };
+
+  const updateAllocation = (templateId: number, chargeType: string, smId: string, pct: number) => {
+    setEditState(prev => {
+      const current = prev[templateId] || {};
+      const allocs = { ...(current.chargePoAllocations || {}) };
+      const chargeAllocs = { ...(allocs[chargeType] || {}) };
+      chargeAllocs[smId] = pct;
+      allocs[chargeType] = chargeAllocs;
+      return { ...prev, [templateId]: { ...current, chargePoAllocations: allocs } };
+    });
   };
 
   const handleSave = async (templateId: number) => {
@@ -179,6 +209,11 @@ export function MarkupTemplatesTab() {
           default_construction_insurance_percent: edits.defaultConstructionInsurancePercent,
           default_overheads_percent: edits.defaultOverheadsPercent,
           default_qleave_rate_percent: edits.defaultQleaveRatePercent,
+          default_builds_contingency_percent: edits.defaultBuildsContingencyPercent,
+          default_project_prelims_percent: edits.defaultProjectPrelimsPercent,
+          default_project_management_percent: edits.defaultProjectManagementPercent,
+          default_maintenance_fee_percent: edits.defaultMaintenanceFeePercent,
+          charge_po_allocations: edits.chargePoAllocations || {},
         },
       });
       toast({ title: "Template markup saved" });
@@ -200,7 +235,7 @@ export function MarkupTemplatesTab() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl px-4 pt-4">
+    <div className="space-y-6 max-w-4xl px-4 pt-4">
       <div>
         <h2 className="text-lg font-semibold">Template Markup Overrides</h2>
         <p className="text-sm text-muted-foreground">
@@ -219,6 +254,7 @@ export function MarkupTemplatesTab() {
             const isExpanded = expandedId === tmpl.id;
             const edits = editState[tmpl.id] || {};
             const tasks = poTasksMap[tmpl.id] || [];
+            const allocs = (edits.chargePoAllocations || {}) as Record<string, Record<string, number>>;
 
             return (
               <Card key={tmpl.id}>
@@ -237,125 +273,126 @@ export function MarkupTemplatesTab() {
                 </button>
 
                 {isExpanded && (
-                  <CardContent className="pt-0 pb-4 px-4 space-y-5">
-                    {/* Markup Rate Overrides */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-semibold">Markup Rate Overrides</Label>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => importGlobalDefaults(tmpl.id)}
-                          disabled={!globalDefaults}
-                        >
-                          <Download className="h-3 w-3 mr-1" /> Import Global Defaults
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <RateField
-                          label="Builder Margin %"
-                          value={edits.defaultBuilderMarginPercent ?? null}
-                          onChange={v => updateField(tmpl.id, "defaultBuilderMarginPercent", v)}
-                          step={0.5}
-                        />
-                        <RateField
-                          label="Escalation %"
-                          value={edits.defaultEscalationPercent ?? null}
-                          onChange={v => updateField(tmpl.id, "defaultEscalationPercent", v)}
-                          step={0.5}
-                        />
-                        <RateField
-                          label="PC/PS Cap %"
-                          value={edits.pcPsMarkupCapPercent ?? null}
-                          onChange={v => updateField(tmpl.id, "pcPsMarkupCapPercent", v)}
-                          step={0.5}
-                        />
-                        <RateField
-                          label="Constr. Insurance %"
-                          value={edits.defaultConstructionInsurancePercent ?? null}
-                          onChange={v => updateField(tmpl.id, "defaultConstructionInsurancePercent", v)}
-                          step={0.1}
-                        />
-                        <RateField
-                          label="Overheads %"
-                          value={edits.defaultOverheadsPercent ?? null}
-                          onChange={v => updateField(tmpl.id, "defaultOverheadsPercent", v)}
-                          step={0.1}
-                        />
-                        <RateField
-                          label="QLeave Rate %"
-                          value={edits.defaultQleaveRatePercent ?? null}
-                          onChange={v => updateField(tmpl.id, "defaultQleaveRatePercent", v)}
-                          step={0.001}
-                        />
-                      </div>
+                  <CardContent className="pt-0 pb-4 px-4 space-y-4">
+                    {/* Import button */}
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => importGlobalDefaults(tmpl.id)}
+                        disabled={!globalDefaults}
+                      >
+                        <Download className="h-3 w-3 mr-1" /> Import Global Defaults
+                      </Button>
                     </div>
 
-                    {/* Charge → PO Task Links */}
-                    {tasks.length > 0 && (
-                      <div className="border-t pt-4 space-y-3">
-                        <div>
-                          <Label className="text-sm font-semibold">Charge Auto-Link to PO</Label>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Auto-link each charge to the PO on the selected SM task when markup is calculated.
-                          </p>
+                    {/* Markup Rates (no PO link) */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Markup Rates</Label>
+                      {MARKUP_RATES.map(rate => (
+                        <div key={rate.key} className="flex items-center gap-3">
+                          <span className="text-sm w-36 shrink-0">{rate.label} %</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={rate.step}
+                            value={(edits[rate.key] as number | null) ?? ""}
+                            placeholder="Global default"
+                            onChange={e => {
+                              const raw = e.target.value;
+                              updateField(tmpl.id, rate.key, raw === "" ? null : parseFloat(raw) || 0);
+                            }}
+                            onFocus={e => e.target.select()}
+                            className="h-8 text-sm w-28"
+                          />
                         </div>
-                        <ChargeTaskMultiSelect
-                          label="Construction Insurance"
-                          values={(edits.charge_construction_insurance_sm_ids as number[]) || []}
-                          onChange={v => updateField(tmpl.id, "charge_construction_insurance_sm_ids", v)}
-                          tasks={tasks}
-                        />
-                        <ChargeTaskMultiSelect
-                          label="Overheads"
-                          values={(edits.charge_overheads_sm_ids as number[]) || []}
-                          onChange={v => updateField(tmpl.id, "charge_overheads_sm_ids", v)}
-                          tasks={tasks}
-                        />
-                        <ChargeTaskMultiSelect
-                          label="QLeave"
-                          values={(edits.charge_qleave_sm_ids as number[]) || []}
-                          onChange={v => updateField(tmpl.id, "charge_qleave_sm_ids", v)}
-                          tasks={tasks}
-                        />
-                        <ChargeTaskMultiSelect
-                          label="QBCC Insurance"
-                          values={(edits.charge_qbcc_insurance_sm_ids as number[]) || []}
-                          onChange={v => updateField(tmpl.id, "charge_qbcc_insurance_sm_ids", v)}
-                          tasks={tasks}
-                        />
-                        <ChargeTaskMultiSelect
-                          label="Builds Contingency"
-                          values={(edits.charge_builds_contingency_sm_ids as number[]) || []}
-                          onChange={v => updateField(tmpl.id, "charge_builds_contingency_sm_ids", v)}
-                          tasks={tasks}
-                        />
-                        <ChargeTaskMultiSelect
-                          label="Project Prelims"
-                          values={(edits.charge_project_prelims_sm_ids as number[]) || []}
-                          onChange={v => updateField(tmpl.id, "charge_project_prelims_sm_ids", v)}
-                          tasks={tasks}
-                        />
-                        <ChargeTaskMultiSelect
-                          label="Project Management"
-                          values={(edits.charge_project_management_sm_ids as number[]) || []}
-                          onChange={v => updateField(tmpl.id, "charge_project_management_sm_ids", v)}
-                          tasks={tasks}
-                        />
-                        <ChargeTaskMultiSelect
-                          label="Maintenance Fee"
-                          values={(edits.charge_maintenance_fee_sm_ids as number[]) || []}
-                          onChange={v => updateField(tmpl.id, "charge_maintenance_fee_sm_ids", v)}
-                          tasks={tasks}
-                        />
-                      </div>
-                    )}
+                      ))}
+                    </div>
+
+                    {/* Charges (rate + PO link per row) */}
+                    <div className="border-t pt-3 space-y-3">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Charges — Rate % &amp; PO Link</Label>
+                      {CHARGE_TYPES.map(charge => {
+                        const smIds = ((edits as Record<string, unknown>)[charge.smField] as number[]) || [];
+                        const chargeAllocs = allocs[charge.chargeType] || {};
+                        const hasMultiplePOs = smIds.length > 1;
+
+                        return (
+                          <div key={charge.chargeType} className="space-y-1.5">
+                            <div className="flex items-start gap-3">
+                              {/* Label + Rate */}
+                              <div className="w-36 shrink-0 pt-1">
+                                <span className="text-sm">{charge.label}</span>
+                              </div>
+                              {charge.key ? (
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step={charge.step}
+                                  value={(edits[charge.key] as number | null) ?? ""}
+                                  placeholder="0"
+                                  onChange={e => {
+                                    const raw = e.target.value;
+                                    updateField(tmpl.id, charge.key!, raw === "" ? null : parseFloat(raw) || 0);
+                                  }}
+                                  onFocus={e => e.target.select()}
+                                  className="h-8 text-sm w-20 shrink-0"
+                                />
+                              ) : (
+                                <span className="text-xs text-muted-foreground w-20 shrink-0 pt-1.5">Bracket</span>
+                              )}
+                              <span className="text-xs text-muted-foreground pt-2 shrink-0">%</span>
+
+                              {/* PO Multi-select */}
+                              {tasks.length > 0 && (
+                                <div className="flex-1 min-w-0">
+                                  <ComboboxMultiSelect
+                                    items={tasks.map(t => ({ id: t.id.toString(), label: t.name }))}
+                                    selectedIds={smIds.map(v => v.toString())}
+                                    onChange={ids => updateField(tmpl.id, charge.smField, ids.map(id => parseInt(id, 10)))}
+                                    placeholder="Link to PO..."
+                                    searchPlaceholder="Search tasks..."
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Per-PO allocation % (only when multiple POs selected) */}
+                            {hasMultiplePOs && tasks.length > 0 && (
+                              <div className="ml-36 pl-3 flex flex-wrap gap-2 items-center">
+                                <span className="text-xs text-muted-foreground">Split:</span>
+                                {smIds.map(smId => {
+                                  const task = tasks.find(t => t.id === smId);
+                                  const pct = chargeAllocs[smId.toString()] ?? Math.round(100 / smIds.length);
+                                  return (
+                                    <div key={smId} className="flex items-center gap-1">
+                                      <span className="text-xs truncate max-w-[120px]">{task?.name || `#${smId}`}</span>
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        step={1}
+                                        value={pct}
+                                        onChange={e => updateAllocation(tmpl.id, charge.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
+                                        onFocus={e => e.target.select()}
+                                        className="h-6 text-xs w-14 px-1"
+                                      />
+                                      <span className="text-xs text-muted-foreground">%</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
 
                     {tasks.length === 0 && !loading && (
-                      <div className="border-t pt-4">
+                      <div className="border-t pt-3">
                         <p className="text-xs text-muted-foreground">
-                          No PO-required tasks on this template. Add tasks with PO Required enabled to configure charge auto-linking.
+                          No PO-required tasks on this template. Add tasks with PO Required enabled to configure charge PO linking.
                         </p>
                       </div>
                     )}
@@ -376,68 +413,6 @@ export function MarkupTemplatesTab() {
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-// ============================================
-// Sub-components
-// ============================================
-
-function RateField({
-  label,
-  value,
-  onChange,
-  step = 0.5,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-  step?: number;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
-      <Input
-        type="number"
-        min={0}
-        step={step}
-        value={value ?? ""}
-        placeholder="Global default"
-        onChange={e => {
-          const raw = e.target.value;
-          onChange(raw === "" ? null : parseFloat(raw) || 0);
-        }}
-        className="h-8 text-sm"
-      />
-    </div>
-  );
-}
-
-function ChargeTaskMultiSelect({
-  label,
-  values,
-  onChange,
-  tasks,
-}: {
-  label: string;
-  values: number[];
-  onChange: (v: number[]) => void;
-  tasks: SmPoTask[];
-}) {
-  const items = tasks.map(t => ({ id: t.id.toString(), label: t.name }));
-  const selectedIds = values.map(v => v.toString());
-
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-sm">{label}</Label>
-      <ComboboxMultiSelect
-        items={items}
-        selectedIds={selectedIds}
-        onChange={ids => onChange(ids.map(id => parseInt(id, 10)))}
-        placeholder="Select tasks..."
-        searchPlaceholder="Search tasks..."
-      />
     </div>
   );
 }

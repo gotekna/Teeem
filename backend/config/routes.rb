@@ -493,6 +493,7 @@ Rails.application.routes.draw do
           post :apply_winners  # Push winner selections to all tenants
           get :table_modes  # Get per-table sync direction modes
           put :update_table_mode  # Set sync direction for a single table
+          post :toggle_template_sync  # Toggle SM template between synced/independent
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
