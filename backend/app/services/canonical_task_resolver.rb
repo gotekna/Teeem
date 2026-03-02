@@ -114,7 +114,10 @@ class CanonicalTaskResolver
       end
     end
 
-    if mapping[:format] == :po_allocations
+    if field == "assigned_role"
+      # Roles are global (no tenant_id, no sync_key); stored by name, resolved by name
+      return sync_value.present? ? Role.find_by(name: sync_value)&.id : nil
+    elsif mapping[:format] == :po_allocations
       # Nested JSONB { charge_type: { sync_key: pct } } → { charge_type: { local_id: pct } }
       resolve_po_allocations(sync_value)
     elsif mapping[:array] && mapping[:format] == :predecessor

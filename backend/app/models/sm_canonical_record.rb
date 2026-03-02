@@ -232,7 +232,7 @@ class SmCanonicalRecord < ApplicationRecord
       supplier&.sync_key
     when "assigned_role"
       role = Role.find_by(id: record.assigned_role)
-      role&.sync_key
+      role&.name # Roles are global (no sync_key); store name as stable cross-tenant identifier
     when "sm_schedule_master_id"
       ref = SmScheduleMaster.find_by(id: record.sm_schedule_master_id)
       ref&.canonical_record_id ? { "canonical_record_id" => ref.canonical_record_id } : nil
