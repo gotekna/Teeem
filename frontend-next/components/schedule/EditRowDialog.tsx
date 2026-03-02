@@ -29,6 +29,8 @@ export interface EditRowData {
   duration_days: number;
   sequence_order: number;
   predecessor_ids?: Array<{ id: number; type?: string; lag?: number }>;
+  predecessor_display?: string;
+  predecessor_display_names?: string;
   trade?: string;
   stage?: string;
   trade_name?: string;
@@ -525,6 +527,7 @@ export function EditRowDialog({
               <TabsList className="w-full justify-start">
                 <TabsTrigger value="task">Task</TabsTrigger>
                 <TabsTrigger value="po-claims">PO & Claims</TabsTrigger>
+                <TabsTrigger value="dependencies">Dependencies</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
                 <TabsTrigger value="relationships">Relationships</TabsTrigger>
               </TabsList>
@@ -1024,7 +1027,106 @@ export function EditRowDialog({
               </TabsContent>
 
               {/* ============================================================
-                  TAB 3: DOCUMENTS - Plans, Doc Refs, Spawn Scan, Completion Doc
+                  TAB 3: DEPENDENCIES - Predecessors & Successors
+                 ============================================================ */}
+              <TabsContent value="dependencies" className="mt-3">
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Left: Predecessors (tasks this depends on) */}
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs font-medium">Predecessors</Label>
+                      <p className="text-[10px] text-muted-foreground mb-2">Tasks that must complete before this task can start</p>
+                      {row?.predecessor_ids && row.predecessor_ids.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {row.predecessor_ids.map((pred) => {
+                            const predTask = allRows.find(r => r.task_number === pred.id || r.id === pred.id);
+                            const depType = pred.type || "FS";
+                            const lag = pred.lag || 0;
+                            const depLabel = depType === "FS" ? "Finish-to-Start"
+                              : depType === "SS" ? "Start-to-Start"
+                              : depType === "FF" ? "Finish-to-Finish"
+                              : depType === "SF" ? "Start-to-Finish"
+                              : depType;
+                            return (
+                              <div key={`pred-${pred.id}`} className="flex items-center gap-2 p-2 rounded-md border bg-muted/30 dark:bg-muted/10">
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate">
+                                    {predTask ? predTask.name : `Task #${pred.id}`}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
+                                      {depLabel}
+                                    </Badge>
+                                    {lag !== 0 && (
+                                      <span>{lag > 0 ? `+${lag}` : lag} day{Math.abs(lag) !== 1 ? 's' : ''} lag</span>
+                                    )}
+                                    {predTask && (
+                                      <span className="text-muted-foreground/60">#{predTask.task_number} · {predTask.duration_days}d</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic py-2">No predecessors — this task has no dependencies</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Successors (tasks that depend on this) */}
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs font-medium">Successors</Label>
+                      <p className="text-[10px] text-muted-foreground mb-2">Tasks that depend on this task completing</p>
+                      {(() => {
+                        const successors = allRows.filter(r =>
+                          r.predecessor_ids?.some(p => p.id === row?.task_number || p.id === row?.id)
+                        );
+                        if (successors.length === 0) {
+                          return <p className="text-xs text-muted-foreground italic py-2">No successors — no tasks depend on this one</p>;
+                        }
+                        return (
+                          <div className="space-y-1.5">
+                            {successors.map((succ) => {
+                              const pred = succ.predecessor_ids?.find(p => p.id === row?.task_number || p.id === row?.id);
+                              const depType = pred?.type || "FS";
+                              const lag = pred?.lag || 0;
+                              const depLabel = depType === "FS" ? "Finish-to-Start"
+                                : depType === "SS" ? "Start-to-Start"
+                                : depType === "FF" ? "Finish-to-Finish"
+                                : depType === "SF" ? "Start-to-Finish"
+                                : depType;
+                              return (
+                                <div key={`succ-${succ.id}`} className="flex items-center gap-2 p-2 rounded-md border bg-muted/30 dark:bg-muted/10">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-medium truncate">
+                                      {succ.name}
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
+                                        {depLabel}
+                                      </Badge>
+                                      {lag !== 0 && (
+                                        <span>{lag > 0 ? `+${lag}` : lag} day{Math.abs(lag) !== 1 ? 's' : ''} lag</span>
+                                      )}
+                                      <span className="text-muted-foreground/60">#{succ.task_number} · {succ.duration_days}d</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* ============================================================
+                  TAB 4: DOCUMENTS - Plans, Doc Refs, Spawn Scan, Completion Doc
                  ============================================================ */}
               <TabsContent value="documents" className="mt-3">
                 <div className="grid grid-cols-2 gap-6">

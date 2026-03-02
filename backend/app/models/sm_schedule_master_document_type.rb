@@ -3,6 +3,7 @@
 class SmScheduleMasterDocumentType < ApplicationRecord
   acts_as_tenant :tenant
   include ConfigSyncable
+  include CanonicalLinkable
   self.sync_key_source = [:sm_schedule_master_id, :document_type_id]
 
   belongs_to :sm_schedule_master

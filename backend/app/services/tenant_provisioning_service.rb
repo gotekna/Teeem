@@ -62,6 +62,7 @@ class TenantProvisioningService
       setup_storage           # 8. WarehouseProvider
       sync_compulsory_config  # 9. Sync compulsory config from master tenant
       create_default_reference_data # 10. Fallback: Create defaults if no compulsory records
+      provision_canonical_sm_records # 11. Link SM records to canonical (if sync group member)
 
       # Phase 4: Optional enhancements
       start_trial if @params[:start_trial]
@@ -398,6 +399,58 @@ class TenantProvisioningService
   rescue ActiveRecord::RecordInvalid => e
     @errors << "Failed to start trial: #{e.message}"
     raise ActiveRecord::Rollback
+  end
+
+  # Link synced SM records to canonical records for inheritance-based sync.
+  # Only runs if canonical records exist. Links by sync_key matching.
+  def provision_canonical_sm_records
+    return unless SmCanonicalRecord.any?
+
+    canonical_types = {
+      "SmTrade" => SmTrade,
+      "SmStage" => SmStage,
+      "SmTaskGroup" => SmTaskGroup,
+      "SmHoldReason" => SmHoldReason,
+      "SmResource" => SmResource,
+      "BpmnProcess" => BpmnProcess,
+      "SmScheduleMasterTemplate" => SmScheduleMasterTemplate,
+      "SmScheduleMaster" => SmScheduleMaster
+    }
+
+    linked = 0
+    ActsAsTenant.with_tenant(@tenant) do
+      canonical_types.each do |type_name, model|
+        canonicals = SmCanonicalRecord.where(record_type: type_name).index_by(&:sync_key)
+        next if canonicals.empty?
+
+        model.where(canonical_record_id: nil).find_each do |record|
+          sk = record.sync_key
+          next if sk.blank?
+
+          # For tasks, try composite keys (template--task)
+          canonical = canonicals[sk]
+          unless canonical
+            # Try composite key matching for tasks
+            if type_name == "SmScheduleMaster"
+              canonical = canonicals.values.find { |c| c.sync_key.end_with?("--#{sk}") }
+            end
+          end
+          next unless canonical
+
+          record.update_columns(
+            canonical_record_id: canonical.id,
+            canonical_version: canonical.version,
+            field_overrides: []
+          )
+          linked += 1
+        end
+      end
+    end
+
+    Rails.logger.info "[TenantProvisioning] Linked #{linked} SM records to canonical for #{@tenant.name}"
+  rescue StandardError => e
+    Rails.logger.warn "[TenantProvisioning] Canonical linking warning: #{e.message}"
+    # Don't fail provisioning for canonical linking errors
   end
 
   def import_starter_templates

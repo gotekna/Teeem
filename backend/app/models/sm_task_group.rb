@@ -16,6 +16,7 @@
 class SmTaskGroup < ApplicationRecord
   acts_as_tenant :tenant
   include ConfigSyncable
+  include CanonicalLinkable
 
   has_many :sm_schedule_masters, dependent: :nullify
 

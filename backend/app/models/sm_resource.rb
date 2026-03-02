@@ -7,6 +7,7 @@
 class SmResource < ApplicationRecord
   acts_as_tenant :tenant
   include ConfigSyncable
+  include CanonicalLinkable
 
   # Resource types
   RESOURCE_TYPES = %w[person equipment material].freeze

@@ -431,6 +431,10 @@ module Api
           predecessor_ids_backup: row.predecessor_ids_backup || [],
           dependency_broken_at: row.dependency_broken_at,
           dependency_broken_by: row.dependency_broken_by_id.present? ? users_map[row.dependency_broken_by_id] : nil,
+          # Canonical sync status
+          canonical_record_id: row.canonical_record_id,
+          canonical_version: row.canonical_version,
+          field_overrides: row.field_overrides,
           created_at: row.created_at,
           updated_at: row.updated_at
         }

@@ -8,6 +8,7 @@
 class SmHoldReason < ApplicationRecord
   acts_as_tenant :tenant
   include ConfigSyncable
+  include CanonicalLinkable
 
   # Associations
   has_many :sm_tasks, dependent: :nullify

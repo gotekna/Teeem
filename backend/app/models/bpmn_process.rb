@@ -1,6 +1,7 @@
 class BpmnProcess < ApplicationRecord
   acts_as_tenant :tenant
   include ConfigSyncable
+  include CanonicalLinkable
 
   # Associations
   belongs_to :workflow_definition, optional: true

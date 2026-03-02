@@ -14,6 +14,7 @@ class SmScheduleMaster < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
   include ConfigSyncable
+  include CanonicalLinkable
   self.sync_key_source = :name
 
   # Table renamed from sm_schedule_master to sm_schedule_masters (Rails convention)
@@ -42,6 +43,7 @@ class SmScheduleMaster < ApplicationRecord
 
   # SmTasks created from this template - nullify on delete so tasks remain but lose template link
   has_many :sm_tasks, dependent: :nullify
+  has_many :custom_quote_template_lines, dependent: :nullify
 
   # Photo storage WarehouseFolder
   # NOTE: photo_entity_tab_id column was removed (migration 20251227010022).
@@ -154,6 +156,7 @@ class SmScheduleMaster < ApplicationRecord
   after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
   after_save :propagate_cost_centre_to_tasks, if: :saved_change_to_cost_centre?
   after_save :propagate_po_required_to_tasks, if: :saved_change_to_po_required?
+  after_save :propagate_canonical_changes, if: :canonical_record_id?
 
   # Helper methods
   def predecessor_task_ids
@@ -307,6 +310,36 @@ class SmScheduleMaster < ApplicationRecord
       self.order_time_days = nil
       self.call_time_days = nil
     end
+  end
+
+  # Propagate changes to canonical record if this tenant is bidirectional
+  # Only fields NOT in field_overrides get pushed to canonical
+  def propagate_canonical_changes
+    return unless canonical_record_id?
+    return unless CanonicalSyncGroupMember.bidirectional?(tenant_id)
+
+    # Detect which inheritable fields actually changed
+    inheritable = SmCanonicalRecord::INHERITABLE_FIELDS["SmScheduleMaster"] || []
+    fk_fields = SmCanonicalRecord::FK_FIELDS["SmScheduleMaster"] || []
+    all_syncable = inheritable + fk_fields
+
+    changed = saved_changes.keys & all_syncable
+    return if changed.empty?
+
+    # Don't push fields that are locally overridden
+    overrides = field_overrides || []
+    pushable = changed - overrides
+    return if pushable.empty?
+
+    # Update canonical record and trigger propagation
+    canonical = SmCanonicalRecord.find_by(id: canonical_record_id)
+    return unless canonical
+
+    canonical.update_from_local!(self, changed_fields: pushable)
+
+    CanonicalRecordPropagationJob.perform_later(
+      canonical.id, pushable, tenant_id
+    )
   end
 
   # When cost_centre changes on the template, push to all child SmTask records

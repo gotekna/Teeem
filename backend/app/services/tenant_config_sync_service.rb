@@ -20,6 +20,22 @@
 #   service.pull_from_master(table: :document_types, record_ids: [1, 2], mode: :add_new)
 #
 class TenantConfigSyncService
+  # Tables managed by canonical sync (SmCanonicalRecord + CanonicalSyncGroupMember).
+  # When a tenant is a canonical sync group member, these tables sync via canonical
+  # propagation instead of the legacy config sync. The legacy sync still works for
+  # tenants NOT in the canonical group (e.g., standalone tenants).
+  CANONICAL_MANAGED_TABLES = %i[
+    sm_schedule_master_templates sm_schedule_masters sm_trades sm_stages
+    sm_task_groups sm_hold_reasons sm_resources bpmn_processes
+    sm_schedule_master_document_types
+  ].freeze
+
+  # Check if a table is managed by canonical sync for the given tenant
+  def self.canonical_managed?(table, tenant)
+    CANONICAL_MANAGED_TABLES.include?(table.to_sym) &&
+      CanonicalSyncGroupMember.member?(tenant.id)
+  end
+
   # SSoT: Configuration tables available for sync
   # Groups for UI organization: jobs, documents, contacts, schedule, pricebook, operations, po_templates
   CONFIG_TABLES = {

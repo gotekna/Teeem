@@ -1039,7 +1039,7 @@ module Api
       end
 
       def template_params
-        params.require(:sm_schedule_master_template).permit(:name, :description, :is_default)
+        params.require(:sm_schedule_master_template).permit(:name, :description, :is_default, :is_canonical)
       end
 
       def template_json(template, include_rows: false)
@@ -1054,7 +1054,11 @@ module Api
           created_at: template.created_at,
           updated_at: template.updated_at,
           copied_from_id: template.copied_from_id,
-          copied_from_name: template.copied_from&.name
+          copied_from_name: template.copied_from&.name,
+          is_canonical: template.is_canonical,
+          canonical_record_id: template.canonical_record_id,
+          canonical_version: template.canonical_version,
+          field_overrides: template.field_overrides
         }
 
         if include_rows

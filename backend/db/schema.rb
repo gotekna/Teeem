@@ -950,6 +950,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.text "svg_preview"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.bigint "canonical_record_id"
+    t.text "field_overrides", default: [], array: true
+    t.integer "canonical_version", default: 0
+    t.index ["canonical_record_id"], name: "idx_bpmn_processes_canonical_record_id"
     t.index ["is_published"], name: "index_bpmn_processes_on_is_published"
     t.index ["name"], name: "index_bpmn_processes_on_name"
     t.index ["tenant_id", "sync_key"], name: "idx_bpmn_processes_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
@@ -1024,6 +1028,15 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["created_at"], name: "index_bug_hunter_test_runs_on_created_at"
     t.index ["template_id"], name: "index_bug_hunter_test_runs_on_template_id"
     t.index ["test_id"], name: "index_bug_hunter_test_runs_on_test_id"
+  end
+
+  create_table "canonical_sync_group_members", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "sync_direction", default: "bidirectional", null: false
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id"], name: "index_canonical_sync_group_members_on_tenant_id", unique: true
   end
 
   create_table "case_actions", force: :cascade do |t|
@@ -8652,6 +8665,20 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["user_id"], name: "index_sm_activities_on_user_id"
   end
 
+  create_table "sm_canonical_records", force: :cascade do |t|
+    t.string "record_type", null: false
+    t.string "sync_key", null: false
+    t.string "name", null: false
+    t.jsonb "fields", default: {}
+    t.jsonb "fk_sync_keys", default: {}
+    t.integer "version", default: 1
+    t.datetime "last_propagated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["record_type", "sync_key"], name: "idx_canonical_records_type_sync_key", unique: true
+    t.index ["record_type"], name: "idx_canonical_records_type"
+  end
+
   create_table "sm_comment_mentions", force: :cascade do |t|
     t.bigint "sm_comment_id", null: false
     t.bigint "user_id"
@@ -8740,6 +8767,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.bigint "canonical_record_id"
+    t.text "field_overrides", default: [], array: true
+    t.integer "canonical_version", default: 0
+    t.index ["canonical_record_id"], name: "idx_sm_hold_reasons_canonical_record_id"
     t.index ["is_active"], name: "index_sm_hold_reasons_on_is_active"
     t.index ["sequence_order"], name: "index_sm_hold_reasons_on_sequence_order"
     t.index ["tenant_id", "name"], name: "index_sm_hold_reasons_on_tenant_id_and_name", unique: true
@@ -8823,7 +8854,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.bigint "canonical_record_id"
+    t.text "field_overrides", default: [], array: true
+    t.integer "canonical_version", default: 0
     t.index ["asset_id"], name: "index_sm_resources_on_asset_id"
+    t.index ["canonical_record_id"], name: "idx_sm_resources_canonical_record_id"
     t.index ["contact_id"], name: "index_sm_resources_on_contact_id"
     t.index ["is_active"], name: "index_sm_resources_on_is_active"
     t.index ["resource_type"], name: "index_sm_resources_on_resource_type"
@@ -8865,6 +8900,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.bigint "canonical_record_id"
+    t.text "field_overrides", default: [], array: true
+    t.integer "canonical_version", default: 0
+    t.index ["canonical_record_id"], name: "idx_sm_schedule_master_document_types_canonical_record_id"
     t.index ["document_type_id"], name: "index_sm_schedule_master_document_types_on_document_type_id"
     t.index ["sm_schedule_master_id"], name: "idx_on_sm_schedule_master_id_ece8c53030"
     t.index ["tenant_id", "sm_schedule_master_id", "document_type_id"], name: "idx_sm_master_doc_type_tenant_unique", unique: true
@@ -8895,6 +8934,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "copied_from_id"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.boolean "is_canonical", default: false
+    t.bigint "canonical_record_id"
+    t.text "field_overrides", default: [], array: true
+    t.integer "canonical_version", default: 0
+    t.index ["canonical_record_id"], name: "idx_sm_schedule_master_templates_canonical_record_id"
     t.index ["copied_from_id"], name: "idx_sm_templates_copied_from"
     t.index ["created_by_id"], name: "index_sm_schedule_master_templates_on_created_by_id"
     t.index ["is_active"], name: "index_sm_schedule_master_templates_on_is_active"
@@ -8981,6 +9025,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "tender_id"
     t.jsonb "plan_type_ids", default: []
     t.jsonb "document_ref_type_ids", default: []
+    t.bigint "canonical_record_id"
+    t.text "field_overrides", default: [], array: true
+    t.integer "canonical_version", default: 0
+    t.index ["canonical_record_id"], name: "idx_sm_schedule_masters_canonical_record_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
@@ -9048,6 +9096,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "updated_by"
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.bigint "canonical_record_id"
+    t.text "field_overrides", default: [], array: true
+    t.integer "canonical_version", default: 0
+    t.index ["canonical_record_id"], name: "idx_sm_stages_canonical_record_id"
     t.index ["tenant_id", "sync_key"], name: "idx_sm_stages_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_stages_on_tenant_id"
   end
@@ -9100,6 +9152,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.bigint "canonical_record_id"
+    t.text "field_overrides", default: [], array: true
+    t.integer "canonical_version", default: 0
+    t.index ["canonical_record_id"], name: "idx_sm_task_groups_canonical_record_id"
     t.index ["is_active"], name: "index_sm_task_groups_on_is_active"
     t.index ["tenant_id", "sync_key"], name: "idx_sm_task_groups_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_task_groups_on_tenant_id"
@@ -9364,6 +9420,10 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "updated_by"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.bigint "canonical_record_id"
+    t.text "field_overrides", default: [], array: true
+    t.integer "canonical_version", default: 0
+    t.index ["canonical_record_id"], name: "idx_sm_trades_canonical_record_id"
     t.index ["tenant_id", "sync_key"], name: "idx_sm_trades_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_trades_on_tenant_id"
   end
@@ -11743,12 +11803,14 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "bpmn_edges", "bpmn_processes", on_delete: :cascade
   add_foreign_key "bpmn_nodes", "bpmn_processes", on_delete: :cascade
   add_foreign_key "bpmn_process_instances", "bpmn_processes"
+  add_foreign_key "bpmn_processes", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "bpmn_task_instances", "bpmn_nodes"
   add_foreign_key "bpmn_task_instances", "bpmn_tokens", on_delete: :cascade
   add_foreign_key "bpmn_tokens", "bpmn_nodes", column: "current_node_id"
   add_foreign_key "bpmn_tokens", "bpmn_process_instances", on_delete: :cascade
   add_foreign_key "bpmn_tokens", "bpmn_tokens", column: "parent_token_id"
   add_foreign_key "bpmn_triggers", "bpmn_processes", on_delete: :cascade
+  add_foreign_key "canonical_sync_group_members", "tenants"
   add_foreign_key "case_actions", "cases"
   add_foreign_key "case_actions", "users", column: "created_by_id"
   add_foreign_key "case_companies", "cases"
@@ -12531,6 +12593,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_hold_logs", "sm_tasks", column: "hold_task_id", on_delete: :cascade
   add_foreign_key "sm_hold_logs", "users", column: "hold_released_by_id", on_delete: :nullify
   add_foreign_key "sm_hold_logs", "users", column: "hold_started_by_id", on_delete: :nullify
+  add_foreign_key "sm_hold_reasons", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_hold_reasons", "tenants", on_delete: :cascade
   add_foreign_key "sm_recurring_task_definitions", "jobs"
   add_foreign_key "sm_recurring_task_definitions", "users", column: "assigned_user_id"
@@ -12539,15 +12602,18 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_resource_allocations", "sm_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "sm_resource_allocations", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_resources", "contacts", on_delete: :nullify
+  add_foreign_key "sm_resources", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_resources", "tenants", on_delete: :cascade
   add_foreign_key "sm_resources", "users", on_delete: :nullify
   add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_schedule_master_document_types", "document_types"
+  add_foreign_key "sm_schedule_master_document_types", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_schedule_master_document_types", "sm_schedule_masters"
   add_foreign_key "sm_schedule_master_document_types", "tenants", on_delete: :cascade
   add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters"
   add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters", column: "related_sm_schedule_master_id"
+  add_foreign_key "sm_schedule_master_templates", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_schedule_master_templates", "sm_schedule_master_templates", column: "copied_from_id"
   add_foreign_key "sm_schedule_master_templates", "tenants"
   add_foreign_key "sm_schedule_master_templates", "users", column: "created_by_id"
@@ -12556,6 +12622,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "start_workflow_id"
   add_foreign_key "sm_schedule_masters", "claim_invoice_templates"
   add_foreign_key "sm_schedule_masters", "document_types", column: "completion_document_type_id"
+  add_foreign_key "sm_schedule_masters", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_schedule_masters", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
   add_foreign_key "sm_schedule_masters", "sm_task_groups"
   add_foreign_key "sm_schedule_masters", "supervisor_checklist_templates", column: "checklist_id"
@@ -12565,6 +12632,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
+  add_foreign_key "sm_stages", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_stages", "tenants", on_delete: :cascade
   add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
   add_foreign_key "sm_task_attachments", "task_action_items", column: "action_item_id"
@@ -12572,6 +12640,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_task_attachments", "users", column: "deleted_by_id", on_delete: :nullify
   add_foreign_key "sm_task_document_types", "document_types"
   add_foreign_key "sm_task_document_types", "sm_tasks"
+  add_foreign_key "sm_task_groups", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_task_notes", "sm_tasks"
   add_foreign_key "sm_task_notes", "users"
   add_foreign_key "sm_task_photos", "document_types"
@@ -12604,6 +12673,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_time_entries", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_time_entries", "users", column: "approved_by_id", on_delete: :nullify
   add_foreign_key "sm_time_entries", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_trades", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_trades", "tenants"
   add_foreign_key "sm_voice_notes", "sm_resources", column: "resource_id"
   add_foreign_key "sm_voice_notes", "sm_tasks"
