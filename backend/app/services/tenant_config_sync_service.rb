@@ -1807,11 +1807,33 @@ class TenantConfigSyncService
   #    warehouse_folders where name + warehouse_type_id + parent_id must be unique)
   def find_uniqueness_collision(model, attrs, match_fields, source_record)
     ActsAsTenant.with_tenant(tenant) do
-      # Strategy 1: match_fields as DB columns (fast, covers most cases)
+      # Strategy 0: Find by sync_key — the most common unique constraint
+      # The PG::UniqueViolation is almost always on (tenant_id, sync_key), so check this first.
+      if source_record.respond_to?(:sync_key) && source_record.sync_key.present?
+        found = model.find_by(sync_key: source_record.sync_key)
+        return found if found
+      end
+
+      # Strategy 1: match_fields using REMAPPED attrs (target tenant FK values)
+      # Must use attrs (remapped) not source_record (source tenant FKs won't match).
       db_columns = model.column_names
+      if match_fields.size > 1
+        # Composite match: try all match_fields together first
+        composite = {}
+        match_fields.each do |field|
+          next unless db_columns.include?(field.to_s)
+          value = attrs.key?(field) ? attrs[field] : source_record.send(field)
+          composite[field] = value if value.present?
+        end
+        if composite.size == match_fields.size
+          found = model.find_by(composite)
+          return found if found
+        end
+      end
+      # Individual field fallback
       match_fields.each do |field|
         next unless db_columns.include?(field.to_s)
-        value = source_record.send(field)
+        value = attrs.key?(field) ? attrs[field] : source_record.send(field)
         next if value.blank?
         found = model.find_by(field => value) ||
                 model.where("LOWER(#{model.connection.quote_column_name(field)}) = ?",
@@ -1819,12 +1841,10 @@ class TenantConfigSyncService
         return found if found
       end
 
-      # Strategy 2: Use the remapped sync attrs (actual DB column values)
-      # Extract unique-looking column combinations from attrs
-      # Try name-based lookups since most uniqueness validations include name
+      # Strategy 2: Name-based lookup with available FK narrowing
       if attrs[:name].present?
-        # Build progressively narrower queries using available FK columns
         query = model.where(name: attrs[:name])
+        query = query.where(po_template_pack_id: attrs[:po_template_pack_id]) if attrs.key?(:po_template_pack_id)
         query = query.where(warehouse_type_id: attrs[:warehouse_type_id]) if attrs.key?(:warehouse_type_id)
         query = query.where(parent_id: attrs[:parent_id]) if attrs.key?(:parent_id)
         found = query.first
