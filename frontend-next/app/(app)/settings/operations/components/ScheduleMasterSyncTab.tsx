@@ -890,9 +890,24 @@ export function ScheduleMasterSyncTab() {
                                       <span>{cov.linked.toLocaleString()}</span>
                                       <span
                                         className="text-amber-600 dark:text-amber-400"
-                                        title={`${cov.local_only} local-only record${cov.local_only !== 1 ? "s" : ""} (not in TEEEM)`}
+                                        title={`${cov.local_only} local-only record${cov.local_only !== 1 ? "s" : ""} (not in source)`}
                                       >
                                         +{cov.local_only}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                // Show delta when local has more than source (e.g. tasks pending propagation)
+                                const localDelta = localCount - sourceCount;
+                                if (localDelta > 0) {
+                                  return (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span>{localCount.toLocaleString()}</span>
+                                      <span
+                                        className="text-muted-foreground text-[10px]"
+                                        title={`${localDelta} local record${localDelta !== 1 ? "s" : ""} not yet in source (propagating to other tenants)`}
+                                      >
+                                        +{localDelta}
                                       </span>
                                     </div>
                                   );
@@ -935,7 +950,18 @@ export function ScheduleMasterSyncTab() {
                               <span className="text-xs text-muted-foreground">
                                 {result.imported > 0 && <span className="text-green-600 dark:text-green-400">+{result.imported}</span>}
                                 {result.imported > 0 && result.updated > 0 && ", "}
-                                {result.updated > 0 && <span className="text-blue-600 dark:text-blue-400">{result.updated} upd</span>}
+                                {result.updated > 0 && (
+                                  <span
+                                    className="text-blue-600 dark:text-blue-400"
+                                    title={[
+                                      `${result.updated} record${result.updated !== 1 ? "s" : ""} updated`,
+                                      result.skipped > 0 ? `${result.skipped} already up to date` : null,
+                                      result.imported > 0 ? `${result.imported} created` : null,
+                                    ].filter(Boolean).join(" · ")}
+                                  >
+                                    {result.updated} upd
+                                  </span>
+                                )}
                                 {result.imported === 0 && result.updated === 0 && "up to date"}
                               </span>
                             )}
