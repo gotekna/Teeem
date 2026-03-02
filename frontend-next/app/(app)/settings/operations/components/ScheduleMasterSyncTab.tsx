@@ -30,31 +30,34 @@ import { cn } from "@/lib/utils";
  */
 
 // Tables to sync in dependency order
-// syncType: "canonical" = two-way via SmCanonicalRecord, "config" = one-way pull from TEEEM, "independent" = local only
+// defaultMode: default sync direction — admin can override per-table
 const SM_SYNC_TABLES = [
-  { key: "sm_trades", label: "Trades", syncType: "canonical" as const },
-  { key: "sm_stages", label: "Stages", syncType: "canonical" as const },
-  { key: "cost_centres", label: "Cost Centres", syncType: "config" as const },
-  { key: "supervisor_checklist_templates", label: "Checklists", syncType: "config" as const },
-  { key: "document_types", label: "Document Types", syncType: "config" as const },
-  { key: "sm_schedule_master_templates", label: "SM Templates", syncType: "canonical" as const },
-  { key: "sm_task_groups", label: "Task Groups", syncType: "canonical" as const },
-  { key: "bpmn_processes", label: "Workflows", syncType: "canonical" as const },
-  { key: "sm_schedule_masters", label: "SM Tasks", syncType: "canonical" as const },
-  { key: "sm_schedule_master_document_types", label: "SM Document Types", syncType: "canonical" as const },
-  { key: "sm_schedule_master_related_pos", label: "Related PO Links", syncType: "config" as const },
-  { key: "sm_hold_reasons", label: "Hold Reasons", syncType: "canonical" as const },
-  { key: "sm_resources", label: "Resources", syncType: "canonical" as const },
-  { key: "po_template_packs", label: "PO Template Packs", syncType: "config" as const },
-  { key: "po_template_items", label: "PO Template Items", syncType: "config" as const },
-  { key: "po_template_line_items", label: "PO Line Items", syncType: "config" as const },
-  { key: "quote_templates", label: "Quote Templates (Std)", syncType: "config" as const },
-  { key: "custom_quote_templates", label: "Quote Templates (Custom)", syncType: "config" as const },
+  { key: "sm_trades", label: "Trades", defaultMode: "two_way" as const },
+  { key: "sm_stages", label: "Stages", defaultMode: "two_way" as const },
+  { key: "cost_centres", label: "Cost Centres", defaultMode: "one_way" as const },
+  { key: "supervisor_checklist_templates", label: "Checklists", defaultMode: "one_way" as const },
+  { key: "document_types", label: "Document Types", defaultMode: "one_way" as const },
+  { key: "sm_schedule_master_templates", label: "SM Templates", defaultMode: "two_way" as const },
+  { key: "sm_task_groups", label: "Task Groups", defaultMode: "two_way" as const },
+  { key: "bpmn_processes", label: "Workflows", defaultMode: "two_way" as const },
+  { key: "sm_schedule_masters", label: "SM Tasks", defaultMode: "two_way" as const },
+  { key: "sm_schedule_master_document_types", label: "SM Document Types", defaultMode: "two_way" as const },
+  { key: "sm_schedule_master_related_pos", label: "Related PO Links", defaultMode: "one_way" as const },
+  { key: "sm_hold_reasons", label: "Hold Reasons", defaultMode: "two_way" as const },
+  { key: "sm_resources", label: "Resources", defaultMode: "two_way" as const },
+  { key: "po_template_packs", label: "PO Template Packs", defaultMode: "one_way" as const },
+  { key: "po_template_items", label: "PO Template Items", defaultMode: "one_way" as const },
+  { key: "po_template_line_items", label: "PO Line Items", defaultMode: "one_way" as const },
+  { key: "quote_templates", label: "Quote Templates (Std)", defaultMode: "one_way" as const },
+  { key: "custom_quote_templates", label: "Quote Templates (Custom)", defaultMode: "one_way" as const },
 ] as const;
 
-const SYNC_TYPE_LABELS: Record<string, { label: string; color: string }> = {
-  canonical: { label: "Two-way", color: "text-green-600 dark:text-green-400" },
-  config: { label: "One-way", color: "text-blue-600 dark:text-blue-400" },
+type SyncMode = "two_way" | "one_way" | "independent";
+const SYNC_MODES: SyncMode[] = ["two_way", "one_way", "independent"];
+
+const SYNC_MODE_LABELS: Record<SyncMode, { label: string; color: string }> = {
+  two_way: { label: "Two-way", color: "text-green-600 dark:text-green-400" },
+  one_way: { label: "One-way", color: "text-blue-600 dark:text-blue-400" },
   independent: { label: "Independent", color: "text-muted-foreground" },
 };
 
@@ -120,6 +123,16 @@ export function ScheduleMasterSyncTab() {
   const [lastSyncBy, setLastSyncBy] = useState<string | null>(null);
   const [syncComplete, setSyncComplete] = useState(false);
 
+  // Per-table sync direction modes (admin-configurable)
+  const [tableModes, setTableModes] = useState<Record<string, SyncMode>>({});
+
+  // Sync coverage: linked vs local-only vs master-only per table
+  // Non-master: { table: { linked, local_only, master_only } }
+  // Master: { table: { tenantSlug: { linked, local_only, master_only } } }
+  type TemplateBreakdown = { name: string; tasks: number; synced: boolean };
+  type CoverageEntry = { linked: number; local_only: number; master_only: number; templates?: TemplateBreakdown[] };
+  const [syncCoverage, setSyncCoverage] = useState<Record<string, CoverageEntry | Record<string, CoverageEntry>>>({});
+
   // Compare mode state
   const [diffTable, setDiffTable] = useState<string | null>(null);
   const [diffData, setDiffData] = useState<DiffResponse | null>(null);
@@ -143,12 +156,22 @@ export function ScheduleMasterSyncTab() {
         all_tenant_counts?: Record<string, Record<string, number>>;
         last_config_sync_at?: string | null;
         last_config_sync_by?: string | null;
+        sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>>;
       }>("/api/v1/config_sync/tables");
+
+      // Also fetch saved table modes
+      const modesResponse = await api.get<{ success: boolean; modes: Record<string, SyncMode> }>("/api/v1/config_sync/table_modes");
+      if (modesResponse?.success && modesResponse.modes) {
+        setTableModes(modesResponse.modes);
+      }
 
       if (response?.success) {
         setLastSyncAt(response.last_config_sync_at || null);
         setLastSyncBy(response.last_config_sync_by || null);
         setIsMasterTenant(response.is_master_tenant || false);
+        if (response.sync_coverage) {
+          setSyncCoverage(response.sync_coverage);
+        }
 
         if (response.is_master_tenant && response.all_tenants && response.all_tenant_counts) {
           setAllTenants(response.all_tenants);
@@ -203,6 +226,26 @@ export function ScheduleMasterSyncTab() {
       return allTenantCounts[tableKey]?.[masterTenant.slug] || 0;
     }
     return simpleCounts[tableKey]?.tenant ?? 0;
+  };
+
+  // Get effective sync mode for a table (admin override > default)
+  const getTableMode = (tableKey: string, defaultMode: string): SyncMode => {
+    return tableModes[tableKey] || (defaultMode as SyncMode);
+  };
+
+  // Cycle sync mode: two_way → one_way → independent → two_way
+  const handleCycleSyncMode = async (tableKey: string, currentMode: SyncMode) => {
+    const currentIndex = SYNC_MODES.indexOf(currentMode);
+    const nextMode = SYNC_MODES[(currentIndex + 1) % SYNC_MODES.length];
+    // Optimistic update
+    setTableModes((prev) => ({ ...prev, [tableKey]: nextMode }));
+    try {
+      await api.put("/api/v1/config_sync/update_table_mode", { table: tableKey, mode: nextMode });
+    } catch (err) {
+      console.error("[SMSync] Failed to update table mode:", err);
+      // Revert on failure
+      setTableModes((prev) => ({ ...prev, [tableKey]: currentMode }));
+    }
   };
 
   // Pull a single table with auto-batching
@@ -633,12 +676,28 @@ export function ScheduleMasterSyncTab() {
                         {isMasterTenant && allTenants.length > 0 ? (
                           allTenants.map((t) => {
                             const count = allTenantCounts[table.key]?.[t.slug] || 0;
+                            // For non-master tenants, show linked+unlinked breakdown
+                            const tenantCov = !t.is_master
+                              ? (syncCoverage[table.key] as Record<string, CoverageEntry> | undefined)?.[t.slug]
+                              : undefined;
                             return (
                               <TableCell key={t.slug} className={cn(
                                 "text-right tabular-nums text-sm py-2",
                                 countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
                               )}>
-                                {count.toLocaleString()}
+                                {tenantCov && tenantCov.local_only > 0 ? (
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span>{tenantCov.linked.toLocaleString()}</span>
+                                    <span
+                                      className="text-amber-600 dark:text-amber-400"
+                                      title={`${tenantCov.local_only} local-only (not in TEEEM)`}
+                                    >
+                                      +{tenantCov.local_only}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  count.toLocaleString()
+                                )}
                               </TableCell>
                             );
                           })
@@ -651,16 +710,80 @@ export function ScheduleMasterSyncTab() {
                               "text-right tabular-nums text-sm py-2",
                               countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
                             )}>
-                              {localCount.toLocaleString()}
+                              {(() => {
+                                const cov = syncCoverage[table.key] as CoverageEntry | undefined;
+                                if (cov && "local_only" in cov && cov.local_only > 0) {
+                                  return (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span>{cov.linked.toLocaleString()}</span>
+                                      <span
+                                        className="text-amber-600 dark:text-amber-400"
+                                        title={`${cov.local_only} local-only record${cov.local_only !== 1 ? "s" : ""} (not in TEEEM)`}
+                                      >
+                                        +{cov.local_only}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return localCount.toLocaleString();
+                              })()}
                             </TableCell>
                           </>
                         )}
                         <TableCell className="text-center py-2">
                           {(() => {
-                            const st = SYNC_TYPE_LABELS[table.syncType];
-                            return st ? (
-                              <span className={cn("text-xs font-medium", st.color)}>{st.label}</span>
-                            ) : null;
+                            const mode = getTableMode(table.key, table.defaultMode);
+                            const st = SYNC_MODE_LABELS[mode];
+                            if (!st) return null;
+
+                            // Check if this table has per-template breakdown (SM Tasks)
+                            const cov = isMasterTenant
+                              ? undefined
+                              : (syncCoverage[table.key] as CoverageEntry | undefined);
+                            const templates = cov && "templates" in cov ? cov.templates : undefined;
+
+                            if (templates && templates.length > 0) {
+                              // Per-template breakdown: show each template's sync status
+                              const synced = templates.filter(t => t.synced);
+                              const independent = templates.filter(t => !t.synced);
+                              const syncedTasks = synced.reduce((s, t) => s + t.tasks, 0);
+                              const independentTasks = independent.reduce((s, t) => s + t.tasks, 0);
+
+                              return (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  {syncedTasks > 0 && (
+                                    <span
+                                      className="text-xs font-medium text-green-600 dark:text-green-400"
+                                      title={synced.map(t => `${t.name} (${t.tasks})`).join(", ")}
+                                    >
+                                      Two-way ({syncedTasks})
+                                    </span>
+                                  )}
+                                  {independentTasks > 0 && (
+                                    <span
+                                      className="text-[10px] text-muted-foreground leading-tight"
+                                      title={independent.map(t => `${t.name} (${t.tasks})`).join(", ")}
+                                    >
+                                      {independentTasks} independent
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <button
+                                type="button"
+                                className={cn(
+                                  "text-xs font-medium cursor-pointer hover:underline transition-colors",
+                                  st.color,
+                                )}
+                                onClick={() => handleCycleSyncMode(table.key, mode)}
+                                title={`Click to change sync direction (${SYNC_MODES.map(m => SYNC_MODE_LABELS[m].label).join(" → ")})`}
+                              >
+                                {st.label}
+                              </button>
+                            );
                           })()}
                         </TableCell>
                         <TableCell className="text-right py-2">

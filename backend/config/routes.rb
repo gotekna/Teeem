@@ -491,6 +491,8 @@ Rails.application.routes.draw do
           post :record_sync  # Record that a full sync was performed
           get "diff_all/:table", action: :diff_all  # Compare table across ALL tenants
           post :apply_winners  # Push winner selections to all tenants
+          get :table_modes  # Get per-table sync direction modes
+          put :update_table_mode  # Set sync direction for a single table
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"

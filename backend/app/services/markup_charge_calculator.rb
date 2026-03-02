@@ -73,6 +73,27 @@ class MarkupChargeCalculator
       default_rate: effective_rate(:default_overheads_percent)
     )
 
+    # Builds Contingency: PO-link charge (% of sell subtotal, or $ override)
+    charges[:builds_contingency] = calc_charge(
+      :builds_contingency,
+      basis: sell_subtotal,
+      default_rate: 0
+    )
+
+    # Project Prelims: PO-link charge (% of sell subtotal, or $ override)
+    charges[:project_prelims] = calc_charge(
+      :project_prelims,
+      basis: sell_subtotal,
+      default_rate: 0
+    )
+
+    # Project Management: PO-link charge (% of sell subtotal, or $ override)
+    charges[:project_management] = calc_charge(
+      :project_management,
+      basis: sell_subtotal,
+      default_rate: 0
+    )
+
     # Sum non-QBCC charges
     charges_total = charges.values.sum { |c| c[:effective_amount] }.round(2)
     subtotal_with_charges = (sell_subtotal + charges_total).round(2)
@@ -274,7 +295,10 @@ class MarkupChargeCalculator
     "construction_insurance" => :charge_construction_insurance_sm_ids,
     "qleave" => :charge_qleave_sm_ids,
     "overheads" => :charge_overheads_sm_ids,
-    "qbcc_insurance" => :charge_qbcc_insurance_sm_ids
+    "qbcc_insurance" => :charge_qbcc_insurance_sm_ids,
+    "builds_contingency" => :charge_builds_contingency_sm_ids,
+    "project_prelims" => :charge_project_prelims_sm_ids,
+    "project_management" => :charge_project_management_sm_ids
   }.freeze
 
   # Auto-link charges to POs by finding the job's SmTasks that were copied from

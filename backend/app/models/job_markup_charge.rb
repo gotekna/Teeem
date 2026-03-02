@@ -10,13 +10,16 @@
 class JobMarkupCharge < ApplicationRecord
   acts_as_tenant :tenant
 
-  CHARGE_TYPES = %w[construction_insurance qleave overheads qbcc_insurance].freeze
+  CHARGE_TYPES = %w[construction_insurance qleave overheads qbcc_insurance builds_contingency project_prelims project_management].freeze
 
   LABELS = {
     "construction_insurance" => "Builder's Construction Insurance",
     "qleave" => "QLeave",
     "overheads" => "Overheads",
-    "qbcc_insurance" => "QBCC Home Warranty Insurance"
+    "qbcc_insurance" => "QBCC Home Warranty Insurance",
+    "builds_contingency" => "Builds Contingency",
+    "project_prelims" => "Project Prelims",
+    "project_management" => "Project Management"
   }.freeze
 
   belongs_to :job

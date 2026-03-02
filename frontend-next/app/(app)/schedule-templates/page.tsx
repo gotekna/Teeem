@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { ComboboxMultiSelect } from "@/components/ui/combobox-multi-select";
 import { api } from "@/lib/api";
 
 interface SmScheduleMasterTemplate {
@@ -58,6 +58,12 @@ interface SmScheduleMasterTemplate {
   charge_overheads_sm_tasks: { id: number; name: string }[];
   charge_qbcc_insurance_sm_ids: number[];
   charge_qbcc_insurance_sm_tasks: { id: number; name: string }[];
+  charge_builds_contingency_sm_ids: number[];
+  charge_builds_contingency_sm_tasks: { id: number; name: string }[];
+  charge_project_prelims_sm_ids: number[];
+  charge_project_prelims_sm_tasks: { id: number; name: string }[];
+  charge_project_management_sm_ids: number[];
+  charge_project_management_sm_tasks: { id: number; name: string }[];
   // Per-template markup rate overrides (null = use global default)
   defaultBuilderMarginPercent: number | null;
   defaultEscalationPercent: number | null;
@@ -92,6 +98,9 @@ export default function ScheduleTemplatesPage() {
     charge_qleave_sm_ids: [] as number[],
     charge_overheads_sm_ids: [] as number[],
     charge_qbcc_insurance_sm_ids: [] as number[],
+    charge_builds_contingency_sm_ids: [] as number[],
+    charge_project_prelims_sm_ids: [] as number[],
+    charge_project_management_sm_ids: [] as number[],
     default_builder_margin_percent: null as number | null,
     default_escalation_percent: null as number | null,
     pc_ps_markup_cap_percent: null as number | null,
@@ -129,6 +138,9 @@ export default function ScheduleTemplatesPage() {
       charge_qleave_sm_ids: [],
       charge_overheads_sm_ids: [],
       charge_qbcc_insurance_sm_ids: [],
+      charge_builds_contingency_sm_ids: [],
+      charge_project_prelims_sm_ids: [],
+      charge_project_management_sm_ids: [],
       default_builder_margin_percent: null,
       default_escalation_percent: null,
       pc_ps_markup_cap_percent: null,
@@ -150,6 +162,9 @@ export default function ScheduleTemplatesPage() {
       charge_qleave_sm_ids: template.charge_qleave_sm_ids || [],
       charge_overheads_sm_ids: template.charge_overheads_sm_ids || [],
       charge_qbcc_insurance_sm_ids: template.charge_qbcc_insurance_sm_ids || [],
+      charge_builds_contingency_sm_ids: template.charge_builds_contingency_sm_ids || [],
+      charge_project_prelims_sm_ids: template.charge_project_prelims_sm_ids || [],
+      charge_project_management_sm_ids: template.charge_project_management_sm_ids || [],
       default_builder_margin_percent: template.defaultBuilderMarginPercent,
       default_escalation_percent: template.defaultEscalationPercent,
       pc_ps_markup_cap_percent: template.pcPsMarkupCapPercent,
@@ -518,6 +533,24 @@ export default function ScheduleTemplatesPage() {
                   onChange={v => setFormData(f => ({ ...f, charge_qbcc_insurance_sm_ids: v }))}
                   tasks={poTasks}
                 />
+                <ChargeSmTaskMultiSelect
+                  label="Builds Contingency"
+                  values={formData.charge_builds_contingency_sm_ids}
+                  onChange={v => setFormData(f => ({ ...f, charge_builds_contingency_sm_ids: v }))}
+                  tasks={poTasks}
+                />
+                <ChargeSmTaskMultiSelect
+                  label="Project Prelims"
+                  values={formData.charge_project_prelims_sm_ids}
+                  onChange={v => setFormData(f => ({ ...f, charge_project_prelims_sm_ids: v }))}
+                  tasks={poTasks}
+                />
+                <ChargeSmTaskMultiSelect
+                  label="Project Management"
+                  values={formData.charge_project_management_sm_ids}
+                  onChange={v => setFormData(f => ({ ...f, charge_project_management_sm_ids: v }))}
+                  tasks={poTasks}
+                />
               </div>
             )}
           </div>
@@ -587,45 +620,19 @@ function ChargeSmTaskMultiSelect({
   onChange: (v: number[]) => void;
   tasks: SmPoTask[];
 }) {
-  // Available tasks = tasks not yet selected
-  const available: ComboboxItem[] = tasks
-    .filter(t => !values.includes(t.id))
-    .map(t => ({ id: t.id.toString(), label: t.name }));
-
-  const selectedTasks = values
-    .map(id => tasks.find(t => t.id === id))
-    .filter(Boolean) as SmPoTask[];
+  const items = tasks.map(t => ({ id: t.id.toString(), label: t.name }));
+  const selectedIds = values.map(v => v.toString());
 
   return (
     <div className="space-y-1.5">
       <Label className="text-sm">{label}</Label>
-      {selectedTasks.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedTasks.map(task => (
-            <span
-              key={task.id}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-xs"
-            >
-              {task.name}
-              <button
-                type="button"
-                onClick={() => onChange(values.filter(id => id !== task.id))}
-                className="text-muted-foreground hover:text-foreground ml-0.5"
-              >
-                &times;
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      {available.length > 0 && (
-        <ComboboxDropdown
-          items={available}
-          onSelect={item => onChange([...values, parseInt(item.id, 10)])}
-          placeholder={values.length > 0 ? "Add another task..." : "Select task..."}
-          searchPlaceholder="Search tasks..."
-        />
-      )}
+      <ComboboxMultiSelect
+        items={items}
+        selectedIds={selectedIds}
+        onChange={ids => onChange(ids.map(id => parseInt(id, 10)))}
+        placeholder="Select tasks..."
+        searchPlaceholder="Search tasks..."
+      />
     </div>
   );
 }

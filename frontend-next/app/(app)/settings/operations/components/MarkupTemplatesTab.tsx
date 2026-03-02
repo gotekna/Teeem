@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { ComboboxMultiSelect } from "@/components/ui/combobox-multi-select";
 import { ChevronDown, ChevronRight, Save } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
@@ -31,6 +31,9 @@ interface TemplateMarkup {
   charge_qleave_sm_ids: number[];
   charge_overheads_sm_ids: number[];
   charge_qbcc_insurance_sm_ids: number[];
+  charge_builds_contingency_sm_ids: number[];
+  charge_project_prelims_sm_ids: number[];
+  charge_project_management_sm_ids: number[];
   // Per-template markup rate overrides
   defaultBuilderMarginPercent: number | null;
   defaultEscalationPercent: number | null;
@@ -85,6 +88,9 @@ export function MarkupTemplatesTab() {
           charge_qleave_sm_ids: tmpl.charge_qleave_sm_ids || [],
           charge_overheads_sm_ids: tmpl.charge_overheads_sm_ids || [],
           charge_qbcc_insurance_sm_ids: tmpl.charge_qbcc_insurance_sm_ids || [],
+          charge_builds_contingency_sm_ids: tmpl.charge_builds_contingency_sm_ids || [],
+          charge_project_prelims_sm_ids: tmpl.charge_project_prelims_sm_ids || [],
+          charge_project_management_sm_ids: tmpl.charge_project_management_sm_ids || [],
           defaultBuilderMarginPercent: tmpl.defaultBuilderMarginPercent,
           defaultEscalationPercent: tmpl.defaultEscalationPercent,
           pcPsMarkupCapPercent: tmpl.pcPsMarkupCapPercent,
@@ -127,6 +133,9 @@ export function MarkupTemplatesTab() {
           charge_qleave_sm_ids: edits.charge_qleave_sm_ids || [],
           charge_overheads_sm_ids: edits.charge_overheads_sm_ids || [],
           charge_qbcc_insurance_sm_ids: edits.charge_qbcc_insurance_sm_ids || [],
+          charge_builds_contingency_sm_ids: edits.charge_builds_contingency_sm_ids || [],
+          charge_project_prelims_sm_ids: edits.charge_project_prelims_sm_ids || [],
+          charge_project_management_sm_ids: edits.charge_project_management_sm_ids || [],
           default_builder_margin_percent: edits.defaultBuilderMarginPercent,
           default_escalation_percent: edits.defaultEscalationPercent,
           pc_ps_markup_cap_percent: edits.pcPsMarkupCapPercent,
@@ -268,6 +277,24 @@ export function MarkupTemplatesTab() {
                           onChange={v => updateField(tmpl.id, "charge_qbcc_insurance_sm_ids", v)}
                           tasks={tasks}
                         />
+                        <ChargeTaskMultiSelect
+                          label="Builds Contingency"
+                          values={(edits.charge_builds_contingency_sm_ids as number[]) || []}
+                          onChange={v => updateField(tmpl.id, "charge_builds_contingency_sm_ids", v)}
+                          tasks={tasks}
+                        />
+                        <ChargeTaskMultiSelect
+                          label="Project Prelims"
+                          values={(edits.charge_project_prelims_sm_ids as number[]) || []}
+                          onChange={v => updateField(tmpl.id, "charge_project_prelims_sm_ids", v)}
+                          tasks={tasks}
+                        />
+                        <ChargeTaskMultiSelect
+                          label="Project Management"
+                          values={(edits.charge_project_management_sm_ids as number[]) || []}
+                          onChange={v => updateField(tmpl.id, "charge_project_management_sm_ids", v)}
+                          tasks={tasks}
+                        />
                       </div>
                     )}
 
@@ -344,44 +371,19 @@ function ChargeTaskMultiSelect({
   onChange: (v: number[]) => void;
   tasks: SmPoTask[];
 }) {
-  const available: ComboboxItem[] = tasks
-    .filter(t => !values.includes(t.id))
-    .map(t => ({ id: t.id.toString(), label: t.name }));
-
-  const selectedTasks = values
-    .map(id => tasks.find(t => t.id === id))
-    .filter(Boolean) as SmPoTask[];
+  const items = tasks.map(t => ({ id: t.id.toString(), label: t.name }));
+  const selectedIds = values.map(v => v.toString());
 
   return (
     <div className="space-y-1.5">
       <Label className="text-sm">{label}</Label>
-      {selectedTasks.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedTasks.map(task => (
-            <span
-              key={task.id}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-xs"
-            >
-              {task.name}
-              <button
-                type="button"
-                onClick={() => onChange(values.filter(id => id !== task.id))}
-                className="text-muted-foreground hover:text-foreground ml-0.5"
-              >
-                &times;
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      {available.length > 0 && (
-        <ComboboxDropdown
-          items={available}
-          onSelect={item => onChange([...values, parseInt(item.id, 10)])}
-          placeholder={values.length > 0 ? "Add another task..." : "Select task..."}
-          searchPlaceholder="Search tasks..."
-        />
-      )}
+      <ComboboxMultiSelect
+        items={items}
+        selectedIds={selectedIds}
+        onChange={ids => onChange(ids.map(id => parseInt(id, 10)))}
+        placeholder="Select tasks..."
+        searchPlaceholder="Search tasks..."
+      />
     </div>
   );
 }

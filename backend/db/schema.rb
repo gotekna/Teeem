@@ -8971,16 +8971,16 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
     t.integer "canonical_version", default: 0
-    t.bigint "charge_construction_insurance_sm_id"
-    t.bigint "charge_qleave_sm_id"
-    t.bigint "charge_overheads_sm_id"
-    t.bigint "charge_qbcc_insurance_sm_id"
     t.decimal "default_builder_margin_percent", precision: 5, scale: 2
     t.decimal "default_escalation_percent", precision: 5, scale: 2
     t.decimal "pc_ps_markup_cap_percent", precision: 5, scale: 2
     t.decimal "default_construction_insurance_percent", precision: 5, scale: 2
     t.decimal "default_overheads_percent", precision: 5, scale: 2
     t.decimal "default_qleave_rate_percent", precision: 6, scale: 4
+    t.jsonb "charge_construction_insurance_sm_ids", default: []
+    t.jsonb "charge_qleave_sm_ids", default: []
+    t.jsonb "charge_overheads_sm_ids", default: []
+    t.jsonb "charge_qbcc_insurance_sm_ids", default: []
     t.index ["canonical_record_id"], name: "idx_sm_schedule_master_templates_canonical_record_id"
     t.index ["copied_from_id"], name: "idx_sm_templates_copied_from"
     t.index ["created_by_id"], name: "index_sm_schedule_master_templates_on_created_by_id"
@@ -10495,6 +10495,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "slack_signing_secret"
     t.boolean "assistant_enabled", default: false
     t.jsonb "po_conditions", comment: "Custom PO Conditions of Acceptance (array of strings)"
+    t.jsonb "config_sync_table_modes", default: {}
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
@@ -12677,10 +12678,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters", column: "related_sm_schedule_master_id"
   add_foreign_key "sm_schedule_master_templates", "sm_canonical_records", column: "canonical_record_id", on_delete: :nullify
   add_foreign_key "sm_schedule_master_templates", "sm_schedule_master_templates", column: "copied_from_id"
-  add_foreign_key "sm_schedule_master_templates", "sm_schedule_masters", column: "charge_construction_insurance_sm_id", on_delete: :nullify
-  add_foreign_key "sm_schedule_master_templates", "sm_schedule_masters", column: "charge_overheads_sm_id", on_delete: :nullify
-  add_foreign_key "sm_schedule_master_templates", "sm_schedule_masters", column: "charge_qbcc_insurance_sm_id", on_delete: :nullify
-  add_foreign_key "sm_schedule_master_templates", "sm_schedule_masters", column: "charge_qleave_sm_id", on_delete: :nullify
   add_foreign_key "sm_schedule_master_templates", "tenants"
   add_foreign_key "sm_schedule_master_templates", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_master_templates", "users", column: "updated_by_id"

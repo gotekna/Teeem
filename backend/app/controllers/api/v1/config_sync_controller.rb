@@ -42,6 +42,11 @@ module Api
           response[:all_tenants] = all_counts[:tenants]
         end
 
+        # Compute sync coverage: how many local records are linked to master vs local-only
+        if master_tenant
+          response[:sync_coverage] = compute_sync_coverage
+        end
+
         render json: response
       end
 
@@ -742,6 +747,44 @@ module Api
         render_error(e.message, status: :bad_request)
       end
 
+      # GET /api/v1/config_sync/table_modes
+      # Returns per-table sync direction preferences for current tenant
+      def table_modes
+        modes = current_tenant&.tenant_setting&.config_sync_table_modes || {}
+        render json: { success: true, modes: modes }
+      end
+
+      # PUT /api/v1/config_sync/update_table_mode
+      # Set sync direction for a single table
+      #
+      # Params:
+      #   table: string - config table key (e.g. "sm_trades")
+      #   mode: string - "two_way" | "one_way" | "independent"
+      def update_table_mode
+        table_key = params[:table]
+        mode = params[:mode]
+
+        unless table_key.present? && mode.present?
+          return render_error("table and mode are required", status: :bad_request)
+        end
+
+        valid_modes = %w[two_way one_way independent]
+        unless valid_modes.include?(mode)
+          return render_error("mode must be one of: #{valid_modes.join(', ')}", status: :bad_request)
+        end
+
+        ts = current_tenant&.tenant_setting
+        unless ts
+          return render_error("No tenant setting found", status: :not_found)
+        end
+
+        modes = (ts.config_sync_table_modes || {}).dup
+        modes[table_key] = mode
+        ts.update!(config_sync_table_modes: modes)
+
+        render json: { success: true, modes: modes }
+      end
+
       private
 
       def require_teeem_staff!
@@ -789,6 +832,126 @@ module Api
           "skipped" => skipped
         }
         ts.update_columns(config_sync_table_timestamps: timestamps)
+      end
+
+      # Compute sync coverage per table: linked (match in master) vs local_only vs master_only
+      # For master tenant: computes per non-master tenant
+      # For non-master: computes vs master
+      def compute_sync_coverage
+        coverage = {}
+        is_master = current_tenant&.is_master_tenant? || false
+
+        # Pre-compute master keys per table (shared across all tenant comparisons)
+        master_keys_cache = {}
+        TenantConfigSyncService::CONFIG_TABLES.each do |table_key, config|
+          begin
+            model = config[:model].constantize
+            master_keys_cache[table_key] = ActsAsTenant.with_tenant(master_tenant) do
+              pluck_match_keys(model, config)
+            end
+          rescue => e
+            Rails.logger.warn "[ConfigSync] Coverage error for #{table_key}: #{e.message}"
+          end
+        end
+
+        # Pre-compute master template sync_keys (for SM Tasks template breakdown)
+        master_template_keys = ActsAsTenant.with_tenant(master_tenant) do
+          SmScheduleMasterTemplate.where.not(sync_key: nil).pluck(:sync_key).to_set
+        end rescue Set.new
+
+        if is_master
+          # Master: compute coverage per non-master tenant (keyed by tenant slug)
+          non_master_tenants = Tenant.where(is_master_tenant: false).to_a
+          TenantConfigSyncService::CONFIG_TABLES.each do |table_key, config|
+            master_keys = master_keys_cache[table_key]
+            next unless master_keys
+
+            begin
+              model = config[:model].constantize
+              per_tenant = {}
+              non_master_tenants.each do |t|
+                tenant_keys = ActsAsTenant.with_tenant(t) do
+                  pluck_match_keys(model, config)
+                end
+                linked = (master_keys & tenant_keys).size
+                entry = {
+                  linked: linked,
+                  local_only: tenant_keys.size - linked,
+                  master_only: master_keys.size - linked
+                }
+
+                # SM Tasks: add per-template breakdown
+                if table_key == :sm_schedule_masters
+                  entry[:templates] = ActsAsTenant.with_tenant(t) do
+                    template_breakdown(master_template_keys)
+                  end
+                end
+
+                per_tenant[t.slug] = entry
+              end
+              coverage[table_key.to_s] = per_tenant
+            rescue => e
+              Rails.logger.warn "[ConfigSync] Coverage error for #{table_key}: #{e.message}"
+            end
+          end
+        else
+          # Non-master: compare vs master
+          TenantConfigSyncService::CONFIG_TABLES.each do |table_key, config|
+            master_keys = master_keys_cache[table_key]
+            next unless master_keys
+
+            begin
+              model = config[:model].constantize
+              local_keys = ActsAsTenant.with_tenant(current_tenant) do
+                pluck_match_keys(model, config)
+              end
+
+              linked = (master_keys & local_keys).size
+              entry = {
+                linked: linked,
+                local_only: local_keys.size - linked,
+                master_only: master_keys.size - linked
+              }
+
+              # SM Tasks: add per-template breakdown
+              if table_key == :sm_schedule_masters
+                entry[:templates] = template_breakdown(master_template_keys)
+              end
+
+              coverage[table_key.to_s] = entry
+            rescue => e
+              Rails.logger.warn "[ConfigSync] Coverage error for #{table_key}: #{e.message}"
+            end
+          end
+        end
+
+        coverage
+      end
+
+      # SM Tasks: per-template breakdown showing synced vs independent
+      # Must be called within ActsAsTenant.with_tenant context
+      def template_breakdown(master_template_keys)
+        SmScheduleMasterTemplate.all.map do |t|
+          task_count = SmScheduleMaster.for_template(t.id).count
+          synced = t.sync_key.present? && master_template_keys.include?(t.sync_key)
+          { name: t.name, tasks: task_count, synced: synced }
+        end
+      end
+
+      # Pluck match keys from a model as a Set for fast intersection
+      def pluck_match_keys(model, config)
+        match_fields = config[:match_fields]
+        base = scoped_model(model, config)
+        if match_fields.length == 1
+          base.where.not(match_fields.first => nil)
+              .pluck(match_fields.first)
+              .map { |v| v.to_s.downcase.strip }
+              .to_set
+        else
+          base.pluck(*match_fields)
+              .map { |vals| Array(vals).map { |v| v.to_s.downcase.strip }.join("|") }
+              .to_set
+        end
       end
 
       def pull_params

@@ -1059,7 +1059,10 @@ module Api
           charge_construction_insurance_sm_ids: [],
           charge_qleave_sm_ids: [],
           charge_overheads_sm_ids: [],
-          charge_qbcc_insurance_sm_ids: []
+          charge_qbcc_insurance_sm_ids: [],
+          charge_builds_contingency_sm_ids: [],
+          charge_project_prelims_sm_ids: [],
+          charge_project_management_sm_ids: []
         )
       end
 
@@ -1090,6 +1093,12 @@ module Api
           charge_overheads_sm_tasks: resolve_sm_task_names(template.charge_overheads_sm_ids),
           charge_qbcc_insurance_sm_ids: template.charge_qbcc_insurance_sm_ids || [],
           charge_qbcc_insurance_sm_tasks: resolve_sm_task_names(template.charge_qbcc_insurance_sm_ids),
+          charge_builds_contingency_sm_ids: template.charge_builds_contingency_sm_ids || [],
+          charge_builds_contingency_sm_tasks: resolve_sm_task_names(template.charge_builds_contingency_sm_ids),
+          charge_project_prelims_sm_ids: template.charge_project_prelims_sm_ids || [],
+          charge_project_prelims_sm_tasks: resolve_sm_task_names(template.charge_project_prelims_sm_ids),
+          charge_project_management_sm_ids: template.charge_project_management_sm_ids || [],
+          charge_project_management_sm_tasks: resolve_sm_task_names(template.charge_project_management_sm_ids),
           # Per-template markup rate overrides (null = use global SmSetting default)
           defaultBuilderMarginPercent: template.default_builder_margin_percent&.to_f,
           defaultEscalationPercent: template.default_escalation_percent&.to_f,

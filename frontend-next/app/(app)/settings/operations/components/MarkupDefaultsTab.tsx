@@ -237,6 +237,7 @@ function SettingField({
           step={step}
           value={value}
           onChange={e => onChange(parseFloat(e.target.value) || 0)}
+          onFocus={e => e.target.select()}
           className={prefix ? "pl-6" : ""}
         />
       </div>
