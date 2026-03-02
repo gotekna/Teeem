@@ -405,6 +405,10 @@ module Api
             )
           end
 
+          # Filter out master records for per-record "independent" overrides
+          independent_excluded = exclude_independent_master_ids(table, all_ids, model, effective_config)
+          all_ids -= independent_excluded if independent_excluded.any?
+
           if all_ids.empty? && original_count > 0
             return render json: {
               success: true, table: table.to_s,
@@ -838,40 +842,188 @@ module Api
         modes[mode_key] = mode
         ts.update!(config_sync_table_modes: modes)
 
-        # Cascade sync_key changes to all records when mode changes
+        # Cascade sync_key changes when mode changes
         cascaded = 0
         cascade_error = nil
-        if params[:cascade].present?
-          begin
-            config = TenantConfigSyncService::CONFIG_TABLES[table_key.to_sym]
-            if config
-              model = config[:model].constantize
-              if model.column_names.include?("sync_key")
+        begin
+          config = TenantConfigSyncService::CONFIG_TABLES[table_key.to_sym]
+          if config
+            model = config[:model].constantize
+
+            if record_id.present? && model.column_names.include?("sync_key")
+              # Per-record: clear/regenerate sync_key for this specific record + its children
+              record = model.find_by(id: record_id)
+              if record
                 if mode == "independent"
-                  # Clear all sync_keys → records become independent
-                  cascaded = model.where.not(sync_key: nil).update_all(sync_key: nil)
+                  record.update_column(:sync_key, nil) if record.sync_key.present?
+                  cascaded += 1
+                  # Also clear children (PO Pack → Items → Line Items, Claim Template → Lines)
+                  cascaded += cascade_clear_children(table_key, record)
                 else
-                  # Regenerate sync_keys for records missing them
-                  model.where(sync_key: nil).find_each do |record|
+                  if record.sync_key.blank? && record.respond_to?(:generate_sync_key)
                     record.generate_sync_key
-                    if record.sync_key_changed?
-                      record.save!
-                      cascaded += 1
-                    end
+                    record.save! if record.sync_key_changed?
+                    cascaded += 1
+                  end
+                  # Also regenerate children
+                  cascaded += cascade_regenerate_children(table_key, record)
+                end
+              end
+            elsif params[:cascade].present? && model.column_names.include?("sync_key")
+              # Table-level: clear/regenerate ALL records
+              if mode == "independent"
+                cascaded = model.where.not(sync_key: nil).update_all(sync_key: nil)
+              else
+                model.where(sync_key: nil).find_each do |rec|
+                  rec.generate_sync_key
+                  if rec.sync_key_changed?
+                    rec.save!
+                    cascaded += 1
                   end
                 end
               end
             end
-          rescue => e
-            Rails.logger.warn "[ConfigSync] Cascade error for #{table_key}: #{e.message}"
-            cascade_error = e.message
           end
+        rescue => e
+          Rails.logger.warn "[ConfigSync] Cascade error for #{table_key}: #{e.message}"
+          cascade_error = e.message
         end
 
         render json: { success: true, modes: modes, cascaded: cascaded, cascade_error: cascade_error }
       end
 
       private
+
+      # Filter out master record IDs that correspond to tenant records set to "independent"
+      # Per-record modes are stored as "table_key:record_id" → "independent" in tenant settings
+      # For PO Items/Lines, record_id is the PACK id (grouped by pack in UI)
+      def exclude_independent_master_ids(table_key, master_ids, model, config)
+        modes = current_tenant&.tenant_setting&.config_sync_table_modes || {}
+        # Find all per-record independent overrides for this table
+        independent_record_ids = modes.select { |k, v|
+          k.start_with?("#{table_key}:") && v == "independent"
+        }.map { |k, _| k.split(":").last.to_i }
+
+        return [] if independent_record_ids.empty?
+
+        # Get names of independent records from tenant
+        excluded_master_ids = []
+
+        case table_key.to_s
+        when "po_template_packs"
+          # record_id is pack id — find master packs with same name
+          names = PoTemplatePack.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
+            PoTemplatePack.where("LOWER(name) IN (?)", names).pluck(:id)
+          end
+
+        when "po_template_items"
+          # record_id is PACK id (UI groups items by pack) — exclude master items in those packs
+          pack_names = PoTemplatePack.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
+            master_pack_ids = PoTemplatePack.where("LOWER(name) IN (?)", pack_names).pluck(:id)
+            PoTemplateItem.where(po_template_pack_id: master_pack_ids).pluck(:id)
+          end
+
+        when "po_template_line_items"
+          # record_id is PACK id — exclude master line items in items of those packs
+          pack_names = PoTemplatePack.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
+            master_pack_ids = PoTemplatePack.where("LOWER(name) IN (?)", pack_names).pluck(:id)
+            master_item_ids = PoTemplateItem.where(po_template_pack_id: master_pack_ids).pluck(:id)
+            PoTemplateLineItem.where(po_template_item_id: master_item_ids).pluck(:id)
+          end
+
+        when "claim_stage_template_lines"
+          # record_id is template id — exclude master lines for that template
+          tpl_names = ClaimStageTemplate.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
+            master_tpl_ids = ClaimStageTemplate.where("LOWER(name) IN (?)", tpl_names).pluck(:id)
+            ClaimStageTemplateLine.where(claim_stage_template_id: master_tpl_ids).pluck(:id)
+          end
+
+        when "tenders"
+          # record_id is tender_header id
+          header_names = TenderHeader.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
+            master_header_ids = TenderHeader.where("LOWER(name) IN (?)", header_names).pluck(:id)
+            Tender.where(tender_header_id: master_header_ids).pluck(:id)
+          end
+
+        else
+          # Generic: record_id is the actual record id — match by name
+          name_col = %w[name display_name item_name].find { |c| model.column_names.include?(c) } || "name"
+          names = model.where(id: independent_record_ids).pluck(name_col.to_sym).compact.map(&:downcase)
+          if names.any?
+            excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
+              model.where("LOWER(#{name_col}) IN (?)", names).pluck(:id)
+            end
+          end
+        end
+
+        excluded_master_ids & master_ids  # Only exclude IDs that are actually in the list
+      rescue => e
+        Rails.logger.warn "[ConfigSync] exclude_independent_master_ids error: #{e.message}"
+        []
+      end
+
+      # Clear sync_keys on child records when parent set to independent
+      # e.g. PO Pack → its Items → its Line Items
+      def cascade_clear_children(table_key, record)
+        count = 0
+        case table_key.to_s
+        when "po_template_packs"
+          record.po_template_items.each do |item|
+            item.update_column(:sync_key, nil) if item.sync_key.present?
+            count += 1
+            item.po_template_line_items.where.not(sync_key: nil).update_all(sync_key: nil).tap { |n| count += n }
+          end
+        when "claim_stage_templates"
+          count += record.lines.where.not(sync_key: nil).update_all(sync_key: nil)
+        when "tender_headers"
+          count += Tender.where(tender_header_id: record.id).where.not(sync_key: nil).update_all(sync_key: nil)
+        end
+        count
+      end
+
+      # Regenerate sync_keys on child records when parent set back to two_way/one_way
+      def cascade_regenerate_children(table_key, record)
+        count = 0
+        case table_key.to_s
+        when "po_template_packs"
+          record.po_template_items.where(sync_key: nil).find_each do |item|
+            item.generate_sync_key if item.respond_to?(:generate_sync_key)
+            if item.sync_key_changed?
+              item.save!
+              count += 1
+            end
+            item.po_template_line_items.where(sync_key: nil).find_each do |line|
+              line.generate_sync_key if line.respond_to?(:generate_sync_key)
+              if line.sync_key_changed?
+                line.save!
+                count += 1
+              end
+            end
+          end
+        when "claim_stage_templates"
+          record.lines.where(sync_key: nil).find_each do |line|
+            line.generate_sync_key if line.respond_to?(:generate_sync_key)
+            if line.sync_key_changed?
+              line.save!
+              count += 1
+            end
+          end
+        when "tender_headers"
+          Tender.where(tender_header_id: record.id, sync_key: nil).find_each do |t|
+            t.generate_sync_key if t.respond_to?(:generate_sync_key)
+            if t.sync_key_changed?
+              t.save!
+              count += 1
+            end
+          end
+        end
+        count
+      end
 
       def require_teeem_staff!
         return if current_user&.teeem_staff?
