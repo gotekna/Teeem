@@ -92,6 +92,74 @@ namespace :canonical do
     Rake::Task["canonical:link"].invoke
   end
 
+  desc "Push local-only tasks from bidirectional tenants to canonical (and enqueue propagation to other tenants)"
+  task push_local_only: :environment do
+    members = CanonicalSyncGroupMember.bidirectional.includes(:tenant)
+
+    if members.empty?
+      puts "No bidirectional sync group members found. Run canonical:setup_group first."
+      next
+    end
+
+    total_pushed = 0
+    total_linked = 0
+
+    members.each do |member|
+      tenant = member.tenant
+      puts "\nProcessing tenant: #{tenant.name} (id: #{tenant.id})"
+
+      ActsAsTenant.with_tenant(tenant) do
+        local_only = SmScheduleMaster.where(canonical_record_id: nil).where(is_active: true)
+        puts "  Found #{local_only.count} local-only tasks"
+        next if local_only.empty?
+
+        # Build map of available canonical templates for composite key generation
+        canonical_templates = SmScheduleMasterTemplate
+          .where.not(canonical_record_id: nil)
+          .joins("INNER JOIN sm_canonical_records ON sm_canonical_records.id = sm_schedule_master_templates.canonical_record_id")
+          .select("sm_schedule_master_templates.id, sm_canonical_records.sync_key AS canonical_sync_key")
+
+        canonical_template_sk_by_id = canonical_templates.each_with_object({}) do |t, h|
+          h[t.id] = t.canonical_sync_key
+        end
+
+        local_only.find_each do |task|
+          task_sk = task.sync_key || ConfigSyncable.build_sync_key(task.name)
+
+          # Pick composite key if task belongs to a canonical template
+          tpl_sk = (task.sm_template_ids || []).filter_map { |tid| canonical_template_sk_by_id[tid] }.first
+          composite_sk = tpl_sk ? "#{tpl_sk}--#{task_sk}" : task_sk
+
+          # Find or create canonical
+          existing = SmCanonicalRecord.find_by(record_type: "SmScheduleMaster", sync_key: composite_sk)
+
+          if existing
+            task.update_columns(canonical_record_id: existing.id, canonical_version: existing.version)
+            puts "    Linked (already exists): #{task.name} → #{composite_sk}"
+            total_linked += 1
+          else
+            ActsAsTenant.with_tenant(tenant) do
+              canonical = SmCanonicalRecord.create_from_local!(task, sync_key: composite_sk)
+              task.update_columns(canonical_record_id: canonical.id, canonical_version: canonical.version)
+
+              all_fields = (SmCanonicalRecord::INHERITABLE_FIELDS["SmScheduleMaster"] || []) +
+                           (SmCanonicalRecord::FK_FIELDS["SmScheduleMaster"] || [])
+              CanonicalRecordPropagationJob.perform_later(canonical.id, all_fields, tenant.id)
+            end
+            puts "    Pushed: #{task.name} → #{composite_sk}"
+            total_pushed += 1
+          end
+        rescue => e
+          puts "    ERROR pushing #{task.name}: #{e.message}"
+        end
+      end
+    end
+
+    puts "\n=== push_local_only complete ==="
+    puts "  Pushed (new canonical): #{total_pushed}"
+    puts "  Linked (existing canonical): #{total_linked}"
+  end
+
   # ---------------------------------------------------------------------------
   # Helper methods
   # ---------------------------------------------------------------------------

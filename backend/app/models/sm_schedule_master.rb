@@ -159,6 +159,7 @@ class SmScheduleMaster < ApplicationRecord
   after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
   after_save :propagate_cost_centre_to_tasks, if: :saved_change_to_cost_centre?
   after_save :propagate_po_required_to_tasks, if: :saved_change_to_po_required?
+  after_create :create_canonical_if_bidirectional, unless: :canonical_record_id?
   after_save :propagate_canonical_changes, if: :canonical_record_id?
 
   # Helper methods
@@ -315,11 +316,52 @@ class SmScheduleMaster < ApplicationRecord
     end
   end
 
+  # When a new task is created in a bidirectional tenant, create a canonical record
+  # and propagate to all other tenants in the sync group.
+  # The `unless: :canonical_record_id?` guard prevents this from firing when a task
+  # is created FROM canonical propagation (which pre-sets canonical_record_id).
+  def create_canonical_if_bidirectional
+    return unless CanonicalSyncGroupMember.bidirectional?(tenant_id)
+
+    task_sk = sync_key || ConfigSyncable.build_sync_key(name)
+
+    # Prefer a composite key (template--task) to handle duplicate task names across templates
+    canonical_templates = SmScheduleMasterTemplate
+      .where(id: sm_template_ids || [])
+      .where.not(canonical_record_id: nil)
+
+    composite_sk = if canonical_templates.any?
+      canonical_tpl = SmCanonicalRecord.find_by(id: canonical_templates.first.canonical_record_id)
+      canonical_tpl ? "#{canonical_tpl.sync_key}--#{task_sk}" : task_sk
+    else
+      task_sk
+    end
+
+    # Find or create the canonical record
+    canonical = SmCanonicalRecord.find_by(record_type: "SmScheduleMaster", sync_key: composite_sk)
+    if canonical
+      # Already exists (e.g. race condition or duplicate name) — just link
+      update_columns(canonical_record_id: canonical.id, canonical_version: canonical.version)
+    else
+      canonical = SmCanonicalRecord.create_from_local!(self, sync_key: composite_sk)
+      update_columns(canonical_record_id: canonical.id, canonical_version: canonical.version)
+    end
+
+    # Fan-out: propagate this new task to all other bidirectional tenants
+    all_fields = (SmCanonicalRecord::INHERITABLE_FIELDS["SmScheduleMaster"] || []) +
+                 (SmCanonicalRecord::FK_FIELDS["SmScheduleMaster"] || [])
+    CanonicalRecordPropagationJob.perform_later(canonical.id, all_fields, tenant_id)
+  end
+
   # Propagate changes to canonical record if this tenant is bidirectional
   # Only fields NOT in field_overrides get pushed to canonical
   def propagate_canonical_changes
     return unless canonical_record_id?
     return unless CanonicalSyncGroupMember.bidirectional?(tenant_id)
+
+    # Skip if this save was triggered BY canonical propagation (canonical_version was just set).
+    # Prevents re-propagation loops: propagation sets canonical_version → this guard fires → stop.
+    return if saved_change_to_canonical_version?
 
     # Detect which inheritable fields actually changed
     inheritable = SmCanonicalRecord::INHERITABLE_FIELDS["SmScheduleMaster"] || []

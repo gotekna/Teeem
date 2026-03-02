@@ -32,7 +32,14 @@ class CanonicalRecordTenantPropagationJob < ApplicationJob
   def propagate_to_tenant(canonical, tenant_id, changed_fields)
     model = canonical.record_type.constantize
     local = model.find_by(canonical_record_id: canonical.id)
-    return unless local
+
+    if local.nil?
+      # FRC: Record doesn't exist in target tenant yet — CREATE it.
+      # This was the architectural gap: propagation only updated, never created.
+      # New tasks created in any bidirectional tenant now appear in all others.
+      create_from_canonical(canonical, tenant_id)
+      return
+    end
 
     # Only update fields NOT in field_overrides
     overrides = local.field_overrides || []
@@ -42,8 +49,8 @@ class CanonicalRecordTenantPropagationJob < ApplicationJob
     attrs = CanonicalTaskResolver.resolve(canonical, tenant_id, only: fields_to_update)
     attrs[:canonical_version] = canonical.version
 
-    # Use update_columns to skip callbacks (avoid re-triggering canonical sync)
-    # But validate the data first
+    # Use assign_attributes + save! to run validations but skip canonical callbacks
+    # (saved_change_to_canonical_version? guard in model prevents re-propagation)
     local.assign_attributes(attrs)
     if local.valid?
       local.save!(validate: false)
@@ -60,5 +67,34 @@ class CanonicalRecordTenantPropagationJob < ApplicationJob
       "[CanonicalSync] Error propagating canonical #{canonical_record_id} to tenant #{tenant_id}: #{e.message}"
     )
     raise # Re-raise so SolidQueue retries
+  end
+
+  # Create a new local record from a canonical record in the target tenant.
+  # Resolves all FK fields (sync_keys → tenant-local IDs) via CanonicalTaskResolver.
+  def create_from_canonical(canonical, tenant_id)
+    model = canonical.record_type.constantize
+
+    # Resolve all fields for the target tenant (simple + FK)
+    attrs = CanonicalTaskResolver.resolve(canonical, tenant_id)
+    attrs[:canonical_record_id] = canonical.id
+    attrs[:canonical_version] = canonical.version
+
+    record = model.new(attrs)
+
+    if record.save
+      Rails.logger.info(
+        "[CanonicalSync] Created #{canonical.record_type} '#{canonical.name}' " \
+        "for tenant #{tenant_id} from canonical #{canonical.id}"
+      )
+    else
+      Rails.logger.warn(
+        "[CanonicalSync] Failed to create #{canonical.record_type} '#{canonical.name}' " \
+        "for tenant #{tenant_id}: #{record.errors.full_messages.join(', ')}"
+      )
+    end
+  rescue => e
+    Rails.logger.error(
+      "[CanonicalSync] Error creating from canonical #{canonical.id} for tenant #{tenant_id}: #{e.message}"
+    )
   end
 end
