@@ -102,10 +102,13 @@ class SmCanonicalRecord < ApplicationRecord
     fields = extract_fields(local_record)
     fk_sync_keys = extract_fk_sync_keys(local_record)
 
+    # Join tables (e.g. SmScheduleMasterDocumentType) have no name column; use sync_key as fallback
+    display_name = local_record.try(:name).presence || sync_key
+
     create!(
       record_type: record_type,
       sync_key: sync_key,
-      name: local_record.name,
+      name: display_name,
       fields: fields,
       fk_sync_keys: fk_sync_keys,
       version: 1

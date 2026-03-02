@@ -225,6 +225,8 @@ class TenantConfigSyncService
         :charge_project_management_sm_ids, :charge_maintenance_fee_sm_ids,
         :charge_builder_margin_sm_ids, :charge_escalation_sm_ids, :charge_pc_ps_cap_sm_ids,
         :charge_tender_markup_sm_ids,
+        # PO allocation percentages (nested hash: { charge_type: { sm_id: pct } })
+        :charge_po_allocations,
         # Claim template link
         :claim_stage_template_id
       ],
@@ -241,7 +243,9 @@ class TenantConfigSyncService
         charge_builder_margin_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
         charge_escalation_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
         charge_pc_ps_cap_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
-        charge_tender_markup_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true }
+        charge_tender_markup_sm_ids: { model: "SmScheduleMaster", match_field: :sync_key, array: true },
+        # Nested hash: { charge_type: { local_sm_id: pct } } — remap each task ID via sync_key
+        charge_po_allocations: { model: "SmScheduleMaster", match_field: :sync_key, format: :po_allocations }
       },
       description: "Schedule Master templates (with markup rates & PO links)",
       group: "schedule"
@@ -2068,7 +2072,10 @@ class TenantConfigSyncService
       # Check if this field needs FK remapping
       if config[:remap_fks]&.key?(field) && value.present?
         remap_config = config[:remap_fks][field]
-        if remap_config[:array] && value.is_a?(Array)
+        if remap_config[:format] == :po_allocations && value.is_a?(Hash)
+          # Nested hash: { charge_type: { local_sm_id: pct } } — remap each task ID via sync_key
+          value = remap_po_allocations(value, remap_config)
+        elsif remap_config[:array] && value.is_a?(Array)
           # JSONB array of FKs (e.g., sm_template_ids) - remap each element
           value = value.filter_map { |id| remap_foreign_key(field, id, remap_config) }
         else
@@ -2141,6 +2148,19 @@ class TenantConfigSyncService
     else
       Rails.logger.warn "[ConfigSync] Could not remap #{field}=#{source_id}: no matching #{source_model} with #{match_field}=#{match_value.inspect} in tenant #{tenant.name} (#{tenant.id})"
       nil
+    end
+  end
+
+  # Remap nested PO allocation hash: { charge_type: { local_sm_id: pct } }
+  # Translates source-tenant SmScheduleMaster IDs → target-tenant IDs via sync_key matching
+  def remap_po_allocations(hash, remap_config)
+    hash.each_with_object({}) do |(charge_type, per_po), result|
+      next unless per_po.is_a?(Hash)
+      remapped = per_po.each_with_object({}) do |(id_str, pct), out|
+        target_id = remap_foreign_key("charge_po_allocations", id_str.to_i, remap_config)
+        out[target_id.to_s] = pct if target_id
+      end
+      result[charge_type] = remapped unless remapped.empty?
     end
   end
 
