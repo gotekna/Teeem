@@ -1381,7 +1381,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "sync_key"
     t.index ["tenant_id", "name"], name: "idx_claim_stage_templates_tenant_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_claim_stage_templates_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_claim_stage_templates_on_tenant_id"
   end
 

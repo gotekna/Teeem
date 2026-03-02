@@ -34,6 +34,7 @@ import {
   FileStack,
   GripVertical,
 } from "lucide-react";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -90,6 +91,7 @@ export function ClaimTemplatesTab() {
   const [saving, setSaving] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [poTaskNames, setPoTaskNames] = useState<string[]>([]);
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -109,6 +111,27 @@ export function ClaimTemplatesTab() {
 
   useEffect(() => {
     loadTemplates();
+    // Fetch PO task names from all active SM templates for the Overhead PO dropdown
+    (async () => {
+      try {
+        const res = await api.get<{ sm_schedule_master_templates: { id: number }[] }>(
+          "/api/v1/sm_schedule_master_templates"
+        );
+        const tmplIds = (res?.sm_schedule_master_templates || []).map(t => t.id);
+        const names = new Set<string>();
+        await Promise.all(
+          tmplIds.map(async (id) => {
+            const r = await api.get<{ success: boolean; tasks: { id: number; name: string }[] }>(
+              `/api/v1/sm_schedule_master_templates/${id}/po_tasks`
+            );
+            (r?.tasks || []).forEach(t => names.add(t.name));
+          })
+        );
+        setPoTaskNames(Array.from(names).sort());
+      } catch {
+        // Non-critical — dropdown will just be empty
+      }
+    })();
   }, [loadTemplates]);
 
   const handleExpandTemplate = (templateId: number) => {
@@ -528,13 +551,17 @@ export function ClaimTemplatesTab() {
                         dragIndex === index && "opacity-50",
                         dragOverIndex === index && dragIndex !== index && "border-t-2 border-primary"
                       )}
-                      draggable
-                      onDragStart={() => handleDragStart(index)}
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDrop={() => handleDrop(index)}
-                      onDragEnd={handleDragEnd}
                     >
-                      <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing" />
+                      <div
+                        draggable
+                        onDragStart={() => handleDragStart(index)}
+                        onDragEnd={handleDragEnd}
+                        className="shrink-0 cursor-grab active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                      </div>
                       <Input
                         value={line.name}
                         onChange={(e) => handleUpdateLine(index, "name", e.target.value)}
@@ -564,13 +591,18 @@ export function ClaimTemplatesTab() {
                         title="Comma-separated keywords for auto-matching Xero invoices (e.g., lock,lockup,enclosed)"
                         className="w-28 h-8 text-sm text-muted-foreground"
                       />
-                      <Input
-                        value={line.overheadPoName}
-                        onChange={(e) => handleUpdateLine(index, "overheadPoName", e.target.value)}
-                        placeholder="Overhead PO"
-                        title="SM template task name to map this stage's % as the overhead split (e.g., Pay Overhead Slab)"
-                        className="w-32 h-8 text-sm text-muted-foreground"
-                      />
+                      <div className="w-40 shrink-0">
+                        <ComboboxDropdown
+                          items={poTaskNames.map(n => ({ id: n, label: n }))}
+                          selectedItem={line.overheadPoName ? { id: line.overheadPoName, label: line.overheadPoName } : undefined}
+                          onSelect={(item) => handleUpdateLine(index, "overheadPoName", item.id)}
+                          onClear={() => handleUpdateLine(index, "overheadPoName", "")}
+                          clearable
+                          placeholder="Overhead PO"
+                          searchPlaceholder="Search PO tasks..."
+                          className="h-8 text-sm"
+                        />
+                      </div>
                       <Button
                         variant="ghost"
                         size="icon"

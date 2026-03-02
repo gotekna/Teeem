@@ -1,5 +1,6 @@
 class ClaimStageTemplate < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   # Associations
   belongs_to :created_by, class_name: "User", optional: true

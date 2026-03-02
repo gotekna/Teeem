@@ -458,6 +458,26 @@ class TenantConfigSyncService
       description: "Supervisor checklist item templates",
       group: "operations"
     },
+    claim_stage_templates: {
+      model: "ClaimStageTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :is_active, :position, :default_retainage_pct],
+      description: "Claim stage templates (progress claim milestones)",
+      group: "operations"
+    },
+    claim_stage_template_lines: {
+      model: "ClaimStageTemplateLine",
+      name_field: :name,
+      match_fields: [:claim_stage_template_id, :name],
+      sync_fields: [:claim_stage_template_id, :name, :description, :percentage, :sequence_order,
+                    :retainage_percentage, :match_keywords, :overhead_po_name],
+      description: "Claim stage template line items (individual claim stages)",
+      group: "operations",
+      remap_fks: {
+        claim_stage_template_id: { model: "ClaimStageTemplate", match_field: :name }
+      }
+    },
     po_template_packs: {
       model: "PoTemplatePack",
       name_field: :name,

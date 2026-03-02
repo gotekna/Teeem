@@ -50,6 +50,10 @@ const SM_SYNC_TABLES = [
   { key: "po_template_line_items", label: "PO Line Items", defaultMode: "one_way" as const },
   { key: "quote_templates", label: "Quote Templates (Std)", defaultMode: "one_way" as const },
   { key: "custom_quote_templates", label: "Quote Templates (Custom)", defaultMode: "one_way" as const },
+  { key: "tender_headers", label: "Tender Headers", defaultMode: "one_way" as const },
+  { key: "tenders", label: "Tender Sections", defaultMode: "one_way" as const },
+  { key: "claim_stage_templates", label: "Claim Templates", defaultMode: "one_way" as const },
+  { key: "claim_stage_template_lines", label: "Claim Template Lines", defaultMode: "one_way" as const },
 ] as const;
 
 type SyncMode = "two_way" | "one_way" | "independent";
