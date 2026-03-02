@@ -768,27 +768,27 @@ module Api
       # POST /api/v1/config_sync/toggle_record_sync
       # Toggle any ConfigSyncable record between synced and independent
       # Params: table_key (e.g. "quote_templates"), record_id
-      TOGGLEABLE_TABLES = {
-        "sm_schedule_master_templates" => SmScheduleMasterTemplate,
-        "quote_templates" => QuoteTemplate,
-        "custom_quote_templates" => CustomQuoteTemplate,
-        "po_template_packs" => PoTemplatePack,
-        "po_template_items" => PoTemplateItem,
-      }.freeze
-
+      # Dynamic toggle: any ConfigSyncable model in CONFIG_TABLES can be toggled
       def toggle_record_sync
-        model = TOGGLEABLE_TABLES[params[:table_key]]
-        return render json: { success: false, error: "Unknown table" }, status: :unprocessable_entity unless model
+        table_key = params[:table_key]&.to_sym
+        config = TenantConfigSyncService::CONFIG_TABLES[table_key]
+        return render json: { success: false, error: "Unknown table" }, status: :unprocessable_entity unless config
+
+        model = config[:model].constantize
+        return render json: { success: false, error: "Table not syncable" }, status: :unprocessable_entity unless model.column_names.include?("sync_key")
 
         record = model.find(params[:record_id])
+        record_name = record.try(:name) || record.try(config[:name_field]) || record.id.to_s
 
         if record.sync_key.present?
           record.update!(sync_key: nil)
-          render json: { success: true, synced: false, name: record.name }
+          render json: { success: true, synced: false, name: record_name }
         else
-          new_key = model.build_sync_key(record.name)
+          sources = Array(model.sync_key_source)
+          parts = sources.map { |field| record.send(field).to_s.strip }
+          new_key = model.build_sync_key(*parts)
           record.update!(sync_key: new_key)
-          render json: { success: true, synced: true, sync_key: new_key, name: record.name }
+          render json: { success: true, synced: true, sync_key: new_key, name: record_name }
         end
       end
 
@@ -904,6 +904,21 @@ module Api
           SmScheduleMasterTemplate.where.not(sync_key: nil).pluck(:sync_key).to_set
         end rescue Set.new
 
+        # Pre-compute master sync_keys per ConfigSyncable table (for per-record breakdown)
+        # IMPORTANT: sync_keys are slugified (hyphens) vs match_keys (spaces) — must use actual sync_keys
+        master_sync_keys_cache = {}
+        TenantConfigSyncService::CONFIG_TABLES.each do |table_key, config|
+          begin
+            model = config[:model].constantize
+            next unless model.method_defined?(:sync_key) && model.column_names.include?("sync_key")
+            master_sync_keys_cache[table_key] = ActsAsTenant.with_tenant(master_tenant) do
+              model.where.not(sync_key: nil).pluck(:sync_key).to_set
+            end
+          rescue => e
+            Rails.logger.warn "[ConfigSync] Sync keys error for #{table_key}: #{e.message}"
+          end
+        end
+
         if is_master
           # Master: compute coverage per non-master tenant (keyed by tenant slug)
           non_master_tenants = Tenant.where(is_master_tenant: false).to_a
@@ -932,20 +947,17 @@ module Api
                   end
                 end
 
-                # Syncable tables: add per-record breakdown showing synced vs independent
-                if table_key.in?([:quote_templates, :custom_quote_templates, :po_template_packs, :po_template_items])
-                  master_sync_keys = ActsAsTenant.with_tenant(master_tenant) do
-                    model.where.not(sync_key: nil).pluck(:sync_key).to_set
-                  end
+                # Per-record breakdown for all ConfigSyncable tables
+                # PO Items & Line Items grouped by parent pack for consistency
+                if table_key == :po_template_items || table_key == :po_template_line_items
+                  master_pack_keys = master_sync_keys_cache[:po_template_packs] || Set.new
                   entry[:records] = ActsAsTenant.with_tenant(t) do
-                    syncable_records_breakdown(model, master_sync_keys)
+                    table_key == :po_template_items ? po_items_by_pack(master_pack_keys) : po_lines_by_pack(master_pack_keys)
                   end
-                end
-
-                # PO Line Items: group by parent item, inherit item's sync status
-                if table_key == :po_template_line_items
+                elsif table_key != :sm_schedule_masters && model.column_names.include?("sync_key")
+                  mk = master_sync_keys_cache[table_key] || Set.new
                   entry[:records] = ActsAsTenant.with_tenant(t) do
-                    line_items_breakdown
+                    syncable_records_breakdown(model, mk)
                   end
                 end
 
@@ -980,15 +992,14 @@ module Api
                 entry[:templates] = template_breakdown(master_template_keys)
               end
 
-              # Syncable tables: add per-record breakdown
-              if table_key.in?([:quote_templates, :custom_quote_templates, :po_template_packs, :po_template_items])
-                master_sync_keys = master_keys_cache[table_key] || Set.new
-                entry[:records] = syncable_records_breakdown(model, master_sync_keys)
-              end
-
-              # PO Line Items: group by parent item, inherit item's sync status
-              if table_key == :po_template_line_items
-                entry[:records] = line_items_breakdown
+              # Per-record breakdown for all ConfigSyncable tables
+              # PO Items & Line Items grouped by parent pack for consistency
+              if table_key == :po_template_items || table_key == :po_template_line_items
+                master_pack_keys = master_sync_keys_cache[:po_template_packs] || Set.new
+                entry[:records] = table_key == :po_template_items ? po_items_by_pack(master_pack_keys) : po_lines_by_pack(master_pack_keys)
+              elsif table_key != :sm_schedule_masters && model.column_names.include?("sync_key")
+                mk = master_sync_keys_cache[table_key] || Set.new
+                entry[:records] = syncable_records_breakdown(model, mk)
               end
 
               coverage[table_key.to_s] = entry
@@ -1012,35 +1023,41 @@ module Api
       end
 
       # Generic per-record breakdown for ConfigSyncable tables
-      # For po_template_items: groups by parent pack name
+      # Uses pluck for performance on large tables
       # Must be called within ActsAsTenant.with_tenant context
       def syncable_records_breakdown(model, master_sync_keys)
-        if model == PoTemplateItem
-          # Group PO Items by parent pack
-          packs = PoTemplatePack.includes(po_template_items: :po_template_line_items).all
-          packs.map do |pack|
-            items = pack.po_template_items
-            next nil if items.empty?
-            pack_synced = pack.sync_key.present? && master_sync_keys.include?(pack.sync_key)
-            { id: pack.id, name: pack.name, count: items.size, synced: pack_synced }
-          end.compact
-        else
-          model.all.map do |record|
-            synced = record.sync_key.present? && master_sync_keys.include?(record.sync_key)
-            { id: record.id, name: record.name, synced: synced }
-          end
+        # Find the best name column for display
+        name_col = %w[name display_name item_name account_name].find { |c| model.column_names.include?(c) }
+        name_col ||= "id"
+
+        model.pluck(:id, name_col.to_sym, :sync_key).map do |id, display, sync_key|
+          synced = sync_key.present? && master_sync_keys.include?(sync_key)
+          { id: id, name: display.to_s, synced: synced }
         end
       end
 
-      # PO Line Items breakdown: group by parent PO Template Pack
-      # Inherits sync status from parent pack (line items have no sync_key)
+      # PO Template Items grouped by parent pack
+      # Uses PACK sync keys so status matches PO Packs row
       # Must be called within ActsAsTenant.with_tenant context
-      def line_items_breakdown
+      def po_items_by_pack(master_pack_keys)
+        packs = PoTemplatePack.includes(:po_template_items).all
+        packs.map do |pack|
+          items = pack.po_template_items
+          next nil if items.empty?
+          synced = pack.sync_key.present? && master_pack_keys.include?(pack.sync_key)
+          { id: pack.id, name: pack.name, count: items.size, synced: synced }
+        end.compact
+      end
+
+      # PO Line Items grouped by parent pack
+      # Uses PACK sync keys so status matches PO Packs row
+      # Must be called within ActsAsTenant.with_tenant context
+      def po_lines_by_pack(master_pack_keys)
         packs = PoTemplatePack.includes(po_template_items: :po_template_line_items).all
         packs.map do |pack|
           count = pack.po_template_items.sum { |item| item.po_template_line_items.size }
           next nil if count == 0
-          synced = pack.sync_key.present?
+          synced = pack.sync_key.present? && master_pack_keys.include?(pack.sync_key)
           { id: pack.id, name: pack.name, count: count, synced: synced }
         end.compact
       end

@@ -10,7 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw, FileSignature, ChevronDown, ChevronRight, Check,
   Plus, Undo2, X, Camera, ImagePlus, Loader2, ChevronsDownUp, ChevronsUpDown,
-  ExternalLink, Save, Search, Paperclip,
+  ExternalLink, Save, Search, Paperclip, Percent, RotateCcw, Pencil,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
@@ -59,6 +59,7 @@ interface BOQData {
   job: { id: number; name: string; contract_value: number; job_code?: string };
   groups: BOQApiGroup[];
   profitCentres: Array<{ id: number; label: string }>;
+  tenderMarkupPercent?: number;
   summary: {
     boq_total: number; po_total: number; po_subtotal: number; po_gst: number;
     variance: number; variance_percent: number; contract_value: number;
@@ -100,6 +101,13 @@ function cleanTaskName(taskName: string | null | undefined): string {
     .replace(/^Install\s+/i, "")
     .replace(/^[-–—]\s*/, "") // strip leading dash left after prefix removal
     .trim();
+}
+
+/** Apply smart roundup to a sell price (matches backend apply_price_rounding "smart" mode) */
+function applySmartRoundup(price: number): number {
+  if (price <= 0) return price;
+  const increment = price < 10 ? 0.1 : price < 100 ? 0.5 : price < 1000 ? 1.0 : 10.0;
+  return Math.ceil(price / increment) * increment;
 }
 
 /** SmTask option for the "Add PO" modal task picker */
@@ -213,6 +221,8 @@ function serializeBuilderState(opts: {
   ccSubtotalEnabled: Set<string>;
   groupByCostCentre: boolean;
   excludedIds: Set<string>;
+  tenderMarkupPercent?: number;
+  tenderMarkupOverride?: number | null;
 }): Record<string, unknown> {
   return {
     itemClassifications: Object.fromEntries(opts.itemClassifications),
@@ -223,6 +233,8 @@ function serializeBuilderState(opts: {
     ccSubtotalEnabled: Array.from(opts.ccSubtotalEnabled),
     groupByCostCentre: opts.groupByCostCentre,
     excludedIds: Array.from(opts.excludedIds),
+    tenderMarkupPercent: opts.tenderMarkupPercent,
+    tenderMarkupOverride: opts.tenderMarkupOverride,
   };
 }
 
@@ -236,6 +248,8 @@ function deserializeBuilderState(state: Record<string, unknown>): {
   ccSubtotalEnabled: Set<string>;
   groupByCostCentre: boolean;
   excludedIds: Set<string>;
+  tenderMarkupPercent?: number;
+  tenderMarkupOverride?: number | null;
 } | null {
   if (!state) return null;
 
@@ -261,6 +275,8 @@ function deserializeBuilderState(state: Record<string, unknown>): {
       ccSubtotalEnabled: new Set(ccSub || []),
       groupByCostCentre: groupBy ?? true,
       excludedIds: new Set(excluded || []),
+      tenderMarkupPercent: state.tenderMarkupPercent as number | undefined,
+      tenderMarkupOverride: state.tenderMarkupOverride as number | null | undefined,
     };
   } catch (err) {
     console.error("Failed to deserialize builder state:", err);
@@ -302,6 +318,12 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   // Grouping options
   const [groupByCostCentre, setGroupByCostCentre] = useState(true);
   const [showImages, setShowImages] = useState(true);
+
+  // Tender markup — loaded from SM template default, user can override
+  const [tenderMarkupPercent, setTenderMarkupPercent] = useState<number>(0);
+  const [tenderMarkupOverride, setTenderMarkupOverride] = useState<number | null>(null);
+  const [showMarkupEditor, setShowMarkupEditor] = useState(false);
+  const [defaultMarkupPercent, setDefaultMarkupPercent] = useState<number>(0); // template default for reset
 
   // Editing state
   const [editOverrides, setEditOverrides] = useState<Map<string, ItemOverride>>(new Map());
@@ -426,6 +448,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           setCCSubtotalEnabled(restored.ccSubtotalEnabled);
           setGroupByCostCentre(restored.groupByCostCentre);
           setExcludedIds(restored.excludedIds);
+          if (restored.tenderMarkupPercent !== undefined) setTenderMarkupPercent(restored.tenderMarkupPercent);
+          if (restored.tenderMarkupOverride !== undefined) setTenderMarkupOverride(restored.tenderMarkupOverride);
           // Prevent auto-exclude-qty-0 from overriding restored state
           setAutoDefaultApplied(true);
           toast.success(`Restored builder state from Version ${response.data.version}`);
@@ -444,6 +468,10 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       const response = await api.get<BOQData>(`/api/v1/jobs/${jobId}/boq`);
       if (response?.success) {
         setBOQData(response);
+        // Load tender markup default from template (only set if not already overridden by restored state)
+        const apiMarkup = response.tenderMarkupPercent ?? 0;
+        setDefaultMarkupPercent(apiMarkup);
+        setTenderMarkupPercent((prev) => prev === 0 ? apiMarkup : prev);
       } else {
         setError("Failed to load BOQ data");
       }
@@ -922,6 +950,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   /** Compute totals considering overrides, exclusions, and classifications */
   const totals = useMemo(() => {
     let included = 0;
+    let includedSell = 0;
     let excluded = 0;
     let pcTotal = 0;
     let psTotal = 0;
@@ -984,10 +1013,21 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       } else {
         included += row.amount;
         includedCount++;
+        // Calculate sell price with tender markup (smart roundup per unit, then × qty)
+        if (tenderMarkupPercent > 0) {
+          const sellUnit = applySmartRoundup(row.unitPrice * (1 + tenderMarkupPercent / 100));
+          includedSell += sellUnit * row.quantity;
+        } else {
+          includedSell += row.amount;
+        }
       }
       // Track per-header subtotals (included items only — PC/PS shown separately below)
+      // Use sell prices (with markup) for header subtotals
       if (cls !== "excluded" && cls !== "pc" && cls !== "ps" && row.headerName) {
-        headerSubtotals[row.headerName] = (headerSubtotals[row.headerName] || 0) + row.amount;
+        const displayAmount = tenderMarkupPercent > 0
+          ? applySmartRoundup(row.unitPrice * (1 + tenderMarkupPercent / 100)) * row.quantity
+          : row.amount;
+        headerSubtotals[row.headerName] = (headerSubtotals[row.headerName] || 0) + displayAmount;
       }
     }
 
@@ -995,8 +1035,12 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     const pcItems = [...Array.from(pcPoMap.values()), ...pcItemList];
     const psItems = [...Array.from(psPoMap.values()), ...psItemList];
 
-    return { includedTotal: included, excludedTotal: excluded, pcTotal, psTotal, includedCount, excludedCount, pcCount, psCount, headerSubtotals, pcItems, psItems };
-  }, [unifiedRows, excludedIds, getClassification, poClassifications]);
+    // Calculate effective sell total: override takes precedence over %-based calc
+    const markupAmount = tenderMarkupOverride !== null ? tenderMarkupOverride : (includedSell - included);
+    const sellTotal = tenderMarkupOverride !== null ? (included + tenderMarkupOverride) : includedSell;
+
+    return { includedTotal: included, excludedTotal: excluded, pcTotal, psTotal, includedCount, excludedCount, pcCount, psCount, headerSubtotals, pcItems, psItems, includedSellTotal: sellTotal, markupAmount };
+  }, [unifiedRows, excludedIds, getClassification, poClassifications, tenderMarkupPercent, tenderMarkupOverride]);
 
   /** Group unified rows into header → section → content for two-panel rendering */
   const groupedRows = useMemo((): HeaderGroup[] => {
@@ -1163,6 +1207,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         ccSubtotalEnabled,
         groupByCostCentre,
         excludedIds,
+        tenderMarkupPercent,
+        tenderMarkupOverride,
       });
       const response = await api.post<{
         success: boolean;
@@ -1204,7 +1250,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setSavingBuilder(false);
     }
-  }, [jobId, itemClassifications, poClassifications, editOverrides, newLines, sectionNotes, ccSubtotalEnabled, groupByCostCentre, excludedIds]);
+  }, [jobId, itemClassifications, poClassifications, editOverrides, newLines, sectionNotes, ccSubtotalEnabled, groupByCostCentre, excludedIds, tenderMarkupPercent, tenderMarkupOverride]);
 
   const handleCreateTender = useCallback(async () => {
     try {
@@ -1275,6 +1321,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         ccSubtotalEnabled,
         groupByCostCentre,
         excludedIds,
+        tenderMarkupPercent,
+        tenderMarkupOverride,
       });
 
       // Build section_document_types: { sectionName: ["Plans", "Engineering"] }
@@ -1318,7 +1366,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setCreatingTender(false);
     }
-  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre, tenderTree, excludedDocTypes, getClassification, unifiedRows]);
+  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre, tenderTree, excludedDocTypes, getClassification, unifiedRows, tenderMarkupPercent, tenderMarkupOverride]);
 
   // ─── Render states ──────────────────────────────────────────────
 
@@ -2089,9 +2137,17 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                             // Pre-compute PO-level roll-up data for preview
                             const poRollup = (() => {
                               if (poLevelCls === "per_item") return null;
-                              const poTotal = includedItems.reduce((sum, r) => sum + r.amount, 0);
-                              const cleanName = cleanTaskName(pg.poRow.taskName) || pg.poRow.poName;
                               const isPcPs = poLevelCls === "per_po_pc" || poLevelCls === "per_po_ps";
+                              // PC/PS items show at cost; non-PC/PS get tender markup
+                              const poTotal = isPcPs
+                                ? includedItems.reduce((sum, r) => sum + r.amount, 0)
+                                : includedItems.reduce((sum, r) => {
+                                    if (tenderMarkupPercent > 0) {
+                                      return sum + applySmartRoundup(r.unitPrice * (1 + tenderMarkupPercent / 100)) * r.quantity;
+                                    }
+                                    return sum + r.amount;
+                                  }, 0);
+                              const cleanName = cleanTaskName(pg.poRow.taskName) || pg.poRow.poName;
                               const label = poLevelCls === "per_po_pc" ? "PC" : poLevelCls === "per_po_ps" ? "PS" : "";
                               const colorClass = poLevelCls === "per_po_pc"
                                 ? "text-blue-700 dark:text-blue-400"
@@ -2612,7 +2668,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             </>
           )}
 
-          {/* Base Price (excluding PC & PS) */}
+          {/* Base Price (excluding PC & PS) — shows SELL price with markup */}
           <div className="flex justify-between items-baseline py-1">
             <div>
               <span className="font-semibold text-sm">Base Price (ex GST)</span>
@@ -2620,8 +2676,127 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                 <span className="text-xs text-muted-foreground ml-1.5">excl. Prime Costs &amp; Provisional Sums</span>
               )}
             </div>
-            <span className="font-semibold tabular-nums text-sm w-32 text-right">{formatCurrency(totals.includedTotal)}</span>
+            <span className="font-semibold tabular-nums text-sm w-32 text-right">{formatCurrency(totals.includedSellTotal)}</span>
           </div>
+
+          {/* Tender Markup info line */}
+          {(tenderMarkupPercent > 0 || tenderMarkupOverride !== null) && (
+            <div className="py-1">
+              <div className="flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={() => setShowMarkupEditor(!showMarkupEditor)}
+                  className="flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400 hover:underline"
+                >
+                  <Percent className="h-3 w-3" />
+                  {tenderMarkupOverride !== null ? (
+                    <span>Tender Markup (fixed override)</span>
+                  ) : (
+                    <span>incl. Tender Markup ({tenderMarkupPercent}%)</span>
+                  )}
+                  <Pencil className="h-3 w-3 opacity-50" />
+                </button>
+                <span className="tabular-nums text-sm w-32 text-right text-emerald-700 dark:text-emerald-400">
+                  +{formatCurrency(totals.markupAmount)}
+                </span>
+              </div>
+
+              {/* Inline markup editor */}
+              {showMarkupEditor && (
+                <div className="mt-2 p-3 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-medium text-muted-foreground w-20">Markup %</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={tenderMarkupPercent}
+                      onChange={(e) => {
+                        setTenderMarkupPercent(parseFloat(e.target.value) || 0);
+                        setTenderMarkupOverride(null); // clear fixed override when changing %
+                      }}
+                      className="h-7 w-24 text-sm tabular-nums"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      Cost: {formatCurrency(totals.includedTotal)} → Sell: {formatCurrency(totals.includedSellTotal)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-medium text-muted-foreground w-20">Fixed $ override</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={tenderMarkupOverride ?? ""}
+                      placeholder="—"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTenderMarkupOverride(val === "" ? null : parseFloat(val) || 0);
+                      }}
+                      className="h-7 w-24 text-sm tabular-nums"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {tenderMarkupOverride !== null ? "Overrides % calculation" : "Leave blank to use %"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs gap-1"
+                      onClick={() => {
+                        setTenderMarkupPercent(defaultMarkupPercent);
+                        setTenderMarkupOverride(null);
+                      }}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Reset to template default ({defaultMarkupPercent}%)
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Show markup toggle when it's 0% and no override (so user can enable it) */}
+          {tenderMarkupPercent === 0 && tenderMarkupOverride === null && (
+            <button
+              type="button"
+              onClick={() => setShowMarkupEditor(!showMarkupEditor)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground py-0.5"
+            >
+              <Percent className="h-3 w-3" />
+              Add tender markup
+            </button>
+          )}
+          {tenderMarkupPercent === 0 && tenderMarkupOverride === null && showMarkupEditor && (
+            <div className="mt-1 mb-2 p-3 rounded-lg bg-muted/50 border border-border/50 space-y-2">
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-medium text-muted-foreground w-20">Markup %</label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={tenderMarkupPercent}
+                  onChange={(e) => setTenderMarkupPercent(parseFloat(e.target.value) || 0)}
+                  className="h-7 w-24 text-sm tabular-nums"
+                />
+              </div>
+              {defaultMarkupPercent > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs gap-1"
+                  onClick={() => setTenderMarkupPercent(defaultMarkupPercent)}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Use template default ({defaultMarkupPercent}%)
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* Prime Costs */}
           {totals.pcCount > 0 && (
@@ -2648,7 +2823,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             <div className="flex justify-between items-baseline py-1 border-t border-border/50 mt-1">
               <span className="text-sm font-medium">Contract Sum (ex GST)</span>
               <span className="font-medium tabular-nums text-sm w-32 text-right">
-                {formatCurrency(totals.includedTotal + totals.pcTotal + totals.psTotal)}
+                {formatCurrency(totals.includedSellTotal + totals.pcTotal + totals.psTotal)}
               </span>
             </div>
           )}
@@ -2657,7 +2832,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           <div className="flex justify-between items-baseline py-0.5">
             <span className="text-muted-foreground text-sm">GST (10%)</span>
             <span className="text-muted-foreground tabular-nums text-sm w-32 text-right">
-              {formatCurrency((totals.includedTotal + totals.pcTotal + totals.psTotal) * 0.1)}
+              {formatCurrency((totals.includedSellTotal + totals.pcTotal + totals.psTotal) * 0.1)}
             </span>
           </div>
 
@@ -2665,7 +2840,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           <div className="flex justify-between items-baseline py-2 border-t mt-1">
             <span className="font-bold text-base">Total (inc GST)</span>
             <span className="font-bold text-base tabular-nums w-32 text-right">
-              {formatCurrency((totals.includedTotal + totals.pcTotal + totals.psTotal) * 1.1)}
+              {formatCurrency((totals.includedSellTotal + totals.pcTotal + totals.psTotal) * 1.1)}
             </span>
           </div>
 
@@ -2677,7 +2852,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         <div className="flex items-center gap-4 text-sm">
           <span className="text-muted-foreground">
             Included: <span className="font-medium text-foreground">{totals.includedCount} lines</span>
-            {" "}({formatCurrency(totals.includedTotal)})
+            {" "}({formatCurrency(totals.includedSellTotal)})
           </span>
           {totals.pcCount > 0 && (
             <>

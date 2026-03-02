@@ -333,17 +333,18 @@ export function CustomQuoteTemplatesTab() {
               />
             </div>
 
-            {/* Sync status + disconnect */}
+            {/* Sync status — always show in edit mode */}
             {(() => {
               const tmpl = renameDialog ? templates.find(x => x.id === renameDialog.id) : null;
-              if (!tmpl?.syncStatus?.syncedTenants?.length) return null;
-              return (
+              if (!tmpl) return null;
+              const isSynced = !!tmpl.syncStatus?.syncedTenants?.length;
+              return isSynced ? (
                 <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <RefreshCw className="h-4 w-4 text-green-600 dark:text-green-400" />
                       <span className="text-sm font-medium text-green-800 dark:text-green-200">
-                        Synced with {tmpl.syncStatus.syncedTenants.join(", ")}
+                        Synced with {tmpl.syncStatus!.syncedTenants.join(", ")}
                       </span>
                     </div>
                     <Button
@@ -352,8 +353,8 @@ export function CustomQuoteTemplatesTab() {
                       className="text-destructive border-destructive/30 hover:bg-destructive/10"
                       onClick={async () => {
                         try {
-                          await api.patch(`/api/v1/custom_quote_templates/${tmpl.id}`, {
-                            sync_key: null,
+                          await api.post("/api/v1/config_sync/toggle_record_sync", {
+                            table_key: "custom_quote_templates", record_id: tmpl.id,
                           });
                           toast.success("Disconnected from sync");
                           setRenameDialog(null);
@@ -370,6 +371,40 @@ export function CustomQuoteTemplatesTab() {
                   </div>
                   <p className="text-xs text-green-700 dark:text-green-300">
                     Disconnecting makes this template local-only. Other tenants keep their copy.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-muted/50 border rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Link2Off className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">
+                        Not synced — local only
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await api.post("/api/v1/config_sync/toggle_record_sync", {
+                            table_key: "custom_quote_templates", record_id: tmpl.id,
+                          });
+                          toast.success("Connected to sync");
+                          setRenameDialog(null);
+                          fetchTemplates();
+                        } catch (err) {
+                          console.error("[CustomQuoteTemplatesTab] connect error:", err);
+                          toast.error("Failed to connect");
+                        }
+                      }}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                      Connect
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Connect to sync this template with other tenants via SM Sync.
                   </p>
                 </div>
               );

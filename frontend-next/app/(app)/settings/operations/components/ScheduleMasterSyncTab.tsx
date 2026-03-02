@@ -970,8 +970,8 @@ export function ScheduleMasterSyncTab() {
                         const records = cov && "records" in cov ? cov.records : undefined;
                         if (!records || records.length === 0) return null;
 
-                        // PO Line Items are read-only (no sync_key, inherit from parent item)
-                        const isReadOnly = table.key === "po_template_line_items";
+                        // PO Items and Line Items are read-only (grouped by pack, toggle is on PO Packs row)
+                        const isReadOnly = table.key === "po_template_line_items" || table.key === "po_template_items";
 
                         return records.map((rec) => (
                           <TableRow key={`${table.key}-rec-${rec.id}`} className="bg-muted/30">

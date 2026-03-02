@@ -1048,6 +1048,11 @@ module Api
                                                .order(:code)
                                                .map { |pc| { id: pc.id, code: pc.code, name: pc.name, label: "#{pc.code} - #{pc.name}" } }
 
+        # Tender markup % from SM template (fallback to global SmSetting default)
+        template_markup = @job.schedule_template&.default_tender_markup_percent&.to_f
+        global_markup = SmSetting.first&.default_tender_markup_percent&.to_f || 0.0
+        tender_markup_percent = template_markup || global_markup
+
         render json: {
           success: true,
           job: {
@@ -1057,6 +1062,7 @@ module Api
           },
           groups: boq_groups,
           profitCentres: available_profit_centres,
+          tenderMarkupPercent: tender_markup_percent,
           summary: {
             boq_total: total_boq.round(2),
             po_total: total_po.round(2),
