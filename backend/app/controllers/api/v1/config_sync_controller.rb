@@ -821,6 +821,7 @@ module Api
         table_key = params[:table]
         mode = params[:mode]
         record_id = params[:record_id]
+        record_name = params[:record_name]  # Used for master-only records that have no local ID
 
         unless table_key.present? && mode.present?
           return render_error("table and mode are required", status: :bad_request)
@@ -837,12 +838,21 @@ module Api
         end
 
         modes = (ts.config_sync_table_modes || {}).dup
-        # Per-record override: "table_key:record_id", table-level: "table_key"
-        mode_key = record_id.present? ? "#{table_key}:#{record_id}" : table_key
+        # Per-record override: "table_key:record_id" for local records,
+        # "table_key:master:lowercase_name" for master-only records (no local ID),
+        # "table_key" for table-level override
+        mode_key = if record_name.present?
+          "#{table_key}:master:#{record_name.downcase}"
+        elsif record_id.present?
+          "#{table_key}:#{record_id}"
+        else
+          table_key
+        end
         modes[mode_key] = mode
         ts.update!(config_sync_table_modes: modes)
 
         # Cascade sync_key changes when mode changes
+        # (master-only records have no local counterpart to cascade to)
         cascaded = 0
         cascade_error = nil
         begin
@@ -895,16 +905,26 @@ module Api
       private
 
       # Filter out master record IDs that correspond to tenant records set to "independent"
-      # Per-record modes are stored as "table_key:record_id" → "independent" in tenant settings
+      # Per-record modes are stored as:
+      #   "table_key:record_id" → "independent" for locally-existing records
+      #   "table_key:master:lowercase_name" → "independent" for master-only records (no local ID)
       # For PO Items/Lines, record_id is the PACK id (grouped by pack in UI)
       def exclude_independent_master_ids(table_key, master_ids, model, config)
         modes = current_tenant&.tenant_setting&.config_sync_table_modes || {}
-        # Find all per-record independent overrides for this table
-        independent_record_ids = modes.select { |k, v|
-          k.start_with?("#{table_key}:") && v == "independent"
-        }.map { |k, _| k.split(":").last.to_i }
+        prefix = "#{table_key}:"
+        master_prefix = "#{table_key}:master:"
 
-        return [] if independent_record_ids.empty?
+        # ID-based: "table:123" (only numeric suffixes — not "table:master:name")
+        independent_record_ids = modes.select { |k, v|
+          k.start_with?(prefix) && !k.start_with?(master_prefix) && v == "independent"
+        }.map { |k, _| k.sub(prefix, "").to_i }.select { |id| id > 0 }
+
+        # Name-based: "table:master:hia residential" (master-only records with no local ID)
+        master_only_names = modes.select { |k, v|
+          k.start_with?(master_prefix) && v == "independent"
+        }.map { |k, _| k.sub(master_prefix, "") }
+
+        return [] if independent_record_ids.empty? && master_only_names.empty?
 
         # Get names of independent records from tenant
         excluded_master_ids = []
@@ -913,62 +933,71 @@ module Api
         when "po_template_packs"
           # record_id is pack id — find master packs with same name
           names = PoTemplatePack.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          names += master_only_names
           excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
             PoTemplatePack.where("LOWER(name) IN (?)", names).pluck(:id)
-          end
+          end if names.any?
 
         when "po_template_items"
           # record_id is PACK id (UI groups items by pack) — exclude master items in those packs
           pack_names = PoTemplatePack.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          pack_names += master_only_names
           excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
             master_pack_ids = PoTemplatePack.where("LOWER(name) IN (?)", pack_names).pluck(:id)
             PoTemplateItem.where(po_template_pack_id: master_pack_ids).pluck(:id)
-          end
+          end if pack_names.any?
 
         when "po_template_line_items"
           # record_id is PACK id — exclude master line items in items of those packs
           pack_names = PoTemplatePack.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          pack_names += master_only_names
           excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
             master_pack_ids = PoTemplatePack.where("LOWER(name) IN (?)", pack_names).pluck(:id)
             master_item_ids = PoTemplateItem.where(po_template_pack_id: master_pack_ids).pluck(:id)
             PoTemplateLineItem.where(po_template_item_id: master_item_ids).pluck(:id)
-          end
+          end if pack_names.any?
 
         when "claim_stage_template_lines"
           # record_id is template id — exclude master lines for that template
+          # Also includes master-only names (templates not yet synced locally)
           tpl_names = ClaimStageTemplate.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          tpl_names += master_only_names
           excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
             master_tpl_ids = ClaimStageTemplate.where("LOWER(name) IN (?)", tpl_names).pluck(:id)
             ClaimStageTemplateLine.where(claim_stage_template_id: master_tpl_ids).pluck(:id)
-          end
+          end if tpl_names.any?
 
         when "tenders"
           # record_id is tender_header id
           header_names = TenderHeader.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          header_names += master_only_names
           excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
             master_header_ids = TenderHeader.where("LOWER(name) IN (?)", header_names).pluck(:id)
             Tender.where(tender_header_id: master_header_ids).pluck(:id)
-          end
+          end if header_names.any?
 
         when "sm_schedule_masters"
           # SM Tasks: record_id is template id (sub-rows grouped by template) — exclude master tasks
           tmpl_names = SmScheduleMasterTemplate.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          tmpl_names += master_only_names
           excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
             master_tmpl_ids = SmScheduleMasterTemplate.where("LOWER(name) IN (?)", tmpl_names).pluck(:id)
             SmScheduleMaster.where(sm_schedule_master_template_id: master_tmpl_ids).pluck(:id)
-          end
+          end if tmpl_names.any?
 
         when "sm_schedule_master_templates"
           # SM Templates: record_id is the template id itself
           names = SmScheduleMasterTemplate.where(id: independent_record_ids).pluck(:name).map(&:downcase)
+          names += master_only_names
           excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
             SmScheduleMasterTemplate.where("LOWER(name) IN (?)", names).pluck(:id)
-          end
+          end if names.any?
 
         else
           # Generic: record_id is the actual record id — match by name
           name_col = %w[name display_name item_name].find { |c| model.column_names.include?(c) } || "name"
           names = model.where(id: independent_record_ids).pluck(name_col.to_sym).compact.map(&:downcase)
+          names += master_only_names
           if names.any?
             excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
               model.where("LOWER(#{name_col}) IN (?)", names).pluck(:id)

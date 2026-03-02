@@ -313,26 +313,32 @@ export function ScheduleMasterSyncTab() {
       : `${tableKey}:${recordId}`;
 
     // Find matching records by name in linked child tables
-    const childUpdates: { tableKey: string; recordId: number; modeKey: string }[] = [];
+    // Supports both local records (positive IDs) and master-only records (negative IDs)
+    const childUpdates: { tableKey: string; recordId: number; modeKey: string; recordName?: string }[] = [];
     const childKeys = LINKED_CHILDREN[tableKey] || [];
-    if (childKeys.length > 0) {
+
+    // Resolve the name of the record being changed (needed for child name matching)
+    const parentName = recordName ?? (() => {
       const cov = syncCoverage[tableKey] as CoverageEntry | undefined;
       const allItems = [...(cov?.records || []), ...(cov?.templates || [])];
-      const thisRecord = allItems.find((r) => r.id === recordId);
+      return allItems.find((r) => r.id === recordId)?.name;
+    })();
 
-      if (thisRecord) {
-        for (const childKey of childKeys) {
-          const childCov = syncCoverage[childKey] as CoverageEntry | undefined;
-          const allChildItems = [...(childCov?.records || []), ...(childCov?.templates || [])];
-          for (const childRec of allChildItems) {
-            // Skip master-only records (negative IDs) — they have no local counterpart
-            if (childRec.id > 0 && childRec.name === thisRecord.name) {
-              childUpdates.push({
-                tableKey: childKey,
-                recordId: childRec.id,
-                modeKey: `${childKey}:${childRec.id}`,
-              });
-            }
+    if (parentName && childKeys.length > 0) {
+      for (const childKey of childKeys) {
+        const childCov = syncCoverage[childKey] as CoverageEntry | undefined;
+        const allChildItems = [...(childCov?.records || []), ...(childCov?.templates || [])];
+        for (const childRec of allChildItems) {
+          if (childRec.name === parentName) {
+            const childIsMasterOnly = childRec.id < 0;
+            childUpdates.push({
+              tableKey: childKey,
+              recordId: childRec.id,
+              modeKey: childIsMasterOnly
+                ? `${childKey}:master:${childRec.name.toLowerCase()}`
+                : `${childKey}:${childRec.id}`,
+              recordName: childIsMasterOnly ? childRec.name : undefined,
+            });
           }
         }
       }
@@ -354,7 +360,10 @@ export function ScheduleMasterSyncTab() {
         }),
         ...childUpdates.map((child) =>
           api.put("/api/v1/config_sync/update_table_mode", {
-            table: child.tableKey, mode: nextMode, record_id: child.recordId,
+            table: child.tableKey, mode: nextMode,
+            ...(child.recordName
+              ? { record_name: child.recordName }
+              : { record_id: child.recordId }),
           })
         ),
       ]);
@@ -993,7 +1002,8 @@ export function ScheduleMasterSyncTab() {
                         return records.map((rec) => {
                           // Master-only records have negative IDs (exist in TEEEM but not locally)
                           const isMasterOnly = rec.id < 0;
-                          const recMode = getRecordMode(table.key, rec.id, table.defaultMode);
+                          // Master-only records use name-based mode keys to survive ID changes
+                          const recMode = getRecordMode(table.key, rec.id, table.defaultMode, isMasterOnly ? rec.name : undefined);
                           // Use name-based key for master-only records to avoid collisions
                           const rowKey = isMasterOnly
                             ? `${table.key}-master-${rec.name}`
@@ -1019,7 +1029,7 @@ export function ScheduleMasterSyncTab() {
                                   title={isMasterOnly
                                     ? "Click to change sync direction (not yet synced locally)"
                                     : "Click to change sync direction for this record"}
-                                  onClick={() => handleCycleRecordMode(table.key, rec.id, recMode)}
+                                  onClick={() => handleCycleRecordMode(table.key, rec.id, recMode, isMasterOnly ? rec.name : undefined)}
                                 >
                                   {SYNC_MODE_LABELS[recMode].label}
                                 </button>
