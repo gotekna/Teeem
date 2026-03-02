@@ -80,6 +80,9 @@ type TenderClassification = "included" | "incl_qty" | "incl_hidden" | "excluded"
 /** PO-level classification options */
 type POClassification = "per_item" | "per_po_incl" | "per_po_incl_qty" | "per_po_nt" | "per_po_exc" | "per_po_pc" | "per_po_ps";
 
+/** How tender markup is displayed/applied */
+type MarkupLevel = "lump_sum" | "per_po" | "per_cc";
+
 const CLASSIFICATION_LABELS: Record<TenderClassification, string> = {
   included: "Included",
   incl_qty: "Incl (Show Qty)",
@@ -223,6 +226,7 @@ function serializeBuilderState(opts: {
   excludedIds: Set<string>;
   tenderMarkupPercent?: number;
   tenderMarkupOverride?: number | null;
+  markupLevel?: MarkupLevel;
 }): Record<string, unknown> {
   return {
     itemClassifications: Object.fromEntries(opts.itemClassifications),
@@ -235,6 +239,7 @@ function serializeBuilderState(opts: {
     excludedIds: Array.from(opts.excludedIds),
     tenderMarkupPercent: opts.tenderMarkupPercent,
     tenderMarkupOverride: opts.tenderMarkupOverride,
+    markupLevel: opts.markupLevel,
   };
 }
 
@@ -250,6 +255,7 @@ function deserializeBuilderState(state: Record<string, unknown>): {
   excludedIds: Set<string>;
   tenderMarkupPercent?: number;
   tenderMarkupOverride?: number | null;
+  markupLevel?: MarkupLevel;
 } | null {
   if (!state) return null;
 
@@ -277,6 +283,7 @@ function deserializeBuilderState(state: Record<string, unknown>): {
       excludedIds: new Set(excluded || []),
       tenderMarkupPercent: state.tenderMarkupPercent as number | undefined,
       tenderMarkupOverride: state.tenderMarkupOverride as number | null | undefined,
+      markupLevel: state.markupLevel as MarkupLevel | undefined,
     };
   } catch (err) {
     console.error("Failed to deserialize builder state:", err);
@@ -324,6 +331,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   const [tenderMarkupOverride, setTenderMarkupOverride] = useState<number | null>(null);
   const [showMarkupEditor, setShowMarkupEditor] = useState(false);
   const [defaultMarkupPercent, setDefaultMarkupPercent] = useState<number>(0); // template default for reset
+  const [markupLevel, setMarkupLevel] = useState<MarkupLevel>("lump_sum");
 
   // Editing state
   const [editOverrides, setEditOverrides] = useState<Map<string, ItemOverride>>(new Map());
@@ -450,6 +458,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           setExcludedIds(restored.excludedIds);
           if (restored.tenderMarkupPercent !== undefined) setTenderMarkupPercent(restored.tenderMarkupPercent);
           if (restored.tenderMarkupOverride !== undefined) setTenderMarkupOverride(restored.tenderMarkupOverride);
+          if (restored.markupLevel) setMarkupLevel(restored.markupLevel);
           // Prevent auto-exclude-qty-0 from overriding restored state
           setAutoDefaultApplied(true);
           toast.success(`Restored builder state from Version ${response.data.version}`);
@@ -1209,6 +1218,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         excludedIds,
         tenderMarkupPercent,
         tenderMarkupOverride,
+        markupLevel,
       });
       const response = await api.post<{
         success: boolean;
@@ -1250,7 +1260,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setSavingBuilder(false);
     }
-  }, [jobId, itemClassifications, poClassifications, editOverrides, newLines, sectionNotes, ccSubtotalEnabled, groupByCostCentre, excludedIds, tenderMarkupPercent, tenderMarkupOverride]);
+  }, [jobId, itemClassifications, poClassifications, editOverrides, newLines, sectionNotes, ccSubtotalEnabled, groupByCostCentre, excludedIds, tenderMarkupPercent, tenderMarkupOverride, markupLevel]);
 
   const handleCreateTender = useCallback(async () => {
     try {
@@ -1323,6 +1333,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         excludedIds,
         tenderMarkupPercent,
         tenderMarkupOverride,
+        markupLevel,
       });
 
       // Build section_document_types: { sectionName: ["Plans", "Engineering"] }
@@ -1366,7 +1377,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setCreatingTender(false);
     }
-  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre, tenderTree, excludedDocTypes, getClassification, unifiedRows, tenderMarkupPercent, tenderMarkupOverride]);
+  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre, tenderTree, excludedDocTypes, getClassification, unifiedRows, tenderMarkupPercent, tenderMarkupOverride, markupLevel]);
 
   // ─── Render states ──────────────────────────────────────────────
 
@@ -1707,7 +1718,12 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                     return c === "included" || c === "incl_qty" || c === "incl_hidden";
                   }
                 );
-                const includedSubtotal = includedSectionItems.reduce((sum, r) => sum + r.amount, 0);
+                const includedSubtotal = includedSectionItems.reduce((sum, r) => {
+                  if (tenderMarkupPercent > 0) {
+                    return sum + applySmartRoundup(r.unitPrice * (1 + tenderMarkupPercent / 100)) * r.quantity;
+                  }
+                  return sum + r.amount;
+                }, 0);
 
                 return (
                   <div key={sKey}>
@@ -2025,22 +2041,36 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                       let activeCCName: string | null = null;
 
                       // Pre-compute cost centre subtotals for preview
+                      // When markup is per_cc, include ALL non-excluded items (with markup for non-PC/PS)
+                      // Otherwise only PC/PS items (which show prices in the tender)
                       const ccSubtotals = new Map<string, number>();
+                      const ccCostTotals = new Map<string, number>(); // cost-only totals for showing markup delta
                       {
                         let currentCCKey: string | null = null;
                         for (const block of contentBlocks) {
                           if (block.kind === "cost-centre") {
                             currentCCKey = `${sKey}::cc::${block.name}`;
                           } else if (block.kind === "po-group" && currentCCKey) {
-                            const poItems = block.pg.items.filter((r) => {
-                              if (excludedIds.has(r.key)) return false;
+                            for (const r of block.pg.items) {
+                              if (excludedIds.has(r.key)) continue;
                               const c = getClassification(r.key, r.poId, r.sectionName);
-                              // Only count items that show a price in the tender (PC/PS)
-                              // Included items show description only (no price), so they don't add to subtotal
-                              return c === "pc" || c === "ps";
-                            });
-                            const total = poItems.reduce((sum, r) => sum + r.amount, 0);
-                            ccSubtotals.set(currentCCKey, (ccSubtotals.get(currentCCKey) || 0) + total);
+                              if (c === "excluded") continue;
+                              const isPcPs = c === "pc" || c === "ps";
+                              const isIncluded = !isPcPs;
+                              // Always count PC/PS at cost
+                              if (isPcPs) {
+                                ccSubtotals.set(currentCCKey, (ccSubtotals.get(currentCCKey) || 0) + r.amount);
+                                ccCostTotals.set(currentCCKey, (ccCostTotals.get(currentCCKey) || 0) + r.amount);
+                              }
+                              // Count included items when markup is per_cc (at sell price) or per_po
+                              if (isIncluded && (markupLevel === "per_cc" || markupLevel === "per_po")) {
+                                const sellAmount = tenderMarkupPercent > 0
+                                  ? applySmartRoundup(r.unitPrice * (1 + tenderMarkupPercent / 100)) * r.quantity
+                                  : r.amount;
+                                ccSubtotals.set(currentCCKey, (ccSubtotals.get(currentCCKey) || 0) + sellAmount);
+                                ccCostTotals.set(currentCCKey, (ccCostTotals.get(currentCCKey) || 0) + r.amount);
+                              }
+                            }
                           }
                         }
                       }
@@ -2540,7 +2570,18 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                 })}
 
                                 {/* PO footer row — spans both panels */}
-                                {!isPOCollapsed && pg.footer && (
+                                {!isPOCollapsed && pg.footer && (() => {
+                                  // Compute sell total for this PO when markup is per_po
+                                  const poSellTotal = (markupLevel === "per_po" && tenderMarkupPercent > 0)
+                                    ? includedItems.reduce((sum, r) => {
+                                        const c = getClassification(r.key, r.poId, r.sectionName);
+                                        if (c === "pc" || c === "ps" || c === "excluded") return sum + r.amount;
+                                        return sum + applySmartRoundup(r.unitPrice * (1 + tenderMarkupPercent / 100)) * r.quantity;
+                                      }, 0)
+                                    : pg.footer.subtotal;
+                                  const poMarkupDelta = poSellTotal - pg.footer.subtotal;
+                                  const showPoMarkup = markupLevel === "per_po" && tenderMarkupPercent > 0 && poMarkupDelta > 0;
+                                  return (
                                   <div className="flex">
                                     <div className="w-3/5 min-w-0 flex items-center border-b-2 border-border bg-muted/10 py-1">
                                       <div className="pl-10">
@@ -2561,6 +2602,11 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                         <span className="text-sm font-mono font-semibold tabular-nums">
                                           {formatCurrency(pg.footer.subtotal)}
                                         </span>
+                                        {showPoMarkup && (
+                                          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                            sell {formatCurrency(poSellTotal)}
+                                          </span>
+                                        )}
                                         <span className="text-xs text-muted-foreground tabular-nums">
                                           GST {formatCurrency(pg.footer.subtotal * 0.1)}
                                         </span>
@@ -2569,26 +2615,50 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                         </span>
                                       </div>
                                     </div>
-                                    <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b-2 border-border" />
+                                    {/* Right panel: show markup breakdown for this PO when per_po */}
+                                    <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b-2 border-border flex items-center">
+                                      {showPoMarkup && (
+                                        <div className="flex items-center gap-2 px-4 text-[11px]">
+                                          <span className="text-emerald-600 dark:text-emerald-400">
+                                            +{formatCurrency(poMarkupDelta)} markup ({tenderMarkupPercent}%)
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                )}
+                                  );
+                                })()}
                               </div>
                               {/* Cost centre subtotal in preview — after last PO in this cost centre */}
-                              {showCCSubAfter && activeCostCentreKey && (
+                              {showCCSubAfter && activeCostCentreKey && (() => {
+                                const ccSell = ccSubtotals.get(activeCostCentreKey) || 0;
+                                const ccCost = ccCostTotals.get(activeCostCentreKey) || 0;
+                                const ccMarkupDelta = ccSell - ccCost;
+                                const showCCMarkup = markupLevel === "per_cc" && tenderMarkupPercent > 0 && ccMarkupDelta > 0;
+                                return (
                                 <div className="flex">
-                                  <div className="w-3/5 min-w-0" />
+                                  <div className="w-3/5 min-w-0">
+                                    {showCCMarkup && (
+                                      <div className="flex items-center justify-end pr-2 py-1.5">
+                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                          +{formatCurrency(ccMarkupDelta)} markup ({tenderMarkupPercent}%)
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
                                   <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 pl-8 pr-4">
                                     <div className="flex items-baseline justify-between gap-3 py-1.5 border-t border-dashed border-primary/30">
                                       <span className="text-[10px] text-primary/70 font-medium uppercase">
                                         {(activeCCName || "").replace(/^\d+\s*[-–—]\s*/, "").trim()} subtotal
                                       </span>
                                       <span className="text-[12px] font-semibold tabular-nums font-mono">
-                                        {formatCurrency(ccSubtotals.get(activeCostCentreKey) || 0)}
+                                        {formatCurrency(ccSell)}
                                       </span>
                                     </div>
                                   </div>
                                 </div>
-                              )}
+                                );
+                              })()}
                             </Fragment>
                             );
                           })}
@@ -2692,7 +2762,14 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                   {tenderMarkupOverride !== null ? (
                     <span>Tender Markup (fixed override)</span>
                   ) : (
-                    <span>incl. Tender Markup ({tenderMarkupPercent}%)</span>
+                    <span>
+                      incl. Tender Markup ({tenderMarkupPercent}%)
+                      {markupLevel !== "lump_sum" && (
+                        <span className="text-xs opacity-70 ml-1">
+                          · {markupLevel === "per_po" ? "per PO" : "per CC"}
+                        </span>
+                      )}
+                    </span>
                   )}
                   <Pencil className="h-3 w-3 opacity-50" />
                 </button>
@@ -2740,6 +2817,35 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                       {tenderMarkupOverride !== null ? "Overrides % calculation" : "Leave blank to use %"}
                     </span>
                   </div>
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-medium text-muted-foreground w-20">Show at</label>
+                    <div className="flex gap-1">
+                      {([
+                        { value: "lump_sum" as const, label: "Lump Sum" },
+                        { value: "per_po" as const, label: "Per PO" },
+                        { value: "per_cc" as const, label: "Per CC" },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setMarkupLevel(opt.value)}
+                          className={cn(
+                            "px-2.5 py-1 text-xs rounded border transition-colors",
+                            markupLevel === opt.value
+                              ? "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-400 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 font-medium"
+                              : "border-border/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {markupLevel === "lump_sum" ? "Markup shown in grand totals only"
+                        : markupLevel === "per_po" ? "Markup visible on each PO footer"
+                        : "Markup visible on each CC subtotal"}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-2 pt-1">
                     <Button
                       variant="ghost"
@@ -2783,6 +2889,30 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                   onChange={(e) => setTenderMarkupPercent(parseFloat(e.target.value) || 0)}
                   className="h-7 w-24 text-sm tabular-nums"
                 />
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-medium text-muted-foreground w-20">Show at</label>
+                <div className="flex gap-1">
+                  {([
+                    { value: "lump_sum" as const, label: "Lump Sum" },
+                    { value: "per_po" as const, label: "Per PO" },
+                    { value: "per_cc" as const, label: "Per CC" },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setMarkupLevel(opt.value)}
+                      className={cn(
+                        "px-2.5 py-1 text-xs rounded border transition-colors",
+                        markupLevel === opt.value
+                          ? "bg-primary/10 border-primary/30 text-primary font-medium"
+                          : "border-border/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               {defaultMarkupPercent > 0 && (
                 <Button

@@ -310,6 +310,8 @@ export function ScheduleMasterSyncTab() {
     });
     try {
       await api.post("/api/v1/config_sync/toggle_record_sync", { table_key: tableKey, record_id: recordId });
+      // Refresh all coverage data to cascade changes (e.g., PO Pack → PO Items/Line Items)
+      fetchCounts();
     } catch (err) {
       console.error("[SMSync] Failed to toggle record sync:", err);
       // Revert on failure
