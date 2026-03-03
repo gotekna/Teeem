@@ -33,11 +33,11 @@ export interface ContactSlim {
 }
 
 export interface ContactSelect extends ContactSlim {
-  entity_type?: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  employer_name?: string;
+  entity_type?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  employer_name?: string | null;
 }
 
 // Module-level caches keyed by filter params

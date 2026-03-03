@@ -974,7 +974,7 @@ module Api
         # ── Step 2 + 3: Push + orphan cleanup per customer tenant ─────────────────────
         # Get current TEEEM record IDs and sync_keys (after tombstone cleanup above).
         master_record_ids = ActsAsTenant.with_tenant(current_tenant) do
-          scoped_query(model, table_config).pluck(:id)
+          scoped_model(model, table_config).pluck(:id)
         end
 
         master_sync_keys = ActsAsTenant.with_tenant(current_tenant) do

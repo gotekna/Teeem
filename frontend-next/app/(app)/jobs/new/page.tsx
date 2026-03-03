@@ -637,7 +637,7 @@ export default function NewJobPage() {
   // Handle contact selection for a role
   const handleContactSelect = (
     role: "client1" | "client2" | "referrer" | "external_sales",
-    contact: Contact | null
+    contact: ContactSelect | null
   ) => {
     setPeopleData((prev) => ({
       ...prev,

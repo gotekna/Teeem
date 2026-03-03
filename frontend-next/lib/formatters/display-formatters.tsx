@@ -533,7 +533,7 @@ export interface ContactForDisplay {
   company_name_or_trust?: string | null;
   first_name?: string | null;
   last_name?: string | null;
-  employer_name?: string; // Company name for person contacts (from backend)
+  employer_name?: string | null; // Company name for person contacts (from backend)
 }
 
 /**
