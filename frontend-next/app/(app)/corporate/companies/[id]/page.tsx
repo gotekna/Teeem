@@ -56,7 +56,7 @@ import { XeroTabRenderer } from "@/components/xero/XeroTabRenderer";
 import { ActivityTab } from "@/components/tabs";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
-import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
+import { WarehouseTreeWithPreview } from "@/components/warehouse/WarehouseTreeWithPreview";
 // Shared types for corporate entities (SSoT for Company type)
 import type { Corporate } from "@/lib/types/corporate";
 
@@ -589,7 +589,7 @@ export default function CompanyDetailPage() {
 
           {/* Warehouse Tab - Contextual view showing all related records */}
           {activeTab === "warehouse" && (
-            <WarehouseTree
+            <WarehouseTreeWithPreview
               mode={{
                 type: "context",
                 entityType: "CorporateCompany",

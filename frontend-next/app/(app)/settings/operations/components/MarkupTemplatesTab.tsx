@@ -105,18 +105,35 @@ const CHARGE_TYPES = [
   { key: "defaultMaintenanceFeePercent", label: "Maintenance Fee", smField: "charge_maintenance_fee_sm_ids", chargeType: "maintenance_fee", step: 0.1 },
 ] as const;
 
-// Helper: render inline metadata badges for a task
+// Metadata badge → settings page mapping
+const METADATA_LINKS: { field: keyof SmPoTask; prefix: string; href: string }[] = [
+  { field: "stage_name", prefix: "Stage", href: "/tables/sm_stages" },
+  { field: "trade_name", prefix: "Trade", href: "/tables/sm_trades" },
+  { field: "cost_centre_name", prefix: "CC", href: "/settings/operations/cost-centres" },
+  { field: "tender_name", prefix: "Tender", href: "/settings/operations/tender-sections" },
+  { field: "assigned_role_name", prefix: "Role", href: "/settings/roles" },
+];
+
+// Helper: render inline clickable metadata badges for a task
 function TaskMetadataBadges({ task }: { task: SmPoTask }) {
-  const parts: string[] = [];
-  if (task.stage_name) parts.push(`Stage: ${task.stage_name}`);
-  if (task.trade_name) parts.push(`Trade: ${task.trade_name}`);
-  if (task.cost_centre_name) parts.push(`CC: ${task.cost_centre_name}`);
-  if (task.tender_name) parts.push(`Tender: ${task.tender_name}`);
-  if (task.assigned_role_name) parts.push(`Role: ${task.assigned_role_name}`);
-  if (parts.length === 0) return null;
+  const badges = METADATA_LINKS
+    .filter(m => task[m.field])
+    .map(m => ({ ...m, value: task[m.field] as string }));
+  if (badges.length === 0) return null;
   return (
-    <span className="text-xs text-muted-foreground">
-      {parts.join(" | ")}
+    <span className="text-xs text-muted-foreground inline-flex items-center gap-0.5 flex-wrap">
+      {badges.map((b, i) => (
+        <React.Fragment key={b.field}>
+          {i > 0 && <span className="mx-0.5">|</span>}
+          <Link
+            href={b.href}
+            className="hover:text-foreground hover:underline transition-colors"
+            title={`Open ${b.prefix} settings`}
+          >
+            {b.prefix}: {b.value}
+          </Link>
+        </React.Fragment>
+      ))}
     </span>
   );
 }
@@ -442,7 +459,7 @@ export function MarkupTemplatesTab() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl px-4 pt-4">
+    <div className="space-y-6 max-w-6xl px-4 pt-4">
       <div>
         <h2 className="text-lg font-semibold">Template Markup Overrides</h2>
         <p className="text-sm text-muted-foreground">
@@ -745,7 +762,7 @@ export function MarkupTemplatesTab() {
                                 <span className="text-xs text-muted-foreground">
                                   {linkedClaimTemplate ? "Claim stage split:" : "Split:"}
                                 </span>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                <div className="space-y-1.5">
                                   {smIds.map(smId => {
                                     const task = tasks.find(t => t.id === smId);
                                     const taskName = task?.name || `#${smId}`;
@@ -754,49 +771,39 @@ export function MarkupTemplatesTab() {
                                       ? claimMatch.percentage
                                       : (chargeAllocs[smId.toString()] ?? Math.round(100 / smIds.length));
                                     return (
-                                      <div key={smId} className="flex items-center gap-1">
-                                        <span className="text-xs truncate max-w-[140px]">{taskName}</span>
-                                        {claimMatch ? (
-                                          <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded" title={`From claim stage: ${claimMatch.stageName} (${claimMatch.percentage}%)`}>
-                                            {claimMatch.percentage}%
-                                          </span>
-                                        ) : (
-                                          <>
-                                            <Input
-                                              type="number"
-                                              min={0}
-                                              max={100}
-                                              step={1}
-                                              value={pct}
-                                              onChange={e => updateAllocation(tmpl.id, charge.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
-                                              onFocus={e => e.target.select()}
-                                              className="h-6 text-xs w-14 px-1"
-                                            />
-                                            <span className="text-xs text-muted-foreground">%</span>
-                                          </>
-                                        )}
-                                        {task && (
-                                          <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={() => openEditDialog(task)} title="Edit task details">
-                                            <Pencil className="h-2.5 w-2.5" />
-                                          </Button>
-                                        )}
+                                      <div key={smId} className="space-y-0.5">
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs font-medium truncate max-w-[200px]">{taskName}</span>
+                                          {claimMatch ? (
+                                            <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded" title={`From claim stage: ${claimMatch.stageName} (${claimMatch.percentage}%)`}>
+                                              {claimMatch.percentage}%
+                                            </span>
+                                          ) : (
+                                            <>
+                                              <Input
+                                                type="number"
+                                                min={0}
+                                                max={100}
+                                                step={1}
+                                                value={pct}
+                                                onChange={e => updateAllocation(tmpl.id, charge.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
+                                                onFocus={e => e.target.select()}
+                                                className="h-6 text-xs w-14 px-1"
+                                              />
+                                              <span className="text-xs text-muted-foreground">%</span>
+                                            </>
+                                          )}
+                                          {task && (
+                                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={() => openEditDialog(task)} title="Edit task details">
+                                              <Pencil className="h-2.5 w-2.5" />
+                                            </Button>
+                                          )}
+                                        </div>
+                                        {task && <div className="pl-1"><TaskMetadataBadges task={task} /></div>}
                                       </div>
                                     );
                                   })}
                                 </div>
-                                {/* Metadata for overhead tasks */}
-                                {smIds.map(smId => {
-                                  const task = tasks.find(t => t.id === smId);
-                                  if (!task) return null;
-                                  const hasMeta = task.stage_name || task.trade_name || task.cost_centre_name || task.tender_name || task.assigned_role_name;
-                                  if (!hasMeta) return null;
-                                  return (
-                                    <div key={`meta-${smId}`} className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground truncate max-w-[100px]">{task.name}:</span>
-                                      <TaskMetadataBadges task={task} />
-                                    </div>
-                                  );
-                                })}
                               </div>
                             )}
 

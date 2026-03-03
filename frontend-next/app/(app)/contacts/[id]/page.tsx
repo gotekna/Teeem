@@ -80,7 +80,7 @@ import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { ContactHeader, XeroLink } from "./components/ContactHeader";
-import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
+import { WarehouseTreeWithPreview } from "@/components/warehouse/WarehouseTreeWithPreview";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { getIcon } from "@/lib/icon-map";
 import {
@@ -2194,12 +2194,8 @@ export default function ContactDetailPage() {
 
         {/* Warehouse Tab - Contextual view showing all related records */}
         <TabsContent value="warehouse" className="mt-6">
-          <WarehouseTree
-            mode={{
-              type: "context",
-              entityType: "Contact",
-              entityId: contact.id,
-            }}
+          <WarehouseTreeWithPreview
+            mode={{ type: "context", entityType: "Contact", entityId: contact.id }}
           />
         </TabsContent>
 
