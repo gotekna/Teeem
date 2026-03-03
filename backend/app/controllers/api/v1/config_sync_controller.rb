@@ -882,7 +882,15 @@ module Api
           return render_error("mode must be one of: #{valid_modes.join(', ')}", status: :bad_request)
         end
 
-        ts = current_tenant&.tenant_setting
+        # Master tenant can set modes for any tenant via target_tenant_id.
+        # Non-master tenants can only write to their own settings.
+        target_tenant = if params[:target_tenant_id].present? && current_tenant&.is_master_tenant?
+          Tenant.find_by(id: params[:target_tenant_id]) || current_tenant
+        else
+          current_tenant
+        end
+
+        ts = target_tenant&.tenant_setting
         unless ts
           return render_error("No tenant setting found", status: :not_found)
         end
@@ -901,7 +909,7 @@ module Api
         modes[mode_key] = mode
         ts.update!(config_sync_table_modes: modes)
 
-        # Cascade sync_key changes when mode changes
+        # Cascade sync_key changes when mode changes — scoped to the target tenant.
         # (master-only records have no local counterpart to cascade to)
         cascaded = 0
         cascade_error = nil
@@ -910,35 +918,35 @@ module Api
           if config
             model = config[:model].constantize
 
-            if record_id.present? && model.column_names.include?("sync_key")
-              # Per-record: clear/regenerate sync_key for this specific record + its children
-              record = model.find_by(id: record_id)
-              if record
-                if mode == "independent"
-                  record.update_column(:sync_key, nil) if record.sync_key.present?
-                  cascaded += 1
-                  # Also clear children (PO Pack → Items → Line Items, Claim Template → Lines)
-                  cascaded += cascade_clear_children(table_key, record)
-                else
-                  if record.sync_key.blank? && record.respond_to?(:generate_sync_key)
-                    record.generate_sync_key
-                    record.save! if record.sync_key_changed?
+            ActsAsTenant.with_tenant(target_tenant) do
+              if record_id.present? && model.column_names.include?("sync_key")
+                # Per-record: clear/regenerate sync_key for this specific record + its children
+                record = model.find_by(id: record_id)
+                if record
+                  if mode == "independent"
+                    record.update_column(:sync_key, nil) if record.sync_key.present?
                     cascaded += 1
+                    cascaded += cascade_clear_children(table_key, record)
+                  else
+                    if record.sync_key.blank? && record.respond_to?(:generate_sync_key)
+                      record.generate_sync_key
+                      record.save! if record.sync_key_changed?
+                      cascaded += 1
+                    end
+                    cascaded += cascade_regenerate_children(table_key, record)
                   end
-                  # Also regenerate children
-                  cascaded += cascade_regenerate_children(table_key, record)
                 end
-              end
-            elsif params[:cascade].present? && model.column_names.include?("sync_key")
-              # Table-level: clear/regenerate ALL records
-              if mode == "independent"
-                cascaded = model.where.not(sync_key: nil).update_all(sync_key: nil)
-              else
-                model.where(sync_key: nil).find_each do |rec|
-                  rec.generate_sync_key
-                  if rec.sync_key_changed?
-                    rec.save!
-                    cascaded += 1
+              elsif params[:cascade].present? && model.column_names.include?("sync_key")
+                # Table-level: clear/regenerate ALL records in target tenant
+                if mode == "independent"
+                  cascaded = model.where.not(sync_key: nil).update_all(sync_key: nil)
+                else
+                  model.where(sync_key: nil).find_each do |rec|
+                    rec.generate_sync_key
+                    if rec.sync_key_changed?
+                      rec.save!
+                      cascaded += 1
+                    end
                   end
                 end
               end

@@ -119,6 +119,8 @@ export function ScheduleMasterSyncTab() {
   // Master: all tenant counts keyed by slug { table: { slug: count } }
   const [allTenantCounts, setAllTenantCounts] = useState<Record<string, Record<string, number>>>({});
   const [allTenants, setAllTenants] = useState<TenantInfo[]>([]);
+  // Per-tenant sync mode settings (master-only): { tenantSlug: { modeKey: mode } }
+  const [allTenantModes, setAllTenantModes] = useState<Record<string, Record<string, string>>>({});
   const [isMasterTenant, setIsMasterTenant] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState<number>(0);
 
@@ -175,6 +177,7 @@ export function ScheduleMasterSyncTab() {
         is_master_tenant?: boolean;
         all_tenants?: TenantInfo[];
         all_tenant_counts?: Record<string, Record<string, number>>;
+        all_tenant_modes?: Record<string, Record<string, string>>;
         last_config_sync_at?: string | null;
         last_config_sync_by?: string | null;
         sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>>;
@@ -197,6 +200,7 @@ export function ScheduleMasterSyncTab() {
         if (response.is_master_tenant && response.all_tenants && response.all_tenant_counts) {
           setAllTenants(response.all_tenants);
           setAllTenantCounts(response.all_tenant_counts);
+          if (response.all_tenant_modes) setAllTenantModes(response.all_tenant_modes);
 
           // Auto-select the non-master tenant with the most SM tasks
           const nonMaster = response.all_tenants.filter((t) => !t.is_master);
@@ -262,6 +266,80 @@ export function ScheduleMasterSyncTab() {
       if (tableModes[nameKey]) return tableModes[nameKey] as SyncMode;
     }
     return tableModes[`${tableKey}:${recordId}`] || tableModes[tableKey] || (defaultMode as SyncMode);
+  };
+
+  // Get a specific non-master tenant's configured mode for a table (for master tenant display)
+  const getTenantTableMode = (tenantSlug: string, tableKey: string, defaultMode: string): SyncMode => {
+    const explicit = allTenantModes[tenantSlug]?.[tableKey];
+    return (explicit || defaultMode) as SyncMode;
+  };
+
+  // Get a specific non-master tenant's configured mode for a specific record (for master tenant display)
+  const getTenantRecordMode = (tenantSlug: string, tableKey: string, recordId: number, defaultMode: string, recordName?: string): SyncMode => {
+    const modes = allTenantModes[tenantSlug] || {};
+    if (recordId < 0 && recordName) {
+      const nameKey = `${tableKey}:master:${recordName.toLowerCase()}`;
+      if (modes[nameKey]) return modes[nameKey] as SyncMode;
+    }
+    const recordKey = `${tableKey}:${recordId}`;
+    if (modes[recordKey]) return modes[recordKey] as SyncMode;
+    return (modes[tableKey] || defaultMode) as SyncMode;
+  };
+
+  // Master tenant: cycle mode for a specific tenant's table setting.
+  // Writes to that tenant's config_sync_table_modes via target_tenant_id.
+  const handleCycleTenantMode = async (tenant: TenantInfo, tableKey: string, currentMode: SyncMode) => {
+    const nextMode = SYNC_MODES[(SYNC_MODES.indexOf(currentMode) + 1) % SYNC_MODES.length];
+    const childKeys = LINKED_CHILDREN[tableKey] || [];
+    // Optimistic update for this tenant
+    setAllTenantModes((prev) => {
+      const tenantModes = { ...(prev[tenant.slug] || {}), [tableKey]: nextMode };
+      for (const child of childKeys) tenantModes[child] = nextMode;
+      return { ...prev, [tenant.slug]: tenantModes };
+    });
+    try {
+      await Promise.all([
+        api.put("/api/v1/config_sync/update_table_mode", { table: tableKey, mode: nextMode, cascade: true, target_tenant_id: tenant.id }),
+        ...childKeys.map((child) =>
+          api.put("/api/v1/config_sync/update_table_mode", { table: child, mode: nextMode, cascade: true, target_tenant_id: tenant.id })
+        ),
+      ]);
+    } catch (err) {
+      console.error("[SMSync] Failed to update tenant table mode:", err);
+      setAllTenantModes((prev) => {
+        const tenantModes = { ...(prev[tenant.slug] || {}) };
+        delete tenantModes[tableKey];
+        for (const child of childKeys) delete tenantModes[child];
+        return { ...prev, [tenant.slug]: tenantModes };
+      });
+    }
+  };
+
+  // Master tenant: cycle mode for a specific tenant's per-record setting.
+  const handleCycleTenantRecordMode = async (tenant: TenantInfo, tableKey: string, recordId: number, currentMode: SyncMode, recordName?: string) => {
+    const nextMode = SYNC_MODES[(SYNC_MODES.indexOf(currentMode) + 1) % SYNC_MODES.length];
+    const isMasterOnly = recordId < 0;
+    const modeKey = isMasterOnly && recordName
+      ? `${tableKey}:master:${recordName.toLowerCase()}`
+      : `${tableKey}:${recordId}`;
+    // Optimistic update
+    setAllTenantModes((prev) => ({
+      ...prev,
+      [tenant.slug]: { ...(prev[tenant.slug] || {}), [modeKey]: nextMode },
+    }));
+    try {
+      await api.put("/api/v1/config_sync/update_table_mode", {
+        table: tableKey, mode: nextMode, target_tenant_id: tenant.id,
+        ...(isMasterOnly && recordName ? { record_name: recordName } : { record_id: recordId }),
+      });
+    } catch (err) {
+      console.error("[SMSync] Failed to update tenant record mode:", err);
+      setAllTenantModes((prev) => {
+        const tenantModes = { ...(prev[tenant.slug] || {}) };
+        delete tenantModes[modeKey];
+        return { ...prev, [tenant.slug]: tenantModes };
+      });
+    }
   };
 
   // Cycle sync mode: two_way → one_way → independent → two_way
@@ -963,25 +1041,45 @@ export function ScheduleMasterSyncTab() {
                           </>
                         )}
                         <TableCell className="text-center py-2">
-                          {(() => {
-                            const mode = getTableMode(table.key, table.defaultMode);
-                            const st = SYNC_MODE_LABELS[mode];
-                            if (!st) return null;
-
-                            return (
-                              <button
-                                type="button"
-                                className={cn(
-                                  "text-xs font-medium cursor-pointer hover:underline transition-colors",
-                                  st.color,
-                                )}
-                                onClick={() => handleCycleSyncMode(table.key, mode)}
-                                title={`Click to change sync direction (${SYNC_MODES.map(m => SYNC_MODE_LABELS[m].label).join(" → ")})`}
-                              >
-                                {st.label}
-                              </button>
-                            );
-                          })()}
+                          {isMasterTenant && nonMasterTenants.length > 0 ? (
+                            // Master view: each tenant's mode — clickable to change that tenant's setting
+                            <div className="flex flex-col items-center gap-0.5">
+                              {nonMasterTenants.map((t) => {
+                                const mode = getTenantTableMode(t.slug, table.key, table.defaultMode);
+                                const st = SYNC_MODE_LABELS[mode];
+                                return (
+                                  <button
+                                    key={t.slug}
+                                    type="button"
+                                    className={cn("text-[10px] font-medium whitespace-nowrap cursor-pointer hover:underline transition-colors", st.color)}
+                                    onClick={() => handleCycleTenantMode(t, table.key, mode)}
+                                    title={`${t.name}: click to change sync direction`}
+                                  >
+                                    {t.name.split(" ")[0]}: {st.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            (() => {
+                              const mode = getTableMode(table.key, table.defaultMode);
+                              const st = SYNC_MODE_LABELS[mode];
+                              if (!st) return null;
+                              return (
+                                <button
+                                  type="button"
+                                  className={cn(
+                                    "text-xs font-medium cursor-pointer hover:underline transition-colors",
+                                    st.color,
+                                  )}
+                                  onClick={() => handleCycleSyncMode(table.key, mode)}
+                                  title={`Click to change sync direction (${SYNC_MODES.map(m => SYNC_MODE_LABELS[m].label).join(" → ")})`}
+                                >
+                                  {st.label}
+                                </button>
+                              );
+                            })()
+                          )}
                         </TableCell>
                         <TableCell className="text-right py-2">
                           <div className="flex items-center justify-end gap-1.5">
@@ -1048,16 +1146,36 @@ export function ScheduleMasterSyncTab() {
                                 {tmpl.tasks.toLocaleString()}
                               </TableCell>
                               <TableCell className="text-center py-1.5">
-                                <button
-                                  className={cn(
-                                    "text-[11px] font-medium cursor-pointer hover:underline",
-                                    SYNC_MODE_LABELS[recMode].color,
-                                  )}
-                                  title="Click to change sync direction for this record"
-                                  onClick={() => handleCycleRecordMode(table.key, tmpl.id, recMode)}
-                                >
-                                  {SYNC_MODE_LABELS[recMode].label}
-                                </button>
+                                {isMasterTenant && nonMasterTenants.length > 0 ? (
+                                  <div className="flex flex-col items-center gap-0">
+                                    {nonMasterTenants.map((t) => {
+                                      const mode = getTenantRecordMode(t.slug, table.key, tmpl.id, table.defaultMode);
+                                      const st = SYNC_MODE_LABELS[mode];
+                                      return (
+                                        <button
+                                          key={t.slug}
+                                          type="button"
+                                          className={cn("text-[10px] font-medium whitespace-nowrap cursor-pointer hover:underline transition-colors", st.color)}
+                                          onClick={() => handleCycleTenantRecordMode(t, table.key, tmpl.id, mode)}
+                                          title={`${t.name}: click to change sync direction`}
+                                        >
+                                          {t.name.split(" ")[0]}: {st.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <button
+                                    className={cn(
+                                      "text-[11px] font-medium cursor-pointer hover:underline",
+                                      SYNC_MODE_LABELS[recMode].color,
+                                    )}
+                                    title="Click to change sync direction for this record"
+                                    onClick={() => handleCycleRecordMode(table.key, tmpl.id, recMode)}
+                                  >
+                                    {SYNC_MODE_LABELS[recMode].label}
+                                  </button>
+                                )}
                               </TableCell>
                               <TableCell className="py-1.5" />
                             </TableRow>
@@ -1098,18 +1216,38 @@ export function ScheduleMasterSyncTab() {
                                 {rec.count != null && rec.count > 0 ? rec.count.toLocaleString() : "0"}
                               </TableCell>
                               <TableCell className="text-center py-1.5">
-                                <button
-                                  className={cn(
-                                    "text-[11px] font-medium cursor-pointer hover:underline",
-                                    SYNC_MODE_LABELS[recMode].color,
-                                  )}
-                                  title={isMasterOnly
-                                    ? "Click to change sync direction (not yet synced locally)"
-                                    : "Click to change sync direction for this record"}
-                                  onClick={() => handleCycleRecordMode(table.key, rec.id, recMode, isMasterOnly ? rec.name : undefined)}
-                                >
-                                  {SYNC_MODE_LABELS[recMode].label}
-                                </button>
+                                {isMasterTenant && nonMasterTenants.length > 0 ? (
+                                  <div className="flex flex-col items-center gap-0">
+                                    {nonMasterTenants.map((t) => {
+                                      const mode = getTenantRecordMode(t.slug, table.key, rec.id, table.defaultMode, isMasterOnly ? rec.name : undefined);
+                                      const st = SYNC_MODE_LABELS[mode];
+                                      return (
+                                        <button
+                                          key={t.slug}
+                                          type="button"
+                                          className={cn("text-[10px] font-medium whitespace-nowrap cursor-pointer hover:underline transition-colors", st.color)}
+                                          onClick={() => handleCycleTenantRecordMode(t, table.key, rec.id, mode, isMasterOnly ? rec.name : undefined)}
+                                          title={`${t.name}: click to change sync direction`}
+                                        >
+                                          {t.name.split(" ")[0]}: {st.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <button
+                                    className={cn(
+                                      "text-[11px] font-medium cursor-pointer hover:underline",
+                                      SYNC_MODE_LABELS[recMode].color,
+                                    )}
+                                    title={isMasterOnly
+                                      ? "Click to change sync direction (not yet synced locally)"
+                                      : "Click to change sync direction for this record"}
+                                    onClick={() => handleCycleRecordMode(table.key, rec.id, recMode, isMasterOnly ? rec.name : undefined)}
+                                  >
+                                    {SYNC_MODE_LABELS[recMode].label}
+                                  </button>
+                                )}
                               </TableCell>
                               <TableCell className="py-1.5" />
                             </TableRow>

@@ -6,6 +6,19 @@ class ExternalInvoiceSyncService
   # SSoT: Safety limit for paginated fetches (prevents infinite loops)
   MAX_PAGES = 100
 
+  # ⚠️ FRC (Mar 2026): Separate limit for incremental syncs.
+  # ════════════════════════════════════════════════════════════════
+  # Root cause: incremental sync with MAX_PAGES=100 still fetches up to 10,000 invoices.
+  # Even with correct per-tenant XeroSyncStatus timestamps, Xero can return 3,000+
+  # invoices modified in a 30-min window (batch payments, reconciliation runs, etc.).
+  # At ~3s/page, 30+ pages = 90+ seconds = worker shutdown timeout exceeded = restart
+  # loop where the sync never completes and timestamp never advances.
+  # ❌ WRONG: MAX_PAGES=100 for incremental (causes worker restarts, job never completes)
+  # ✅ CORRECT: 10 pages (1,000 invoices) per incremental run. Completes fast, updates
+  #    timestamp, next run picks up only new modifications. Webhooks handle the rest.
+  # ════════════════════════════════════════════════════════════════
+  MAX_INCREMENTAL_PAGES = 10
+
   def initialize(source: "xero", tenant_id: nil)
     @source = source
     @xero_tenant_id = tenant_id  # Xero org UUID (used for API calls)
@@ -1120,7 +1133,10 @@ class ExternalInvoiceSyncService
       end
 
       page += 1
-      break if page > MAX_PAGES
+      if page > MAX_INCREMENTAL_PAGES
+        Rails.logger.warn("Incremental sync hit page limit (#{MAX_INCREMENTAL_PAGES}): processed #{total} invoices, stopping to allow timestamp update")
+        break
+      end
       sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 

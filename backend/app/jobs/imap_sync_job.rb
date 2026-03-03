@@ -37,6 +37,11 @@ class ImapSyncJob < ApplicationJob
         break unless time_remaining?
 
         sync_credential(credential, full_sync: full_sync)
+
+        # FRC (Mar 2026): GC between IMAP accounts to prevent R14 memory errors.
+        # Same pattern as OrgEmailSyncJob (MS Graph mailboxes). Without this, processing
+        # 4 IMAP accounts sequentially accumulates objects and exceeds 1024MB quota.
+        GC.start
       end
     end
   end
