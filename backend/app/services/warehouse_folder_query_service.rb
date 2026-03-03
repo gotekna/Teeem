@@ -196,6 +196,7 @@ class WarehouseFolderQueryService
           id: dt.id,
           name: dt.name,
           abbreviation: dt.abbreviation,
+          tracks_signing_status: dt.tracks_signing_status || false,
           is_primary: join&.is_primary || false,
           ui_name_template: join&.ui_name_template,
           download_name_template: join&.download_name_template,

@@ -246,6 +246,15 @@ module Api
 
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
+        # Parse dates from metadata (ISO date strings "YYYY-MM-DD")
+        raw_expiry = metadata[:expiry_date] || metadata["expiry_date"]
+        parsed_expiry = raw_expiry.present? ? Date.parse(raw_expiry.to_s) : nil rescue nil
+
+        raw_executed = metadata[:executed_date] || metadata["executed_date"]
+        parsed_executed = raw_executed.present? ? Date.parse(raw_executed.to_s) : nil rescue nil
+
+        version_status = metadata[:version_status] || metadata["version_status"]
+
         doc = WarehouseDocumentCreator.create_or_version!(
           filename: filename,
           source_type: "job",
@@ -254,10 +263,13 @@ module Api
           file_size: file_size,
           content_type: content_type,
           warehouse_folder_id: metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"],
+          expiry_date: parsed_expiry,
           metadata: {
             "document_type" => metadata[:document_type] || metadata["document_type"],
+            "version_status" => version_status.presence,
+            "executed_date" => parsed_executed&.iso8601,
             "source" => "manual"
-          },
+          }.compact,
           user: current_user
         )
 

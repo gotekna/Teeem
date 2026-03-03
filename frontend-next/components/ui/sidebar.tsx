@@ -341,11 +341,8 @@ function SidebarContent({
                     searchPlaceholder="Search tenants..."
                     searchInTrigger={false}
                     className="h-7 text-xs flex-1 min-w-0"
-                    popoverProps={{ className: "w-[220px]" }}
+                    popoverProps={{ className: "w-[220px]", side: "top" as const }}
                   />
-                  <span className="text-[10px] font-mono text-muted-foreground shrink-0">
-                    #{tenantInfo.currentTenant.id}
-                  </span>
                 </>
               ) : (
                 <span className="text-xs font-medium truncate flex-1 min-w-0">

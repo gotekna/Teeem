@@ -71,8 +71,10 @@
 #   {Number}          - Sequential number
 #   {Description}     - Description
 #   {Folder}          - Folder name
-#   {EX}              - Expiry short
-#   {Expiry}          - Expiry long
+#   {EX}              - Expiry short (e.g., "EX 09/10/25")
+#   {Expiry}          - Expiry long (e.g., "Expiry 9 October 2025")
+#   {EXC}             - Executed date short (e.g., "EXC 09/10/25")
+#   {Executed}        - Executed date long (e.g., "Executed 9 October 2025")
 #   {YYYYMMDD}        - ISO date (e.g., "2025-10-09")
 #   {DateISO}         - ISO date alias
 #
@@ -275,6 +277,15 @@ module DocumentTemplatable
       exp_date = context[:expiry_date].to_date
       result.gsub!('{EX}', "EX #{exp_date.strftime('%d/%m/%y')}")
       result.gsub!('{Expiry}', "Expiry #{exp_date.day} #{exp_date.strftime('%B %Y')}")
+    end
+
+    # ======================
+    # Executed/Signed Date
+    # ======================
+    if context[:executed_date].present?
+      exc_date = context[:executed_date].to_date
+      result.gsub!('{EXC}', "EXC #{exc_date.strftime('%d/%m/%y')}")
+      result.gsub!('{Executed}', "Executed #{exc_date.day} #{exc_date.strftime('%B %Y')}")
     end
 
     # =============

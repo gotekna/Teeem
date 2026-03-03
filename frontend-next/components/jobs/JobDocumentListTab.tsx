@@ -29,7 +29,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, FileText, FolderOpen } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Upload, FileText, FolderOpen, CalendarDays } from "lucide-react";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -60,6 +66,29 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [selectedDocType, setSelectedDocType] = useState("");
+  const [signingStatus, setSigningStatus] = useState<"draft" | "signed">("draft");
+  const [executedDate, setExecutedDate] = useState<Date | undefined>(undefined);
+  const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
+
+  // Detect if selected doc type needs signing status or special date fields
+  const selectedDocTypeObj = React.useMemo(
+    () => warehouseFolder.document_types?.find(d => d.name === selectedDocType),
+    [warehouseFolder.document_types, selectedDocType]
+  );
+
+  const needsSigningStatus = selectedDocTypeObj?.tracks_signing_status || false;
+
+  const needsExecutedDate = React.useMemo(() => {
+    if (!selectedDocTypeObj) return false;
+    const templates = [selectedDocTypeObj.ui_name, selectedDocTypeObj.download_name].filter(Boolean).join(" ");
+    return /\{EXC\}|\{Executed\}/i.test(templates);
+  }, [selectedDocTypeObj]);
+
+  const needsExpiry = React.useMemo(() => {
+    if (!selectedDocTypeObj) return false;
+    const templates = [selectedDocTypeObj.ui_name, selectedDocTypeObj.download_name].filter(Boolean).join(" ");
+    return /\{EX\}|\{Expiry\}/i.test(templates);
+  }, [selectedDocTypeObj]);
 
   // Fetch documents for this folder
   const fetchDocuments = useCallback(async () => {
@@ -124,6 +153,9 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
             job_id: jobId,
             warehouse_folder_id: warehouseFolder.id,
             document_type: selectedDocType || undefined,
+            version_status: needsSigningStatus ? signingStatus : undefined,
+            executed_date: executedDate ? executedDate.toISOString().split("T")[0] : undefined,
+            expiry_date: expiryDate ? expiryDate.toISOString().split("T")[0] : undefined,
           },
         });
 
@@ -152,7 +184,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
       setUploading(false);
       setPendingFiles([]);
     }
-  }, [pendingFiles, jobId, warehouseFolder.id, selectedDocType, fetchDocuments, toast]);
+  }, [pendingFiles, jobId, warehouseFolder.id, selectedDocType, needsSigningStatus, signingStatus, executedDate, expiryDate, fetchDocuments, toast]);
 
   // Delete
   const handleDelete = useCallback(async (doc: LibraryDocument, e: React.MouseEvent) => {
@@ -331,6 +363,9 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
         if (!open) {
           setUploadDialogOpen(false);
           setPendingFiles([]);
+          setSigningStatus("draft");
+          setExecutedDate(undefined);
+          setExpiryDate(undefined);
         }
       }}>
         <DialogContent className="sm:max-w-md">
@@ -372,11 +407,84 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
                 </Select>
               </div>
             )}
+
+            {needsSigningStatus && (
+              <div className="space-y-1.5">
+                <Label htmlFor="job-signing-status">Signing Status</Label>
+                <Select value={signingStatus} onValueChange={(v) => setSigningStatus(v as "draft" | "signed")}>
+                  <SelectTrigger id="job-signing-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="signed">Signed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {needsExecutedDate && (
+              <div className="space-y-1.5">
+                <Label>Date Executed</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal ${!executedDate ? "text-muted-foreground" : ""}`}
+                    >
+                      <CalendarDays className="mr-2 h-4 w-4" />
+                      {executedDate
+                        ? executedDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+                        : "When was this document signed?"
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={executedDate}
+                      onSelect={setExecutedDate}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            {needsExpiry && (
+              <div className="space-y-1.5">
+                <Label>Expiry Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal ${!expiryDate ? "text-muted-foreground" : ""}`}
+                    >
+                      <CalendarDays className="mr-2 h-4 w-4" />
+                      {expiryDate
+                        ? expiryDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+                        : "Select expiry date..."
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={expiryDate}
+                      onSelect={setExpiryDate}
+                      disabled={(date) => date < new Date()}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setUploadDialogOpen(false);
               setPendingFiles([]);
+              setSigningStatus("draft");
+              setExecutedDate(undefined);
+              setExpiryDate(undefined);
             }}>
               Cancel
             </Button>

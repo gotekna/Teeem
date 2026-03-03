@@ -164,7 +164,9 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         // Cache is keyed by foundationId only (not tenant), so switching tenants without clearing
         // serves stale records from the previous tenant's IndexedDB cache.
         await clearAllCachedRecordsAsync();
-        window.location.reload();
+        // Force hard reload bypassing all caches (Next.js RSC cache, bfcache, service worker).
+        // Navigate to root to ensure all page components remount with new tenant context.
+        window.location.href = "/";
         return true;
       } else {
         console.error('[TenantSwitch] Failed:', response?.error);
@@ -193,7 +195,8 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         removeStorageItem(STORAGE_KEYS.TENANT_OVERRIDE);
         // Clear cached records to prevent cross-tenant data leakage (same as switchTenant)
         await clearAllCachedRecordsAsync();
-        window.location.reload();
+        // Navigate to root to force full remount with new tenant context
+        window.location.href = "/";
         return true;
       } else {
         setError(response?.error || 'Failed to clear tenant override');

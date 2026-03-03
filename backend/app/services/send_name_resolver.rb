@@ -236,6 +236,16 @@ class SendNameResolver
       context[:document_date] = Date.parse(meta["date"]) rescue context[:document_date]
     end
 
+    # Map version_status → signed token (for {Signed} template token)
+    if context[:version_status].present? && context[:signed].blank?
+      context[:signed] = context[:version_status].to_s.capitalize
+    end
+
+    # Map executed_date from metadata string to Date for token expansion
+    if context[:executed_date].is_a?(String) && context[:executed_date].present?
+      context[:executed_date] = Date.parse(context[:executed_date]) rescue context[:executed_date]
+    end
+
     # Document type from WFDT association (not just documentable)
     wfdt = warehouse_document.warehouse_folder_document_type
     if wfdt&.document_type
@@ -407,6 +417,15 @@ class SendNameResolver
       if exp
         context[:ex]     ||= "EX #{exp.strftime('%d/%m/%y')}"
         context[:expiry] ||= "Expiry #{exp.strftime('%-d %B %Y')}"
+      end
+    end
+
+    # --- Executed date tokens (prefixed formatted dates) ---
+    if context[:executed_date]
+      exc = context[:executed_date].to_date rescue nil
+      if exc
+        context[:exc]      ||= "EXC #{exc.strftime('%d/%m/%y')}"
+        context[:executed]  ||= "Executed #{exc.strftime('%-d %B %Y')}"
       end
     end
 
