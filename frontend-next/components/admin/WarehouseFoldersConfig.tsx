@@ -633,7 +633,7 @@ export function WarehouseFoldersConfig({
 
     const fetchDocumentTypes = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name: string }> }>('/api/v1/document_types');
+        const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name: string }> }>('/api/v1/document_types?for=select');
         if (response?.success && Array.isArray(response.data)) {
           setAllDocumentTypes(response.data.map((dt) => ({
             id: dt.id,
