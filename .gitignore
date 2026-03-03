@@ -77,3 +77,5 @@ David
 *.csv
 .claude/pr-progress.json
 .claude/worktrees/
+~$*.xlsx
+~$*.docx
