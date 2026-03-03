@@ -769,23 +769,58 @@ export function ScheduleMasterSyncTab() {
             </div>
           )}
 
-          {/* Master tenant: source selector */}
+          {/* Master tenant: source selector + action buttons */}
           {isMasterTenant && (
-            <div className="flex items-center gap-3 p-3 rounded-md bg-muted/50 border">
-              <span className="text-sm text-muted-foreground">Import from:</span>
-              <select
-                value={selectedSourceId}
-                onChange={(e) => setSelectedSourceId(Number(e.target.value))}
-                disabled={syncing}
-                className="text-sm border rounded px-2 py-1 bg-background text-foreground"
-              >
-                <option value={0}>Select tenant...</option>
-                {nonMasterTenants.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              <Badge variant="secondary">TEEEM</Badge>
+            <div className="flex flex-col gap-2 p-3 rounded-md bg-muted/50 border">
+              {/* Row 1: flow label */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground font-medium">Sync pipeline:</span>
+                <select
+                  value={selectedSourceId}
+                  onChange={(e) => setSelectedSourceId(Number(e.target.value))}
+                  disabled={syncing || cascading}
+                  className="text-sm border rounded px-2 py-1 bg-background text-foreground"
+                >
+                  <option value={0}>Select source tenant...</option>
+                  {nonMasterTenants.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <Badge variant="secondary">TEEEM</Badge>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">all customers</span>
+              </div>
+              {/* Row 2: action buttons */}
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleSync}
+                  disabled={syncing || cascading || !selectedSourceId}
+                  variant="outline"
+                  size="sm"
+                >
+                  {syncing ? (
+                    <><Spinner className="h-3.5 w-3.5 mr-1.5" />Importing...</>
+                  ) : (
+                    <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />{sourceTenant?.name || "Tenant"} → TEEEM only</>
+                  )}
+                </Button>
+                <Button
+                  onClick={handleCascadeSync}
+                  disabled={cascading || syncing || !selectedSourceId}
+                  variant="default"
+                  size="sm"
+                >
+                  {cascading ? (
+                    <><Spinner className="h-3.5 w-3.5 mr-1.5" />Cascading all tenants...</>
+                  ) : (
+                    <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Cascade Sync All (recommended)</>
+                  )}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Cascade = {sourceTenant?.name || "source"} → TEEEM → all customers (including deletions)
+                </span>
+              </div>
             </div>
           )}
 
@@ -1202,47 +1237,24 @@ export function ScheduleMasterSyncTab() {
                 "Never synced"
               )}
             </div>
-            <Button
-              onClick={handleSync}
-              disabled={syncing || cascading || (isMasterTenant && !selectedSourceId)}
-              size="default"
-            >
-              {syncing ? (
-                <>
-                  <Spinner className="h-4 w-4 mr-2" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  {isMasterTenant ? `Import from ${sourceTenant?.name || "Tenant"}` : "Sync Schedule Master"}
-                </>
-              )}
-            </Button>
-            {isMasterTenant && (
-              <div className="flex flex-col items-end gap-0.5">
-                <Button
-                  onClick={handleCascadeSync}
-                  disabled={cascading || syncing || !selectedSourceId}
-                  variant="default"
-                  size="default"
-                >
-                  {cascading ? (
-                    <>
-                      <Spinner className="h-4 w-4 mr-2" />
-                      Cascading...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Cascade Sync All
-                    </>
-                  )}
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  {sourceTenant?.name || "Tenant"} → TEEEM → all customers
-                </span>
-              </div>
+            {!isMasterTenant && (
+              <Button
+                onClick={handleSync}
+                disabled={syncing || cascading}
+                size="default"
+              >
+                {syncing ? (
+                  <>
+                    <Spinner className="h-4 w-4 mr-2" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sync Schedule Master
+                  </>
+                )}
+              </Button>
             )}
           </div>
         </CardContent>

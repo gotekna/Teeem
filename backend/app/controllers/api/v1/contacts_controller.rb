@@ -387,6 +387,41 @@ module Api
           return
         end
 
+        # Medium fast path: for=select returns picker-friendly data with entity type, email, employer
+        # 3 queries total vs 10+ for full path. Skips eager loading, precompute_contact_flags, etc.
+        if params[:for] == "select"
+          contact_ids = @contacts.pluck(:id)
+
+          # Batch-load primary emails (1 query)
+          primary_emails = ContactEmail.where(contact_id: contact_ids, is_primary: true)
+                                       .pluck(:contact_id, :email).to_h
+
+          # Load contact data with minimal columns (1 query)
+          contacts_data = Contact.where(id: contact_ids)
+                                 .select(:id, :display_name, :entity_type, :first_name, :last_name, :primary_company_id)
+                                 .order(:display_name)
+
+          # Batch-load employer names (1 query)
+          employer_ids = contacts_data.filter_map(&:primary_company_id).uniq
+          employer_names = employer_ids.any? ? Contact.where(id: employer_ids).pluck(:id, :display_name).to_h : {}
+
+          render json: {
+            success: true,
+            contacts: contacts_data.map { |c|
+              {
+                id: c.id,
+                display_name: c.display_name,
+                entity_type: c.entity_type,
+                first_name: c.first_name,
+                last_name: c.last_name,
+                email: primary_emails[c.id],
+                employer_name: c.primary_company_id ? employer_names[c.primary_company_id] : nil
+              }
+            }
+          }
+          return
+        end
+
         # Optionally include companies and jobs data
         include_companies = params[:include_companies] == "true"
         include_jobs = params[:include_jobs] == "true"

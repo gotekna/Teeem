@@ -652,7 +652,7 @@ export default function DocumentTypeDetailPage() {
       if (scope === "contacts") {
         hasEntityPlaceholders = /\{PersonName\}|\{PersonCode\}|\{Person\}/.test(uiName);
       } else if (scope === "job") {
-        hasEntityPlaceholders = /\{JobTitle\}|\{JobCode\}|\{JobName\}/.test(uiName);
+        hasEntityPlaceholders = /\{JobTitle\}|\{JobCode\}|\{JobName\}|\{JobAddress\}/.test(uiName);
       } else {
         hasEntityPlaceholders = /\{CompanyName\}|\{CompanyCode\}/.test(uiName);
       }
@@ -724,7 +724,7 @@ export default function DocumentTypeDetailPage() {
           fileName = fileName.replace(/\{PersonName\}\s*/g, '').replace(/\{PersonCode\}\s*/g, '').replace(/\{Person\}\s*/g, '');
         } else if (scope === "job") {
           // Remove job placeholders for job scope
-          fileName = fileName.replace(/\{JobTitle\}\s*/g, '').replace(/\{JobCode\}\s*/g, '').replace(/\{JobName\}\s*/g, '');
+          fileName = fileName.replace(/\{JobTitle\}\s*/g, '').replace(/\{JobCode\}\s*/g, '').replace(/\{JobName\}\s*/g, '').replace(/\{JobAddress\}\s*/g, '');
         } else {
           // Remove company placeholders for company scope (default)
           fileName = fileName.replace(/\{CompanyName\}\s*/g, '').replace(/\{CompanyCode\}\s*/g, '');

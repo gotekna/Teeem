@@ -953,6 +953,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
     t.integer "canonical_version", default: 0
+    t.datetime "record_updated_at"
     t.index ["canonical_record_id"], name: "idx_bpmn_processes_canonical_record_id"
     t.index ["is_published"], name: "index_bpmn_processes_on_is_published"
     t.index ["name"], name: "index_bpmn_processes_on_name"
@@ -1347,6 +1348,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["is_default"], name: "index_claim_invoice_templates_on_is_default", where: "(is_default = true)"
     t.index ["style_key"], name: "index_claim_invoice_templates_on_style_key"
     t.index ["tenant_id", "sync_key"], name: "idx_claim_invoice_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
@@ -1366,6 +1368,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "match_keywords"
     t.string "overhead_po_name", limit: 100
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["claim_stage_template_id", "name"], name: "idx_cstl_template_name", unique: true
     t.index ["claim_stage_template_id", "sequence_order"], name: "idx_cstl_template_sequence"
     t.index ["tenant_id", "sync_key"], name: "idx_claim_stage_template_lines_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
@@ -1384,6 +1387,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["tenant_id", "name"], name: "idx_claim_stage_templates_tenant_name", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_claim_stage_templates_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_claim_stage_templates_on_tenant_id"
@@ -1415,6 +1419,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["job_type_id"], name: "index_colour_selection_templates_on_job_type_id"
     t.index ["tenant_id", "sync_key"], name: "idx_colour_selection_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_colour_selection_templates_on_tenant_id"
@@ -1553,6 +1558,18 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["slug"], name: "index_company_groups_on_slug", unique: true
     t.index ["tenant_id"], name: "index_company_groups_on_tenant_id"
     t.index ["tier"], name: "index_company_groups_on_tier"
+  end
+
+  create_table "config_sync_deletions", force: :cascade do |t|
+    t.integer "tenant_id", null: false
+    t.string "model_type", null: false
+    t.string "sync_key", null: false
+    t.datetime "deleted_at", null: false
+    t.datetime "propagated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["propagated_at"], name: "idx_config_sync_deletions_pending", where: "(propagated_at IS NULL)"
+    t.index ["tenant_id", "model_type", "sync_key"], name: "idx_config_sync_deletions_lookup"
   end
 
   create_table "contact_activities", force: :cascade do |t|
@@ -1772,6 +1789,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["position"], name: "index_contact_types_on_position"
     t.index ["tenant_id", "sync_key"], name: "idx_contact_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_contact_types_on_tenant_id"
@@ -1879,6 +1897,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "emergency_contact_name"
     t.string "emergency_contact_phone"
     t.string "emergency_contact_relationship"
+    t.datetime "record_updated_at"
     t.index "tenant_id, lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -2200,6 +2219,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["active"], name: "index_cost_centres_on_active"
     t.index ["centre_type"], name: "index_cost_centres_on_centre_type"
     t.index ["parent_id"], name: "index_cost_centres_on_parent_id"
@@ -2330,6 +2350,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["created_by_id"], name: "index_custom_quote_templates_on_created_by_id"
     t.index ["po_template_pack_id"], name: "index_custom_quote_templates_on_po_template_pack_id"
     t.index ["tenant_id", "name"], name: "index_custom_quote_templates_on_tenant_id_and_name", unique: true
@@ -2593,6 +2614,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "legal_source"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["category", "sort_order"], name: "index_document_templates_on_category_and_sort_order"
     t.index ["is_legal_format"], name: "index_document_templates_on_is_legal_format"
     t.index ["template_type"], name: "index_document_templates_on_template_type"
@@ -2626,6 +2648,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "tenant_id"
     t.bigint "warehouse_type_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
@@ -3181,6 +3204,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["is_shared"], name: "index_email_templates_on_is_shared", where: "(is_shared = true)"
     t.index ["tenant_id", "sync_key"], name: "idx_email_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id", "user_id", "name"], name: "index_email_templates_on_tenant_user_name", unique: true
@@ -3502,6 +3526,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["created_by_id"], name: "index_folder_templates_on_created_by_id"
     t.index ["is_active"], name: "index_folder_templates_on_is_active"
     t.index ["is_system_default"], name: "index_folder_templates_on_is_system_default"
@@ -6098,6 +6123,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_invoice_templates_on_is_active"
     t.index ["is_default"], name: "index_invoice_templates_on_is_default"
     t.index ["tenant_id", "sync_key"], name: "idx_invoice_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
@@ -6440,6 +6466,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "job_status_id"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_job_stages_on_is_active"
     t.index ["job_status_id"], name: "index_job_stages_on_job_status_id"
     t.index ["position"], name: "index_job_stages_on_position"
@@ -6457,6 +6484,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["job_stage_id"], name: "index_job_status_stages_on_job_stage_id"
     t.index ["job_status_id"], name: "index_job_status_stages_on_job_status_id"
     t.index ["job_type_id", "job_status_id", "job_stage_id"], name: "index_job_status_stages_on_type_status_stage", unique: true
@@ -6475,6 +6503,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_job_statuses_on_is_active"
     t.index ["position"], name: "index_job_statuses_on_position"
     t.index ["tenant_id", "sync_key"], name: "idx_job_statuses_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
@@ -6491,6 +6520,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_job_tabs_on_is_active"
     t.index ["position"], name: "index_job_tabs_on_position"
     t.index ["tenant_id", "slug"], name: "index_job_tabs_on_tenant_id_and_slug", unique: true
@@ -6506,6 +6536,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["job_status_id"], name: "index_job_type_statuses_on_job_status_id"
     t.index ["job_type_id", "job_status_id"], name: "index_job_type_statuses_on_job_type_id_and_job_status_id", unique: true
     t.index ["job_type_id"], name: "index_job_type_statuses_on_job_type_id"
@@ -6526,6 +6557,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "sm_schedule_master_template_id"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_job_types_on_is_active"
     t.index ["position"], name: "index_job_types_on_position"
     t.index ["sm_schedule_master_template_id"], name: "idx_job_types_template"
@@ -6896,6 +6928,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["category"], name: "index_meeting_types_on_category"
     t.index ["is_active"], name: "index_meeting_types_on_is_active"
     t.index ["name"], name: "index_meeting_types_on_name", unique: true
@@ -7507,6 +7540,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["sequence_order"], name: "index_plan_categories_on_sequence_order"
     t.index ["tenant_id", "code"], name: "index_plan_categories_on_tenant_id_and_code", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_plan_categories_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
@@ -7629,6 +7663,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "long_name_template", default: "{JobCode}-{Code}-{Name}-Rev{Rev}"
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["sequence_order"], name: "index_plan_types_on_sequence_order"
     t.index ["tenant_id", "code"], name: "index_plan_types_on_tenant_id_and_code", unique: true
     t.index ["tenant_id", "name"], name: "index_plan_types_on_tenant_id_and_name", unique: true
@@ -7674,6 +7709,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "sync_key"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "record_updated_at"
     t.index ["tenant_id", "position"], name: "index_po_statuses_on_tenant_id_and_position"
     t.index ["tenant_id", "slug"], name: "index_po_statuses_on_tenant_id_and_slug", unique: true
     t.index ["tenant_id"], name: "index_po_statuses_on_tenant_id"
@@ -7694,6 +7730,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "profit_centre_id"
+    t.datetime "record_updated_at"
     t.index ["po_template_pack_id"], name: "index_po_template_items_on_po_template_pack_id"
     t.index ["profit_centre_id"], name: "index_po_template_items_on_profit_centre_id"
     t.index ["sm_schedule_master_id"], name: "index_po_template_items_on_sm_schedule_master_id"
@@ -7731,6 +7768,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "sm_schedule_master_template_id"
+    t.datetime "record_updated_at"
     t.index ["sm_schedule_master_template_id"], name: "index_po_template_packs_on_sm_schedule_master_template_id"
     t.index ["tenant_id", "name"], name: "index_po_template_packs_on_tenant_id_and_name", unique: true
     t.index ["tenant_id", "sync_key"], name: "index_po_template_packs_on_tenant_id_and_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
@@ -7801,6 +7839,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "user_name"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["changed_by_user_id"], name: "index_price_histories_on_changed_by_user_id"
     t.index ["created_at"], name: "index_price_histories_on_created_at"
     t.index ["pricebook_item_id", "supplier_id", "new_price", "created_at"], name: "index_price_histories_on_unique_combination", unique: true
@@ -7821,6 +7860,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "sync_key"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_pricebook_brands_on_is_active"
     t.index ["position"], name: "index_pricebook_brands_on_position"
     t.index ["tenant_id", "name"], name: "index_pricebook_brands_on_tenant_id_and_name", unique: true
@@ -7839,6 +7879,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_pricebook_categories_on_is_active"
     t.index ["position"], name: "index_pricebook_categories_on_position"
     t.index ["tenant_id", "sync_key"], name: "idx_pricebook_categories_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
@@ -7856,6 +7897,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "sync_key"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_pricebook_ranges_on_is_active"
     t.index ["position"], name: "index_pricebook_ranges_on_position"
     t.index ["tenant_id", "name"], name: "index_pricebook_ranges_on_tenant_id_and_name", unique: true
@@ -7908,6 +7950,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "range_id"
     t.bigint "unit_of_measure_id"
     t.bigint "gst_code_id"
+    t.datetime "record_updated_at"
     t.index ["brand_id"], name: "index_pricebooks_on_brand_id"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
     t.index ["colour"], name: "index_pricebooks_on_colour"
@@ -7996,6 +8039,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["tenant_id", "sync_key"], name: "idx_public_holidays_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_public_holidays_on_tenant_id"
   end
@@ -8170,6 +8214,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["category"], name: "index_quantity_variables_on_category"
     t.index ["position"], name: "index_quantity_variables_on_position"
     t.index ["tenant_id", "sync_key"], name: "idx_quantity_variables_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
@@ -8283,6 +8328,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "po_template_pack_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["created_by_id"], name: "index_quote_templates_on_created_by_id"
     t.index ["po_template_pack_id"], name: "index_quote_templates_on_po_template_pack_id"
     t.index ["tenant_id", "name"], name: "index_quote_templates_on_tenant_id_and_name", unique: true
@@ -8371,6 +8417,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["parent_id", "position"], name: "index_recipe_categories_on_parent_id_and_position"
     t.index ["parent_id"], name: "index_recipe_categories_on_parent_id"
     t.index ["tenant_id", "code"], name: "index_recipe_categories_on_tenant_id_and_code", unique: true
@@ -8432,6 +8479,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["default_supplier_id"], name: "index_recipes_on_default_supplier_id"
     t.index ["recipe_category_id", "name"], name: "index_recipes_on_recipe_category_id_and_name"
     t.index ["recipe_category_id"], name: "index_recipes_on_recipe_category_id"
@@ -8713,6 +8761,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "last_propagated_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "record_updated_at"
     t.index ["record_type", "sync_key"], name: "idx_canonical_records_type_sync_key", unique: true
     t.index ["record_type"], name: "idx_canonical_records_type"
   end
@@ -8808,6 +8857,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
     t.integer "canonical_version", default: 0
+    t.datetime "record_updated_at"
     t.index ["canonical_record_id"], name: "idx_sm_hold_reasons_canonical_record_id"
     t.index ["is_active"], name: "index_sm_hold_reasons_on_is_active"
     t.index ["sequence_order"], name: "index_sm_hold_reasons_on_sequence_order"
@@ -8895,6 +8945,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
     t.integer "canonical_version", default: 0
+    t.datetime "record_updated_at"
     t.index ["asset_id"], name: "index_sm_resources_on_asset_id"
     t.index ["canonical_record_id"], name: "idx_sm_resources_canonical_record_id"
     t.index ["contact_id"], name: "index_sm_resources_on_contact_id"
@@ -8941,6 +8992,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
     t.integer "canonical_version", default: 0
+    t.datetime "record_updated_at"
     t.index ["canonical_record_id"], name: "idx_sm_schedule_master_document_types_canonical_record_id"
     t.index ["document_type_id"], name: "index_sm_schedule_master_document_types_on_document_type_id"
     t.index ["sm_schedule_master_id"], name: "idx_on_sm_schedule_master_id_ece8c53030"
@@ -9001,6 +9053,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "charge_overheads_sm_ids", default: []
     t.jsonb "charge_qbcc_insurance_sm_ids", default: []
     t.bigint "claim_stage_template_id"
+    t.datetime "record_updated_at"
     t.index ["canonical_record_id"], name: "idx_sm_schedule_master_templates_canonical_record_id"
     t.index ["claim_stage_template_id"], name: "idx_sm_templates_claim_stage_template"
     t.index ["copied_from_id"], name: "idx_sm_templates_copied_from"
@@ -9098,6 +9151,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.text "po_description"
     t.text "rfq_instructions"
     t.decimal "budget_amount", precision: 12, scale: 2
+    t.datetime "record_updated_at"
     t.index ["canonical_record_id"], name: "idx_sm_schedule_masters_canonical_record_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
@@ -9182,6 +9236,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
     t.integer "canonical_version", default: 0
+    t.datetime "record_updated_at"
     t.index ["canonical_record_id"], name: "idx_sm_stages_canonical_record_id"
     t.index ["tenant_id", "sync_key"], name: "idx_sm_stages_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_stages_on_tenant_id"
@@ -9238,6 +9293,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
     t.integer "canonical_version", default: 0
+    t.datetime "record_updated_at"
     t.index ["canonical_record_id"], name: "idx_sm_task_groups_canonical_record_id"
     t.index ["is_active"], name: "index_sm_task_groups_on_is_active"
     t.index ["tenant_id", "sync_key"], name: "idx_sm_task_groups_on_tenant_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
@@ -9428,6 +9484,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "document_ref_type_ids", default: "[]"
     t.decimal "escalation_percent", precision: 5, scale: 2, default: "0.0"
     t.decimal "markup_percent", precision: 5, scale: 2, default: "0.0"
+    t.datetime "record_updated_at"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
@@ -9508,6 +9565,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
     t.integer "canonical_version", default: 0
+    t.datetime "record_updated_at"
     t.index ["canonical_record_id"], name: "idx_sm_trades_canonical_record_id"
     t.index ["tenant_id", "sync_key"], name: "idx_sm_trades_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_trades_on_tenant_id"
@@ -9713,6 +9771,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
     t.index ["tenant_id", "sync_key"], name: "idx_specification_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_specification_templates_on_tenant_id"
@@ -9872,6 +9931,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "response_type", default: "checkbox"
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["category"], name: "index_supervisor_checklist_templates_on_category"
     t.index ["sequence_order"], name: "index_supervisor_checklist_templates_on_sequence_order"
     t.index ["tenant_id", "name"], name: "index_supervisor_checklist_templates_on_tenant_id_and_name", unique: true
@@ -10238,6 +10298,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["created_by_id"], name: "index_takeoff_templates_on_created_by_id"
     t.index ["tenant_id", "category"], name: "index_takeoff_templates_on_tenant_id_and_category"
     t.index ["tenant_id", "is_active"], name: "index_takeoff_templates_on_tenant_id_and_is_active"
@@ -10705,6 +10766,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.string "header_type", limit: 20, default: "standard", null: false
     t.boolean "system_locked", default: false, null: false
+    t.datetime "record_updated_at"
     t.index ["active"], name: "index_tender_headers_on_active"
     t.index ["sort_order"], name: "index_tender_headers_on_sort_order"
     t.index ["tenant_id", "code"], name: "index_tender_headers_on_tenant_id_and_code", unique: true
@@ -10728,6 +10790,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.text "default_note"
     t.bigint "tender_header_id", null: false
     t.jsonb "attached_document_types", default: []
+    t.datetime "record_updated_at"
     t.index ["active"], name: "index_tenders_on_active"
     t.index ["sort_order"], name: "index_tenders_on_sort_order"
     t.index ["tenant_id", "code"], name: "index_tenders_on_tenant_id_and_code", unique: true
@@ -11086,6 +11149,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "tenant_id", null: false
     t.string "sync_key"
     t.boolean "is_system", default: false, null: false
+    t.datetime "record_updated_at"
     t.index ["document_type_id", "is_primary"], name: "idx_wfdt_primary"
     t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
     t.index ["download_name_template"], name: "idx_wfdt_download_name_template", where: "(download_name_template IS NOT NULL)"
@@ -11131,6 +11195,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "tab_type", default: "document", null: false
     t.integer "template_version", default: 1, null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index "tenant_id, warehouse_type_id, COALESCE(parent_id, (0)::bigint), name", name: "idx_warehouse_folders_unique_name", unique: true
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
     t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
@@ -11182,6 +11247,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "records_config", default: {}, null: false
     t.string "sync_key"
     t.string "source_types", default: [], null: false, array: true
+    t.datetime "record_updated_at"
     t.index ["code"], name: "idx_warehouse_types_code"
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
@@ -11294,6 +11360,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["active"], name: "index_whs_induction_templates_on_active"
     t.index ["induction_type"], name: "index_whs_induction_templates_on_induction_type"
     t.index ["name"], name: "index_whs_induction_templates_on_name"
@@ -11364,6 +11431,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id", null: false
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["active"], name: "index_whs_inspection_templates_on_active"
     t.index ["inspection_type"], name: "index_whs_inspection_templates_on_inspection_type"
     t.index ["name"], name: "index_whs_inspection_templates_on_name"
@@ -11636,6 +11704,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.datetime "record_updated_at"
     t.index ["account_code"], name: "index_xero_chart_of_accounts_on_account_code"
     t.index ["account_type"], name: "index_xero_chart_of_accounts_on_account_type"
     t.index ["active"], name: "index_xero_chart_of_accounts_on_active"
