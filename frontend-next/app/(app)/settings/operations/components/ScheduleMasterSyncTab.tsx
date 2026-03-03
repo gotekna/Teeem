@@ -538,14 +538,13 @@ export function ScheduleMasterSyncTab() {
     setSyncComplete(true);
   };
 
-  // Cascade Sync All: Phase 1 (Tekna → TEEEM) then Phase 2 (TEEEM → all customers)
-  // Includes delete propagation: tombstones processed + orphan cleanup per table
+  // Sync All: for each table, backend pulls from ALL tenants → TEEEM, then pushes TEEEM → ALL tenants.
+  // Single cascade_push_table call per table handles the full round-trip.
   const handleCascadeSync = async () => {
     setCascading(true);
     setCascadeResults({});
     setError(null);
 
-    // Phase 1: Pull source tenant → TEEEM (reuses existing per-table loop)
     const initialStatus = {} as Record<TableKey, TableSyncStatus>;
     SM_SYNC_TABLES.forEach((t) => { initialStatus[t.key] = "pending"; });
     setTableStatus(initialStatus);
@@ -555,25 +554,14 @@ export function ScheduleMasterSyncTab() {
       const table = SM_SYNC_TABLES[i];
       setCurrentTableIndex(i);
       setBatchProgress(null);
+
       const mode = getTableMode(table.key, table.defaultMode);
       if (mode === "independent") {
         setTableStatus((prev) => ({ ...prev, [table.key]: "skipped" }));
         continue;
       }
-      setTableStatus((prev) => ({ ...prev, [table.key]: "syncing" }));
-      try {
-        const result = await pullOneTable(table.key);
-        setTableResults((prev) => ({ ...prev, [table.key]: result }));
-        setTableStatus((prev) => ({ ...prev, [table.key]: result.error ? "error" : result.imported > 0 || result.updated > 0 ? "done" : "skipped" }));
-      } catch (err) {
-        setTableStatus((prev) => ({ ...prev, [table.key]: "error" }));
-      }
-    }
 
-    // Phase 2: Push TEEEM → all customer tenants (with orphan cleanup + tombstone processing)
-    for (const table of SM_SYNC_TABLES) {
-      const mode = getTableMode(table.key, table.defaultMode);
-      if (mode === "independent") continue;
+      setTableStatus((prev) => ({ ...prev, [table.key]: "syncing" }));
 
       const res = await api.post<{
         success: boolean;
@@ -584,6 +572,15 @@ export function ScheduleMasterSyncTab() {
 
       if (res?.results) {
         setCascadeResults((prev) => ({ ...prev, [table.key]: res.results! }));
+        // Aggregate across all tenants for the status row display
+        const totals = Object.values(res.results).reduce(
+          (acc, r) => ({ imported: acc.imported + (r.imported || 0), updated: acc.updated + (r.updated || 0), skipped: acc.skipped + (r.skipped || 0) }),
+          { imported: 0, updated: 0, skipped: 0 }
+        );
+        setTableResults((prev) => ({ ...prev, [table.key]: { ...totals, total: totals.imported + totals.updated, has_more: false } }));
+        setTableStatus((prev) => ({ ...prev, [table.key]: totals.imported > 0 || totals.updated > 0 ? "done" : "skipped" }));
+      } else {
+        setTableStatus((prev) => ({ ...prev, [table.key]: res?.success === false ? "error" : "skipped" }));
       }
     }
 
@@ -769,58 +766,21 @@ export function ScheduleMasterSyncTab() {
             </div>
           )}
 
-          {/* Master tenant: source selector + action buttons */}
+          {/* Master tenant: single Sync All button — backend handles all tenants automatically */}
           {isMasterTenant && (
-            <div className="flex flex-col gap-2 p-3 rounded-md bg-muted/50 border">
-              {/* Row 1: flow label */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground font-medium">Sync pipeline:</span>
-                <select
-                  value={selectedSourceId}
-                  onChange={(e) => setSelectedSourceId(Number(e.target.value))}
-                  disabled={syncing || cascading}
-                  className="text-sm border rounded px-2 py-1 bg-background text-foreground"
-                >
-                  <option value={0}>Select source tenant...</option>
-                  {nonMasterTenants.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                <Badge variant="secondary">TEEEM</Badge>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">all customers</span>
-              </div>
-              {/* Row 2: action buttons */}
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={handleSync}
-                  disabled={syncing || cascading || !selectedSourceId}
-                  variant="outline"
-                  size="sm"
-                >
-                  {syncing ? (
-                    <><Spinner className="h-3.5 w-3.5 mr-1.5" />Importing...</>
-                  ) : (
-                    <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />{sourceTenant?.name || "Tenant"} → TEEEM only</>
-                  )}
-                </Button>
-                <Button
-                  onClick={handleCascadeSync}
-                  disabled={cascading || syncing || !selectedSourceId}
-                  variant="default"
-                  size="sm"
-                >
-                  {cascading ? (
-                    <><Spinner className="h-3.5 w-3.5 mr-1.5" />Cascading all tenants...</>
-                  ) : (
-                    <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Cascade Sync All (recommended)</>
-                  )}
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  Cascade = {sourceTenant?.name || "source"} → TEEEM → all customers (including deletions)
-                </span>
-              </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleCascadeSync}
+                disabled={cascading || syncing}
+                variant="default"
+              >
+                {cascading ? (
+                  <><Spinner className="h-4 w-4 mr-2" />Syncing all tenants...</>
+                ) : (
+                  <><RefreshCw className="h-4 w-4 mr-2" />Sync All</>
+                )}
+              </Button>
+              <span className="text-sm text-muted-foreground">Syncs all tenants ↔ TEEEM</span>
             </div>
           )}
 

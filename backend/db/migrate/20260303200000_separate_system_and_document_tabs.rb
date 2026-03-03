@@ -147,6 +147,9 @@ class SeparateSystemAndDocumentTabs < ActiveRecord::Migration[7.2]
              end
 
     # Create new document tab as sibling
+    # Use parent's warehouse_type_id when reparenting to avoid validation error
+    # ("Parent must be from the same warehouse type")
+    effective_wt_id = parent&.warehouse_type_id || folder.warehouse_type_id
     new_folder = WarehouseFolder.create!(
       name: new_display_name,
       display_name: new_display_name,
@@ -154,12 +157,12 @@ class SeparateSystemAndDocumentTabs < ActiveRecord::Migration[7.2]
       tab_key: new_tab_key,
       tab_type: "document",
       tab_group: "documents",
-      warehouse_type_id: folder.warehouse_type_id,
+      warehouse_type_id: effective_wt_id,
       parent_id: parent&.id,
       is_system: false,
       enabled: true,
       order_position: folder.order_position + 1,
-      folder_path_suffix: folder.folder_path_suffix  # Same storage path suffix
+      folder_path_suffix: folder.folder_path_suffix
     )
 
     # Move doc types from system tab to new doc tab

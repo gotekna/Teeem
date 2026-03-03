@@ -13,6 +13,34 @@ module Api
     class ConfigSyncController < ApplicationController
       before_action :require_admin!
 
+      # Default sync modes — mirrors SM_SYNC_TABLES defaultMode in the frontend.
+      # Used as fallback when a tenant has no explicit mode saved in config_sync_table_modes.
+      # SSoT: keep in sync with SM_SYNC_TABLES in ScheduleMasterSyncTab.tsx.
+      TABLE_DEFAULT_MODES = {
+        "sm_trades"                        => "two_way",
+        "sm_stages"                        => "two_way",
+        "cost_centres"                     => "one_way",
+        "supervisor_checklist_templates"   => "one_way",
+        "document_types"                   => "one_way",
+        "sm_schedule_master_templates"     => "two_way",
+        "sm_task_groups"                   => "two_way",
+        "bpmn_processes"                   => "two_way",
+        "sm_schedule_masters"              => "two_way",
+        "sm_schedule_master_document_types"=> "two_way",
+        "sm_schedule_master_related_pos"   => "one_way",
+        "sm_hold_reasons"                  => "two_way",
+        "sm_resources"                     => "two_way",
+        "po_template_packs"                => "one_way",
+        "po_template_items"                => "one_way",
+        "po_template_line_items"           => "one_way",
+        "quote_templates"                  => "one_way",
+        "custom_quote_templates"           => "one_way",
+        "tender_headers"                   => "one_way",
+        "tenders"                          => "one_way",
+        "claim_stage_templates"            => "one_way",
+        "claim_stage_template_lines"       => "two_way",
+      }.freeze
+
       # GET /api/v1/config_sync/tables
       # List available configuration tables for sync (with counts)
       def tables
@@ -938,6 +966,17 @@ module Api
         mode      = (params[:mode] || "replace_existing").to_sym
         customer_tenants = Tenant.where(is_master_tenant: false).to_a
 
+        # ── Phase 0: Pull from ALL customer tenants → TEEEM ────────────────────────────
+        # All tenants are peers. We aggregate everyone into TEEEM first so TEEEM has the
+        # union of all tenants' records before pushing back out. source_newer? ensures
+        # the most-recently-edited version of any record wins across tenants.
+        master_svc = TenantConfigSyncService.new(current_tenant)
+        customer_tenants.each do |source_t|
+          source_ids = ActsAsTenant.with_tenant(source_t) { scoped_model(model, table_config).pluck(:id) }
+          next if source_ids.empty?
+          master_svc.import_from_tenant(source_tenant: source_t, table: table.to_s, record_ids: source_ids)
+        end
+
         # ── Step 1: Apply tombstones from ALL tenants ──────────────────────────────────
         # Collect all pending deletions for this model type across all customer tenants.
         # Delete from TEEEM first, then from every other tenant, then mark propagated.
@@ -1264,10 +1303,12 @@ module Api
         ts.update_columns(config_sync_table_timestamps: timestamps)
       end
 
-      # Get the sync mode for a single table (from tenant's config_sync_table_modes)
+      # Get the sync mode for a single table.
+      # Priority: tenant's explicit setting → TABLE_DEFAULT_MODES → nil (no sync rule).
       # Pass an explicit tenant to check another tenant's preference (used in cascade_push_table).
       def table_mode(table_key, for_tenant = current_tenant)
-        (for_tenant&.tenant_setting&.config_sync_table_modes || {})[table_key.to_s]
+        explicit = (for_tenant&.tenant_setting&.config_sync_table_modes || {})[table_key.to_s]
+        explicit.presence || TABLE_DEFAULT_MODES[table_key.to_s]
       end
 
       # Compute sync coverage per table: linked (match in master) vs local_only vs master_only
