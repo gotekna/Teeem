@@ -2054,14 +2054,36 @@ class TenantConfigSyncService
   end
 
   # Find matching record: sync_key first, then legacy match_key.
+  #
+  # ⚠️ DO NOT SIMPLIFY - sync_key / legacy guard is critical (Mar 2026)
+  # ════════════════════════════════════════════════════════════════════════
+  # Why: document_types (and similar) use sync_key_source [:name, :scope].
+  #      "Architectural Drawing - Plan" and "Architectural Drawing - Job"
+  #      share the same legacy_match_key ("architectural drawing") but are
+  #      DIFFERENT records (different sync_keys).
+  #
+  #      Without the guard: legacy match "steals" the wrong record, the source
+  #      record's fields overwrite the candidate's (e.g. scope "plan"→"job"),
+  #      and the correct record never gets created — count stays low and
+  #      sync_key/scope pairs become swapped/corrupted across multiple cascade runs.
+  #
+  # ❌ WRONG: return target_index[lk]   (plain legacy fallback — causes corruption)
+  # ✅ CORRECT: only use legacy fallback when both source and candidate have no
+  #             sync_key, or they share the same sync_key (same record).
+  # ════════════════════════════════════════════════════════════════════════
   def find_match(record, target_index, match_fields, remap_fks = nil)
-    # Try sync_key first
     sk = record_sync_key(record)
     return target_index[sk] if sk && target_index[sk]
 
-    # Legacy match_key (resolves FK IDs to names for cross-tenant matching)
+    # Legacy match_key (resolves FK IDs to names for cross-tenant matching).
+    # Only use when source has NO sync_key (pre-sync legacy record), OR
+    # the candidate has no sync_key (it predates sync_key generation).
+    # If BOTH have sync_keys and they differ → different logical records → return nil.
     lk = legacy_match_key(record, match_fields, remap_fks)
-    target_index[lk]
+    candidate = target_index[lk]
+    return nil if sk.present? && record_sync_key(candidate).present? && record_sync_key(candidate) != sk
+
+    candidate
   end
 
   # Build a match key from a record's match_fields.
