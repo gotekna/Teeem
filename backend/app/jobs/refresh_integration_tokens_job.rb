@@ -8,7 +8,11 @@
 #
 class RefreshIntegrationTokensJob < ApplicationJob
   include DeduplicatableJob
+  include StaleJobGuard
   include XeroConstants  # For INTEGRATION_TOKEN_REFRESH_DELAY_SEC
+
+  self.max_job_age = 20.minutes # Schedule: every 15min
+
   queue_as :default
 
   # Automatic retry on transient connection errors

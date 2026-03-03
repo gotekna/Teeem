@@ -20,7 +20,10 @@
 #
 class ConnectionHealthMonitorJob < ApplicationJob
   include DeduplicatableJob
+  include StaleJobGuard
   include CacheConstants
+
+  self.max_job_age = 20.minutes # Schedule: every 15min
 
   queue_as :low
 

@@ -11,6 +11,13 @@
 # records remain. SolidQueue's concurrency_controls try to call methods on the
 # (nil) job class, causing DelegationError (298 errors in 14 days).
 #
+# FRC (Mar 2026): Boot-time duplicate ReadyExecution cleanup. After a restart,
+# the recurring scheduler may enqueue dozens of duplicate copies of each
+# recurring job class. Rather than processing them all one-by-one through
+# StaleJobGuard/DeduplicatableJob (which works but is slow), we purge
+# duplicates in bulk at boot time. For each recurring job class with multiple
+# ReadyExecutions, keep only the newest and finish the rest.
+#
 Rails.application.config.after_initialize do
   if defined?(SolidQueue) && defined?(Sentry)
     SolidQueue.on_thread_error = ->(error) do
@@ -46,6 +53,44 @@ Rails.application.config.after_initialize do
       end
     rescue => e
       Rails.logger.warn "[SolidQueue] Failed to clean orphaned jobs on boot: #{e.message}"
+    end
+
+    # Purge duplicate ReadyExecutions per job class (keep newest of each)
+    begin
+      # Group ReadyExecutions by class_name, find classes with duplicates
+      dupes_by_class = SolidQueue::ReadyExecution
+        .joins(:job)
+        .group("solid_queue_jobs.class_name")
+        .having("COUNT(*) > 1")
+        .count # Returns { "ClassName" => count }
+
+      if dupes_by_class.any?
+        total_purged = 0
+
+        dupes_by_class.each do |class_name, count|
+          # Get all ReadyExecution IDs for this class, ordered newest first
+          ready_ids = SolidQueue::ReadyExecution
+            .joins(:job)
+            .where(solid_queue_jobs: { class_name: class_name })
+            .order("solid_queue_jobs.id DESC")
+            .pluck(:id, :job_id)
+
+          # Keep the newest (first), finish the rest
+          excess = ready_ids[1..]
+          next if excess.empty?
+
+          excess_ready_ids = excess.map(&:first)
+          excess_job_ids = excess.map(&:last)
+
+          SolidQueue::ReadyExecution.where(id: excess_ready_ids).delete_all
+          SolidQueue::Job.where(id: excess_job_ids).update_all(finished_at: Time.current)
+          total_purged += excess.size
+        end
+
+        Rails.logger.info "[SolidQueue] Boot cleanup: purged #{total_purged} duplicate ReadyExecution(s) across #{dupes_by_class.size} job class(es): #{dupes_by_class.keys.join(', ')}"
+      end
+    rescue => e
+      Rails.logger.warn "[SolidQueue] Failed to purge duplicate ReadyExecutions on boot: #{e.message}"
     end
   end
 end

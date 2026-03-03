@@ -12,6 +12,9 @@ class XeroInvoiceSyncJob < ApplicationJob
   include XeroJobBase
   include CacheConstants
   include DeduplicatableJob
+  include StaleJobGuard
+
+  self.max_job_age = 20.minutes # Schedule: every 15min
 
   queue_as :xero_sync
 

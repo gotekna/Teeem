@@ -17,7 +17,10 @@
 # - Single HerokuPlatformService.infrastructure call shared across methods
 class QueueStatusCacheJob < ApplicationJob
   include DeduplicatableJob
+  include StaleJobGuard
   include CacheConstants
+
+  self.max_job_age = 90.seconds # Schedule: every 60s
 
   CACHE_KEY = "system:queue_status"
 

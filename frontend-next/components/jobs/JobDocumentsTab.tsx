@@ -2989,8 +2989,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     }
   };
 
-  // Show "Folders Missing" screen if storage folders don't exist
-  if (storageFolderStatus && storageFolderStatus !== "completed") {
+  // Legacy: storage_folder_status was for S3 physical folder creation.
+  // Phase 3 uses WarehouseDocuments + StorageBlobs — no physical folders needed.
+  // Gate removed (Mar 2026) — photos/documents work without folder creation.
+  if (false && storageFolderStatus && storageFolderStatus !== "completed") {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4">
         <div className="max-w-md w-full text-center space-y-6">

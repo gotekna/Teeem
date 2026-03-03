@@ -16,6 +16,10 @@
 #
 class BadgeCountsBroadcastJob < ApplicationJob
   include DeduplicatableJob
+  include StaleJobGuard
+
+  self.max_job_age = 90.seconds # Schedule: every 60s
+
   queue_as :default
 
   def perform

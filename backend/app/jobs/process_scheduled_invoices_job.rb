@@ -4,6 +4,10 @@
 # Runs every 15 minutes to check for invoices scheduled for delivery
 class ProcessScheduledInvoicesJob < ApplicationJob
   include DeduplicatableJob
+  include StaleJobGuard
+
+  self.max_job_age = 20.minutes # Schedule: every 15min
+
   queue_as :default
 
   def perform

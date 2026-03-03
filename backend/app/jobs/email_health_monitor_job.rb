@@ -13,6 +13,9 @@
 # Run via solid_queue recurring schedule
 class EmailHealthMonitorJob < ApplicationJob
   include DeduplicatableJob
+  include StaleJobGuard
+
+  self.max_job_age = 8.minutes # Schedule: every 5min
 
   queue_as :default
 

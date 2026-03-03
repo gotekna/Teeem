@@ -4,6 +4,9 @@
 # Runs every 5 minutes to check for emails scheduled for delivery
 class ProcessScheduledEmailsJob < ApplicationJob
   include DeduplicatableJob
+  include StaleJobGuard
+
+  self.max_job_age = 8.minutes # Schedule: every 5min
 
   queue_as :default
 
