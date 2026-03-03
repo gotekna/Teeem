@@ -321,16 +321,18 @@ export default function GanttPage() {
       claim_invoice_template_id: jobRow.claim_invoice_template_id as number | null | undefined,
       claim_trading_name_id: jobRow.claim_trading_name_id as number | null | undefined,
       // Workflow triggers
+      // Foundation API returns lookup columns as { id, display } objects - unwrap to plain values
       start_workflow_enabled: jobRow.start_workflow_enabled || false,
-      start_workflow_id: jobRow.start_workflow_id as number | null | undefined,
-      start_workflow_name: jobRow.start_workflow_name as string | null | undefined,
+      start_workflow_id: (jobRow.start_workflow_id && typeof jobRow.start_workflow_id === 'object') ? (jobRow.start_workflow_id as { id: number }).id : jobRow.start_workflow_id as number | null | undefined,
+      start_workflow_name: (jobRow.start_workflow_id && typeof jobRow.start_workflow_id === 'object') ? (jobRow.start_workflow_id as { display?: string }).display || null : jobRow.start_workflow_name as string | null | undefined,
       complete_workflow_enabled: jobRow.complete_workflow_enabled || false,
-      complete_workflow_id: jobRow.complete_workflow_id as number | null | undefined,
-      complete_workflow_name: jobRow.complete_workflow_name as string | null | undefined,
+      complete_workflow_id: (jobRow.complete_workflow_id && typeof jobRow.complete_workflow_id === 'object') ? (jobRow.complete_workflow_id as { id: number }).id : jobRow.complete_workflow_id as number | null | undefined,
+      complete_workflow_name: (jobRow.complete_workflow_id && typeof jobRow.complete_workflow_id === 'object') ? (jobRow.complete_workflow_id as { display?: string }).display || null : jobRow.complete_workflow_name as string | null | undefined,
       // Completion document requirement
+      // Foundation API returns lookup columns as { id, display } objects - unwrap to plain values
       requires_document_to_complete: jobRow.requires_document_to_complete === true,
-      completion_document_type_id: jobRow.completion_document_type_id as number | null | undefined,
-      completion_document_type_name: jobRow.completion_document_type_name as string | null | undefined,
+      completion_document_type_id: (jobRow.completion_document_type_id && typeof jobRow.completion_document_type_id === 'object') ? (jobRow.completion_document_type_id as { id: number }).id : jobRow.completion_document_type_id as number | null | undefined,
+      completion_document_type_name: (jobRow.completion_document_type_id && typeof jobRow.completion_document_type_id === 'object') ? (jobRow.completion_document_type_id as { display?: string }).display || null : jobRow.completion_document_type_name as string | null | undefined,
       // Dependencies
       predecessor_ids: row.predecessor_ids || [],
       // Relationships

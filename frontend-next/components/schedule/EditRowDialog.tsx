@@ -345,9 +345,10 @@ export function EditRowDialog({
         complete_workflow_id: row.complete_workflow_id || null,
         complete_workflow_name: row.complete_workflow_name || null,
         // Completion document requirement
+        // Foundation API returns lookup columns as { id, display } objects - unwrap to plain number
         requires_document_to_complete: row.requires_document_to_complete || false,
-        completion_document_type_id: row.completion_document_type_id || null,
-        completion_document_type_name: row.completion_document_type_name || null,
+        completion_document_type_id: (row.completion_document_type_id && typeof row.completion_document_type_id === 'object') ? (row.completion_document_type_id as { id: number }).id : (row.completion_document_type_id as number) || null,
+        completion_document_type_name: (row.completion_document_type_id && typeof row.completion_document_type_id === 'object') ? (row.completion_document_type_id as { display?: string }).display || null : row.completion_document_type_name || null,
         // PO/Quote SSoT fields
         tender_description: row.tender_description || '',
         po_description: row.po_description || '',

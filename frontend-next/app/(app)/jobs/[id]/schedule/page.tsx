@@ -503,16 +503,18 @@ export default function SchedulePage() {
       claim_invoice_template_id: row.claim_invoice_template_id as number | null | undefined,
       claim_trading_name_id: row.claim_trading_name_id as number | null | undefined,
       // Workflow triggers
+      // Foundation API returns lookup columns as { id, display } objects - unwrap to plain values
       start_workflow_enabled: row.start_workflow_enabled === true,
-      start_workflow_id: row.start_workflow_id as number | null | undefined,
-      start_workflow_name: row.start_workflow_name as string | null | undefined,
+      start_workflow_id: (row.start_workflow_id && typeof row.start_workflow_id === 'object') ? (row.start_workflow_id as { id: number }).id : row.start_workflow_id as number | null | undefined,
+      start_workflow_name: (row.start_workflow_id && typeof row.start_workflow_id === 'object') ? (row.start_workflow_id as { display?: string }).display || null : row.start_workflow_name as string | null | undefined,
       complete_workflow_enabled: row.complete_workflow_enabled === true,
-      complete_workflow_id: row.complete_workflow_id as number | null | undefined,
-      complete_workflow_name: row.complete_workflow_name as string | null | undefined,
+      complete_workflow_id: (row.complete_workflow_id && typeof row.complete_workflow_id === 'object') ? (row.complete_workflow_id as { id: number }).id : row.complete_workflow_id as number | null | undefined,
+      complete_workflow_name: (row.complete_workflow_id && typeof row.complete_workflow_id === 'object') ? (row.complete_workflow_id as { display?: string }).display || null : row.complete_workflow_name as string | null | undefined,
       // Completion document requirement
+      // Foundation API returns lookup columns as { id, display } objects - unwrap to plain values
       requires_document_to_complete: row.requires_document_to_complete === true,
-      completion_document_type_id: row.completion_document_type_id as number | null | undefined,
-      completion_document_type_name: row.completion_document_type_name as string | null | undefined,
+      completion_document_type_id: (row.completion_document_type_id && typeof row.completion_document_type_id === 'object') ? (row.completion_document_type_id as { id: number }).id : row.completion_document_type_id as number | null | undefined,
+      completion_document_type_name: (row.completion_document_type_id && typeof row.completion_document_type_id === 'object') ? (row.completion_document_type_id as { display?: string }).display || null : row.completion_document_type_name as string | null | undefined,
       // Dependencies
       predecessor_ids: (row.predecessor_ids as Array<{ id: number; type?: string; lag?: number }>) || [],
       // Relationships
