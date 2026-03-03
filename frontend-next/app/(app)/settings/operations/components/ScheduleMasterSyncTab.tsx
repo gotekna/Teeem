@@ -1276,6 +1276,49 @@ export function ScheduleMasterSyncTab() {
                         });
                       })()}
 
+                      {/* Skipped orphan sub-rows — tenant records that couldn't be deleted (FK violation) */}
+                      {expandedTables.has(table.key) && isMasterTenant && cascadeResults[table.key] && (() => {
+                        const allSkipped = Object.entries(cascadeResults[table.key]).flatMap(([tenantSlug, r]) =>
+                          (r.skipped_orphans || []).map((o) => ({ ...o, tenantSlug }))
+                        );
+                        if (allSkipped.length === 0) return null;
+                        const colSpan = allTenants.length > 0 ? allTenants.length + 4 : 6;
+                        return (
+                          <React.Fragment key={`${table.key}-orphans`}>
+                            <TableRow className="bg-amber-50/20 dark:bg-amber-950/10">
+                              <TableCell colSpan={colSpan} className="py-1 px-4">
+                                <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+                                  ⚠ {allSkipped.length} record{allSkipped.length !== 1 ? "s" : ""} exist in tenant but not TEEEM — can&apos;t delete (still referenced)
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                            {allSkipped.map((o, i) => (
+                              <TableRow key={`${table.key}-orphan-${o.tenantSlug}-${o.id}-${i}`} className="bg-amber-50/10 dark:bg-amber-950/5">
+                                <TableCell className="py-1" />
+                                <TableCell className="py-1 pl-10">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">{o.name}</span>
+                                    <span className="text-[10px] text-muted-foreground">({o.tenantSlug})</span>
+                                  </div>
+                                </TableCell>
+                                {allTenants.map((t) => (
+                                  <TableCell key={t.slug} className="py-1" />
+                                ))}
+                                <TableCell className="py-1" />
+                                <TableCell className="py-1 text-right">
+                                  <span
+                                    className="text-[10px] text-amber-600 dark:text-amber-400"
+                                    title={`Remove the reference in ${o.referenced_by} first, then re-sync to clean this up`}
+                                  >
+                                    used by {o.referenced_by}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })()}
+
                       {/* Inline diff panel */}
                       {isComparing && diffData && (
                         <TableRow>
