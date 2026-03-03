@@ -130,7 +130,8 @@ export function ScheduleMasterSyncTab() {
   // Sync state
   const [syncing, setSyncing] = useState(false);
   const [cascading, setCascading] = useState(false);
-  type CascadeTableResult = { imported: number; updated: number; skipped: number; deleted_orphans?: number };
+  type SkippedOrphan = { id: number; sync_key: string; name: string; referenced_by: string };
+  type CascadeTableResult = { imported: number; updated: number; skipped: number; deleted_orphans?: number; skipped_orphans?: SkippedOrphan[] };
   const [cascadeResults, setCascadeResults] = useState<Record<string, Record<string, CascadeTableResult>>>({});
   const [tableStatus, setTableStatus] = useState<Record<TableKey, TableSyncStatus>>({} as Record<TableKey, TableSyncStatus>);
   const [tableResults, setTableResults] = useState<Record<TableKey, TableResult>>({} as Record<TableKey, TableResult>);
@@ -1082,40 +1083,60 @@ export function ScheduleMasterSyncTab() {
                           )}
                         </TableCell>
                         <TableCell className="text-right py-2">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {renderStatusIcon(status)}
-                            {status === "syncing" && batchProgress && currentTableIndex === index && (
-                              <span className="text-xs text-muted-foreground tabular-nums">
-                                {batchProgress.processed.toLocaleString()}/{batchProgress.total.toLocaleString()}
-                              </span>
-                            )}
-                            {status === "done" && result && (
-                              <span className="text-xs text-muted-foreground">
-                                {result.imported > 0 && <span className="text-green-600 dark:text-green-400">+{result.imported}</span>}
-                                {result.imported > 0 && result.updated > 0 && ", "}
-                                {result.updated > 0 && (
-                                  <span
-                                    className="text-blue-600 dark:text-blue-400"
-                                    title={[
-                                      `${result.updated} record${result.updated !== 1 ? "s" : ""} updated`,
-                                      result.skipped > 0 ? `${result.skipped} already up to date` : null,
-                                      result.imported > 0 ? `${result.imported} created` : null,
-                                    ].filter(Boolean).join(" · ")}
-                                  >
-                                    {result.updated} upd
-                                  </span>
-                                )}
-                                {result.imported === 0 && result.updated === 0 && "up to date"}
-                              </span>
-                            )}
-                            {status === "skipped" && (
-                              <span className="text-xs text-muted-foreground">no changes</span>
-                            )}
-                            {status === "error" && result && (result.imported > 0 || result.updated > 0) && (
-                              <span className="text-xs text-green-600 dark:text-green-400">
-                                {result.imported + result.updated} ok
-                              </span>
-                            )}
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {renderStatusIcon(status)}
+                              {status === "syncing" && batchProgress && currentTableIndex === index && (
+                                <span className="text-xs text-muted-foreground tabular-nums">
+                                  {batchProgress.processed.toLocaleString()}/{batchProgress.total.toLocaleString()}
+                                </span>
+                              )}
+                              {status === "done" && result && (
+                                <span className="text-xs text-muted-foreground">
+                                  {result.imported > 0 && <span className="text-green-600 dark:text-green-400">+{result.imported}</span>}
+                                  {result.imported > 0 && result.updated > 0 && ", "}
+                                  {result.updated > 0 && (
+                                    <span
+                                      className="text-blue-600 dark:text-blue-400"
+                                      title={[
+                                        `${result.updated} record${result.updated !== 1 ? "s" : ""} updated`,
+                                        result.skipped > 0 ? `${result.skipped} already up to date` : null,
+                                        result.imported > 0 ? `${result.imported} created` : null,
+                                      ].filter(Boolean).join(" · ")}
+                                    >
+                                      {result.updated} upd
+                                    </span>
+                                  )}
+                                  {result.imported === 0 && result.updated === 0 && "up to date"}
+                                </span>
+                              )}
+                              {status === "skipped" && (
+                                <span className="text-xs text-muted-foreground">no changes</span>
+                              )}
+                              {status === "error" && result && (result.imported > 0 || result.updated > 0) && (
+                                <span className="text-xs text-green-600 dark:text-green-400">
+                                  {result.imported + result.updated} ok
+                                </span>
+                              )}
+                            </div>
+                            {/* Skipped orphans warning — records that couldn't be deleted because they're still referenced */}
+                            {isMasterTenant && cascadeResults[table.key] && (() => {
+                              const allSkipped = Object.entries(cascadeResults[table.key]).flatMap(([tenantSlug, r]) =>
+                                (r.skipped_orphans || []).map((o) => ({ ...o, tenantSlug }))
+                              );
+                              if (allSkipped.length === 0) return null;
+                              const tooltip = allSkipped
+                                .map((o) => `${o.tenantSlug}: "${o.name}" still used by ${o.referenced_by} — remove that reference first`)
+                                .join("\n");
+                              return (
+                                <span
+                                  className="text-[10px] text-amber-600 dark:text-amber-400 cursor-help"
+                                  title={tooltip}
+                                >
+                                  ⚠ {allSkipped.length} can&apos;t delete (hover)
+                                </span>
+                              );
+                            })()}
                           </div>
                         </TableCell>
                       </TableRow>

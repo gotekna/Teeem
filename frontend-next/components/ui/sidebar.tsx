@@ -323,28 +323,36 @@ function SidebarContent({
             <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
             {(isExpanded || mobile) ? (
               tenantInfo.canSwitchTenants ? (
-                <ComboboxDropdown
-                  items={tenantInfo.tenants.map((t) => ({
-                    id: t.id.toString(),
-                    label: t.name,
-                  }))}
-                  selectedItem={{
-                    id: tenantInfo.currentTenant.id.toString(),
-                    label: tenantInfo.currentTenant.name,
-                  }}
-                  onSelect={(item) => {
-                    tenantInfo.switchTenant(parseInt(item.id, 10));
-                  }}
-                  disabled={tenantInfo.isLoading}
-                  placeholder="Select tenant..."
-                  searchPlaceholder="Search tenants..."
-                  searchInTrigger={false}
-                  className="h-7 text-xs flex-1 min-w-0"
-                  popoverProps={{ className: "w-[220px]" }}
-                />
+                <>
+                  <ComboboxDropdown
+                    items={tenantInfo.tenants.map((t) => ({
+                      id: t.id.toString(),
+                      label: `${t.name} (#${t.id})`,
+                    }))}
+                    selectedItem={{
+                      id: tenantInfo.currentTenant.id.toString(),
+                      label: `${tenantInfo.currentTenant.name} (#${tenantInfo.currentTenant.id})`,
+                    }}
+                    onSelect={(item) => {
+                      tenantInfo.switchTenant(parseInt(item.id, 10));
+                    }}
+                    disabled={tenantInfo.isLoading}
+                    placeholder="Select tenant..."
+                    searchPlaceholder="Search tenants..."
+                    searchInTrigger={false}
+                    className="h-7 text-xs flex-1 min-w-0"
+                    popoverProps={{ className: "w-[220px]" }}
+                  />
+                  <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                    #{tenantInfo.currentTenant.id}
+                  </span>
+                </>
               ) : (
                 <span className="text-xs font-medium truncate flex-1 min-w-0">
                   {tenantInfo.currentTenant.name}
+                  <span className="ml-1 text-[10px] font-mono text-muted-foreground">
+                    #{tenantInfo.currentTenant.id}
+                  </span>
                   {apiEnvironment && apiEnvironment !== "production" && (
                     <span className={cn(
                       "ml-1 text-[10px] font-bold uppercase",
@@ -357,7 +365,7 @@ function SidebarContent({
               )
             ) : (
               <div className={`absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ${Z_TOOLTIP_CLASS} border shadow-sm whitespace-nowrap`}>
-                {tenantInfo.currentTenant.name}
+                {tenantInfo.currentTenant.name} <span className="font-mono text-muted-foreground">#{tenantInfo.currentTenant.id}</span>
                 {apiEnvironment && apiEnvironment !== "production" && (
                   <span className={cn(
                     "ml-1 font-bold uppercase",

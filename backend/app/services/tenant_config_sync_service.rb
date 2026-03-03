@@ -2434,13 +2434,26 @@ class TenantConfigSyncService
       base.where.not(sync_key: [nil, ""]).pluck(:sync_key)
     end
 
-    deleted = ActsAsTenant.with_tenant(tenant) do
-      base = config[:scope] ? model.instance_exec(&config[:scope]) : model.all
-      base.where.not(sync_key: [nil, ""])
-          .where.not(sync_key: master_sync_keys)
-          .delete_all
+    deleted = 0
+    skipped = []
+    ActsAsTenant.with_tenant(tenant) do
+      orphans = (config[:scope] ? model.instance_exec(&config[:scope]) : model.all)
+                  .where.not(sync_key: [nil, ""])
+                  .where.not(sync_key: master_sync_keys)
+
+      orphans.find_each do |rec|
+        rec.delete
+        deleted += 1
+      rescue ActiveRecord::InvalidForeignKey => e
+        # Record is still referenced by another table — leave it in place.
+        # Surface to the UI so the user knows to clean up the reference first.
+        ref_table = e.message[/table "([^"]+)"/, 1] || "another table"
+        display  = rec.try(:name) || rec.try(:title) || rec.try(:subject) || "##{rec.id}"
+        skipped << { id: rec.id, sync_key: rec.sync_key, name: display, referenced_by: ref_table }
+        Rails.logger.info "[ConfigSync] Skipped orphan #{model}##{rec.id} (sync_key=#{rec.sync_key}): still referenced by #{ref_table}"
+      end
     end
 
-    { deleted: deleted }
+    { deleted: deleted, skipped_orphans: skipped }
   end
 end

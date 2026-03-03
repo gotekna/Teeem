@@ -1053,14 +1053,15 @@ module Api
             svc.pull_from_master(table: table.to_s, record_ids: master_record_ids, mode: pull_mode)
 
           # Orphan cleanup: delete customer records with sync_key not in TEEEM
-          orphan_result = master_sync_keys.any? ? svc.delete_orphaned_from_master(table: table) : { deleted: 0 }
+          orphan_result = master_sync_keys.any? ? svc.delete_orphaned_from_master(table: table) : { deleted: 0, skipped_orphans: [] }
 
           results[t.slug] = {
-            imported:        push_result[:imported]&.length || 0,
-            updated:         push_result[:updated]&.length  || 0,
-            skipped:         push_result[:skipped]&.length  || 0,
-            deleted_orphans: orphan_result[:deleted]
-          }
+            imported:         push_result[:imported]&.length || 0,
+            updated:          push_result[:updated]&.length  || 0,
+            skipped:          push_result[:skipped]&.length  || 0,
+            deleted_orphans:  orphan_result[:deleted],
+            skipped_orphans:  orphan_result[:skipped_orphans]&.presence
+          }.compact
           results[t.slug].merge!(tombstone_results[t.slug] || {})
         end
 
