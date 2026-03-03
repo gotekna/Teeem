@@ -271,9 +271,22 @@ class ExternalInvoiceSyncService
 
   # Incremental sync - only fetch invoices modified since last sync
   def sync_incremental(since: nil)
-    since ||= ExternalInvoice.where(source: @source).maximum(:last_synced_at) || 1.year.ago
+    # ⚠️ FRC (Mar 2026): Use per-tenant XeroSyncStatus (SSoT) instead of global ExternalInvoice.maximum.
+    # ════════════════════════════════════════════════════════════════
+    # Root cause: ExternalInvoice.maximum(:last_synced_at) queries across ALL tenants when run
+    # outside ActsAsTenant context (which background jobs always are). This made every "incremental"
+    # sync fetch ALL 10,000+ invoices (100 pages, 5+ min), monopolizing the 1-thread shared worker
+    # and causing 220+ job backlog.
+    # ❌ WRONG: ExternalInvoice.where(source: @source).maximum(:last_synced_at) — global, not per-tenant
+    # ✅ CORRECT: XeroSyncStatus per-tenant timestamp — already tracked by complete_sync!
+    # ════════════════════════════════════════════════════════════════
+    since ||= if @xero_tenant_id
+                XeroSyncStatus.for("invoices", tenant_id: @xero_tenant_id)&.last_synced_at || 1.year.ago
+              else
+                ExternalInvoice.where(source: @source).maximum(:last_synced_at) || 1.year.ago
+              end
 
-    Rails.logger.info("Starting incremental sync since #{since}")
+    Rails.logger.info("Starting incremental sync for tenant #{@xero_tenant_id || 'all'} since #{since}")
 
     if @xero_tenant_id
       sync_tenant_incremental(@xero_tenant_id, since)

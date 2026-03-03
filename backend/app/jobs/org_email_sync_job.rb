@@ -82,6 +82,11 @@ class OrgEmailSyncJob < ApplicationJob
   BASE_CREDENTIAL_TIMEOUT = 14.minutes  # max time for one org (fits within 15 min scheduler)
   BASE_MAILBOX_TIMEOUT = 3.minutes      # max time per mailbox (default)
   MIN_MAILBOX_TIMEOUT = 30.seconds      # floor for large orgs during backfill
+  # ⚠️ FRC (Mar 2026): Cap mailboxes per run to prevent R14 memory on large orgs.
+  # Root cause: Pilgrim Homes (56 mailboxes) accumulated 1076MB by mailbox 25 even with GC.
+  # 20 mailboxes × ~40MB peak each = ~800MB, safe under 1024MB quota.
+  # Remaining mailboxes get processed next 15-min cycle (sorted by last_attempted_at).
+  MAX_MAILBOXES_PER_RUN = 20
   # ⚠️ FRC (Feb 2026): Per-folder skip interval for incremental sync
   # Root cause: accounts@bypilgrim.co had 60+ folders but only Inbox/Sent had new emails.
   # Re-checking all 60 folders every 15-min cycle wasted API calls and consumed the time budget.
@@ -281,6 +286,17 @@ class OrgEmailSyncJob < ApplicationJob
           break
         end
 
+        # ⚠️ FRC (Mar 2026): Cap mailboxes per run to prevent R14 memory exhaustion.
+        # Root cause: 56 mailboxes accumulated 1076MB by mailbox 25 on Standard-2X (1024MB).
+        # Even with GC.start between mailboxes, Ruby doesn't release all memory to the OS.
+        # Fix: Process max 20 mailboxes per run, remaining get picked up next 15-min cycle.
+        processed_count = total_synced + errors.count
+        if processed_count >= MAX_MAILBOXES_PER_RUN
+          remaining = user_emails.count - processed_count - skipped_count
+          Rails.logger.warn "[SYNC-DEBUG] MAILBOX BATCH LIMIT (#{MAX_MAILBOXES_PER_RUN}) reached after #{processed_count} mailboxes, #{remaining} remaining - will continue next cycle"
+          break
+        end
+
         # ⚠️ FRC (Feb 2026): Skip permanently broken mailboxes
         # These are likely deleted users, disabled accounts, or permission-denied mailboxes.
         # Without this, they consume the entire time budget every cycle.
@@ -411,6 +427,13 @@ class OrgEmailSyncJob < ApplicationJob
             "mailbox_oldest_email_year" => oldest_email_year_cache
           )
           @credential.update_columns(last_sync_at: Time.current, sync_config: updated_config)
+
+          # ⚠️ FRC (Mar 2026): Force garbage collection between mailboxes to prevent R14.
+          # Root cause: 56 mailboxes processed sequentially accumulate ActiveRecord objects
+          # (emails, jobs, address searches from auto_match) without cleanup. At mailbox 25/56,
+          # memory hit 1076MB (R14) on 1024MB Standard-2X dyno.
+          # GC.start releases objects from the previous mailbox before loading the next.
+          GC.start
         rescue StandardError => e
           error_msg = e.message
           is_permanent = PERMANENT_ERROR_PATTERNS.any? { |pattern| error_msg.include?(pattern) }
