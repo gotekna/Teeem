@@ -2011,8 +2011,14 @@ class TenantConfigSyncService
       end
 
       # Strategy 2: Name-based lookup with available FK narrowing
+      # ⚠️ IMPORTANT: Always narrow by scope/category fields when present.
+      # Without scope narrowing, "Repair Invoice scope=job" collides with
+      # "Repair Invoice scope=company" — Strategy 2 finds the wrong record
+      # and overwrites its scope, causing corruption across cascade runs. (Mar 2026)
       if attrs[:name].present?
         query = model.where(name: attrs[:name])
+        query = query.where(scope: attrs[:scope]) if attrs.key?(:scope) && attrs[:scope].present?
+        query = query.where(category: attrs[:category]) if attrs.key?(:category) && attrs[:category].present?
         query = query.where(po_template_pack_id: attrs[:po_template_pack_id]) if attrs.key?(:po_template_pack_id)
         query = query.where(warehouse_type_id: attrs[:warehouse_type_id]) if attrs.key?(:warehouse_type_id)
         query = query.where(parent_id: attrs[:parent_id]) if attrs.key?(:parent_id)
