@@ -2478,17 +2478,19 @@ class TenantConfigSyncService
                   .where.not(sync_key: master_sync_keys)
 
       orphans.find_each do |rec|
-        rec.delete
+        # Use destroy (not delete) to trigger dependent: :nullify/:destroy callbacks.
+        # delete bypasses callbacks — models like SmScheduleMaster have
+        # `has_many :sm_tasks, dependent: :nullify` which must run before the parent
+        # row is removed, otherwise the DB FK constraint fires.
+        rec.destroy
         deleted += 1
-      rescue ActiveRecord::InvalidForeignKey => e
-        # Record is still referenced by another table — leave it in place.
-        # Surface to the UI so the user knows to clean up the reference first.
-        # FK error format: "... on table "cost_centres" violates ... on table "custom_quote_template_lines""
-        # We want the LAST table (the one holding the FK), not the first (the one being deleted).
+      rescue => e
+        # Record couldn't be destroyed (unexpected error — should be rare now that
+        # destroy triggers dependent: :nullify). Surface to the UI for manual cleanup.
         ref_table = e.message.scan(/table "([^"]+)"/).last&.first || "another table"
         display  = rec.try(:name) || rec.try(:title) || rec.try(:subject) || "##{rec.id}"
         skipped << { id: rec.id, sync_key: rec.sync_key, name: display, referenced_by: ref_table }
-        Rails.logger.info "[ConfigSync] Skipped orphan #{model}##{rec.id} (sync_key=#{rec.sync_key}): still referenced by #{ref_table}"
+        Rails.logger.info "[ConfigSync] Skipped orphan #{model}##{rec.id} (sync_key=#{rec.sync_key}): #{e.message[0..80]}"
       end
     end
 

@@ -1005,49 +1005,36 @@ module Api
         if pending_tombstones.any?
           sync_keys_to_delete = pending_tombstones.map(&:sync_key).uniq
 
-          # FK-safe delete: try batch first, fall back to one-by-one on FK violation.
-          # Records still referenced by child tables (e.g. sm_schedule_masters referenced by sm_tasks)
-          # cannot be deleted until their children are cleaned up. We skip them gracefully and
-          # leave their tombstones pending so the next cascade can retry after children sync.
-          blocked_sync_keys = []
-
-          fk_safe_delete = lambda do |tenant_ctx, keys|
+          # Use destroy (not delete_all) to trigger dependent: :nullify/:destroy callbacks.
+          # delete_all bypasses callbacks — models like SmScheduleMaster have
+          # `has_many :sm_tasks, dependent: :nullify` which MUST run before the parent
+          # is removed, otherwise the DB FK constraint fires.
+          cb_safe_destroy = lambda do |tenant_ctx, keys|
             deleted = 0
             ActsAsTenant.with_tenant(tenant_ctx) do
-              begin
-                deleted = model.where(sync_key: keys).delete_all
-              rescue ActiveRecord::InvalidForeignKey
-                keys.each do |sk|
-                  begin
-                    deleted += model.where(sync_key: sk).delete_all
-                  rescue ActiveRecord::InvalidForeignKey
-                    blocked_sync_keys << sk
-                    Rails.logger.warn "[ConfigSync] Tombstone blocked: #{model} sync_key=#{sk} still referenced (will retry on next cascade)"
-                  end
-                end
+              model.where(sync_key: keys).find_each do |rec|
+                rec.destroy
+                deleted += 1
+              rescue => e
+                Rails.logger.warn "[ConfigSync] Tombstone destroy failed for #{model}##{rec.id}: #{e.message[0..100]}"
               end
             end
             deleted
           end
 
           # Delete from TEEEM master
-          tombstone_results[:deleted_from_master] = fk_safe_delete.call(current_tenant, sync_keys_to_delete)
+          tombstone_results[:deleted_from_master] = cb_safe_destroy.call(current_tenant, sync_keys_to_delete)
 
           # Delete from each customer tenant
           customer_tenants.each do |t|
-            deleted = fk_safe_delete.call(t, sync_keys_to_delete)
+            deleted = cb_safe_destroy.call(t, sync_keys_to_delete)
             tombstone_results[t.slug] ||= {}
             tombstone_results[t.slug][:tombstone_deleted] = deleted
           end
 
-          # Only mark propagated for tombstones that were successfully deleted.
-          # Blocked tombstones stay pending so next cascade retries them.
-          blocked_sync_keys.uniq!
-          propagated_ids = pending_tombstones
-            .reject { |ts| blocked_sync_keys.include?(ts.sync_key) }
-            .map(&:id)
-          ConfigSyncDeletion.where(id: propagated_ids).update_all(propagated_at: Time.current) if propagated_ids.any?
-          tombstone_results[:blocked_tombstones] = blocked_sync_keys.length if blocked_sync_keys.any?
+          # Mark propagated
+          ConfigSyncDeletion.where(id: pending_tombstones.map(&:id))
+                            .update_all(propagated_at: Time.current)
         end
 
         # ── Step 2 + 3: Push + orphan cleanup per customer tenant ─────────────────────

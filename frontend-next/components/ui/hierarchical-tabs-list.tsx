@@ -10,6 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ExpandButton } from "@/components/ui/expandable-section";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 
 interface HierarchicalTabsListProps {
@@ -21,6 +22,9 @@ interface HierarchicalTabsListProps {
   className?: string;
   /** Optional badge counts for child tabs, keyed by tab_key */
   badgeCounts?: Record<string, number | undefined>;
+  /** Expand button support — pass expanded + onToggle to show ↗ button at the right edge */
+  expanded?: boolean;
+  onToggle?: () => void;
 }
 
 /**
@@ -50,6 +54,8 @@ export function HierarchicalTabsList({
   onTabChange,
   className,
   badgeCounts,
+  expanded,
+  onToggle,
 }: HierarchicalTabsListProps) {
   // Find the parent tab that contains the active tab as a child
   const findParentOfActiveTab = React.useCallback((): WarehouseFolder | null => {
@@ -87,11 +93,16 @@ export function HierarchicalTabsList({
   // Check if we have any children to show
   const childrenToShow = selectedParent?.children?.filter((child) => child.enabled) || [];
 
+  const showExpand = expanded !== undefined && onToggle !== undefined;
+  // Expand button sits on the child row if children are shown, otherwise on the parent row
+  const expandOnRow = childrenToShow.length > 0 ? "child" : "parent";
+
   return (
     <div className={cn("space-y-1", className)}>
       {/* Row 1: Parent tabs */}
+      <div className="flex items-center gap-2">
       <TabsPrimitive.List
-        className="flex flex-wrap gap-1 rounded-lg bg-muted p-1"
+        className="flex flex-wrap gap-1 rounded-lg bg-muted p-1 flex-1 min-w-0"
       >
         {visibleTabs.map((tab) => {
           // SSoT: Use effective_icon_name for inherited icons
@@ -157,12 +168,17 @@ export function HierarchicalTabsList({
           return tabContent;
         })}
       </TabsPrimitive.List>
+      {showExpand && expandOnRow === "parent" && (
+        <ExpandButton expanded={expanded!} onToggle={onToggle!} />
+      )}
+      </div>
 
       {/* Row 2: Children of selected parent */}
       {/* SSoT: Child tabs use composite keys (parent__child) to prevent tab_key collisions */}
       {childrenToShow.length > 0 && selectedParent && (
+        <div className="flex items-center gap-2">
         <TabsPrimitive.List
-          className="flex flex-wrap gap-1 rounded-lg bg-muted p-1"
+          className="flex flex-wrap gap-1 rounded-lg bg-muted p-1 flex-1 min-w-0"
         >
           {childrenToShow.map((child) => {
             // SSoT: Use composite key (parent__child) to prevent collision
@@ -197,6 +213,10 @@ export function HierarchicalTabsList({
             );
           })}
         </TabsPrimitive.List>
+        {showExpand && expandOnRow === "child" && (
+          <ExpandButton expanded={expanded!} onToggle={onToggle!} />
+        )}
+        </div>
       )}
     </div>
   );

@@ -78,6 +78,7 @@ import { getTabComponent } from "@/lib/tab-component-registry";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 import type { DocumentItem } from "@/components/warehouse/types";
 import type { Job, JobType, JobStatus, JobStage } from "@/lib/types";
+import { ExpandableSection, useExpandedState } from "@/components/ui/expandable-section";
 
 // =============================================================================
 // LAZY LOADED TAB COMPONENTS - Performance optimization
@@ -891,6 +892,7 @@ export default function JobDetailPage() {
   const router = useRouter();
   const pathname = usePathname();
   const jobId = params.id as string;
+  const [tabsExpanded, toggleTabsExpanded] = useExpandedState(`job-${jobId}-tabs`);
 
   // Use module-level cache to prevent skeleton flash on sub-tab navigation.
   // When Next.js remounts this component (catch-all route change), we instantly
@@ -1761,6 +1763,8 @@ export default function JobDetailPage() {
                 activeParentTab={activeParentTab}
                 onTabChange={handleTabChange}
                 badgeCounts={financeCounts}
+                expanded={tabsExpanded}
+                onToggle={toggleTabsExpanded}
               />
             </Tabs>
           )}
@@ -1768,6 +1772,7 @@ export default function JobDetailPage() {
       </div>
 
       {/* Tab content - scrollable (relative z-0 creates stacking context below sticky header z-40) */}
+      <ExpandableSection expanded={tabsExpanded} onToggle={toggleTabsExpanded}>
       <Tabs value={effectiveActiveTab} onValueChange={handleTabChange} className="relative z-0 flex-1 flex flex-col min-h-0 px-3 pb-6">
         <TabsContent value="overview" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -2355,6 +2360,7 @@ export default function JobDetailPage() {
           jobTitle={job.name}
         />
       )}
+      </ExpandableSection>
 
       {/* Edit Choices Dialog */}
       <Dialog open={!!editingChoices} onOpenChange={(open) => !open && setEditingChoices(null)}>
