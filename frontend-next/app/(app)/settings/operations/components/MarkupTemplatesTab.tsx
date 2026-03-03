@@ -9,11 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ComboboxMultiSelect } from "@/components/ui/combobox-multi-select";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ChevronDown, ChevronRight, Download, Save, Link2, Pencil, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import Link from "next/link";
+import { EditRecordModal } from "@/components/table/modals/EditRecordModal";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
+import type { TableColumn, TableRow } from "@/components/table/types";
 
 // ============================================
 // Types
@@ -106,17 +108,17 @@ const CHARGE_TYPES = [
 ] as const;
 
 // Metadata badge → settings page mapping
-const METADATA_LINKS: { field: keyof SmPoTask; prefix: string; href: string }[] = [
-  { field: "stage_name", prefix: "Stage", href: "/tables/sm_stages" },
-  { field: "trade_name", prefix: "Trade", href: "/tables/sm_trades" },
-  { field: "cost_centre_name", prefix: "CC", href: "/settings/operations/cost-centres" },
-  { field: "tender_name", prefix: "Tender", href: "/settings/operations/tender-sections" },
-  { field: "assigned_role_name", prefix: "Role", href: "/settings/roles" },
+const METADATA_FIELDS: { field: keyof SmPoTask; prefix: string }[] = [
+  { field: "stage_name", prefix: "Stage" },
+  { field: "trade_name", prefix: "Trade" },
+  { field: "cost_centre_name", prefix: "CC" },
+  { field: "tender_name", prefix: "Tender" },
+  { field: "assigned_role_name", prefix: "Role" },
 ];
 
-// Helper: render inline clickable metadata badges for a task
-function TaskMetadataBadges({ task }: { task: SmPoTask }) {
-  const badges = METADATA_LINKS
+// Helper: render inline clickable metadata badges for a task (opens edit dialog)
+function TaskMetadataBadges({ task, onEdit }: { task: SmPoTask; onEdit?: (task: SmPoTask) => void }) {
+  const badges = METADATA_FIELDS
     .filter(m => task[m.field])
     .map(m => ({ ...m, value: task[m.field] as string }));
   if (badges.length === 0) return null;
@@ -125,13 +127,14 @@ function TaskMetadataBadges({ task }: { task: SmPoTask }) {
       {badges.map((b, i) => (
         <React.Fragment key={b.field}>
           {i > 0 && <span className="mx-0.5">|</span>}
-          <Link
-            href={b.href}
-            className="hover:text-foreground hover:underline transition-colors"
-            title={`Open ${b.prefix} settings`}
+          <button
+            type="button"
+            onClick={() => onEdit?.(task)}
+            className="hover:text-foreground hover:underline transition-colors cursor-pointer"
+            title={`Edit ${b.prefix}`}
           >
             {b.prefix}: {b.value}
-          </Link>
+          </button>
         </React.Fragment>
       ))}
     </span>
@@ -153,17 +156,11 @@ export function MarkupTemplatesTab() {
   const [globalDefaults, setGlobalDefaults] = React.useState<Record<string, number> | null>(null);
   const [claimTemplates, setClaimTemplates] = React.useState<ClaimTemplate[]>([]);
 
-  // Task edit dialog state
-  const [editingTask, setEditingTask] = React.useState<SmPoTask | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = React.useState(false);
-  const [editDialogFields, setEditDialogFields] = React.useState<{
-    stage: string; trade: string; cost_centre: string; tender_id: string; assigned_role: string;
-  }>({ stage: "", trade: "", cost_centre: "", tender_id: "", assigned_role: "" });
-  const [editDialogSaving, setEditDialogSaving] = React.useState(false);
-  const [lookups, setLookups] = React.useState<{
-    stages: LookupOption[]; trades: LookupOption[]; cost_centres: LookupOption[];
-    tenders: LookupOption[]; roles: LookupOption[];
-  } | null>(null);
+  // EditRecordModal state (uses same component as TeeemTableView row edit)
+  const [editModalOpen, setEditModalOpen] = React.useState(false);
+  const [editModalRecord, setEditModalRecord] = React.useState<TableRow | null>(null);
+  const [editModalColumns, setEditModalColumns] = React.useState<TableColumn[]>([]);
+  const [editModalLoading, setEditModalLoading] = React.useState(false);
 
   React.useEffect(() => {
     (async () => {
@@ -646,7 +643,7 @@ export function MarkupTemplatesTab() {
                             {/* Inline metadata for linked task */}
                             {selectedTask && (
                               <div className="ml-36 pl-3">
-                                <TaskMetadataBadges task={selectedTask} />
+                                <TaskMetadataBadges task={selectedTask} onEdit={openEditDialog} />
                               </div>
                             )}
                           </div>
@@ -752,7 +749,7 @@ export function MarkupTemplatesTab() {
                             {/* Inline metadata for single-select linked task (non-overheads) */}
                             {!isOverheads && selectedTask && (
                               <div className="ml-36 pl-3">
-                                <TaskMetadataBadges task={selectedTask} />
+                                <TaskMetadataBadges task={selectedTask} onEdit={openEditDialog} />
                               </div>
                             )}
 
@@ -799,7 +796,7 @@ export function MarkupTemplatesTab() {
                                             </Button>
                                           )}
                                         </div>
-                                        {task && <div className="pl-1"><TaskMetadataBadges task={task} /></div>}
+                                        {task && <div className="pl-1"><TaskMetadataBadges task={task} onEdit={openEditDialog} /></div>}
                                       </div>
                                     );
                                   })}
@@ -812,7 +809,7 @@ export function MarkupTemplatesTab() {
                               const task = tasks.find(t => t.id === smIds[0]);
                               return task ? (
                                 <div className="ml-36 pl-3 flex items-center gap-1">
-                                  <TaskMetadataBadges task={task} />
+                                  <TaskMetadataBadges task={task} onEdit={openEditDialog} />
                                   <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={() => openEditDialog(task)} title="Edit task details">
                                     <Pencil className="h-2.5 w-2.5" />
                                   </Button>
