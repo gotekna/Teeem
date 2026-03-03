@@ -58,6 +58,7 @@ import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { JobType, JobStatus, JobStage, Contact, User } from '@/lib/types';
+import { useContacts, type ContactSelect } from "@/lib/hooks/useContacts";
 
 interface SuburbSearchResult {
   id: number;
@@ -198,8 +199,7 @@ export default function NewJobPage() {
 
   // People state
   const [users, setUsers] = React.useState<User[]>([]);
-  const [allContacts, setAllContacts] = React.useState<Contact[]>([]);
-  const [loadingContacts, setLoadingContacts] = React.useState(false);
+  const { contacts: allContacts, loading: loadingContacts, refresh: refreshContacts } = useContacts({ mode: "select" });
   // Company-aware contact search display mode (shows "Troy Smith - Harvey Norman")
   const [showCompanyNames, setShowCompanyNames] = React.useState(true);
   const [peopleData, setPeopleData] = React.useState<PeopleFormData>({
@@ -213,12 +213,12 @@ export default function NewJobPage() {
     internal_sales_id: null,
     coordinator_id: null,
   });
-  // Store selected contacts for display
+  // Store selected contacts for display (only need id + display_name from list)
   const [selectedContacts, setSelectedContacts] = React.useState<{
-    client1?: Contact;
-    client2?: Contact;
-    referrer?: Contact;
-    external_sales?: Contact;
+    client1?: ContactSelect;
+    client2?: ContactSelect;
+    referrer?: ContactSelect;
+    external_sales?: ContactSelect;
   }>({});
 
   const [formData, setFormData] = React.useState<JobFormData>({
@@ -308,24 +308,7 @@ export default function NewJobPage() {
     loadLookupData();
   }, [statusFromPath]);
 
-  // Reusable function to load contacts - can be called after proposal enrichment creates new company
-  const loadContacts = React.useCallback(async () => {
-    try {
-      setLoadingContacts(true);
-      const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts");
-      const contacts = Array.isArray(response) ? response : response?.contacts || [];
-      setAllContacts(contacts);
-    } catch (error) {
-      console.error("Failed to load contacts:", error);
-    } finally {
-      setLoadingContacts(false);
-    }
-  }, []);
-
-  // Load contacts on mount
-  React.useEffect(() => {
-    loadContacts();
-  }, [loadContacts]);
+  // refreshContacts() can be called after proposal enrichment creates new company
 
   // Load email proposal if from_proposal param is set
   React.useEffect(() => {
@@ -450,7 +433,7 @@ export default function NewJobPage() {
 
         // If enrichment created a new company, reload contacts to include it in the list
         if (data.customer?.enrichment?.company_id) {
-          await loadContacts();
+          refreshContacts();
         }
 
       } catch (error) {
@@ -461,7 +444,7 @@ export default function NewJobPage() {
     };
 
     loadProposal();
-  }, [proposalId, loadContacts]);
+  }, [proposalId]);
 
   // Track if we've already mapped job type from proposal
   const [hasSetJobTypeFromProposal, setHasSetJobTypeFromProposal] = React.useState(false);
@@ -567,11 +550,11 @@ export default function NewJobPage() {
   // Company-aware display: "Troy Smith - Harvey Norman" format (when showCompanyNames is true)
   // SSoT: Uses formatContactLabel from display-formatters
   const getContactLabel = React.useCallback(
-    (c: Contact) => formatContactLabel(c, showCompanyNames),
+    (c: ContactSelect) => formatContactLabel(c, showCompanyNames),
     [showCompanyNames]
   );
 
-  const contactItems: ComboboxItem[] = allContacts.map((c: Contact) => ({
+  const contactItems: ComboboxItem[] = allContacts.map((c: ContactSelect) => ({
     id: c.id.toString(),
     label: getContactLabel(c),
   }));
@@ -702,7 +685,7 @@ export default function NewJobPage() {
 
       if (response?.success && response.contact) {
         // Reload contacts list and auto-select the new contact
-        await loadContacts();
+        refreshContacts();
         handleContactSelect(quickCreateRole, response.contact);
         setQuickCreateOpen(false);
         setQuickCreateForm({ first_name: "", last_name: "", email: "", mobile_phone: "", entity_type: "person" });
@@ -1352,7 +1335,7 @@ export default function NewJobPage() {
                         label: getContactLabel(selectedContacts.client1),
                       } : undefined}
                       onSelect={(item) => {
-                        const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
+                        const contact = allContacts.find((c: ContactSelect) => c.id.toString() === item.id);
                         handleContactSelect("client1", contact || null);
                       }}
                       isLoading={loadingContacts}
@@ -1383,7 +1366,7 @@ export default function NewJobPage() {
                         label: getContactLabel(selectedContacts.client2),
                       } : undefined}
                       onSelect={(item) => {
-                        const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
+                        const contact = allContacts.find((c: ContactSelect) => c.id.toString() === item.id);
                         handleContactSelect("client2", contact || null);
                       }}
                       isLoading={loadingContacts}
@@ -1422,7 +1405,7 @@ export default function NewJobPage() {
                         label: getContactLabel(selectedContacts.referrer),
                       } : undefined}
                       onSelect={(item) => {
-                        const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
+                        const contact = allContacts.find((c: ContactSelect) => c.id.toString() === item.id);
                         handleContactSelect("referrer", contact || null);
                       }}
                       isLoading={loadingContacts}
@@ -1453,7 +1436,7 @@ export default function NewJobPage() {
                         label: getContactLabel(selectedContacts.external_sales),
                       } : undefined}
                       onSelect={(item) => {
-                        const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
+                        const contact = allContacts.find((c: ContactSelect) => c.id.toString() === item.id);
                         handleContactSelect("external_sales", contact || null);
                       }}
                       isLoading={loadingContacts}

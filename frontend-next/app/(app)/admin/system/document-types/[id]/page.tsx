@@ -650,11 +650,11 @@ export default function DocumentTypeDetailPage() {
       const scope = documentType.scope || "company";
       let hasEntityPlaceholders = false;
       if (scope === "contacts") {
-        hasEntityPlaceholders = /\{PersonName\}|\{PersonCode\}|\{Person\}/.test(uiName);
+        hasEntityPlaceholders = /\{PersonName\}|\{PersonCode\}|\{Person\}|\{ContactName\}/.test(uiName);
       } else if (scope === "job") {
         hasEntityPlaceholders = /\{JobTitle\}|\{JobCode\}|\{JobName\}|\{JobAddress\}/.test(uiName);
       } else {
-        hasEntityPlaceholders = /\{CompanyName\}|\{CompanyCode\}/.test(uiName);
+        hasEntityPlaceholders = /\{CompanyName\}|\{CompanyCode\}|\{CompanyGroup\}/.test(uiName);
       }
       setRemoveCompanyName(!hasEntityPlaceholders);
     }
@@ -721,13 +721,13 @@ export default function DocumentTypeDetailPage() {
         // SSoT: "contacts" is THE ONE scope for all individuals
         if (scope === "contacts") {
           // Remove person placeholders for contacts scope
-          fileName = fileName.replace(/\{PersonName\}\s*/g, '').replace(/\{PersonCode\}\s*/g, '').replace(/\{Person\}\s*/g, '');
+          fileName = fileName.replace(/\{PersonName\}\s*/g, '').replace(/\{PersonCode\}\s*/g, '').replace(/\{Person\}\s*/g, '').replace(/\{ContactName\}\s*/g, '');
         } else if (scope === "job") {
           // Remove job placeholders for job scope
           fileName = fileName.replace(/\{JobTitle\}\s*/g, '').replace(/\{JobCode\}\s*/g, '').replace(/\{JobName\}\s*/g, '').replace(/\{JobAddress\}\s*/g, '');
         } else {
           // Remove company placeholders for company scope (default)
-          fileName = fileName.replace(/\{CompanyName\}\s*/g, '').replace(/\{CompanyCode\}\s*/g, '');
+          fileName = fileName.replace(/\{CompanyName\}\s*/g, '').replace(/\{CompanyCode\}\s*/g, '').replace(/\{CompanyGroup\}\s*/g, '');
         }
       }
 
@@ -2306,7 +2306,7 @@ export default function DocumentTypeDetailPage() {
                       htmlFor="hide-company"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      {documentType.scope === "contacts" ? "Hide Person" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
+                      {documentType.scope === "contacts" ? "Hide Person" : documentType.scope === "job" ? "Hide Job" : documentType.scope === "library" ? "Hide Library" : "Hide Company"}
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">

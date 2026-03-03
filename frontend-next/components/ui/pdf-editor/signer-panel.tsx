@@ -21,8 +21,7 @@ import {
   type ComboboxItem,
 } from "@/components/ui/combobox-dropdown";
 import { formatContactLabel } from "@/lib/formatters/display-formatters";
-import { api } from "@/lib/api";
-import type { Contact } from "@/lib/types";
+import { useContacts, type ContactSelect } from "@/lib/hooks/useContacts";
 
 interface ExtendedSignerPanelProps extends SignerPanelProps {
   fields?: SignatureField[];
@@ -42,28 +41,8 @@ export function SignerPanel({
   const [newSignerEmail, setNewSignerEmail] = React.useState("");
   const [newSignerName, setNewSignerName] = React.useState("");
 
-  // Contact loading
-  const [contacts, setContacts] = React.useState<Contact[]>([]);
-  const [loadingContacts, setLoadingContacts] = React.useState(false);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    async function loadContacts() {
-      try {
-        setLoadingContacts(true);
-        const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts?with_email=true");
-        if (cancelled) return;
-        const data = Array.isArray(response) ? response : response?.contacts || [];
-        setContacts(data);
-      } catch {
-        // Silently fail - manual entry is always available
-      } finally {
-        if (!cancelled) setLoadingContacts(false);
-      }
-    }
-    loadContacts();
-    return () => { cancelled = true; };
-  }, []);
+  // Contact loading - uses for=select fast path (3 queries, ~50ms vs full serialization)
+  const { contacts, loading: loadingContacts } = useContacts({ mode: "select", withEmail: true });
 
   // Convert contacts to ComboboxItems, excluding already-added signers
   const contactItems: ComboboxItem[] = React.useMemo(() => {
@@ -87,10 +66,10 @@ export function SignerPanel({
   }, [contacts, signers]);
 
   const handleContactSelect = (item: ComboboxItem) => {
-    const contact = contacts.find((c) => c.id.toString() === item.id);
+    const contact = contacts.find((c: ContactSelect) => c.id.toString() === item.id);
     if (!contact || !contact.email) return;
 
-    const displayName = contact.display_name || contact.company_name || contact.email.split("@")[0];
+    const displayName = contact.display_name || contact.email.split("@")[0];
     onAddSigner(contact.email, displayName, contact.id);
     setIsAdding(false);
   };
