@@ -499,10 +499,11 @@ module Api
           end
 
           # ── Orphan cleanup: delete local records no longer in TEEEM (on last batch) ──
-          # Handles records deleted from master propagating down on regular sync.
-          # Applies to two_way and one_way tables (independent = tenant manages its own).
+          # FRC: Only runs for one_way tables. two_way tables co-own records — orphan
+          # cleanup would destroy legitimate tenant-specific records. For two_way tables,
+          # the tombstone system (ConfigSyncDeletion) handles intentional deletions only.
           deleted_orphans = 0
-          if !has_more && table_mode(table).in?(%w[two_way one_way])
+          if !has_more && table_mode(table) == "one_way"
             orphan_result = service.delete_orphaned_from_master(table: table.to_s)
             deleted_orphans = orphan_result[:deleted]
           end
@@ -1064,19 +1065,23 @@ module Api
           push_result = master_record_ids.empty? ? { imported: [], updated: [], skipped: [] } :
             svc.pull_from_master(table: table.to_s, record_ids: master_record_ids, mode: pull_mode)
 
-          # Orphan cleanup: delete customer records with sync_key not in TEEEM
-          orphan_result = master_sync_keys.any? ? svc.delete_orphaned_from_master(table: table) : { deleted: 0, skipped_orphans: [] }
-
-          # Promote can't-delete orphans to TEEEM so they become canonical.
-          # Records that can't be deleted (still referenced by FK) are valid in-use records
-          # that simply weren't in TEEEM yet. Import them into TEEEM so the next cascade
-          # distributes them to all tenants. This turns "2 can't delete" into an upsert.
+          # Orphan cleanup: delete customer records with sync_key not in TEEEM.
+          # FRC: Only runs for one_way tables. two_way tables co-own records — orphan
+          # cleanup would destroy legitimate tenant-specific records (e.g. Tekna's
+          # sm_schedule_master predecessor tasks). For two_way tables, tombstones handle
+          # intentional deletions only. one_way = TEEEM is master, tenant has no ownership.
+          orphan_result = { deleted: 0, skipped_orphans: [] }
           promoted_count = 0
-          if orphan_result[:skipped_orphans]&.any?
-            promote_ids = orphan_result[:skipped_orphans].map { |o| o[:id] }.compact
-            if promote_ids.any?
-              master_svc.import_from_tenant(source_tenant: t, table: table.to_s, record_ids: promote_ids)
-              promoted_count = promote_ids.length
+          if master_sync_keys.any? && t_mode == "one_way"
+            orphan_result = svc.delete_orphaned_from_master(table: table)
+
+            # Promote can't-delete orphans to TEEEM so they become canonical.
+            if orphan_result[:skipped_orphans]&.any?
+              promote_ids = orphan_result[:skipped_orphans].map { |o| o[:id] }.compact
+              if promote_ids.any?
+                master_svc.import_from_tenant(source_tenant: t, table: table.to_s, record_ids: promote_ids)
+                promoted_count = promote_ids.length
+              end
             end
           end
 
