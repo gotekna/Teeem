@@ -101,11 +101,17 @@ class XeroAttachmentSyncJob < ApplicationJob
   # Xero rate limits (per tenant)
   MINUTE_LIMIT = 60
   DAILY_LIMIT = 5000
-  # Leave headroom for other operations (contacts sync, health monitor, invoice sync, etc.)
-  # FRC (Feb 2026): Was 4800 (96% of daily). Left only 200 calls for all other Xero jobs,
-  # causing daily limit exhaustion in ~2 hours. Now 3000 (60%) leaves 2000 for other ops.
   SAFE_MINUTE_LIMIT = 55
+  # FRC (Mar 2026): Attachment sync's own daily budget, tracked SEPARATELY from the
+  # shared Xero daily counter. Previously used the shared counter (from Xero headers)
+  # which included ALL operations (invoice sync, contact sync, bank sync). Invoice sync
+  # alone consumed 5000/day for Pilgrim (9,984 invoices × 100 pages × 4 runs/hr),
+  # starving attachment sync for 28+ days with 0 progress on 3,290 remaining PDFs.
+  # Now attachment sync tracks its own API calls via attachment_daily_key() and only
+  # stops when IT has used SAFE_DAILY_LIMIT, not when other operations have.
   SAFE_DAILY_LIMIT = 3000
+  # Approximate API calls per invoice (PDF download + list attachments)
+  API_CALLS_PER_INVOICE = 2
 
   # ⚠️ DO NOT ADD THREADING BACK (Feb 2026)
   # ════════════════════════════════════════════════════════════════════════════
@@ -195,13 +201,21 @@ class XeroAttachmentSyncJob < ApplicationJob
         next
       end
 
+      # Skip if our own daily budget is exhausted (separate from shared Xero counter)
+      our_used = attachment_daily_used(tenant_id)
+      if our_used >= SAFE_DAILY_LIMIT
+        Rails.logger.debug("[XeroAttachmentSync] Skipping #{credential.tenant_name} - attachment budget exhausted (#{our_used}/#{SAFE_DAILY_LIMIT}), resets at midnight UTC")
+        skipped_count += 1
+        next
+      end
+
       # Queue a job for this tenant with STAGGER to prevent simultaneous API hits
       # ⚠️ DO NOT REMOVE STAGGER - All orgs hitting Xero at once = all rate limited at once (Feb 2026)
       # 30 second gap between each tenant's job start = spread load across the minute
       stagger_delay = (scheduled_count * 30).seconds
       XeroAttachmentSyncJob.set(wait: stagger_delay).perform_later(nil, tenant_id: tenant_id, limit: options[:limit] || BATCH_SIZE)
       scheduled_count += 1
-      Rails.logger.info("[XeroAttachmentSync] Scheduled job for #{credential.tenant_name} in #{stagger_delay.to_i}s (#{remaining} remaining)")
+      Rails.logger.info("[XeroAttachmentSync] Scheduled job for #{credential.tenant_name} in #{stagger_delay.to_i}s (#{remaining} remaining, budget: #{our_used}/#{SAFE_DAILY_LIMIT})")
     end
 
     Rails.logger.info("[XeroAttachmentSync] Scheduled #{scheduled_count} tenant jobs, skipped #{skipped_count}")
@@ -241,11 +255,11 @@ class XeroAttachmentSyncJob < ApplicationJob
       started_at = Time.current
       total_results = { processed: 0, success: 0, failed: 0, errors: [], batches: 0 }
 
-      # Log daily budget status at start so we can see consumption in Heroku logs
+      # Log budget status at start so we can see consumption in Heroku logs
       usage = XeroRateLimitTracker.usage_for(tenant_id)
-      daily_used = usage&.dig(:daily, :used) || 0
-      daily_pct = usage&.dig(:daily, :percentage) || 0
-      Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Daily budget #{daily_used}/#{DAILY_LIMIT} (#{daily_pct}%), safe limit #{SAFE_DAILY_LIMIT}")
+      xero_daily_used = usage&.dig(:daily, :used) || 0
+      our_used = attachment_daily_used(tenant_id)
+      Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Xero org total #{xero_daily_used}/#{DAILY_LIMIT}, attachment budget #{our_used}/#{SAFE_DAILY_LIMIT}")
 
       # FRC (Feb 2026): Stall detection — prevents tight spin when all remaining
       # invoices are on cooldown or the already_synced subquery disagrees with the
@@ -377,17 +391,16 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     # Calculate how many we can safely process
     minute_remaining = usage ? (SAFE_MINUTE_LIMIT - (usage.dig(:minute, :used) || 0)) : SAFE_MINUTE_LIMIT
-    daily_remaining = usage ? (SAFE_DAILY_LIMIT - (usage.dig(:daily, :used) || 0)) : SAFE_DAILY_LIMIT
 
-    # FRC (Feb 2026): Average API calls per invoice:
-    # - Any type with HasAttachments=false: 1 (PDF download only, skip list attachments)
-    # - Any type with HasAttachments=true: 2 (PDF download + list attachments)
-    # - Bill with HasAttachments=false: ~0 (local DB only, no PDF, no attachments)
-    # Weighted average ≈ 1.5. The per-request throttler (XeroRateLimitTracker)
-    # handles actual pacing, so this is just for batch size estimation.
-    api_calls_per_pdf = 2
-    max_by_minute = (minute_remaining / api_calls_per_pdf).clamp(0, SAFE_MINUTE_LIMIT)
-    max_by_daily = (daily_remaining / api_calls_per_pdf).clamp(0, 500)
+    # FRC (Mar 2026): Use OUR OWN daily budget tracker, not the shared Xero counter.
+    # The shared counter includes ALL Xero operations (invoice sync, contact sync, etc.)
+    # which starved attachment sync for 28+ days on Pilgrim (9,984 invoices consumed
+    # the full 5,000/day budget via invoice sync alone → 0 left for attachments).
+    # If Xero's actual daily limit is hit, API calls get 429 → lockout handling catches it.
+    daily_remaining = (SAFE_DAILY_LIMIT - attachment_daily_used(tenant_id)).clamp(0, SAFE_DAILY_LIMIT)
+
+    max_by_minute = (minute_remaining / API_CALLS_PER_INVOICE).clamp(0, SAFE_MINUTE_LIMIT)
+    max_by_daily = (daily_remaining / API_CALLS_PER_INVOICE).clamp(0, 500)
 
     limit = [max_by_minute, max_by_daily, options[:limit] || BATCH_SIZE].min
 
@@ -439,6 +452,9 @@ class XeroAttachmentSyncJob < ApplicationJob
         service = XeroAttachmentSyncService.new(invoice, shared_resources: shared)
         result = service.sync!
         results[:processed] += 1
+
+        # Track our own daily API usage (separate from shared Xero counter)
+        increment_attachment_daily!(tenant_id, API_CALLS_PER_INVOICE)
 
         if result[:errors].any?
           results[:failed] += 1
@@ -634,8 +650,13 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     return true if usage[:locked_out]
 
-    (usage.dig(:minute, :percentage) || 0) >= 90 ||
-      (usage.dig(:daily, :percentage) || 0) >= 90
+    # Only check minute rate limit (rolls over in 60s, brief sleep helps)
+    # FRC (Mar 2026): Removed daily percentage check. The shared Xero daily counter
+    # includes ALL operations (invoice, contact, bank sync). Invoice sync alone consumed
+    # 5,000/day for Pilgrim → daily % was always 100% → attachment sync starved 28+ days.
+    # Attachment sync now tracks its own daily budget via attachment_daily_used().
+    # If Xero's actual daily limit is hit, API calls get 429 → lockout check above catches it.
+    (usage.dig(:minute, :percentage) || 0) >= 90
   end
 
   # SSoT: extract_retry_after now in XeroJobBase concern
@@ -675,6 +696,29 @@ class XeroAttachmentSyncJob < ApplicationJob
 
   def release_tenant_lock!(tenant_id)
     Rails.cache.delete(tenant_lock_key(tenant_id))
+  end
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # OWN DAILY BUDGET TRACKING (per-tenant, resets at midnight UTC)
+  # ════════════════════════════════════════════════════════════════════════════
+  # FRC (Mar 2026): Tracks attachment sync's OWN API calls separately from the
+  # shared Xero daily counter. The shared counter includes all Xero operations
+  # (invoice sync, contact sync, bank sync). Without separate tracking, invoice
+  # sync consumed the full 5,000/day budget for Pilgrim (9,984 invoices), and
+  # attachment sync was starved for 28+ days with 0 progress on 3,290 PDFs.
+
+  def attachment_daily_key(tenant_id)
+    day = Time.current.utc.strftime("%Y%m%d")
+    "xero:attachment_sync:daily_calls:#{tenant_id}:#{day}"
+  end
+
+  def attachment_daily_used(tenant_id)
+    Rails.cache.read(attachment_daily_key(tenant_id)).to_i
+  end
+
+  def increment_attachment_daily!(tenant_id, count = 1)
+    key = attachment_daily_key(tenant_id)
+    count.times { Rails.cache.increment(key, 1, expires_in: 25.hours, initial: 0) }
   end
 
   # ════════════════════════════════════════════════════════════════════════════

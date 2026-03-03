@@ -111,6 +111,11 @@ interface GanttToolbarProps {
   isStaging?: boolean;
   hasSelectedTask?: boolean;
   onOpenTaskInfo?: () => void;
+
+  // Schedule Master navigation
+  onOpenScheduleMasterTable?: () => void;
+  onOpenMasterTask?: () => void;
+  hasMasterTask?: boolean; // true when selected task has an sm_schedule_master_id
 }
 
 // =============================================================================
@@ -154,6 +159,9 @@ export function GanttToolbar({
   isStaging = false,
   hasSelectedTask = false,
   onOpenTaskInfo,
+  onOpenScheduleMasterTable,
+  onOpenMasterTask,
+  hasMasterTask = false,
 }: GanttToolbarProps) {
   // Drag state for column reordering
   const [draggedColumnIndex, setDraggedColumnIndex] = React.useState<number | null>(null);
@@ -236,6 +244,35 @@ export function GanttToolbar({
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRollingOver ? 'animate-spin' : ''}`} />
             <span className="text-xs">Rollover</span>
+          </Button>
+        )}
+
+        {/* Schedule Master Table Button */}
+        {onOpenScheduleMasterTable && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenScheduleMasterTable}
+            title="Open Schedule Master template table"
+            className="h-8 gap-1.5 px-2.5"
+          >
+            <FastForward className="h-3.5 w-3.5" />
+            <span className="text-xs">Schedule Master</span>
+          </Button>
+        )}
+
+        {/* Master Task Button — open the template record for the selected task */}
+        {onOpenMasterTask && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenMasterTask}
+            disabled={!hasMasterTask}
+            title={hasMasterTask ? 'Open template record for selected task' : 'Select a task with a master template first'}
+            className="h-8 gap-1.5 px-2.5"
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+            <span className="text-xs">Master Task</span>
           </Button>
         )}
 

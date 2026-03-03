@@ -72,6 +72,10 @@ export interface GanttUnifiedProps {
   showPhotoPanel?: boolean;
   onTogglePhotoPanel?: () => void;
 
+  // Schedule Master navigation
+  onOpenScheduleMasterTable?: () => void;
+  onOpenMasterTask?: (smScheduleMasterId: number) => void;
+
   // Feature toggles
   showBaselineControls?: boolean; // Hide baseline capture in template views
 }
@@ -138,6 +142,8 @@ export function GanttUnified({
   showPhotoPanel,
   onTogglePhotoPanel,
   showBaselineControls = true,
+  onOpenScheduleMasterTable,
+  onOpenMasterTask,
 }: GanttUnifiedProps) {
   // ---------------------------------------------------------------------------
   // Refs
@@ -790,6 +796,20 @@ export function GanttUnified({
             const task = tasks.find((t) => String(t.id) === String(firstId));
             if (task && onTaskDoubleClick) onTaskDoubleClick(task);
           }}
+          onOpenScheduleMasterTable={onOpenScheduleMasterTable}
+          onOpenMasterTask={onOpenMasterTask ? () => {
+            const firstId = selectedTaskIds.values().next().value;
+            if (!firstId) return;
+            const task = tasks.find((t) => String(t.id) === String(firstId));
+            const masterId = (task?.rowData as { sm_schedule_master_id?: number | null })?.sm_schedule_master_id;
+            if (masterId) onOpenMasterTask(masterId);
+          } : undefined}
+          hasMasterTask={(() => {
+            const firstId = selectedTaskIds.values().next().value;
+            if (!firstId) return false;
+            const task = tasks.find((t) => String(t.id) === String(firstId));
+            return !!( task?.rowData as { sm_schedule_master_id?: number | null })?.sm_schedule_master_id;
+          })()}
         />
       )}
 

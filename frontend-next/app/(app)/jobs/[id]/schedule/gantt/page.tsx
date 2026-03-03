@@ -258,6 +258,50 @@ export default function GanttPage() {
   }, [gantt.tasks]);
 
   // ==========================================================================
+  // Schedule Master Navigation
+  // ==========================================================================
+
+  const handleOpenScheduleMasterTable = React.useCallback(() => {
+    router.push('/settings/operations/schedule-master');
+  }, [router]);
+
+  const handleOpenMasterTask = React.useCallback(async (smScheduleMasterId: number) => {
+    // Fetch the SmScheduleMaster template record via Foundation API (SSoT)
+    const resp = await api.get<{ success: boolean; record: SmScheduleMaster }>(
+      `/api/v1/foundations/sm-schedule-master/records/${smScheduleMasterId}`
+    );
+    const data = resp?.record;
+    if (!data) return;
+    const editRow: EditRowData = {
+      id: data.id,
+      task_number: data.task_number,
+      name: data.name,
+      description: data.description || undefined,
+      duration_days: data.duration_days || 1,
+      predecessor_ids: data.predecessor_ids ?? [],
+      predecessor_display: data.predecessor_display || '',
+      trade: data.trade || undefined,
+      trade_id: undefined,
+      stage: data.stage || undefined,
+      stage_id: undefined,
+      assigned_role: data.assigned_role || undefined,
+      assigned_role_id: undefined,
+      cost_centre: data.cost_centre || undefined,
+      cost_centre_id: undefined,
+      hold: data.hold || false,
+      hold_date: data.hold_date || undefined,
+      confirm: data.confirm || false,
+      supplier_confirm: data.supplier_confirm || false,
+      started: false,
+      po_required: data.po_required || false,
+      supplier_id: data.supplier_id || undefined,
+      supplier_name: data.supplier_name || undefined,
+    } as unknown as EditRowData;
+    setSelectedTaskForEdit(editRow);
+    setShowTaskEditDialog(true);
+  }, []);
+
+  // ==========================================================================
   // EditRowDialog Handlers
   // ==========================================================================
 
@@ -531,6 +575,8 @@ export default function GanttPage() {
             onTaskResize={gantt.handleTaskResize}
             showPhotoPanel={showPhotoPanel}
             onTogglePhotoPanel={() => setShowPhotoPanel(!showPhotoPanel)}
+            onOpenScheduleMasterTable={handleOpenScheduleMasterTable}
+            onOpenMasterTask={handleOpenMasterTask}
           />
         </div>
 
