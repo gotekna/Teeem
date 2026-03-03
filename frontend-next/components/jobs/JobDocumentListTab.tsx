@@ -43,7 +43,9 @@ import { formatFileSize } from "@/utils/formatters";
 import {
   StandardDocumentList,
   type LibraryDocument,
+  type SmTaskRequiredDocType,
 } from "@/components/documents/StandardDocumentList";
+import type { SmTaskInfo } from "@/components/warehouse/types";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 
 interface JobDocumentListTabProps {
@@ -57,6 +59,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
 
   // State
   const [documents, setDocuments] = useState<LibraryDocument[]>([]);
+  const [smTaskInfo, setSmTaskInfo] = useState<SmTaskInfo | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -139,10 +142,12 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
         success: boolean;
         documents: LibraryDocument[];
         pagination: { total: number; has_more: boolean };
+        smTaskInfo?: SmTaskInfo;
       }>(`/api/v1/documents/warehouse?${params.toString()}`);
 
       if (response?.success) {
         setDocuments(response.documents || []);
+        setSmTaskInfo(response.smTaskInfo || undefined);
       }
     } catch (error) {
       console.error("Failed to fetch job documents:", error);
@@ -162,15 +167,32 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
 
     setPendingFiles(Array.from(files));
     setPreviewFileIndex(0);
-    const docTypes = warehouseFolder.document_types || [];
-    const primary = docTypes.find(dt => dt.is_primary) || docTypes[0];
-    setSelectedDocTypeId(primary ? String(primary.id) : "");
+
+    // If doc type was pre-selected (from placeholder Upload button), keep it
+    if (preSelectedDocTypeRef.current) {
+      setSelectedDocTypeId(preSelectedDocTypeRef.current);
+      preSelectedDocTypeRef.current = null;
+    } else {
+      const docTypes = warehouseFolder.document_types || [];
+      const primary = docTypes.find(dt => dt.is_primary) || docTypes[0];
+      setSelectedDocTypeId(primary ? String(primary.id) : "");
+    }
     setUploadDialogOpen(true);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }, [warehouseFolder.document_types]);
+
+  // Upload for a specific required doc type (from placeholder row)
+  // Pre-selects doc type before opening file picker; handleFileSelect checks this ref
+  const preSelectedDocTypeRef = useRef<string | null>(null);
+
+  const handleUploadForDocType = useCallback((docType: SmTaskRequiredDocType) => {
+    preSelectedDocTypeRef.current = String(docType.documentTypeId);
+    setSelectedDocTypeId(String(docType.documentTypeId));
+    fileInputRef.current?.click();
+  }, []);
 
   // Upload after dialog confirmation
   const handleConfirmUpload = useCallback(async () => {
@@ -387,7 +409,8 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
           showVerifiedBadge={true}
           showExpiryBadge={true}
           showVerifyActions={true}
-          smTaskInfo={warehouseFolder.sm_task_info}
+          smTaskInfo={smTaskInfo}
+          onUploadForDocType={handleUploadForDocType}
           emptyMessage="No documents yet"
           emptyAction={
             <Button

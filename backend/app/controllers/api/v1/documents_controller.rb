@@ -237,7 +237,16 @@ module Api
           end
         end
 
-        render json: {
+        # SM Task info: if filtering by warehouse_folder + Job linkable, include task info
+        sm_task_info = nil
+        if params[:warehouse_folder_id].present? && params[:linkable_type] == "Job" && params[:linkable_id].present?
+          sm_task = SmTask.find_by(warehouse_folder_id: params[:warehouse_folder_id], job_id: params[:linkable_id])
+          if sm_task
+            sm_task_info = build_sm_task_info_for_documents(sm_task, params[:warehouse_folder_id].to_i, params[:linkable_id].to_i)
+          end
+        end
+
+        response = {
           success: true,
           documents: documents.map { |doc| warehouse_document_to_json(doc, version_counts: version_counts) },
           folders: folder_counts.keys.sort.map { |f| { name: f, count: folder_counts[f] } },
@@ -248,6 +257,9 @@ module Api
             has_more: (offset + limit) < total_count
           }
         }
+        response[:smTaskInfo] = sm_task_info if sm_task_info
+
+        render json: response
       end
 
       # POST /api/v1/documents/reorder
@@ -1436,6 +1448,48 @@ module Api
       end
 
       private
+
+      # Build SM Task info with required document types and fulfillment status
+      def build_sm_task_info_for_documents(sm_task, folder_id, linkable_id)
+        required_doc_types = sm_task.sm_task_document_types.includes(:document_type).filter_map do |stdt|
+          dt = stdt.document_type
+          next unless dt
+
+          wfdt = WarehouseFolderDocumentType.find_by(
+            warehouse_folder_id: folder_id,
+            document_type_id: dt.id
+          )
+
+          uploaded = if wfdt
+            WarehouseDocument.exists?(
+              warehouse_folder_document_type_id: wfdt.id,
+              linkable_type: "Job",
+              linkable_id: linkable_id
+            )
+          else
+            false
+          end
+
+          {
+            documentTypeId: dt.id,
+            documentTypeName: dt.name,
+            wfdtId: wfdt&.id,
+            uploaded: uploaded,
+            lagDays: stdt.lag_days || 0
+          }
+        end
+
+        {
+          taskId: sm_task.id,
+          taskName: sm_task.name,
+          startDate: sm_task.start_date&.iso8601,
+          endDate: sm_task.end_date&.iso8601,
+          startedAt: sm_task.started_at&.iso8601,
+          completedAt: sm_task.completed_at&.iso8601,
+          status: sm_task.status,
+          requiredDocumentTypes: required_doc_types
+        }
+      end
 
       # Check if path corresponds to a mailbox-type warehouse folder under Emails
       # e.g., "Emails/Mailbox" where "Mailbox" is a warehouse folder with is_mailbox=true

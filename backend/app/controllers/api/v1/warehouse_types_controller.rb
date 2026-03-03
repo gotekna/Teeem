@@ -259,15 +259,7 @@ module Api
         if linkable_type == "Job" && linkable_id.present?
           sm_task = SmTask.find_by(warehouse_folder_id: folder_id, job_id: linkable_id)
           if sm_task
-            sm_task_info = {
-              taskId: sm_task.id,
-              taskName: sm_task.name,
-              startDate: sm_task.start_date&.iso8601,
-              endDate: sm_task.end_date&.iso8601,
-              startedAt: sm_task.started_at&.iso8601,
-              completedAt: sm_task.completed_at&.iso8601,
-              status: sm_task.status
-            }
+            sm_task_info = build_sm_task_info(sm_task, folder_id, linkable_id)
           end
         end
 
@@ -504,6 +496,50 @@ module Api
       end
 
       private
+
+      # Build SM Task info hash including required document types with fulfillment status.
+      # Used by both the records action (warehouse tree) and documents/warehouse endpoint.
+      def build_sm_task_info(sm_task, folder_id, linkable_id)
+        required_doc_types = sm_task.sm_task_document_types.includes(:document_type).filter_map do |stdt|
+          dt = stdt.document_type
+          next unless dt
+
+          # Check if a document of this type exists in this folder for this job
+          wfdt = WarehouseFolderDocumentType.find_by(
+            warehouse_folder_id: folder_id,
+            document_type_id: dt.id
+          )
+
+          uploaded = if wfdt
+            WarehouseDocument.exists?(
+              warehouse_folder_document_type_id: wfdt.id,
+              linkable_type: "Job",
+              linkable_id: linkable_id
+            )
+          else
+            false
+          end
+
+          {
+            documentTypeId: dt.id,
+            documentTypeName: dt.name,
+            wfdtId: wfdt&.id,
+            uploaded: uploaded,
+            lagDays: stdt.lag_days || 0
+          }
+        end
+
+        {
+          taskId: sm_task.id,
+          taskName: sm_task.name,
+          startDate: sm_task.start_date&.iso8601,
+          endDate: sm_task.end_date&.iso8601,
+          startedAt: sm_task.started_at&.iso8601,
+          completedAt: sm_task.completed_at&.iso8601,
+          status: sm_task.status,
+          requiredDocumentTypes: required_doc_types
+        }
+      end
 
       def set_warehouse_type
         @warehouse_type = WarehouseType.find(params[:id])

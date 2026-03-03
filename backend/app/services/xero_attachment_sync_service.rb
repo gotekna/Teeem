@@ -106,6 +106,20 @@ class XeroAttachmentSyncService
       # 2. Sync any additional attachments
       sync_attachments
 
+      # FRC (Mar 2026): If attachment fetch failed for a bill, roll back the bill record.
+      # Without this, is_bill_record metadata permanently excludes the bill from
+      # find_invoices_needing_pdfs even though attachments weren't processed.
+      # Bills with HasAttachments=false skip the API call entirely (line 279) and keep
+      # their record. Only bills where the attachment LIST call failed need rollback.
+      if external_invoice.bill? && results[:pdf]&.persisted?
+        attachment_fetch_failed = results[:errors].any? { |e| e.include?("Failed to list attachments") }
+        if attachment_fetch_failed
+          results[:pdf].destroy!
+          results[:pdf] = nil
+          Rails.logger.warn("[XeroAttachmentSync] Rolled back bill record for #{external_invoice.invoice_number} — attachment fetch failed, will retry")
+        end
+      end
+
       Rails.logger.info("[XeroAttachmentSync] Complete for invoice #{external_invoice.id}: PDF=#{results[:pdf].present?}, Attachments=#{results[:attachments].count}")
     end
 

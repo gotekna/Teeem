@@ -46,6 +46,7 @@ import {
   CalendarDays,
   AlertTriangle,
   ClipboardList,
+  Upload,
 } from "lucide-react";
 import { formatFileSize } from "@/utils/formatters";
 import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
@@ -91,8 +92,8 @@ export interface LibraryDocument {
 }
 
 // SSoT: SmTaskInfo type defined in warehouse/types.ts, re-exported here
-import type { SmTaskInfo } from "@/components/warehouse/types";
-export type { SmTaskInfo };
+import type { SmTaskInfo, SmTaskRequiredDocType } from "@/components/warehouse/types";
+export type { SmTaskInfo, SmTaskRequiredDocType };
 
 export interface StandardDocumentListProps {
   documents: LibraryDocument[];
@@ -131,6 +132,8 @@ export interface StandardDocumentListProps {
   hideFloatingBar?: boolean;
   /** Override double-click behavior (default: open fileUrl in new tab) */
   onDocumentDoubleClick?: (doc: LibraryDocument) => void;
+  /** Callback when upload is clicked on a required doc type placeholder row */
+  onUploadForDocType?: (docType: SmTaskRequiredDocType) => void;
 }
 
 // ============================================================================
@@ -352,6 +355,62 @@ export function SmTaskStatusBar({ info }: { info: SmTaskInfo }) {
 }
 
 // ============================================================================
+// RequiredDocPlaceholderRow - Ghost row for missing required documents
+// ============================================================================
+
+function RequiredDocPlaceholderRow({
+  docType,
+  smTaskInfo,
+  onUpload,
+}: {
+  docType: SmTaskRequiredDocType;
+  smTaskInfo: SmTaskInfo;
+  onUpload?: (docType: SmTaskRequiredDocType) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5 bg-amber-50/50 dark:bg-amber-950/10 border-b border-dashed border-amber-200 dark:border-amber-800/30">
+      <div className="h-7 w-7 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+        <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+          {docType.documentTypeName}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <Badge
+            variant="outline"
+            className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400"
+          >
+            Waiting
+          </Badge>
+          {smTaskInfo.startDate && (
+            <span className="text-[11px] text-muted-foreground">
+              Start: {formatDate(smTaskInfo.startDate)}
+            </span>
+          )}
+          {smTaskInfo.endDate && (
+            <span className="text-[11px] text-muted-foreground">
+              Due: {formatDate(smTaskInfo.endDate)}
+            </span>
+          )}
+        </div>
+      </div>
+      {onUpload && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 h-7 text-xs"
+          onClick={() => onUpload(docType)}
+        >
+          <Upload className="h-3.5 w-3.5 mr-1.5" />
+          Upload
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 // StandardDocumentList
 // ============================================================================
 
@@ -375,6 +434,7 @@ export function StandardDocumentList({
   onSelectionChange,
   hideFloatingBar = false,
   onDocumentDoubleClick: customDoubleClick,
+  onUploadForDocType,
 }: StandardDocumentListProps) {
   const { toast } = useToast();
 
@@ -524,8 +584,13 @@ export function StandardDocumentList({
     );
   }
 
+  // Missing required doc types (only shown when task is not completed)
+  const missingRequiredDocs = smTaskInfo?.status !== "completed"
+    ? smTaskInfo?.requiredDocumentTypes?.filter(dt => !dt.uploaded) || []
+    : [];
+
   // Empty state
-  if (documents.length === 0) {
+  if (documents.length === 0 && missingRequiredDocs.length === 0) {
     return (
       <>
         {smTaskInfo && <SmTaskStatusBar info={smTaskInfo} />}
@@ -533,6 +598,25 @@ export function StandardDocumentList({
           <File className="h-10 w-10" />
           <p className="font-medium">{emptyMessage}</p>
           {emptyAction}
+        </div>
+      </>
+    );
+  }
+
+  // Empty documents but has missing required docs — show status bar + placeholders only
+  if (documents.length === 0 && missingRequiredDocs.length > 0) {
+    return (
+      <>
+        {smTaskInfo && <SmTaskStatusBar info={smTaskInfo} />}
+        <div className="divide-y">
+          {missingRequiredDocs.map(dt => (
+            <RequiredDocPlaceholderRow
+              key={`required-${dt.documentTypeId}`}
+              docType={dt}
+              smTaskInfo={smTaskInfo!}
+              onUpload={onUploadForDocType}
+            />
+          ))}
         </div>
       </>
     );
@@ -602,6 +686,20 @@ export function StandardDocumentList({
           </div>
         </SortableContext>
       </DndContext>
+
+      {/* Required document type placeholder rows (missing docs from SM task) */}
+      {missingRequiredDocs.length > 0 && (
+        <div className="divide-y">
+          {missingRequiredDocs.map(dt => (
+            <RequiredDocPlaceholderRow
+              key={`required-${dt.documentTypeId}`}
+              docType={dt}
+              smTaskInfo={smTaskInfo!}
+              onUpload={onUploadForDocType}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Floating action bar when documents selected (hidden if parent renders its own) */}
       {!hideFloatingBar && selectedDocs.size > 0 && (

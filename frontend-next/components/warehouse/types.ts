@@ -194,6 +194,14 @@ export interface S3FileEntry {
   warehouse_document_id?: number;
 }
 
+export interface SmTaskRequiredDocType {
+  documentTypeId: number;
+  documentTypeName: string;
+  wfdtId: number | null;
+  uploaded: boolean;
+  lagDays: number;
+}
+
 export interface SmTaskInfo {
   taskId: number;
   taskName: string;
@@ -202,6 +210,7 @@ export interface SmTaskInfo {
   startedAt: string | null;
   completedAt: string | null;
   status: string;
+  requiredDocumentTypes?: SmTaskRequiredDocType[];
 }
 
 export interface S3FolderData {

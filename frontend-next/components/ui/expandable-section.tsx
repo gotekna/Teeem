@@ -5,6 +5,7 @@ import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList } from "@/components/ui/tabs";
 
 // Module-level state that survives component remounts (e.g., Next.js tab navigation)
 // Each key maps to whether that section is expanded
@@ -146,3 +147,91 @@ export function ExpandButton({ expanded, onToggle, className }: ExpandButtonProp
     </Button>
   );
 }
+
+/**
+ * ExpandableTabs - Standard tabs + expand button, all in one
+ *
+ * Usage:
+ *   <ExpandableTabs expandKey="my-section" value={tab} onValueChange={setTab}>
+ *     <ExpandableTabs.List>
+ *       <TabsTrigger value="a">Tab A</TabsTrigger>
+ *       <TabsTrigger value="b">Tab B</TabsTrigger>
+ *     </ExpandableTabs.List>
+ *     <ExpandableTabs.Section>
+ *       <TabsContent value="a">...</TabsContent>
+ *       <TabsContent value="b">...</TabsContent>
+ *     </ExpandableTabs.Section>
+ *   </ExpandableTabs>
+ *
+ * When expanded: tab bar hides, content fills the viewport (matches Settings pattern).
+ * Press Escape to exit fullscreen.
+ */
+interface ExpandableTabsContextValue {
+  expanded: boolean;
+  toggle: () => void;
+}
+
+const ExpandableTabsContext = React.createContext<ExpandableTabsContextValue>({
+  expanded: false,
+  toggle: () => {},
+});
+
+interface ExpandableTabsProps extends React.ComponentProps<typeof Tabs> {
+  expandKey: string;
+}
+
+function ExpandableTabsRoot({ expandKey, children, ...tabsProps }: ExpandableTabsProps) {
+  const [expanded, toggle] = useExpandedState(expandKey);
+  return (
+    <ExpandableTabsContext.Provider value={{ expanded, toggle }}>
+      <Tabs {...tabsProps}>
+        {children}
+      </Tabs>
+    </ExpandableTabsContext.Provider>
+  );
+}
+
+function ExpandableTabsListComponent({
+  children,
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsList>) {
+  const { expanded, toggle } = React.useContext(ExpandableTabsContext);
+  // Hide tab bar when expanded — matches Settings pattern (content fills screen)
+  // Press Escape or click the minimize button in the expanded content to exit
+  if (expanded) {
+    return (
+      <div className="flex justify-end pb-1">
+        <ExpandButton expanded={expanded} onToggle={toggle} />
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <TabsList className={cn("flex-1 min-w-0", className)} {...props}>
+        {children}
+      </TabsList>
+      <ExpandButton expanded={false} onToggle={toggle} />
+    </div>
+  );
+}
+
+function ExpandableTabsSectionComponent({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const { expanded, toggle } = React.useContext(ExpandableTabsContext);
+  return (
+    <ExpandableSection expanded={expanded} onToggle={toggle} className={className}>
+      {children}
+    </ExpandableSection>
+  );
+}
+
+export const ExpandableTabs = Object.assign(ExpandableTabsRoot, {
+  List: ExpandableTabsListComponent,
+  Section: ExpandableTabsSectionComponent,
+});
