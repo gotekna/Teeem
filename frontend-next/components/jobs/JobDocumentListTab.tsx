@@ -65,7 +65,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
   // Upload dialog state
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [selectedWfdtId, setSelectedWfdtId] = useState<string>("");
+  const [selectedDocTypeId, setSelectedDocTypeId] = useState<string>("");
   const [signingStatus, setSigningStatus] = useState<"draft" | "signed">("draft");
   const [executedDate, setExecutedDate] = useState<Date | undefined>(undefined);
   const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
@@ -99,10 +99,20 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
   const hasPreview = previewType !== "other" && previewUrl;
 
   // Detect if selected doc type needs signing status or special date fields
+  // Lookup by document_type id (dt.id) — the wfdt_id is sent separately on upload
   const selectedDocTypeObj = React.useMemo(
-    () => warehouseFolder.document_types?.find(d => String(d.id) === selectedWfdtId),
-    [warehouseFolder.document_types, selectedWfdtId]
+    () => warehouseFolder.document_types?.find(d => String(d.id) === selectedDocTypeId),
+    [warehouseFolder.document_types, selectedDocTypeId]
   );
+
+  // Computed name previews from selected document type templates
+  const namePreview = useMemo(() => {
+    if (!selectedDocTypeObj) return null;
+    const job = warehouseFolder; // For job_code context
+    const uiTemplate = selectedDocTypeObj.ui_name;
+    const dlTemplate = selectedDocTypeObj.download_name;
+    return { uiName: uiTemplate || null, dlName: dlTemplate || null };
+  }, [selectedDocTypeObj, warehouseFolder]);
 
   const needsSigningStatus = selectedDocTypeObj?.tracks_signing_status || false;
 
@@ -157,7 +167,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
     setPreviewFileIndex(0);
     const docTypes = warehouseFolder.document_types || [];
     const primary = docTypes.find(dt => dt.is_primary) || docTypes[0];
-    setSelectedWfdtId(primary ? String(primary.id) : "");
+    setSelectedDocTypeId(primary ? String(primary.id) : "");
     setUploadDialogOpen(true);
 
     if (fileInputRef.current) {
@@ -179,7 +189,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
           metadata: {
             job_id: jobId,
             warehouse_folder_id: warehouseFolder.id,
-            warehouse_folder_document_type_id: selectedWfdtId || undefined,
+            warehouse_folder_document_type_id: selectedDocTypeObj?.wfdt_id || undefined,
             document_type: selectedDocTypeObj?.name || undefined,
             version_status: needsSigningStatus ? signingStatus : undefined,
             executed_date: executedDate ? executedDate.toISOString().split("T")[0] : undefined,
@@ -212,7 +222,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
       setUploading(false);
       setPendingFiles([]);
     }
-  }, [pendingFiles, jobId, warehouseFolder.id, selectedWfdtId, selectedDocTypeObj, needsSigningStatus, signingStatus, executedDate, expiryDate, fetchDocuments, toast]);
+  }, [pendingFiles, jobId, warehouseFolder.id, selectedDocTypeId, selectedDocTypeObj, needsSigningStatus, signingStatus, executedDate, expiryDate, fetchDocuments, toast]);
 
   // Delete
   const handleDelete = useCallback(async (doc: LibraryDocument, e: React.MouseEvent) => {
@@ -225,8 +235,15 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
         toast({ title: "Deleted", description: "Document removed" });
         fetchDocuments();
       }
-    } catch (error) {
-      toast({ title: "Delete Failed", description: "Could not delete document", variant: "destructive" });
+    } catch (error: unknown) {
+      const apiErr = error as { status?: number };
+      if (apiErr.status === 404) {
+        // Document already gone (deleted elsewhere or stale reference) — refresh list
+        toast({ title: "Already Deleted", description: "Document was already removed" });
+        fetchDocuments();
+      } else {
+        toast({ title: "Delete Failed", description: "Could not delete document", variant: "destructive" });
+      }
     }
   }, [fetchDocuments, toast]);
 
@@ -304,7 +321,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
     setPreviewFileIndex(0);
     const docTypes = warehouseFolder.document_types || [];
     const primary = docTypes.find(dt => dt.is_primary) || docTypes[0];
-    setSelectedWfdtId(primary ? String(primary.id) : "");
+    setSelectedDocTypeId(primary ? String(primary.id) : "");
     setUploadDialogOpen(true);
   }, [warehouseFolder.document_types]);
 
@@ -419,27 +436,9 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
             </Button>
           </SheetHeader>
 
-          {/* Body — two-column when preview available, single column otherwise */}
+          {/* Body — form on left, preview on right */}
           <div className={`flex-1 overflow-hidden flex ${hasPreview ? "flex-row gap-4" : "flex-col"} mt-4`}>
-            {/* Left panel: Document preview */}
-            {hasPreview && previewUrl && (
-              <div className="flex-1 min-w-0 rounded-lg border bg-muted/30 overflow-hidden">
-                {previewType === "pdf" ? (
-                  <PDFViewer url={previewUrl} className="h-full w-full" />
-                ) : previewType === "image" ? (
-                  <div className="flex items-center justify-center h-full p-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={previewUrl}
-                      alt={pendingFiles[previewFileIndex]?.name || "Preview"}
-                      className="max-w-full max-h-full object-contain rounded"
-                    />
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {/* Right panel: File list + form fields */}
+            {/* Left panel: File list + form fields */}
             <div className={`${hasPreview ? "w-[380px] shrink-0" : "flex-1 max-w-md mx-auto w-full"} overflow-y-auto space-y-4 pr-1`}>
               {/* Clickable file list */}
               <div className="space-y-1">
@@ -466,11 +465,11 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
                 </div>
               </div>
 
-              {/* Document type — value is WFDT ID (SSoT for backend naming) */}
+              {/* Document type */}
               {(warehouseFolder.document_types?.length ?? 0) > 0 && (
                 <div className="space-y-1.5">
                   <Label htmlFor="job-doc-type-select">Document Type</Label>
-                  <Select value={selectedWfdtId} onValueChange={setSelectedWfdtId}>
+                  <Select value={selectedDocTypeId} onValueChange={setSelectedDocTypeId}>
                     <SelectTrigger id="job-doc-type-select">
                       <SelectValue placeholder="Select document type..." />
                     </SelectTrigger>
@@ -557,7 +556,46 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
                   </Popover>
                 </div>
               )}
+
+              {/* Name preview — shows what the document will be named */}
+              {selectedDocTypeObj && (namePreview?.uiName || namePreview?.dlName) && (
+                <div className="space-y-1.5 pt-2 border-t">
+                  <Label className="text-xs text-muted-foreground">Name Preview</Label>
+                  <div className="space-y-1 text-sm">
+                    {namePreview?.uiName && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-muted-foreground shrink-0 mt-0.5 w-16">UI Name:</span>
+                        <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded break-all">{namePreview.uiName}</span>
+                      </div>
+                    )}
+                    {namePreview?.dlName && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-muted-foreground shrink-0 mt-0.5 w-16">DL Name:</span>
+                        <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded break-all">{namePreview.dlName}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Right panel: Document preview */}
+            {hasPreview && previewUrl && (
+              <div className="flex-1 min-w-0 rounded-lg border bg-muted/30 overflow-hidden">
+                {previewType === "pdf" ? (
+                  <PDFViewer url={previewUrl} className="h-full w-full" />
+                ) : previewType === "image" ? (
+                  <div className="flex items-center justify-center h-full p-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={previewUrl}
+                      alt={pendingFiles[previewFileIndex]?.name || "Preview"}
+                      className="max-w-full max-h-full object-contain rounded"
+                    />
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
 
           {/* Footer */}

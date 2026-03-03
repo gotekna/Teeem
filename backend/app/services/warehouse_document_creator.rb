@@ -268,9 +268,10 @@ class WarehouseDocumentCreator
 
     if existing
       # Create new version of existing document
+      # User's explicit WFDT selection overrides the inherited WFDT from previous version
       next_letter = version_letter || WarehouseDocument.next_letter(existing.version_letter)
 
-      existing.create_new_version(
+      version_attrs = {
         blob: storage_blob,
         version_letter: next_letter,
         file_size: file_size || storage_blob&.file_size,
@@ -278,7 +279,14 @@ class WarehouseDocumentCreator
         original_filename: filename,
         warehouse_folder_id: warehouse_folder_id || existing.warehouse_folder_id,
         expiry_date: expiry_date
-      )
+      }
+
+      # Pass explicit WFDT ID so new version uses the user's doc type selection, not the old version's
+      if warehouse_folder_document_type_id.present?
+        version_attrs[:warehouse_folder_document_type_id] = warehouse_folder_document_type_id
+      end
+
+      existing.create_new_version(**version_attrs)
     else
       # First upload — version A (or explicit letter for plans)
       create!(

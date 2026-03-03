@@ -87,6 +87,7 @@ export interface WarehouseFolder {
 
 export interface WarehouseFolderDocumentType {
   id: number;
+  wfdt_id?: number;  // SSoT: WarehouseFolderDocumentType join ID — send this on upload for correct WFDT resolution
   name: string;
   ui_name: string;
   abbreviation?: string;

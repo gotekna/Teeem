@@ -984,8 +984,12 @@ module Api
 
       # DELETE /api/v1/documents/:id
       def destroy
-        @document.destroy
-        render json: { success: true, message: "Document deleted successfully" }
+        if @document.destroy
+          render json: { success: true, message: "Document deleted successfully" }
+        else
+          Rails.logger.error "[Documents] Failed to destroy WarehouseDocument##{@document.id}: #{@document.errors.full_messages.join(', ')}"
+          render json: { success: false, error: "Could not delete document" }, status: :unprocessable_entity
+        end
       end
 
       # GET /api/v1/documents/:id/download

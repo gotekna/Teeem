@@ -194,6 +194,7 @@ class WarehouseFolderQueryService
 
         {
           id: dt.id,
+          wfdt_id: join&.id,  # SSoT: WarehouseFolderDocumentType join ID — used by upload to select correct WFDT
           name: dt.name,
           abbreviation: dt.abbreviation,
           tracks_signing_status: dt.tracks_signing_status || false,
