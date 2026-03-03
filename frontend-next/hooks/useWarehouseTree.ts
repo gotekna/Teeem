@@ -724,6 +724,13 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       }));
     };
 
+    // SSoT: configured children always take priority — hide physical S3 folders with matching names
+    const excludeConfiguredS3Folders = (s3FolderNodes: TreeNode[], configuredNodes: TreeNode[]): TreeNode[] => {
+      if (configuredNodes.length === 0) return s3FolderNodes;
+      const configuredNames = new Set(configuredNodes.map(n => n.name.toLowerCase()));
+      return s3FolderNodes.filter(n => !configuredNames.has(n.name.toLowerCase()));
+    };
+
     // Build S3 sub-folder nodes
     const buildS3FolderNodes = (cacheKey: string | null, sourceType: string, emailFolderType?: string): TreeNode[] => {
       if (!cacheKey) return [];
@@ -776,7 +783,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         fileCount: folder.fileCount,
         sourceType,
         isVirtual,
-        children: [...children, ...s3SubFolders, ...s3Files],
+        children: [...children, ...excludeConfiguredS3Folders(s3SubFolders, children), ...s3Files],
       };
     };
 
@@ -800,7 +807,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         sourceType,
         isVirtual,
         isMailbox: warehouseFolder.isMailbox || false,
-        children: [...children, ...s3SubFolders, ...s3Files],
+        children: [...children, ...excludeConfiguredS3Folders(s3SubFolders, children), ...s3Files],
       };
     };
 
@@ -833,6 +840,8 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         const childWarehouseFolders = findChildWarehouseFolders(numericId);
         const childWarehouseFolderNodes = childWarehouseFolders.map(child => convertWarehouseFolderWithHierarchy(child));
 
+        const configuredChildren = [...childWarehouseFolderNodes, ...warehouseFolderChildren];
+
         return {
           id: `${warehouseFolder.id}-rec-${record.id}`,
           name: warehouseFolder.warehouseFolder?.displayName || warehouseFolder.name,
@@ -843,7 +852,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           fileCount: 0,
           sourceType: warehouseType.code,
           isVirtual,
-          children: [...childWarehouseFolderNodes, ...warehouseFolderChildren, ...s3SubFolders, ...s3Files],
+          children: [...configuredChildren, ...excludeConfiguredS3Folders(s3SubFolders, configuredChildren), ...s3Files],
         };
       };
 

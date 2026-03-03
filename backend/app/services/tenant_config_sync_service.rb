@@ -1584,8 +1584,14 @@ class TenantConfigSyncService
             next unless config[:sync_fields].include?(field)
             next if self_ref_fks.key?(field)  # Self-ref FKs are deferred to second pass — nil here is expected
             next unless attrs.key?(field) && attrs[field].nil? && master_record.send(field).present?
-            source_value = master_record.send(field)
-            skipped << { name: master_record.send(config[:name_field]), reason: "FK remap failed: #{field} — no #{rc[:model]} with #{rc[:match_field]}='#{source_value}' in target tenant" }
+            source_fk_id = master_record.send(field)
+            source_parent = ActsAsTenant.without_tenant { rc[:model].constantize.find_by(id: source_fk_id) }
+            reason = if source_parent
+              "FK remap failed: #{field} — no #{rc[:model]} with #{rc[:match_field]}='#{source_parent.send(rc[:match_field])}' in target tenant"
+            else
+              "FK remap failed: #{field} — source record references deleted #{rc[:model]} (id=#{source_fk_id})"
+            end
+            skipped << { name: master_record.send(config[:name_field]), reason: reason }
             orphaned = true
             break
           end
@@ -2203,9 +2209,15 @@ class TenantConfigSyncService
         next unless config[:sync_fields].include?(field)
         next if defer_fields.include?(field)  # Self-ref FKs are deferred to second pass — nil here is expected, not a failure
         next unless attrs.key?(field) && attrs[field].nil? && source_record.send(field).present?
-        # Source had a value but remap returned nil → parent doesn't exist in target
-        source_value = source_record.send(field)
-        return { imported: false, reason: "FK remap failed: #{field} — no #{remap_config[:model]} with #{remap_config[:match_field]}='#{source_value}' in target tenant" }
+        # Source had a value but remap returned nil — check if source FK itself is orphaned
+        source_fk_id = source_record.send(field)
+        source_parent = ActsAsTenant.without_tenant { remap_config[:model].constantize.find_by(id: source_fk_id) }
+        if source_parent
+          match_val = source_parent.send(remap_config[:match_field])
+          return { imported: false, reason: "FK remap failed: #{field} — no #{remap_config[:model]} with #{remap_config[:match_field]}='#{match_val}' in target tenant" }
+        else
+          return { imported: false, reason: "FK remap failed: #{field} — source record references deleted #{remap_config[:model]} (id=#{source_fk_id})" }
+        end
       end
     end
 

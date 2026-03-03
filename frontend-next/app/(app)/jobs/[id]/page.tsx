@@ -211,18 +211,24 @@ const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/Warehouse
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const DocumentPreviewSheetBase = dynamic(() => import("@/components/warehouse/DocumentPreviewSheet").then(m => m.DocumentPreviewSheet), {
+  ssr: false,
+});
 // Wrapper: Job warehouse tab - contextual view showing ALL related records
 // Shows Job folders for THIS job + Contact folders for contacts on this job +
 // Task folders for tasks on this job, etc.
+//
+// Standard UX (SSoT): single click → drawer preview, double click → new window
 function JobWarehouseTab(props: any) {
   const warehouseRouter = useRouter();
+  const [previewDocument, setPreviewDocument] = React.useState<DocumentItem | null>(null);
   const clickTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const mailboxTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleFileClick = React.useCallback((doc: DocumentItem) => {
     if (clickTimer.current) clearTimeout(clickTimer.current);
     clickTimer.current = setTimeout(() => {
-      if (doc.fileUrl) window.open(doc.fileUrl, "_blank");
+      setPreviewDocument(doc);
       clickTimer.current = null;
     }, 200);
   }, []);
@@ -246,17 +252,25 @@ function JobWarehouseTab(props: any) {
   }, []);
 
   return (
-    <WarehouseTreeBase
-      mode={{
-        type: "context",
-        entityType: "Job",
-        entityId: props.jobId,
-      }}
-      onFileClick={handleFileClick}
-      onFileDoubleClick={handleFileDoubleClick}
-      onMailboxClick={handleMailboxClick}
-      onMailboxDoubleClick={handleMailboxDoubleClick}
-    />
+    <>
+      <WarehouseTreeBase
+        mode={{
+          type: "context",
+          entityType: "Job",
+          entityId: props.jobId,
+        }}
+        onFileClick={handleFileClick}
+        onFileDoubleClick={handleFileDoubleClick}
+        onMailboxClick={handleMailboxClick}
+        onMailboxDoubleClick={handleMailboxDoubleClick}
+        selectedDocument={previewDocument}
+      />
+      <DocumentPreviewSheetBase
+        doc={previewDocument}
+        onClose={() => setPreviewDocument(null)}
+        onOpenInNewWindow={(doc) => { if (doc.fileUrl) window.open(doc.fileUrl, "_blank"); }}
+      />
+    </>
   );
 }
 
