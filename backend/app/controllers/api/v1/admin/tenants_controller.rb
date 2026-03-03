@@ -4,7 +4,7 @@ module Api
   module V1
     module Admin
       class TenantsController < ApplicationController
-        before_action :require_teeem_staff!, except: [:index, :current, :update_environment, :set_default, :clear_default]
+        before_action :require_teeem_staff!, except: [:index, :current, :update_environment, :set_default, :clear_default, :switch, :clear_switch]
 
         # GET /api/v1/admin/tenants
         # Returns all tenants (for TEEEM staff), multi-tenant user's tenants, or just user's tenant

@@ -148,6 +148,14 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
   }, [loadTenants, authUser?.id]);
 
   // Switch to a different tenant
+  // ⚠️ DO NOT SIMPLIFY - Navigation must happen BEFORE React state updates (Mar 2026)
+  // ════════════════════════════════════════════════════════════════════
+  // Why: setCurrentTenant() triggers a React re-render which can interfere with
+  // window.location navigation. Store in localStorage first, navigate immediately,
+  // let the fresh page load pick up the new tenant from localStorage.
+  // ❌ WRONG: setCurrentTenant(tenant) then navigate (re-render blocks navigation)
+  // ✅ CORRECT: setStorageItem → clearCache (fire-and-forget) → navigate immediately
+  // ════════════════════════════════════════════════════════════════════
   const switchTenant = useCallback(async (tenantId: number): Promise<boolean> => {
     try {
       setIsLoading(true);
@@ -156,17 +164,15 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
       const response = await api.post<SwitchResponse>(`/api/v1/admin/tenants/${tenantId}/switch`);
 
       if (response?.success && response?.tenant) {
-        // Store tenant override in localStorage - sent as X-Tenant-Override header on all API calls.
-        // This replaces the cookie approach which fails cross-origin (Vercel → Heroku).
+        // 1. Store tenant override in localStorage FIRST - this is the SSoT for next page load
         setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.tenant.id));
-        setCurrentTenant(response.tenant);
-        // FRC (Feb 2026): Clear ALL cached records before reload to prevent cross-tenant data leakage.
-        // Cache is keyed by foundationId only (not tenant), so switching tenants without clearing
-        // serves stale records from the previous tenant's IndexedDB cache.
-        await clearAllCachedRecordsAsync();
-        // Force hard reload bypassing all caches (Next.js RSC cache, bfcache, service worker).
-        // Navigate to root to ensure all page components remount with new tenant context.
-        window.location.href = "/";
+
+        // 2. Clear cached records (fire-and-forget - don't block navigation)
+        clearAllCachedRecordsAsync().catch(() => {});
+
+        // 3. Navigate IMMEDIATELY - do NOT update React state first
+        // window.location.replace prevents bfcache from restoring old page
+        window.location.replace("/");
         return true;
       } else {
         console.error('[TenantSwitch] Failed:', response?.error);
@@ -191,12 +197,12 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
       const response = await api.delete<SwitchResponse>('/api/v1/admin/tenants/switch');
 
       if (response?.success) {
-        // Clear tenant override from localStorage
+        // 1. Clear tenant override from localStorage FIRST
         removeStorageItem(STORAGE_KEYS.TENANT_OVERRIDE);
-        // Clear cached records to prevent cross-tenant data leakage (same as switchTenant)
-        await clearAllCachedRecordsAsync();
-        // Navigate to root to force full remount with new tenant context
-        window.location.href = "/";
+        // 2. Clear cached records (fire-and-forget)
+        clearAllCachedRecordsAsync().catch(() => {});
+        // 3. Navigate IMMEDIATELY (same pattern as switchTenant)
+        window.location.replace("/");
         return true;
       } else {
         setError(response?.error || 'Failed to clear tenant override');
