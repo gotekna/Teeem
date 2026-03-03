@@ -1556,7 +1556,9 @@ export default function PurchaseOrderDetailPage() {
                       if (res?.prices) {
                         setLineItems((prev) => prev.map((li) => {
                           if (!li.pricebook_item) return li;
-                          const supplierPrice = res.prices[li.pricebook_item.id] ?? null;
+                          // API returns string keys and string values — coerce both sides
+                          const rawPrice = res.prices[li.pricebook_item.id] ?? res.prices[String(li.pricebook_item.id)];
+                          const supplierPrice = rawPrice != null ? Number(rawPrice) : null;
                           return { ...li, pricebook_item: { ...li.pricebook_item, supplier_price: supplierPrice } };
                         }));
                       }
