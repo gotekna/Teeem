@@ -25,6 +25,13 @@ import {
   SheetContent,
 } from "@/components/ui/sheet";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -483,6 +490,7 @@ export function StandardDocumentList({
   // Sheet preview state
   const [previewDoc, setPreviewDoc] = useState<LibraryDocument | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [validationGateDoc, setValidationGateDoc] = useState<LibraryDocument | null>(null);
 
   // Version history
   const [versionHistory, setVersionHistory] = useState<LibraryDocument[]>([]);
@@ -541,6 +549,11 @@ export function StandardDocumentList({
     clickTimeoutRef.current = setTimeout(() => {
       console.log("[SDL] single click confirmed — opening preview sheet");
       clickTimeoutRef.current = null;
+      // If validation is enabled and doc is not verified, show the validation gate modal first
+      if (showVerifyActions && !doc.verified) {
+        setValidationGateDoc(doc);
+        return;
+      }
       setPreviewDoc(doc);
       setIsSheetOpen(true);
       setShowVersions(false);
@@ -549,7 +562,7 @@ export function StandardDocumentList({
         fetchVersionHistory(doc.id);
       }
     }, 300);
-  }, [customDoubleClick]);
+  }, [customDoubleClick, showVerifyActions]);
 
   // Fetch version history
   const fetchVersionHistory = useCallback(async (docId: number) => {
@@ -729,7 +742,24 @@ export function StandardDocumentList({
             {selectedDocs.size} selected
           </span>
           {onEmail && (
-            <Button size="sm" variant="outline" onClick={handleEmailSelected}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (showVerifyActions) {
+                  const unverified = Array.from(selectedDocs.values()).filter(d => !d.verified);
+                  if (unverified.length > 0) {
+                    toast({
+                      title: "Validation required",
+                      description: `${unverified.length} document${unverified.length > 1 ? "s" : ""} must be validated before emailing.`,
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                }
+                handleEmailSelected();
+              }}
+            >
               <Mail className="h-4 w-4 mr-1.5" />
               Email
             </Button>
@@ -743,6 +773,108 @@ export function StandardDocumentList({
             Clear
           </Button>
         </div>
+      )}
+
+      {/* Validation Gate Modal — shown when opening an unvalidated document */}
+      {validationGateDoc && (
+        <Dialog open={true} onOpenChange={(open) => { if (!open) setValidationGateDoc(null); }}>
+          <DialogContent className="max-w-4xl w-[90vw] h-[90vh] flex flex-col p-0 gap-0">
+            <DialogHeader className="px-6 py-4 border-b shrink-0">
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="h-5 w-5 text-amber-500" />
+                Review &amp; Validate Document
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Please review this document carefully before validating. Validation is required before this document can be emailed.
+              </p>
+            </DialogHeader>
+
+            {/* Document name bar */}
+            <div className="px-6 py-2 border-b bg-muted/30 shrink-0 flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium truncate">
+                {validationGateDoc.displayName || validationGateDoc.originalFilename}
+              </span>
+              {validationGateDoc.fileSize > 0 && (
+                <Badge variant="outline" className="text-xs shrink-0">
+                  {formatFileSize(validationGateDoc.fileSize)}
+                </Badge>
+              )}
+              {validationGateDoc.mimeType && (
+                <Badge variant="outline" className="text-xs shrink-0">
+                  {validationGateDoc.mimeType.split("/").pop()?.toUpperCase()}
+                </Badge>
+              )}
+            </div>
+
+            {/* Document preview */}
+            <div className="flex-1 min-h-0 overflow-auto bg-muted/30">
+              {(() => {
+                const gateUrl = validationGateDoc.fileUrl
+                  || `${getApiBaseUrl()}/api/v1/documents/${validationGateDoc.id}/download?preview=1&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, "") || "")}`;
+                const fileType = getFileType(validationGateDoc.originalFilename || "", validationGateDoc.mimeType);
+                if (fileType === "pdf") {
+                  return <PDFViewer url={gateUrl} className="h-full" />;
+                }
+                if (fileType === "image") {
+                  return (
+                    <div className="flex items-center justify-center h-full p-4">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={gateUrl} alt={validationGateDoc.displayName || "Preview"} className="max-w-full max-h-full object-contain rounded-md" />
+                    </div>
+                  );
+                }
+                if (fileType === "eml") {
+                  return <DocumentViewer url={gateUrl} fileName={validationGateDoc.originalFilename || ""} />;
+                }
+                return (
+                  <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                    <FileText className="h-12 w-12" />
+                    <p className="text-sm">Preview not available for this file type</p>
+                    <a href={gateUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
+                      Download to view
+                    </a>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <DialogFooter className="px-6 py-4 border-t shrink-0 flex-row items-center justify-between gap-4">
+              <p className="text-xs text-muted-foreground flex-1">
+                By validating, you confirm you have reviewed this document and it is correct.
+              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => setValidationGateDoc(null)}
+                >
+                  Cancel
+                </Button>
+                {onVerify && (
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => {
+                      const doc = validationGateDoc;
+                      setValidationGateDoc(null);
+                      onVerify(doc);
+                      // Open the normal sheet view after validation
+                      setPreviewDoc({ ...doc, verified: true });
+                      setIsSheetOpen(true);
+                      setShowVersions(false);
+                      setVersionHistory([]);
+                      if (doc.versionCount > 1) {
+                        fetchVersionHistory(doc.id);
+                      }
+                    }}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                    Validate Document
+                  </Button>
+                )}
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Document preview sheet */}
@@ -869,6 +1001,8 @@ export function StandardDocumentList({
                       size="sm"
                       variant="outline"
                       className="text-xs h-7"
+                      disabled={showVerifyActions && !previewDoc.verified}
+                      title={showVerifyActions && !previewDoc.verified ? "Validate this document before emailing" : undefined}
                       onClick={() => onEmail([previewDoc])}
                     >
                       <Mail className="h-3.5 w-3.5 mr-1" />
