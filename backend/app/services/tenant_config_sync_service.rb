@@ -1541,23 +1541,27 @@ class TenantConfigSyncService
     self_ref_fks = (config[:remap_fks] || {}).select { |_f, c| c[:model] == config[:model] }
     deferred_parents = {} # record_id => { field => value } for second pass
 
+    # FRC (Mar 2026): Collect sync_key alignments to apply in two passes AFTER the main loop.
+    # Old tenant records (e.g. Pilgrim) have sync_keys from before the sync system was built —
+    # numeric IDs, text strings, etc. These diverge from TEEEM's canonical code-based keys.
+    # Inline update_column fails when sync_keys form a "shuffle chain":
+    #   Pilgrim code=240 sync_key=300 → wants 240
+    #   Pilgrim code=300 sync_key=520 → wants 300 ← FAILS (code=240 still holds sync_key=300)
+    # Fix: two-pass — first move all to temp keys, then set canonical keys. No conflicts.
+    sync_key_alignments = [] # [{ record: existing, old_key: "162", new_key: "110" }]
+
     # Process each master record
     master_records.each do |master_record|
       begin
         existing = find_match(master_record, existing_index, config[:match_fields], config[:remap_fks])
 
-        # FRC (Mar 2026): Align sync_key when matched by match_fields but sync_keys diverged.
-        # Pilgrim (and other tenants set up before the sync system) have sync_keys from old
-        # IDs or text strings (e.g. "pre", "150") instead of the canonical code-based keys
-        # (e.g. "100", "261"). Without alignment, orphan cleanup sees these as orphans even
-        # though the same record exists in TEEEM under a different sync_key.
-        # Fix: whenever Phase 2 finds a match by code/match_fields, align tenant's sync_key
-        # to TEEEM's canonical key. One cascade permanently fixes all diverged records.
+        # Collect sync_key alignment if diverged — deferred to two-pass fix below
         if existing && master_record.respond_to?(:sync_key) && existing.respond_to?(:sync_key) &&
            master_record.sync_key.present? && existing.sync_key != master_record.sync_key
-          ActsAsTenant.with_tenant(tenant) { existing.update_column(:sync_key, master_record.sync_key) }
-          # Update the existing_index so subsequent find_match calls see the new key
-          existing_index.delete(existing.sync_key)
+          old_key = existing.sync_key
+          sync_key_alignments << { record: existing, old_key: old_key, new_key: master_record.sync_key }
+          # Update index immediately so subsequent find_match calls don't re-match this record
+          existing_index.delete(old_key)
           existing_index[master_record.sync_key] = existing
         end
 
@@ -1650,6 +1654,20 @@ class TenantConfigSyncService
         end
       rescue => e
         @errors << "Failed to process #{master_record.send(config[:name_field])}: #{e.message}"
+      end
+    end
+
+    # Sync_key alignment: two-pass to avoid unique constraint shuffle conflicts.
+    # Pass 1: move all diverged records to temp keys (clears the "occupied" keys).
+    # Pass 2: set canonical keys (no conflicts remain since temps are unique).
+    if sync_key_alignments.any?
+      ActsAsTenant.with_tenant(tenant) do
+        sync_key_alignments.each_with_index do |a, i|
+          a[:record].update_column(:sync_key, "__align_#{i}_#{a[:record].id}")
+        end
+        sync_key_alignments.each do |a|
+          a[:record].update_column(:sync_key, a[:new_key])
+        end
       end
     end
 

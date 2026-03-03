@@ -27,7 +27,7 @@ import { GanttOverlay, DependencyPopup } from './GanttOverlay';
 import { GanttToolbar } from './GanttToolbar';
 import { GanttContextMenu, ContextMenuState } from './GanttContextMenu';
 import { Spinner } from '@/components/ui/spinner';
-import api from '@/lib/api';
+import api, { getCurrentEnvironment } from '@/lib/api';
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 
@@ -190,6 +190,9 @@ export function GanttUnified({
 
   // Selection state
   const [selectedTaskIds, setSelectedTaskIds] = React.useState<Set<string>>(new Set());
+
+  // Staging-only features
+  const isStaging = getCurrentEnvironment() === 'staging';
 
   // UI state
   const [showDependencies, setShowDependencies] = React.useState(false);
@@ -779,6 +782,14 @@ export function GanttUnified({
           jobId={jobId}
           showPhotoPanel={showPhotoPanel}
           onTogglePhotoPanel={onTogglePhotoPanel}
+          isStaging={isStaging}
+          hasSelectedTask={selectedTaskIds.size > 0}
+          onOpenTaskInfo={() => {
+            const firstId = selectedTaskIds.values().next().value;
+            if (!firstId) return;
+            const task = tasks.find((t) => String(t.id) === String(firstId));
+            if (task && onTaskDoubleClick) onTaskDoubleClick(task);
+          }}
         />
       )}
 

@@ -106,6 +106,11 @@ interface GanttToolbarProps {
   jobId?: number;
   showPhotoPanel?: boolean;
   onTogglePhotoPanel?: () => void;
+
+  // Staging-only: open edit dialog for selected task
+  isStaging?: boolean;
+  hasSelectedTask?: boolean;
+  onOpenTaskInfo?: () => void;
 }
 
 // =============================================================================
@@ -146,6 +151,9 @@ export function GanttToolbar({
   jobId,
   showPhotoPanel,
   onTogglePhotoPanel,
+  isStaging = false,
+  hasSelectedTask = false,
+  onOpenTaskInfo,
 }: GanttToolbarProps) {
   // Drag state for column reordering
   const [draggedColumnIndex, setDraggedColumnIndex] = React.useState<number | null>(null);
@@ -673,6 +681,21 @@ export function GanttToolbar({
             className="h-8 w-8"
           >
             <Camera className="h-4 w-4" />
+          </Button>
+        )}
+
+        {/* Staging-only: open edit dialog for selected task */}
+        {isStaging && onOpenTaskInfo && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenTaskInfo}
+            disabled={!hasSelectedTask}
+            title={hasSelectedTask ? 'Open task info (staging only)' : 'Select a task first'}
+            className="h-8 gap-1.5 px-2.5 border-orange-400 text-orange-600 hover:bg-orange-50 dark:border-orange-500 dark:text-orange-400 dark:hover:bg-orange-950 disabled:opacity-40"
+          >
+            <Info className="h-3.5 w-3.5" />
+            <span className="text-xs">Info</span>
           </Button>
         )}
 
