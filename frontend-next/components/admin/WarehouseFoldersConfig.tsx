@@ -89,6 +89,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
+import { useDocumentTypes } from "@/lib/hooks/useDocumentTypes";
 // useUrlState removed - doesn't work reliably with catch-all routes
 // SharePointFolderBrowser removed - flat blob storage, no physical folder renames needed
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -624,29 +625,8 @@ export function WarehouseFoldersConfig({
   ]);
 
 
-  // All document types for linking (SSoT)
-  const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; display_name?: string }>>([]);
-
-  // Fetch all document types when authenticated
-  React.useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const fetchDocumentTypes = async () => {
-      try {
-        const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name: string }> }>('/api/v1/document_types?for=select');
-        if (response?.success && Array.isArray(response.data)) {
-          setAllDocumentTypes(response.data.map((dt) => ({
-            id: dt.id,
-            name: dt.name,
-            display_name: dt.display_name,
-          })));
-        }
-      } catch (err) {
-        console.error('Failed to fetch document types:', err);
-      }
-    };
-    fetchDocumentTypes();
-  }, [isAuthenticated]);
+  // All document types for linking (SSoT: useDocumentTypes hook)
+  const { documentTypes: allDocumentTypes } = useDocumentTypes({ skip: !isAuthenticated });
 
   // Form state for create/edit
   const [formData, setFormData] = React.useState<Partial<WarehouseFolderCreateParams & { warehouse_type_override?: 'corporate' | 'contacts'; display_mode?: TabDisplayMode; hidden_by_default?: boolean }>>({});
