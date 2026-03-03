@@ -5,63 +5,55 @@ namespace :data_fix do
   task separate_system_doc_tabs: :environment do
     Tenant.find_each do |tenant|
       ActsAsTenant.with_tenant(tenant) do
-        puts "=== Processing #{tenant.name} (id=#{tenant.id}) ==="
+        puts "=== Processing #{tenant.name} ==="
 
-        # Debug: show all system tabs with doc types
-        WarehouseFolder.where(tab_type: "system").each do |f|
-          dt_count = f.warehouse_folder_document_types.count
-          next if dt_count == 0
-          puts "  FOUND: #{f.tab_key} (id=#{f.id}) tab_type=#{f.tab_type} doc_types=#{dt_count}"
+        # Find ALL system tabs that have doc types (the actual offenders)
+        offenders = WarehouseFolder.where(tab_type: "system")
+                                   .joins(:warehouse_folder_document_types)
+                                   .distinct
+                                   .to_a
+
+        next if offenders.empty?
+
+        offenders.each do |folder|
+          dt_count = folder.warehouse_folder_document_types.count
+          puts "  Offender: #{folder.tab_key} (id=#{folder.id}) doc_types=#{dt_count}"
+
+          # Determine the target doc tab key
+          doc_tab_key = case folder.tab_key
+                        when "expenses" then "expense-docs"
+                        when "templates" then "template-docs"
+                        else "#{folder.tab_key}-docs"
+                        end
+
+          # Find the existing doc tab (by key AND document type)
+          doc_tab = WarehouseFolder.find_by(tab_key: doc_tab_key, tab_type: "document")
+
+          if doc_tab
+            puts "  Target exists: #{doc_tab_key} (id=#{doc_tab.id})"
+          else
+            # Create doc child under the offending parent
+            doc_tab = WarehouseFolder.create!(
+              name: "#{folder.display_name || folder.name} Docs",
+              display_name: "#{folder.display_name || folder.name} Docs",
+              folder_segment: doc_tab_key,
+              tab_key: doc_tab_key,
+              tab_type: "document",
+              tab_group: "documents",
+              warehouse_type_id: folder.warehouse_type_id,
+              parent_id: folder.children.exists? ? folder.id : folder.parent_id,
+              is_system: false,
+              enabled: true,
+              order_position: folder.order_position + 1,
+              folder_path_suffix: folder.folder_path_suffix
+            )
+            puts "  Created: #{doc_tab_key} (id=#{doc_tab.id})"
+          end
+
+          # Move doc types from offender to doc tab
+          folder.warehouse_folder_document_types.update_all(warehouse_folder_id: doc_tab.id)
+          puts "  Moved #{dt_count} doc types -> #{doc_tab_key}"
         end
-
-        # Fix 1: Expenses
-        expenses = WarehouseFolder.find_by(tab_key: "expenses")
-        expense_docs = WarehouseFolder.find_by(tab_key: "expense-docs")
-        puts "  expenses=#{expenses&.id} expense_docs=#{expense_docs&.id}"
-        if expenses
-          puts "  expenses.tab_type=#{expenses.tab_type} expenses.doc_types=#{expenses.warehouse_folder_document_types.count}"
-        end
-
-        if expenses && expense_docs && expenses.warehouse_folder_document_types.any?
-          count = expenses.warehouse_folder_document_types.count
-          expenses.warehouse_folder_document_types.update_all(warehouse_folder_id: expense_docs.id)
-          expenses.reload
-          expenses.save!
-          puts "  FIXED: Moved #{count} doc types from expenses -> expense-docs"
-        end
-
-        # Fix 2: Templates
-        templates = WarehouseFolder.find_by(tab_key: "templates")
-        puts "  templates=#{templates&.id}"
-        if templates
-          puts "  templates.tab_type=#{templates.tab_type} templates.doc_types=#{templates.warehouse_folder_document_types.count}"
-        end
-        next unless templates
-        next unless templates.warehouse_folder_document_types.any?
-
-        template_docs = WarehouseFolder.find_by(tab_key: "template-docs")
-        puts "  template_docs=#{template_docs&.id}"
-        unless template_docs
-          template_docs = WarehouseFolder.create!(
-            name: "Template Docs",
-            display_name: "Template Docs",
-            folder_segment: "template-docs",
-            tab_key: "template-docs",
-            tab_type: "document",
-            tab_group: "documents",
-            warehouse_type_id: templates.warehouse_type_id,
-            parent_id: templates.id,
-            is_system: false,
-            enabled: true,
-            order_position: (templates.children.maximum(:order_position) || 0) + 1,
-            folder_path_suffix: templates.folder_path_suffix
-          )
-          puts "  CREATED: template-docs (id=#{template_docs.id})"
-        end
-
-        count = templates.warehouse_folder_document_types.count
-        templates.warehouse_folder_document_types.update_all(warehouse_folder_id: template_docs.id)
-        puts "  FIXED: Moved #{count} doc types from templates -> template-docs"
       end
     end
 
