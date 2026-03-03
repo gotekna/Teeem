@@ -996,12 +996,14 @@ module Api
         # ── Step 1: Apply tombstones from ALL tenants ──────────────────────────────────
         # Collect all pending deletions for this model type across all customer tenants.
         # Delete from TEEEM first, then from every other tenant, then mark propagated.
+        # Skip entirely for tables without sync_key — tombstones are keyed by sync_key.
         tombstone_results = {}
-        pending_tombstones = ConfigSyncDeletion.where(
+        has_sync_key = model.column_names.include?("sync_key")
+        pending_tombstones = has_sync_key ? ConfigSyncDeletion.where(
           tenant_id: customer_tenants.map(&:id),
           model_type: table_config[:model],
           propagated_at: nil
-        ).to_a
+        ).to_a : []
 
         if pending_tombstones.any?
           sync_keys_to_delete = pending_tombstones.map(&:sync_key).uniq
@@ -1044,9 +1046,13 @@ module Api
           scoped_model(model, table_config).pluck(:id)
         end
 
-        master_sync_keys = ActsAsTenant.with_tenant(current_tenant) do
-          base = table_config[:scope] ? model.instance_exec(&table_config[:scope]) : model.all
-          base.where.not(sync_key: [nil, ""]).pluck(:sync_key)
+        master_sync_keys = if has_sync_key
+          ActsAsTenant.with_tenant(current_tenant) do
+            base = table_config[:scope] ? model.instance_exec(&table_config[:scope]) : model.all
+            base.where.not(sync_key: [nil, ""]).pluck(:sync_key)
+          end
+        else
+          []
         end
 
         results = {}
@@ -1060,8 +1066,12 @@ module Api
 
           svc = TenantConfigSyncService.new(t)
 
-          # Push: import/update TEEEM records into customer
-          pull_mode = t_mode == "two_way" ? :add_new : mode
+          # Push: import/update TEEEM records into customer.
+          # Always use :replace_existing so field changes (e.g. "PO Required" toggled on a
+          # Document Type, a new sync field added to a Cost Centre) propagate to all tenants.
+          # source_newer? inside pull_from_master guards against overwriting records the
+          # tenant edited more recently than TEEEM — two_way tables are safe.
+          pull_mode = mode
           push_result = master_record_ids.empty? ? { imported: [], updated: [], skipped: [] } :
             svc.pull_from_master(table: table.to_s, record_ids: master_record_ids, mode: pull_mode)
 
