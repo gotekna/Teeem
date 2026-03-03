@@ -171,8 +171,15 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         clearAllCachedRecordsAsync().catch(() => {});
 
         // 3. Navigate IMMEDIATELY - do NOT update React state first
-        // window.location.replace prevents bfcache from restoring old page
-        window.location.replace("/");
+        // Stay on same page (reload with new tenant context) unless on an entity-specific
+        // page (e.g., /document-types/520) where the ID may not exist on the new tenant.
+        // For those, navigate to the parent listing page.
+        const currentPath = window.location.pathname;
+        const entityDetailPattern = /\/(\d+)$/;
+        const targetPath = entityDetailPattern.test(currentPath)
+          ? currentPath.replace(entityDetailPattern, '')
+          : currentPath;
+        window.location.replace(targetPath || "/");
         return true;
       } else {
         console.error('[TenantSwitch] Failed:', response?.error);
@@ -202,7 +209,13 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         // 2. Clear cached records (fire-and-forget)
         clearAllCachedRecordsAsync().catch(() => {});
         // 3. Navigate IMMEDIATELY (same pattern as switchTenant)
-        window.location.replace("/");
+        // Stay on same page, strip entity IDs that may not exist on new tenant
+        const currentPath = window.location.pathname;
+        const entityDetailPattern = /\/(\d+)$/;
+        const targetPath = entityDetailPattern.test(currentPath)
+          ? currentPath.replace(entityDetailPattern, '')
+          : currentPath;
+        window.location.replace(targetPath || "/");
         return true;
       } else {
         setError(response?.error || 'Failed to clear tenant override');
