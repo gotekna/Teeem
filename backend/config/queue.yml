@@ -16,11 +16,6 @@
 # - low: Background analytics, warehouse jobs, email blob uploads, email-to-job/task (can wait)
 # - low_priority: Long-running backfill, non-urgent maintenance
 #
-# FRC (Feb 2026): Split into two worker groups so low-priority bulk jobs
-# (MV refresh, backups, email uploads) cannot starve user-facing jobs.
-# Previous config had 3 threads on a single worker listening to only 4 queues,
-# silently ignoring critical, xero_sync, and low_priority queues entirely.
-#
 # FRC (Feb 2026): Moved ALL Xero jobs off :default queue onto :xero_sync/:xero_bulk.
 # Previously 9 Xero job types were on :default (3 threads) while Worker 2 (6 threads)
 # sat idle for those jobs. Now Worker 2 handles all Xero work, freeing Worker 1
@@ -35,25 +30,34 @@
 production:
   workers:
     # ═══════════════════════════════════════════════════════════════════════
-    # DUAL WORKER POOLS (Mar 2026) — Requires async mode
+    # DUAL WORKER POOLS (Mar 2026) — Requires SOLID_QUEUE_SUPERVISOR_MODE=async
     # ═══════════════════════════════════════════════════════════════════════
     #
     # SolidQueue 1.3.0+ async mode runs all workers as THREADS in a single
     # process (no forking). This saves ~300-450MB vs fork mode because there's
     # no duplicate Ruby process.
     #
-    # Set SOLID_QUEUE_SUPERVISOR_MODE=async on Heroku to enable.
-    # If not set, falls back to fork mode (single worker entry used).
+    # Set SOLID_QUEUE_SUPERVISOR_MODE=async on Heroku to enable dual pools.
+    # Without it, falls back to fork mode with a single worker (safe default).
     #
-    # ⚠️ History (Feb 2026): Fork mode with 2 worker entries crashed (R14)
-    # because each fork duplicated the ~450MB process (2 × 450 = 900MB).
-    # Async mode eliminates this: both pools share the same process memory.
+    # ⚠️ DO NOT REMOVE THE ERB CONDITIONAL (Mar 2026)
+    # ════════════════════════════════════════════════════════════════════
+    # Why: Fork mode with 2 worker entries crashes (R14) because each fork
+    # duplicates the ~450MB Ruby process (2 × 450 = 900MB on 1024MB dyno).
+    # The ERB ensures dual pools ONLY activate in async mode where both
+    # pools share the same process memory (~530MB baseline total).
+    # ❌ WRONG: Remove ERB, hardcode 2 worker entries (crashes in fork mode)
+    # ✅ CORRECT: ERB conditional — async=dual pools, fork=single worker
+    # ════════════════════════════════════════════════════════════════════
     #
     # Memory budget (async mode on 1024MB dyno):
     #   Process baseline:      ~530MB
     #   Light pool (2 threads): +4MB stack + ~100MB peak job overhead
     #   Heavy pool (1 thread):  +2MB stack + ~400MB peak job overhead
     #   Total peak:             ~1036MB (tight — MemoryGuard aborts at 920MB)
+    #
+<% if ENV["SOLID_QUEUE_SUPERVISOR_MODE"] == "async" %>
+    # ASYNC MODE: Dual worker pools (light jobs never blocked by heavy jobs)
     #
     # LIGHT POOL: Critical + user-facing (2 threads)
     # These jobs are <50MB, <5s. Never blocked by heavy Xero/backup work.
@@ -69,6 +73,17 @@ production:
       threads: 1
       processes: 1
       polling_interval: 1
+<% else %>
+    # FORK MODE (default): Single worker, all queues, 1 thread.
+    # Safe for 1024MB dyno. Queue ordering prevents starvation.
+    #
+    # FRC (Feb 2026): 1 thread required in fork mode. Two attempts at 2 threads
+    # both hit R14 due to sustained AR object churn from concurrent heavy jobs.
+    - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
+      threads: 1
+      processes: 1
+      polling_interval: 0.1
+<% end %>
 
   dispatchers:
     - polling_interval: 1

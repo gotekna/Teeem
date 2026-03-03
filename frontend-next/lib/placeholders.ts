@@ -411,12 +411,6 @@ export const DOCUMENT_PLACEHOLDERS: PlaceholderToken[] = [
   // NOTE: {DocTypeCode} and {DocTypeName} are added DYNAMICALLY in the document type editor
   // based on the current document type being edited. Do NOT add them here to avoid duplicates.
   {
-    code: "{Signed}",
-    example: "Signed",
-    color: "blue",
-    description: "Signing status (Draft/Signed/Unsigned)",
-  },
-  {
     code: "{Description}",
     example: "Example",
     color: "blue",
