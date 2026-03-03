@@ -995,11 +995,12 @@ module Api
           phase0_results[source_t.slug] = {
             pulled: source_ids.length,
             imported: result[:imported]&.length || 0,
-            skipped: result[:skipped] || [],
+            unchanged: result[:unchanged] || 0,
+            failed: result[:skipped] || [],
             errors: result[:errors] || []
           }
           if result[:skipped]&.any?
-            Rails.logger.info "[ConfigSync] Phase 0: #{result[:skipped].length} records skipped pulling #{table} from #{source_t.name}: #{result[:skipped].map { |s| "#{s[:name]} (#{s[:reason]})" }.join(', ')}"
+            Rails.logger.warn "[ConfigSync] Phase 0: #{result[:skipped].length} records FAILED pulling #{table} from #{source_t.name}: #{result[:skipped].map { |s| "#{s[:name]} (#{s[:reason]})" }.join(', ')}"
           end
         end
 

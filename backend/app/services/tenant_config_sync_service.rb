@@ -1320,7 +1320,8 @@ class TenantConfigSyncService
     config = CONFIG_TABLES[table.to_sym]
     model = config[:model].constantize
     imported = []
-    skipped = []
+    skipped = []   # Actual failures (FK remap, validation errors)
+    unchanged = 0  # Records that matched but local version is newer (normal)
     deleted_count = 0
 
     # Get source records (enforce scope filter to prevent importing out-of-scope records)
@@ -1366,7 +1367,11 @@ class TenantConfigSyncService
           # Update index with newly imported record so subsequent matches work
           key = record_sync_key(result[:record]) || legacy_match_key(result[:record], config[:match_fields], config[:remap_fks])
           existing_index[key] = result[:record] if key.present?
+        elsif result[:unchanged]
+          # Record exists and local version is newer — normal, not a failure
+          unchanged += 1
         else
+          # Actual failure (FK remap, validation, etc.)
           skipped << { name: source_record.send(config[:name_field]), reason: result[:reason] }
         end
       rescue => e
@@ -1430,6 +1435,7 @@ class TenantConfigSyncService
       success: @errors.empty?,
       imported: imported.map { |r| record_to_json(r, config) },
       skipped: skipped,
+      unchanged: unchanged,
       errors: @errors,
       deleted_count: deleted_count
     }
@@ -1518,7 +1524,8 @@ class TenantConfigSyncService
     model = config[:model].constantize
     imported = []
     updated = []
-    skipped = []
+    skipped = []   # Actual failures (FK remap, validation errors)
+    unchanged = 0  # Records that matched but local version is newer (normal)
 
     # Get master records (enforce scope filter to prevent importing out-of-scope records)
     master_records = ActsAsTenant.with_tenant(master) do
@@ -1602,7 +1609,7 @@ class TenantConfigSyncService
                 updated << existing
                 deferred_parents[existing.id] = deferred if deferred.any?
               else
-                skipped << { name: master_record.send(config[:name_field]), reason: "Local version is newer" }
+                unchanged += 1
               end
             rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
               skipped << { name: master_record.send(config[:name_field]), reason: e.message }
@@ -1610,7 +1617,7 @@ class TenantConfigSyncService
               skipped << { name: master_record.send(config[:name_field]), reason: e.message }
             end
           when :add_new, :skip_existing
-            skipped << { name: master_record.send(config[:name_field]), reason: "Already exists" }
+            unchanged += 1
           end
         else
           begin
@@ -1716,6 +1723,7 @@ class TenantConfigSyncService
       imported: imported.map { |r| record_to_json(r, config) },
       updated: updated.map { |r| record_to_json(r, config) },
       skipped: skipped,
+      unchanged: unchanged,
       errors: @errors,
       price_markup_applied: @price_markup_percent > 0 ? @price_markup_percent : nil
     }
@@ -2221,7 +2229,8 @@ class TenantConfigSyncService
         ActsAsTenant.with_tenant(tenant) { existing.update!(attrs) }
         { imported: true, record: existing }
       else
-        { imported: false, reason: "Local version is newer" }
+        # Record matched but local is newer — this is normal, not a failure
+        { imported: false, unchanged: true, record: existing, reason: "Local version is newer" }
       end
     else
       # Create new - copy sync_key to establish link

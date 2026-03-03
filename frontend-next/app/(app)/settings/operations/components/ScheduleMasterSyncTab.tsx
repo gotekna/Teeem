@@ -133,7 +133,7 @@ export function ScheduleMasterSyncTab() {
   const [cascading, setCascading] = useState(false);
   type SkippedOrphan = { id: number; sync_key: string; name: string; referenced_by: string };
   type CascadeTableResult = { imported: number; updated: number; skipped: number; deleted_orphans?: number; skipped_orphans?: SkippedOrphan[]; promoted_to_master?: number };
-  type Phase0TenantResult = { pulled: number; imported: number; skipped: { name: string; reason: string }[]; errors: string[] };
+  type Phase0TenantResult = { pulled: number; imported: number; unchanged: number; failed: { name: string; reason: string }[]; errors: string[] };
   const [cascadeResults, setCascadeResults] = useState<Record<string, Record<string, CascadeTableResult>>>({});
   const [phase0Results, setPhase0Results] = useState<Record<string, Record<string, Phase0TenantResult>>>({});
   const [tableStatus, setTableStatus] = useState<Record<TableKey, TableSyncStatus>>({} as Record<TableKey, TableSyncStatus>);
@@ -1159,13 +1159,13 @@ export function ScheduleMasterSyncTab() {
                                 </span>
                               );
                             })()}
-                            {/* Phase 0 skipped — records that failed to pull into TEEEM (FK remap failures) */}
+                            {/* Phase 0 failed — records that failed to pull into TEEEM (FK remap failures) */}
                             {isMasterTenant && phase0Results[table.key] && (() => {
-                              const allSkipped = Object.entries(phase0Results[table.key]).flatMap(([tenantSlug, r]) =>
-                                (r.skipped || []).map((s) => ({ ...s, tenantSlug }))
+                              const allFailed = Object.entries(phase0Results[table.key]).flatMap(([tenantSlug, r]) =>
+                                (r.failed || []).map((s) => ({ ...s, tenantSlug }))
                               );
-                              if (allSkipped.length === 0) return null;
-                              const tooltip = allSkipped
+                              if (allFailed.length === 0) return null;
+                              const tooltip = allFailed
                                 .map((s) => `${s.tenantSlug}: "${s.name}" — ${s.reason}`)
                                 .join("\n");
                               return (
@@ -1173,7 +1173,7 @@ export function ScheduleMasterSyncTab() {
                                   className="text-[10px] text-red-600 dark:text-red-400 cursor-help"
                                   title={tooltip}
                                 >
-                                  ⚠ {allSkipped.length} failed to pull (hover)
+                                  ⚠ {allFailed.length} failed to pull (hover)
                                 </span>
                               );
                             })()}
@@ -1359,23 +1359,23 @@ export function ScheduleMasterSyncTab() {
                         );
                       })()}
 
-                      {/* Phase 0 skipped sub-rows — records that failed to pull into TEEEM (FK remap failures) */}
+                      {/* Phase 0 failed sub-rows — records that failed to pull into TEEEM (FK remap failures) */}
                       {expandedTables.has(table.key) && isMasterTenant && phase0Results[table.key] && (() => {
-                        const allSkipped = Object.entries(phase0Results[table.key]).flatMap(([tenantSlug, r]) =>
-                          (r.skipped || []).map((s) => ({ ...s, tenantSlug }))
+                        const allFailed = Object.entries(phase0Results[table.key]).flatMap(([tenantSlug, r]) =>
+                          (r.failed || []).map((s) => ({ ...s, tenantSlug }))
                         );
-                        if (allSkipped.length === 0) return null;
+                        if (allFailed.length === 0) return null;
                         const colSpan = allTenants.length > 0 ? allTenants.length + 4 : 6;
                         return (
                           <React.Fragment key={`${table.key}-phase0`}>
                             <TableRow className="bg-red-50/20 dark:bg-red-950/10">
                               <TableCell colSpan={colSpan} className="py-1 px-4">
                                 <span className="text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide">
-                                  ⚠ {allSkipped.length} record{allSkipped.length !== 1 ? "s" : ""} failed to pull into TEEEM (FK remap failures)
+                                  ⚠ {allFailed.length} record{allFailed.length !== 1 ? "s" : ""} failed to pull into TEEEM (FK remap failures)
                                 </span>
                               </TableCell>
                             </TableRow>
-                            {allSkipped.map((s, i) => (
+                            {allFailed.map((s, i) => (
                               <TableRow key={`${table.key}-phase0-${s.tenantSlug}-${i}`} className="bg-red-50/10 dark:bg-red-950/5">
                                 <TableCell className="py-1" />
                                 <TableCell className="py-1 pl-10">

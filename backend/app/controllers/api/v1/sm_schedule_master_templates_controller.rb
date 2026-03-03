@@ -104,11 +104,23 @@ module Api
       # GET /api/v1/sm_schedule_master_templates/:id/po_tasks
       # Returns all active tasks for this template (for charge auto-link dropdowns).
       # No po_required filter — users need to link charges to any task.
+      # Includes metadata (stage, trade, cost centre, tender, assigned role) for inline display.
       def po_tasks
+        role_names = Role.pluck(:id, :display_name).to_h
+
         tasks = @template.sm_schedule_master_rows.active
+                  .includes(:sm_stage_ref, :sm_trade_ref, :cost_centre_ref, :tender)
                   .order(:sequence_order)
-                  .pluck(:id, :name, :task_code)
-                  .map { |id, name, task_code| { id: id, name: name, task_code: task_code } }
+                  .map { |t| {
+                    id: t.id,
+                    name: t.name,
+                    task_code: t.task_code,
+                    stage_name: t.sm_stage_ref&.name,
+                    trade_name: t.sm_trade_ref&.name,
+                    cost_centre_name: t.cost_centre_ref&.name,
+                    tender_name: t.tender&.name,
+                    assigned_role_name: t.assigned_role.present? ? role_names[t.assigned_role] : nil
+                  }}
 
         render json: { success: true, tasks: tasks }
       end

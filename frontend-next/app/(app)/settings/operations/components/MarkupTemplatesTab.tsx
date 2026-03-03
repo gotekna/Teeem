@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ComboboxMultiSelect } from "@/components/ui/combobox-multi-select";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
-import { ChevronDown, ChevronRight, Download, Save, Link2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ChevronDown, ChevronRight, Download, Save, Link2, Pencil, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
+import Link from "next/link";
 
 // ============================================
 // Types
@@ -21,6 +23,11 @@ interface SmPoTask {
   id: number;
   name: string;
   task_code?: string | null;
+  stage_name?: string | null;
+  trade_name?: string | null;
+  cost_centre_name?: string | null;
+  tender_name?: string | null;
+  assigned_role_name?: string | null;
 }
 
 interface ClaimTemplateLine {
@@ -73,6 +80,12 @@ interface TemplateMarkup {
   claimStageTemplateId: number | null;
 }
 
+// Lookup option for edit dialog dropdowns
+interface LookupOption {
+  id: number;
+  name: string;
+}
+
 // Charge type config for unified row rendering
 const MARKUP_RATES = [
   { key: "defaultBuilderMarginPercent", label: "Builder Margin", smField: "charge_builder_margin_sm_ids", chargeType: "builder_margin", step: 0.5 },
@@ -92,6 +105,22 @@ const CHARGE_TYPES = [
   { key: "defaultMaintenanceFeePercent", label: "Maintenance Fee", smField: "charge_maintenance_fee_sm_ids", chargeType: "maintenance_fee", step: 0.1 },
 ] as const;
 
+// Helper: render inline metadata badges for a task
+function TaskMetadataBadges({ task }: { task: SmPoTask }) {
+  const parts: string[] = [];
+  if (task.stage_name) parts.push(`Stage: ${task.stage_name}`);
+  if (task.trade_name) parts.push(`Trade: ${task.trade_name}`);
+  if (task.cost_centre_name) parts.push(`CC: ${task.cost_centre_name}`);
+  if (task.tender_name) parts.push(`Tender: ${task.tender_name}`);
+  if (task.assigned_role_name) parts.push(`Role: ${task.assigned_role_name}`);
+  if (parts.length === 0) return null;
+  return (
+    <span className="text-xs text-muted-foreground">
+      {parts.join(" | ")}
+    </span>
+  );
+}
+
 // ============================================
 // Component
 // ============================================
@@ -106,6 +135,18 @@ export function MarkupTemplatesTab() {
   const [savingId, setSavingId] = React.useState<number | null>(null);
   const [globalDefaults, setGlobalDefaults] = React.useState<Record<string, number> | null>(null);
   const [claimTemplates, setClaimTemplates] = React.useState<ClaimTemplate[]>([]);
+
+  // Task edit dialog state
+  const [editingTask, setEditingTask] = React.useState<SmPoTask | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = React.useState(false);
+  const [editDialogFields, setEditDialogFields] = React.useState<{
+    stage: string; trade: string; cost_centre: string; tender_id: string; assigned_role: string;
+  }>({ stage: "", trade: "", cost_centre: "", tender_id: "", assigned_role: "" });
+  const [editDialogSaving, setEditDialogSaving] = React.useState(false);
+  const [lookups, setLookups] = React.useState<{
+    stages: LookupOption[]; trades: LookupOption[]; cost_centres: LookupOption[];
+    tenders: LookupOption[]; roles: LookupOption[];
+  } | null>(null);
 
   React.useEffect(() => {
     (async () => {
@@ -313,6 +354,84 @@ export function MarkupTemplatesTab() {
     }
   };
 
+  // Fetch lookup data for edit dialog (lazy load once)
+  const fetchLookups = async () => {
+    if (lookups) return;
+    try {
+      const [stagesRes, tradesRes, ccRes, tendersRes, rolesRes] = await Promise.all([
+        api.get<{ data: LookupOption[] }>("/api/v1/sm_stages"),
+        api.get<{ data: LookupOption[] }>("/api/v1/sm_trades"),
+        api.get<{ data: LookupOption[] }>("/api/v1/cost_centres"),
+        api.get<{ data: LookupOption[] }>("/api/v1/tenders"),
+        api.get<{ data: LookupOption[] }>("/api/v1/roles"),
+      ]);
+      setLookups({
+        stages: stagesRes?.data || [],
+        trades: tradesRes?.data || [],
+        cost_centres: ccRes?.data || [],
+        tenders: tendersRes?.data || [],
+        roles: rolesRes?.data || [],
+      });
+    } catch {
+      // Silently fail - edit dialog will show text inputs as fallback
+    }
+  };
+
+  const openEditDialog = async (task: SmPoTask) => {
+    setEditingTask(task);
+    // We need to fetch the actual row data to get the current IDs
+    try {
+      const res = await api.get<{ row: { stage: number | null; trade: number | null; cost_centre: number | null; tender_id: number | null; assigned_role: number | null } }>(
+        `/api/v1/sm_schedule_masters/${task.id}`
+      );
+      const row = res?.row;
+      setEditDialogFields({
+        stage: row?.stage?.toString() || "",
+        trade: row?.trade?.toString() || "",
+        cost_centre: row?.cost_centre?.toString() || "",
+        tender_id: row?.tender_id?.toString() || "",
+        assigned_role: row?.assigned_role?.toString() || "",
+      });
+    } catch {
+      // Fallback: fields empty
+      setEditDialogFields({ stage: "", trade: "", cost_centre: "", tender_id: "", assigned_role: "" });
+    }
+    await fetchLookups();
+    setEditDialogOpen(true);
+  };
+
+  const saveEditDialog = async () => {
+    if (!editingTask) return;
+    setEditDialogSaving(true);
+    try {
+      await api.patch(`/api/v1/sm_schedule_masters/${editingTask.id}`, {
+        row: {
+          stage: editDialogFields.stage || null,
+          trade: editDialogFields.trade || null,
+          cost_centre: editDialogFields.cost_centre || null,
+          tender_id: editDialogFields.tender_id || null,
+          assigned_role: editDialogFields.assigned_role || null,
+        },
+      });
+      toast({ title: "Task updated" });
+      setEditDialogOpen(false);
+
+      // Refresh PO tasks for the expanded template to get updated metadata
+      if (expandedId) {
+        try {
+          const res = await api.get<{ tasks: SmPoTask[] }>(
+            `/api/v1/sm_schedule_master_templates/${expandedId}/po_tasks`
+          );
+          setPoTasksMap(prev => ({ ...prev, [expandedId!]: res?.tasks || [] }));
+        } catch { /* ignore */ }
+      }
+    } catch {
+      toast({ title: "Failed to update task", variant: "destructive" });
+    } finally {
+      setEditDialogSaving(false);
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center py-12"><Spinner size={32} className="text-muted-foreground" /></div>;
   }
@@ -440,17 +559,17 @@ export function MarkupTemplatesTab() {
                       </Button>
                     </div>
 
-                    {/* Markup Rates (with PO link) */}
+                    {/* Markup Rates (with single-select PO link) */}
                     <div className="space-y-3">
                       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Markup Rates</Label>
                       {MARKUP_RATES.map(rate => {
                         const hasSmField = rate.smField !== null;
                         const smIds = hasSmField ? (((edits as Record<string, unknown>)[rate.smField!] as number[]) || []) : [];
-                        const rateAllocs = allocs[rate.chargeType] || {};
-                        const hasMultiplePOs = smIds.length > 1;
+                        const selectedTaskId = smIds[0] ?? null;
+                        const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null;
 
                         return (
-                          <div key={rate.key} className="space-y-1.5">
+                          <div key={rate.key} className="space-y-1">
                             <div className="flex items-start gap-3">
                               <div className="w-36 shrink-0 pt-1">
                                 <span className="text-sm">{rate.label}</span>
@@ -471,24 +590,30 @@ export function MarkupTemplatesTab() {
                               <span className="text-xs text-muted-foreground pt-2 shrink-0">%</span>
 
                               {hasSmField && tasks.length > 0 && (
-                                <div className="flex-1 min-w-0">
-                                  <ComboboxMultiSelect
-                                    items={tasks.map(t => {
-                                      const baseLabel = t.task_code ? `${t.task_code} — ${t.name}` : t.name;
-                                      const claimMatch = claimPoMap[t.name];
-                                      const alloc = rateAllocs[t.id.toString()];
-                                      const pct = claimMatch?.percentage ?? (smIds.includes(t.id) && smIds.length > 1 ? alloc : undefined);
-                                      return {
+                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                  <div className="flex-1 min-w-0">
+                                    <ComboboxDropdown
+                                      items={tasks.map(t => ({
                                         id: t.id.toString(),
-                                        label: pct !== undefined ? `${baseLabel} (${pct}%)` : baseLabel,
-                                        searchText: t.task_code || t.name,
-                                      };
-                                    })}
-                                    selectedIds={smIds.map(v => v.toString())}
-                                    onChange={ids => updateField(tmpl.id, rate.smField!, ids.map(id => parseInt(id, 10)))}
-                                    placeholder="Link to PO..."
-                                    searchPlaceholder="Search tasks..."
-                                  />
+                                        label: t.task_code ? `${t.task_code} — ${t.name}` : t.name,
+                                      }))}
+                                      selectedItem={
+                                        selectedTask
+                                          ? { id: selectedTask.id.toString(), label: selectedTask.task_code ? `${selectedTask.task_code} — ${selectedTask.name}` : selectedTask.name }
+                                          : undefined
+                                      }
+                                      onSelect={item => updateField(tmpl.id, rate.smField!, [parseInt(item.id, 10)])}
+                                      onClear={() => updateField(tmpl.id, rate.smField!, [])}
+                                      clearable
+                                      placeholder="Link to PO..."
+                                      searchPlaceholder="Search tasks..."
+                                    />
+                                  </div>
+                                  {selectedTask && (
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => openEditDialog(selectedTask)} title="Edit task details">
+                                      <Pencil className="h-3 w-3" />
+                                    </Button>
+                                  )}
                                 </div>
                               )}
                               {!hasSmField && (
@@ -496,39 +621,10 @@ export function MarkupTemplatesTab() {
                               )}
                             </div>
 
-                            {hasMultiplePOs && tasks.length > 0 && (
-                              <div className="ml-36 pl-3 flex flex-wrap gap-2 items-center">
-                                <span className="text-xs text-muted-foreground">Split:</span>
-                                {smIds.map(smId => {
-                                  const task = tasks.find(t => t.id === smId);
-                                  const taskName = task?.name || `#${smId}`;
-                                  const claimMatch = claimPoMap[taskName];
-                                  const pct = claimMatch
-                                    ? claimMatch.percentage
-                                    : (rateAllocs[smId.toString()] ?? Math.round(100 / smIds.length));
-                                  return (
-                                    <div key={smId} className="flex items-center gap-1">
-                                      <span className="text-xs truncate max-w-[120px]">{taskName}</span>
-                                      {claimMatch ? (
-                                        <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded" title={`From claim stage: ${claimMatch.stageName}`}>
-                                          {claimMatch.percentage}%
-                                        </span>
-                                      ) : (
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          max={100}
-                                          step={1}
-                                          value={pct}
-                                          onChange={e => updateAllocation(tmpl.id, rate.chargeType, smId.toString(), parseFloat(e.target.value) || 0)}
-                                          onFocus={e => e.target.select()}
-                                          className="h-6 text-xs w-14 px-1"
-                                        />
-                                      )}
-                                      {!claimMatch && <span className="text-xs text-muted-foreground">%</span>}
-                                    </div>
-                                  );
-                                })}
+                            {/* Inline metadata for linked task */}
+                            {selectedTask && (
+                              <div className="ml-36 pl-3">
+                                <TaskMetadataBadges task={selectedTask} />
                               </div>
                             )}
                           </div>
@@ -542,6 +638,13 @@ export function MarkupTemplatesTab() {
                       {CHARGE_TYPES.map(charge => {
                         const smIds = ((edits as Record<string, unknown>)[charge.smField] as number[]) || [];
                         const chargeAllocs = allocs[charge.chargeType] || {};
+                        const isOverheads = charge.chargeType === "overheads";
+
+                        // For non-overheads: single select (first ID only)
+                        const selectedTaskId = !isOverheads ? (smIds[0] ?? null) : null;
+                        const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null;
+
+                        // For overheads: keep multi-select with splits
                         const hasMultiplePOs = smIds.length > 1;
 
                         return (
@@ -570,36 +673,72 @@ export function MarkupTemplatesTab() {
                               )}
                               <span className="text-xs text-muted-foreground pt-2 shrink-0">%</span>
 
-                              {/* PO Multi-select */}
+                              {/* PO selector */}
                               {tasks.length > 0 && (
-                                <div className="flex-1 min-w-0">
-                                  <ComboboxMultiSelect
-                                    items={tasks.map(t => {
-                                      const baseLabel = t.task_code ? `${t.task_code} — ${t.name}` : t.name;
-                                      // Show claim % on tag when linked to a claim template
-                                      const claimMatch = claimPoMap[t.name];
-                                      const alloc = chargeAllocs[t.id.toString()];
-                                      const pct = claimMatch?.percentage ?? (smIds.includes(t.id) && smIds.length > 1 ? alloc : undefined);
-                                      return {
-                                        id: t.id.toString(),
-                                        label: pct !== undefined ? `${baseLabel} (${pct}%)` : baseLabel,
-                                        searchText: t.task_code || t.name,
-                                      };
-                                    })}
-                                    selectedIds={smIds.map(v => v.toString())}
-                                    onChange={ids => updateField(tmpl.id, charge.smField, ids.map(id => parseInt(id, 10)))}
-                                    placeholder="Link to PO..."
-                                    searchPlaceholder="Search tasks..."
-                                  />
-                                </div>
+                                isOverheads ? (
+                                  // Overheads: multi-select (supports splits)
+                                  <div className="flex-1 min-w-0">
+                                    <ComboboxMultiSelect
+                                      items={tasks.map(t => {
+                                        const baseLabel = t.task_code ? `${t.task_code} — ${t.name}` : t.name;
+                                        const claimMatch = claimPoMap[t.name];
+                                        const alloc = chargeAllocs[t.id.toString()];
+                                        const pct = claimMatch?.percentage ?? (smIds.includes(t.id) && smIds.length > 1 ? alloc : undefined);
+                                        return {
+                                          id: t.id.toString(),
+                                          label: pct !== undefined ? `${baseLabel} (${pct}%)` : baseLabel,
+                                          searchText: t.task_code || t.name,
+                                        };
+                                      })}
+                                      selectedIds={smIds.map(v => v.toString())}
+                                      onChange={ids => updateField(tmpl.id, charge.smField, ids.map(id => parseInt(id, 10)))}
+                                      placeholder="Link to PO(s)..."
+                                      searchPlaceholder="Search tasks..."
+                                    />
+                                  </div>
+                                ) : (
+                                  // Non-overheads: single-select
+                                  <div className="flex items-center gap-1 flex-1 min-w-0">
+                                    <div className="flex-1 min-w-0">
+                                      <ComboboxDropdown
+                                        items={tasks.map(t => ({
+                                          id: t.id.toString(),
+                                          label: t.task_code ? `${t.task_code} — ${t.name}` : t.name,
+                                        }))}
+                                        selectedItem={
+                                          selectedTask
+                                            ? { id: selectedTask.id.toString(), label: selectedTask.task_code ? `${selectedTask.task_code} — ${selectedTask.name}` : selectedTask.name }
+                                            : undefined
+                                        }
+                                        onSelect={item => updateField(tmpl.id, charge.smField, [parseInt(item.id, 10)])}
+                                        onClear={() => updateField(tmpl.id, charge.smField, [])}
+                                        clearable
+                                        placeholder="Link to PO..."
+                                        searchPlaceholder="Search tasks..."
+                                      />
+                                    </div>
+                                    {selectedTask && (
+                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => openEditDialog(selectedTask)} title="Edit task details">
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                )
                               )}
                             </div>
 
-                            {/* Per-PO allocation % (when multiple POs or claim-linked overheads) */}
-                            {smIds.length > 0 && tasks.length > 0 && (hasMultiplePOs || (charge.chargeType === "overheads" && linkedClaimTemplate)) && (
+                            {/* Inline metadata for single-select linked task (non-overheads) */}
+                            {!isOverheads && selectedTask && (
+                              <div className="ml-36 pl-3">
+                                <TaskMetadataBadges task={selectedTask} />
+                              </div>
+                            )}
+
+                            {/* Overheads: per-PO allocation % (when multiple POs or claim-linked) */}
+                            {isOverheads && smIds.length > 0 && tasks.length > 0 && (hasMultiplePOs || linkedClaimTemplate) && (
                               <div className="ml-36 pl-3 space-y-1">
                                 <span className="text-xs text-muted-foreground">
-                                  {linkedClaimTemplate && charge.chargeType === "overheads" ? "Claim stage split:" : "Split:"}
+                                  {linkedClaimTemplate ? "Claim stage split:" : "Split:"}
                                 </span>
                                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                                   {smIds.map(smId => {
@@ -631,12 +770,43 @@ export function MarkupTemplatesTab() {
                                             <span className="text-xs text-muted-foreground">%</span>
                                           </>
                                         )}
+                                        {task && (
+                                          <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={() => openEditDialog(task)} title="Edit task details">
+                                            <Pencil className="h-2.5 w-2.5" />
+                                          </Button>
+                                        )}
                                       </div>
                                     );
                                   })}
                                 </div>
+                                {/* Metadata for overhead tasks */}
+                                {smIds.map(smId => {
+                                  const task = tasks.find(t => t.id === smId);
+                                  if (!task) return null;
+                                  const hasMeta = task.stage_name || task.trade_name || task.cost_centre_name || task.tender_name || task.assigned_role_name;
+                                  if (!hasMeta) return null;
+                                  return (
+                                    <div key={`meta-${smId}`} className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground truncate max-w-[100px]">{task.name}:</span>
+                                      <TaskMetadataBadges task={task} />
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
+
+                            {/* Overheads: single PO metadata (when only 1 PO and no claim template) */}
+                            {isOverheads && smIds.length === 1 && !linkedClaimTemplate && (() => {
+                              const task = tasks.find(t => t.id === smIds[0]);
+                              return task ? (
+                                <div className="ml-36 pl-3 flex items-center gap-1">
+                                  <TaskMetadataBadges task={task} />
+                                  <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={() => openEditDialog(task)} title="Edit task details">
+                                    <Pencil className="h-2.5 w-2.5" />
+                                  </Button>
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         );
                       })}
@@ -650,7 +820,7 @@ export function MarkupTemplatesTab() {
                       </div>
                     )}
 
-                    <div className="border-t pt-3">
+                    <div className="border-t pt-3 flex items-center gap-3">
                       <Button size="sm" onClick={() => handleSave(tmpl.id)} disabled={savingId === tmpl.id}>
                         {savingId === tmpl.id ? (
                           <><Spinner size={14} className="mr-1.5" /> Saving...</>
@@ -658,6 +828,13 @@ export function MarkupTemplatesTab() {
                           <><Save className="h-3.5 w-3.5 mr-1.5" /> Save Template</>
                         )}
                       </Button>
+                      <Link
+                        href="/settings/operations/schedule-master"
+                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Open Schedule Master
+                      </Link>
                     </div>
                   </CardContent>
                 )}
@@ -666,6 +843,110 @@ export function MarkupTemplatesTab() {
           })}
         </div>
       )}
+
+      {/* Task Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Edit Task: {editingTask?.task_code ? `${editingTask.task_code} — ` : ""}{editingTask?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Stage */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">Stage</Label>
+              {lookups?.stages ? (
+                <ComboboxDropdown
+                  items={lookups.stages.map(s => ({ id: s.id.toString(), label: s.name }))}
+                  selectedItem={editDialogFields.stage ? { id: editDialogFields.stage, label: lookups.stages.find(s => s.id.toString() === editDialogFields.stage)?.name || "" } : undefined}
+                  onSelect={item => setEditDialogFields(prev => ({ ...prev, stage: item.id }))}
+                  onClear={() => setEditDialogFields(prev => ({ ...prev, stage: "" }))}
+                  clearable
+                  placeholder="Select stage..."
+                  searchPlaceholder="Search stages..."
+                />
+              ) : (
+                <Input value={editDialogFields.stage} onChange={e => setEditDialogFields(prev => ({ ...prev, stage: e.target.value }))} placeholder="Stage ID" />
+              )}
+            </div>
+            {/* Trade */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">Trade</Label>
+              {lookups?.trades ? (
+                <ComboboxDropdown
+                  items={lookups.trades.map(s => ({ id: s.id.toString(), label: s.name }))}
+                  selectedItem={editDialogFields.trade ? { id: editDialogFields.trade, label: lookups.trades.find(s => s.id.toString() === editDialogFields.trade)?.name || "" } : undefined}
+                  onSelect={item => setEditDialogFields(prev => ({ ...prev, trade: item.id }))}
+                  onClear={() => setEditDialogFields(prev => ({ ...prev, trade: "" }))}
+                  clearable
+                  placeholder="Select trade..."
+                  searchPlaceholder="Search trades..."
+                />
+              ) : (
+                <Input value={editDialogFields.trade} onChange={e => setEditDialogFields(prev => ({ ...prev, trade: e.target.value }))} placeholder="Trade ID" />
+              )}
+            </div>
+            {/* Cost Centre */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">Cost Centre</Label>
+              {lookups?.cost_centres ? (
+                <ComboboxDropdown
+                  items={lookups.cost_centres.map(s => ({ id: s.id.toString(), label: s.name }))}
+                  selectedItem={editDialogFields.cost_centre ? { id: editDialogFields.cost_centre, label: lookups.cost_centres.find(s => s.id.toString() === editDialogFields.cost_centre)?.name || "" } : undefined}
+                  onSelect={item => setEditDialogFields(prev => ({ ...prev, cost_centre: item.id }))}
+                  onClear={() => setEditDialogFields(prev => ({ ...prev, cost_centre: "" }))}
+                  clearable
+                  placeholder="Select cost centre..."
+                  searchPlaceholder="Search cost centres..."
+                />
+              ) : (
+                <Input value={editDialogFields.cost_centre} onChange={e => setEditDialogFields(prev => ({ ...prev, cost_centre: e.target.value }))} placeholder="Cost Centre ID" />
+              )}
+            </div>
+            {/* Tender Section */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">Tender Section</Label>
+              {lookups?.tenders ? (
+                <ComboboxDropdown
+                  items={lookups.tenders.map(s => ({ id: s.id.toString(), label: s.name }))}
+                  selectedItem={editDialogFields.tender_id ? { id: editDialogFields.tender_id, label: lookups.tenders.find(s => s.id.toString() === editDialogFields.tender_id)?.name || "" } : undefined}
+                  onSelect={item => setEditDialogFields(prev => ({ ...prev, tender_id: item.id }))}
+                  onClear={() => setEditDialogFields(prev => ({ ...prev, tender_id: "" }))}
+                  clearable
+                  placeholder="Select tender section..."
+                  searchPlaceholder="Search tender sections..."
+                />
+              ) : (
+                <Input value={editDialogFields.tender_id} onChange={e => setEditDialogFields(prev => ({ ...prev, tender_id: e.target.value }))} placeholder="Tender ID" />
+              )}
+            </div>
+            {/* Assigned Role */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">Assigned Role</Label>
+              {lookups?.roles ? (
+                <ComboboxDropdown
+                  items={lookups.roles.map(s => ({ id: s.id.toString(), label: s.name }))}
+                  selectedItem={editDialogFields.assigned_role ? { id: editDialogFields.assigned_role, label: lookups.roles.find(s => s.id.toString() === editDialogFields.assigned_role)?.name || "" } : undefined}
+                  onSelect={item => setEditDialogFields(prev => ({ ...prev, assigned_role: item.id }))}
+                  onClear={() => setEditDialogFields(prev => ({ ...prev, assigned_role: "" }))}
+                  clearable
+                  placeholder="Select role..."
+                  searchPlaceholder="Search roles..."
+                />
+              ) : (
+                <Input value={editDialogFields.assigned_role} onChange={e => setEditDialogFields(prev => ({ ...prev, assigned_role: e.target.value }))} placeholder="Role ID" />
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={saveEditDialog} disabled={editDialogSaving}>
+              {editDialogSaving ? <><Spinner size={14} className="mr-1.5" /> Saving...</> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
