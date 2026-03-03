@@ -2255,6 +2255,7 @@ Rails.application.routes.draw do
           get :gantt_data        # SSoT: Gantt-formatted data with row.id dependencies
           post :validate_dates   # SSoT: Recalculate dates to skip weekends/holidays
           get :po_tasks          # PO-required tasks for charge auto-link config
+          get :po_task_lookups   # Lookup options for editing task metadata
         end
         collection do
           get :default

@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmScheduleMasterTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :reset_job_tasks, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows, :gantt_data, :validate_dates, :po_tasks ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :reset_job_tasks, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows, :gantt_data, :validate_dates, :po_tasks, :po_task_lookups ]
 
       # GET /api/v1/sm_schedule_master_templates
       # Params: include_inactive=true to include inactive templates
@@ -123,6 +123,26 @@ module Api
                   }}
 
         render json: { success: true, tasks: tasks }
+      end
+
+      # GET /api/v1/sm_schedule_master_templates/:id/po_task_lookups
+      # Returns lookup options for editing task metadata (stages, trades, cost centres, tenders, roles).
+      # Lazy-loaded once by the frontend edit dialog.
+      def po_task_lookups
+        stages = SmStage.order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+        trades = SmTrade.order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+        cost_centres = CostCentre.where(active: true).order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+        tenders = Tender.where(active: true).order(:sort_order, :name).pluck(:id, :name).map { |id, name| { id: id, name: name } }
+        roles = Role.active.ordered.pluck(:id, :display_name).map { |id, name| { id: id, name: name } }
+
+        render json: {
+          success: true,
+          stages: stages,
+          trades: trades,
+          cost_centres: cost_centres,
+          tenders: tenders,
+          roles: roles
+        }
       end
 
       # POST /api/v1/sm_schedule_master_templates/:id/duplicate

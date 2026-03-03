@@ -354,23 +354,20 @@ export function MarkupTemplatesTab() {
     }
   };
 
-  // Fetch lookup data for edit dialog (lazy load once)
-  const fetchLookups = async () => {
+  // Fetch lookup data for edit dialog (lazy load once per template)
+  const fetchLookups = async (templateId: number) => {
     if (lookups) return;
     try {
-      const [stagesRes, tradesRes, ccRes, tendersRes, rolesRes] = await Promise.all([
-        api.get<{ data: LookupOption[] }>("/api/v1/sm_stages"),
-        api.get<{ data: LookupOption[] }>("/api/v1/sm_trades"),
-        api.get<{ data: LookupOption[] }>("/api/v1/cost_centres"),
-        api.get<{ data: LookupOption[] }>("/api/v1/tenders"),
-        api.get<{ data: LookupOption[] }>("/api/v1/roles"),
-      ]);
+      const res = await api.get<{
+        stages: LookupOption[]; trades: LookupOption[]; cost_centres: LookupOption[];
+        tenders: LookupOption[]; roles: LookupOption[];
+      }>(`/api/v1/sm_schedule_master_templates/${templateId}/po_task_lookups`);
       setLookups({
-        stages: stagesRes?.data || [],
-        trades: tradesRes?.data || [],
-        cost_centres: ccRes?.data || [],
-        tenders: tendersRes?.data || [],
-        roles: rolesRes?.data || [],
+        stages: res?.stages || [],
+        trades: res?.trades || [],
+        cost_centres: res?.cost_centres || [],
+        tenders: res?.tenders || [],
+        roles: res?.roles || [],
       });
     } catch {
       // Silently fail - edit dialog will show text inputs as fallback
@@ -378,33 +375,41 @@ export function MarkupTemplatesTab() {
   };
 
   const openEditDialog = async (task: SmPoTask) => {
+    if (!expandedId) return;
     setEditingTask(task);
-    // We need to fetch the actual row data to get the current IDs
+    // Fetch the actual row data to get the current IDs.
+    // The show endpoint returns lookup columns as { id, display } objects.
     try {
-      const res = await api.get<{ row: { stage: number | null; trade: number | null; cost_centre: number | null; tender_id: number | null; assigned_role: number | null } }>(
-        `/api/v1/sm_schedule_masters/${task.id}`
+      const res = await api.get<{ row: Record<string, unknown> }>(
+        `/api/v1/sm_schedule_master_templates/${expandedId}/rows/${task.id}`
       );
       const row = res?.row;
+      // Extract IDs from lookup objects ({ id, display }) or raw values
+      const extractId = (val: unknown): string => {
+        if (!val) return "";
+        if (typeof val === "object" && val !== null && "id" in val) return String((val as { id: number }).id);
+        if (typeof val === "number") return val.toString();
+        return "";
+      };
       setEditDialogFields({
-        stage: row?.stage?.toString() || "",
-        trade: row?.trade?.toString() || "",
-        cost_centre: row?.cost_centre?.toString() || "",
-        tender_id: row?.tender_id?.toString() || "",
-        assigned_role: row?.assigned_role?.toString() || "",
+        stage: extractId(row?.stage),
+        trade: extractId(row?.trade),
+        cost_centre: extractId(row?.cost_centre),
+        tender_id: extractId(row?.tender_id),
+        assigned_role: extractId(row?.assigned_role),
       });
     } catch {
-      // Fallback: fields empty
       setEditDialogFields({ stage: "", trade: "", cost_centre: "", tender_id: "", assigned_role: "" });
     }
-    await fetchLookups();
+    await fetchLookups(expandedId);
     setEditDialogOpen(true);
   };
 
   const saveEditDialog = async () => {
-    if (!editingTask) return;
+    if (!editingTask || !expandedId) return;
     setEditDialogSaving(true);
     try {
-      await api.patch(`/api/v1/sm_schedule_masters/${editingTask.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${expandedId}/rows/${editingTask.id}`, {
         row: {
           stage: editDialogFields.stage || null,
           trade: editDialogFields.trade || null,
