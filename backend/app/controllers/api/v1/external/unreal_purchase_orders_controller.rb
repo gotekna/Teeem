@@ -294,7 +294,7 @@ module Api
           line_item = purchase_order.line_items.create!(
             pricebook_item_id: pricebook_item.id,
             description: pricebook_item.item_name,
-            quantity: quantity.to_i,
+            quantity: quantity.to_f,
             unit_price: pricebook_item.current_price || 0,
             gst_code: pricebook_item.gst_code || "GST"
             # line_number auto-set by PurchaseOrderLineItem.set_line_number callback
