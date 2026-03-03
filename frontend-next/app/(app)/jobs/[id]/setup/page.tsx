@@ -717,7 +717,7 @@ export default function SmSetupPage() {
           </div>
 
           {/* Tabs */}
-          <Tabs value={activeTab || "hold-reasons"} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab || "hold-reasons"} onValueChange={setActiveTab} className="w-full" expandKey="job-setup-main">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="hold-reasons" className="gap-2">
                 <PauseIcon className="h-4 w-4" />

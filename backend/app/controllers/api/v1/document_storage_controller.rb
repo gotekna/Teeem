@@ -1346,6 +1346,10 @@ module Api
               return render_error("SharePoint not configured")
             end
 
+            unless storage_config.drive_id.present?
+              return render_error("SharePoint drive not configured — set drive_id in Storage Provider settings", status: :unprocessable_entity)
+            end
+
             # Get file metadata with download URL
             item_data = client.get_drive_item(storage_config.drive_id, file_id)
             download_url_value = item_data[:download_url]

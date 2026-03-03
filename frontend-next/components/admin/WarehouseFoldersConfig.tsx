@@ -1834,7 +1834,7 @@ export function WarehouseFoldersConfig({
 
       {/* Tabs by group - only show groups that have tabs */}
       {showTabGroups ? (
-        <Tabs value={activeGroup} onValueChange={setActiveGroup}>
+        <Tabs value={activeGroup} onValueChange={setActiveGroup} expandKey="warehouse-folders-config-groups">
           <TabsList>
             {groups
               .filter((group) => (groupedTabs[group]?.length || 0) > 0)

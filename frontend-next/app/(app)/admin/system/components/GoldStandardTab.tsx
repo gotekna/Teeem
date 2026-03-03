@@ -2314,7 +2314,7 @@ export function GoldStandardTab({ subtab, basePath = DEFAULT_GOLD_STANDARD_BASE_
   }, [router, basePath]);
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col" expandKey="admin-gold-standard">
       <TabsList className="flex-wrap h-auto gap-1 justify-start">
         <TabsTrigger value="table">
           Gold Standard Table

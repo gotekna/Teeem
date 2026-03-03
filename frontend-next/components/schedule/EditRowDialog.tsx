@@ -722,7 +722,7 @@ export function EditRowDialog({
             {/* ================================================================
                 4-TAB LAYOUT: Task | PO & Claims | Documents | Relationships
                ================================================================ */}
-            <Tabs defaultValue="task" className="w-full">
+            <Tabs defaultValue="task" className="w-full" expandKey="schedule-edit-row-dialog">
               <TabsList className="w-full justify-start">
                 <TabsTrigger value="task">Task</TabsTrigger>
                 <TabsTrigger value="po-claims">PO & Claims</TabsTrigger>
