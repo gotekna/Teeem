@@ -383,7 +383,7 @@ export function ContactCorporateDetailsSubTab({
   }
 
   return (
-    <Tabs value={activeSubTab} onValueChange={onSubTabChange}>
+    <Tabs expandKey="contact-corporate-details-tabs" value={activeSubTab} onValueChange={onSubTabChange}>
       <TabsList className="mb-4">
         <TabsTrigger value="details">
           <FileText className="h-3.5 w-3.5 mr-1" />

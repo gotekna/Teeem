@@ -62,7 +62,7 @@ export default function EmailResellerLayout({
       </div>
 
       {/* Tab Navigation */}
-      <Tabs value={currentTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="email-reseller-tabs" value={currentTab} onValueChange={handleTabChange}>
         <TabsList>
           {TABS.map((tab) => {
             const Icon = tab.icon;

@@ -149,7 +149,7 @@ export default function MigrationsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs expandKey="email-reseller-migrations-tabs" value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="active" className="gap-2">
             Active

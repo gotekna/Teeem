@@ -1449,65 +1449,57 @@ module Api
 
       private
 
-      # Build SM Task info by matching document types between folder and job's SM tasks
-      # Finds ALL SM tasks on this job whose required doc types belong to this folder
+      # Build SM Task info by matching document types between folder and job's SM tasks.
+      # Checks TWO sources of required doc types:
+      #   1. completion_document_type_id column (single required doc per task)
+      #   2. sm_task_document_types join table (multiple required docs per task)
       def build_sm_task_info_for_documents(folder_id, job_id)
-        # Get this folder's document type IDs
         folder_doc_type_ids = WarehouseFolderDocumentType
           .where(warehouse_folder_id: folder_id)
           .pluck(:document_type_id)
         return nil if folder_doc_type_ids.empty?
 
-        # Find SM tasks on this job that require any of these document types
+        # Find tasks via EITHER source:
+        # 1. completion_document_type_id matching folder's doc types
+        # 2. sm_task_document_types join table matching folder's doc types
         sm_tasks = SmTask
           .where(job_id: job_id)
-          .joins(:sm_task_document_types)
-          .where(sm_task_document_types: { document_type_id: folder_doc_type_ids })
-          .distinct
-          .includes(sm_task_document_types: :document_type)
+          .where(
+            "completion_document_type_id IN (?) OR id IN (?)",
+            folder_doc_type_ids,
+            SmTaskDocumentType.where(document_type_id: folder_doc_type_ids).select(:sm_task_id)
+          )
+          .includes(:completion_document_type, sm_task_document_types: :document_type)
         return nil if sm_tasks.empty?
 
-        # Build required doc types list from ALL matching tasks
         required_doc_types = []
+        seen_doc_type_ids = Set.new
+
         sm_tasks.each do |task|
+          # Source 1: completion_document_type_id column
+          if task.completion_document_type_id.present? &&
+             folder_doc_type_ids.include?(task.completion_document_type_id) &&
+             !seen_doc_type_ids.include?(task.completion_document_type_id)
+            dt = task.completion_document_type
+            if dt
+              seen_doc_type_ids << dt.id
+              required_doc_types << build_required_doc_entry(dt, folder_id, job_id, task, 0)
+            end
+          end
+
+          # Source 2: sm_task_document_types join table
           task.sm_task_document_types.each do |stdt|
             dt = stdt.document_type
             next unless dt
             next unless folder_doc_type_ids.include?(dt.id)
-
-            wfdt = WarehouseFolderDocumentType.find_by(
-              warehouse_folder_id: folder_id,
-              document_type_id: dt.id
-            )
-
-            uploaded = if wfdt
-              WarehouseDocument.exists?(
-                warehouse_folder_document_type_id: wfdt.id,
-                linkable_type: "Job",
-                linkable_id: job_id
-              )
-            else
-              false
-            end
-
-            required_doc_types << {
-              documentTypeId: dt.id,
-              documentTypeName: dt.name,
-              wfdtId: wfdt&.id,
-              uploaded: uploaded,
-              lagDays: stdt.lag_days || 0,
-              taskId: task.id,
-              taskName: task.name,
-              taskStartDate: task.start_date&.iso8601,
-              taskEndDate: task.end_date&.iso8601,
-              taskStatus: task.status
-            }
+            next if seen_doc_type_ids.include?(dt.id)
+            seen_doc_type_ids << dt.id
+            required_doc_types << build_required_doc_entry(dt, folder_id, job_id, task, stdt.lag_days || 0)
           end
         end
 
         return nil if required_doc_types.empty?
 
-        # Use first matching task as the "primary" for backwards compat
         primary = sm_tasks.first
         {
           taskId: primary.id,
@@ -1518,6 +1510,31 @@ module Api
           completedAt: primary.completed_at&.iso8601,
           status: primary.status,
           requiredDocumentTypes: required_doc_types
+        }
+      end
+
+      def build_required_doc_entry(doc_type, folder_id, job_id, task, lag_days)
+        wfdt = WarehouseFolderDocumentType.find_by(
+          warehouse_folder_id: folder_id,
+          document_type_id: doc_type.id
+        )
+        uploaded = wfdt ? WarehouseDocument.exists?(
+          warehouse_folder_document_type_id: wfdt.id,
+          linkable_type: "Job",
+          linkable_id: job_id
+        ) : false
+
+        {
+          documentTypeId: doc_type.id,
+          documentTypeName: doc_type.name,
+          wfdtId: wfdt&.id,
+          uploaded: uploaded,
+          lagDays: lag_days,
+          taskId: task.id,
+          taskName: task.name,
+          taskStartDate: task.start_date&.iso8601,
+          taskEndDate: task.end_date&.iso8601,
+          taskStatus: task.status
         }
       end
 

@@ -495,7 +495,9 @@ module Api
       private
 
       # Build SM Task info by matching document types between folder and job's SM tasks.
-      # Finds ALL SM tasks on this job whose required doc types belong to this folder.
+      # Checks TWO sources of required doc types:
+      #   1. completion_document_type_id column (single required doc per task)
+      #   2. sm_task_document_types join table (multiple required docs per task)
       def build_sm_task_info(folder_id, job_id)
         folder_doc_type_ids = WarehouseFolderDocumentType
           .where(warehouse_folder_id: folder_id)
@@ -504,45 +506,46 @@ module Api
 
         sm_tasks = SmTask
           .where(job_id: job_id)
-          .joins(:sm_task_document_types)
-          .where(sm_task_document_types: { document_type_id: folder_doc_type_ids })
-          .distinct
-          .includes(sm_task_document_types: :document_type)
+          .where(
+            "completion_document_type_id IN (?) OR id IN (?)",
+            folder_doc_type_ids,
+            SmTaskDocumentType.where(document_type_id: folder_doc_type_ids).select(:sm_task_id)
+          )
+          .includes(:completion_document_type, sm_task_document_types: :document_type)
         return nil if sm_tasks.empty?
 
         required_doc_types = []
+        seen_doc_type_ids = Set.new
+
         sm_tasks.each do |task|
+          # Source 1: completion_document_type_id column
+          if task.completion_document_type_id.present? &&
+             folder_doc_type_ids.include?(task.completion_document_type_id) &&
+             !seen_doc_type_ids.include?(task.completion_document_type_id)
+            dt = task.completion_document_type
+            if dt
+              seen_doc_type_ids << dt.id
+              wfdt = WarehouseFolderDocumentType.find_by(warehouse_folder_id: folder_id, document_type_id: dt.id)
+              uploaded = wfdt ? WarehouseDocument.exists?(warehouse_folder_document_type_id: wfdt.id, linkable_type: "Job", linkable_id: job_id) : false
+              required_doc_types << {
+                documentTypeId: dt.id, documentTypeName: dt.name, wfdtId: wfdt&.id,
+                uploaded: uploaded, lagDays: 0, taskId: task.id, taskName: task.name,
+                taskStartDate: task.start_date&.iso8601, taskEndDate: task.end_date&.iso8601, taskStatus: task.status
+              }
+            end
+          end
+
+          # Source 2: sm_task_document_types join table
           task.sm_task_document_types.each do |stdt|
             dt = stdt.document_type
-            next unless dt
-            next unless folder_doc_type_ids.include?(dt.id)
-
-            wfdt = WarehouseFolderDocumentType.find_by(
-              warehouse_folder_id: folder_id,
-              document_type_id: dt.id
-            )
-
-            uploaded = if wfdt
-              WarehouseDocument.exists?(
-                warehouse_folder_document_type_id: wfdt.id,
-                linkable_type: "Job",
-                linkable_id: job_id
-              )
-            else
-              false
-            end
-
+            next unless dt && folder_doc_type_ids.include?(dt.id) && !seen_doc_type_ids.include?(dt.id)
+            seen_doc_type_ids << dt.id
+            wfdt = WarehouseFolderDocumentType.find_by(warehouse_folder_id: folder_id, document_type_id: dt.id)
+            uploaded = wfdt ? WarehouseDocument.exists?(warehouse_folder_document_type_id: wfdt.id, linkable_type: "Job", linkable_id: job_id) : false
             required_doc_types << {
-              documentTypeId: dt.id,
-              documentTypeName: dt.name,
-              wfdtId: wfdt&.id,
-              uploaded: uploaded,
-              lagDays: stdt.lag_days || 0,
-              taskId: task.id,
-              taskName: task.name,
-              taskStartDate: task.start_date&.iso8601,
-              taskEndDate: task.end_date&.iso8601,
-              taskStatus: task.status
+              documentTypeId: dt.id, documentTypeName: dt.name, wfdtId: wfdt&.id,
+              uploaded: uploaded, lagDays: stdt.lag_days || 0, taskId: task.id, taskName: task.name,
+              taskStartDate: task.start_date&.iso8601, taskEndDate: task.end_date&.iso8601, taskStatus: task.status
             }
           end
         end
@@ -551,14 +554,10 @@ module Api
 
         primary = sm_tasks.first
         {
-          taskId: primary.id,
-          taskName: primary.name,
-          startDate: primary.start_date&.iso8601,
-          endDate: primary.end_date&.iso8601,
-          startedAt: primary.started_at&.iso8601,
-          completedAt: primary.completed_at&.iso8601,
-          status: primary.status,
-          requiredDocumentTypes: required_doc_types
+          taskId: primary.id, taskName: primary.name,
+          startDate: primary.start_date&.iso8601, endDate: primary.end_date&.iso8601,
+          startedAt: primary.started_at&.iso8601, completedAt: primary.completed_at&.iso8601,
+          status: primary.status, requiredDocumentTypes: required_doc_types
         }
       end
 

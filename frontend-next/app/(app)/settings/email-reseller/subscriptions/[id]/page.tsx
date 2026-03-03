@@ -265,7 +265,7 @@ export default function SubscriptionDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs expandKey="email-reseller-subscription-tabs" value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="mailboxes" className="gap-2">
             <Mail className="h-4 w-4" />

@@ -2762,7 +2762,7 @@ export function WarehouseProviderTab() {
       </div>
 
       {/* Tabs: Setup Info, Configuration, Live Preview */}
-      <Tabs defaultValue="config" className="w-full">
+      <Tabs expandKey="warehouse-provider-config-tabs" defaultValue="config" className="w-full">
         <TabsList className="grid w-full grid-cols-3 max-w-xl">
           <TabsTrigger value="setup">
             Setup Info
