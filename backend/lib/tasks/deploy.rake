@@ -20,13 +20,35 @@ namespace :deploy do
     # 1. Migrations
     run_migrations
 
-    # 2. Version increment
+    # 2. Reconcile system warehouse tabs across all tenants
+    # FRC (Mar 2026): A migration used LIMIT 1 without tenant scoping, so only one
+    # tenant got Sales/Site parent tabs. This prevents that class of bug permanently.
+    # Idempotent and fast (<2s for 3 tenants). Runs inside the same boot as migrations.
+    reconcile_system_tabs
+
+    # 3. Version increment
     Rake::Task["release:increment_version"].invoke
 
-    # 3. Queue setup
+    # 4. Queue setup
     Rake::Task["queue:setup"].invoke
 
     puts "Release complete"
+  end
+
+  def reconcile_system_tabs
+    result = TenantConfigSyncService.reconcile_system_tabs!
+    if result[:success]
+      if (result[:created] || 0) > 0 || (result[:fixed] || 0) > 0
+        puts "Reconciled system tabs: #{result[:created]} created, #{result[:fixed]} fixed"
+      else
+        puts "System tabs OK"
+      end
+    else
+      puts "System tab reconciliation skipped: #{result[:error]}"
+    end
+  rescue => e
+    # Non-fatal: log and continue deploy even if reconciliation fails
+    puts "WARNING: System tab reconciliation failed: #{e.message}"
   end
 
   # Advisory lock prevents concurrent migration runs during pipeline promotion.

@@ -29,7 +29,7 @@ async function loadAllPricebookItems(): Promise<PricebookItem[]> {
         data?: PricebookItem[];
         items?: PricebookItem[];
         pricebook_items?: PricebookItem[];
-      }>("/api/v1/pricebook?per_page=10000&include_risk=false");
+      }>("/api/v1/pricebook?for=select");
       const items = response?.data || response?.items || response?.pricebook_items || [];
       _cachedItems = Array.isArray(items) ? items : [];
       _cacheTimestamp = Date.now();

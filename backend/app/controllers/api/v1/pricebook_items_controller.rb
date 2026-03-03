@@ -7,6 +7,32 @@ module Api
 
       # GET /api/v1/pricebook
       def index
+        # Fast path: ?for=select returns lightweight picker data (2 queries, ~50ms)
+        # Used by PricebookCodePicker which only needs code/name/price/supplier for client-side filtering
+        if params[:for] == "select"
+          items = PricebookItem.active
+            .select(:id, :item_code, :item_name, :current_price, :default_supplier_id)
+            .includes(:default_supplier)
+            .order(:item_code)
+
+          return render json: {
+            items: items.map { |item|
+              {
+                id: item.id,
+                item_code: item.item_code,
+                item_name: item.item_name,
+                current_price: item.current_price,
+                default_supplier_id: item.default_supplier_id,
+                default_supplier: item.default_supplier ? {
+                  id: item.default_supplier.id,
+                  display_name: item.default_supplier.display_name,
+                  name: item.default_supplier.display_name
+                } : nil
+              }
+            }
+          }
+        end
+
         # Optimize includes based on fields parameter
         # Support: 'minimal', 'full', or comma-separated field names
         # Also support ?include_risk=false to skip expensive risk calculations

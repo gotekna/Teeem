@@ -804,6 +804,140 @@ class TenantConfigSyncService
     GROUP_LABELS.map { |key, label| { key: key, label: label } }
   end
 
+  # Reconcile system warehouse tabs across all tenants.
+  # Ensures every non-master tenant has the same system warehouse folders as master.
+  # Safe to call repeatedly (idempotent via sync_key matching).
+  #
+  # Called from:
+  #   1. deploy:release (every deploy, inside advisory lock)
+  #   2. TenantConfigReconciliationJob (weekly background job)
+  #
+  # FRC (Mar 2026): Migration 20260207090000 used LIMIT 1 without tenant scoping,
+  # so only one tenant got Sales/Site system parent tabs. This prevents that class
+  # of bug permanently by reconciling on every deploy.
+  def self.reconcile_system_tabs!
+    master = Tenant.find_by(is_master_tenant: true) || Tenant.find_by(slug: "teeem")
+    unless master
+      Rails.logger.warn "[ConfigSync] reconcile_system_tabs!: No master tenant found"
+      return { success: false, error: "No master tenant" }
+    end
+
+    # Get master's root system warehouse folders (is_system: true, parent_id: nil)
+    master_system_folders = ActsAsTenant.with_tenant(master) do
+      WarehouseFolder.where(is_system: true, parent_id: nil).to_a
+    end
+
+    if master_system_folders.empty?
+      Rails.logger.info "[ConfigSync] reconcile_system_tabs!: No system folders in master"
+      return { success: true, created: 0, fixed: 0 }
+    end
+
+    tenants = Tenant.where(is_master_tenant: false).to_a
+    total_created = 0
+    total_fixed = 0
+
+    tenants.each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        created, fixed = reconcile_tenant_system_folders(tenant, master_system_folders)
+        total_created += created
+        total_fixed += fixed
+      end
+    end
+
+    summary = { success: true, created: total_created, fixed: total_fixed, tenants: tenants.length }
+    if total_created > 0 || total_fixed > 0
+      Rails.logger.info "[ConfigSync] reconcile_system_tabs!: Created #{total_created}, fixed #{total_fixed} across #{tenants.length} tenants"
+    end
+    summary
+  end
+
+  # Reconcile system folders for a single tenant.
+  # Must be called inside ActsAsTenant.with_tenant(tenant).
+  def self.reconcile_tenant_system_folders(tenant, master_system_folders)
+    created = 0
+    fixed = 0
+
+    master_system_folders.each do |master_folder|
+      # Find matching local folder by sync_key (primary) or tab_key (fallback)
+      local_folder = WarehouseFolder.find_by(sync_key: master_folder.sync_key) if master_folder.sync_key.present?
+      local_folder ||= WarehouseFolder.find_by(
+        tab_key: master_folder.tab_key,
+        parent_id: nil
+      )
+
+      if local_folder.nil?
+        # Resolve warehouse_type_id for this tenant (same code, different ID)
+        local_wt = WarehouseType.find_by(code: master_folder.warehouse_type&.code)
+        next unless local_wt
+
+        begin
+          local_folder = WarehouseFolder.create!(
+            name: master_folder.name,
+            display_name: master_folder.display_name,
+            tab_key: master_folder.tab_key,
+            tab_type: master_folder.tab_type,
+            tab_group: master_folder.tab_group,
+            warehouse_type_id: local_wt.id,
+            is_system: true,
+            enabled: master_folder.enabled,
+            warehouse_enabled: master_folder.warehouse_enabled,
+            icon_name: master_folder.icon_name,
+            order_position: next_order_position(local_wt.id, tenant.id),
+            sync_key: master_folder.sync_key
+          )
+          created += 1
+          Rails.logger.info "[ConfigSync] Created system folder '#{master_folder.display_name}' (sync_key=#{master_folder.sync_key}) for tenant #{tenant.name}"
+        rescue ActiveRecord::RecordNotUnique
+          # Another deploy dyno created it simultaneously — safe to continue
+          local_folder = WarehouseFolder.find_by(sync_key: master_folder.sync_key) ||
+                         WarehouseFolder.find_by(tab_key: master_folder.tab_key, parent_id: nil)
+          next unless local_folder
+        end
+      end
+
+      # Fix orphaned children: children whose parent_id points to a different tenant's record
+      fixed += fix_orphaned_children(local_folder, tenant)
+    end
+
+    [created, fixed]
+  end
+  private_class_method :reconcile_tenant_system_folders
+
+  # Fix children whose parent_id points to a record in another tenant.
+  # This happens when config sync creates children before the parent exists locally.
+  def self.fix_orphaned_children(parent_folder, tenant)
+    fixed = 0
+
+    # Find all folders in this tenant that SHOULD be children of this parent
+    # (same warehouse_type, matching parent sync_key pattern)
+    # Strategy: look for folders whose parent_id is non-nil but points to a record
+    # not in this tenant, AND whose tab_key suggests they belong under this parent.
+    WarehouseFolder.where(warehouse_type_id: parent_folder.warehouse_type_id)
+                   .where.not(parent_id: [nil, parent_folder.id])
+                   .each do |candidate|
+      # Check if the candidate's current parent belongs to a different tenant
+      current_parent = WarehouseFolder.unscoped.find_by(id: candidate.parent_id)
+      if current_parent.nil? || current_parent.tenant_id != tenant.id
+        candidate.update_columns(parent_id: parent_folder.id)
+        fixed += 1
+        Rails.logger.info "[ConfigSync] Fixed orphan: #{candidate.tab_key} parent_id -> #{parent_folder.id} (tenant #{tenant.name})"
+      end
+    end
+
+    fixed
+  end
+  private_class_method :fix_orphaned_children
+
+  def self.next_order_position(warehouse_type_id, tenant_id)
+    max = WarehouseFolder.where(
+      warehouse_type_id: warehouse_type_id,
+      tenant_id: tenant_id,
+      parent_id: nil
+    ).maximum(:order_position) || 0
+    max + 1
+  end
+  private_class_method :next_order_position
+
   # Get record counts per table for both master and tenant
   def table_counts
     master = master_tenant
