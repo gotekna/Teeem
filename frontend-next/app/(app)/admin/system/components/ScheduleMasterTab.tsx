@@ -2483,7 +2483,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     setLoadingSuppliers(true);
     try {
       const response = await api.get<{ success: boolean; contacts: Array<{ id: number; display_name: string }> }>(
-        "/api/v1/contacts?type=suppliers&limit=500"
+        "/api/v1/contacts?type=suppliers&slim=true"
       );
       setSuppliers(response.contacts || []);
     } catch (error) {

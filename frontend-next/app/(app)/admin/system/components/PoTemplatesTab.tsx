@@ -174,8 +174,8 @@ export function PoTemplatesTab() {
         api.get<{ success: boolean; records: Array<{ id: number; name: string }> }>(
           "/api/v1/foundations/sm-schedule-master/records?per_page=500"
         ),
-        api.get<{ success: boolean; data: Array<{ id: number; display_name: string }> }>(
-          "/api/v1/contacts?per_page=500&type=suppliers"
+        api.get<{ success: boolean; contacts: Array<{ id: number; display_name: string }> }>(
+          "/api/v1/contacts?type=suppliers&slim=true"
         ),
         api.get<{ success: boolean; data: Array<{ id: number; code: string; name: string }> }>(
           "/api/v1/profit_centres"
@@ -185,7 +185,7 @@ export function PoTemplatesTab() {
         (smRes?.records || []).map((r) => ({ id: r.id, name: r.name }))
       );
       setSuppliers(
-        (contactsRes?.data || []).map((c) => ({ id: c.id, displayName: c.display_name }))
+        (contactsRes?.contacts || []).map((c: { id: number; display_name: string }) => ({ id: c.id, displayName: c.display_name }))
       );
       setProfitCentres(
         (pcRes?.data || []).map((pc: { id: number; code: string; name: string }) => ({ id: pc.id, code: pc.code, name: pc.name }))

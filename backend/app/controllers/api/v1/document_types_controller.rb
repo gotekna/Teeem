@@ -17,7 +17,7 @@ module Api
         #          schedule-templates, GoldStandardTab, document-types nav
         if params[:for] == "select"
           types = DocumentType.active.order(:name)
-            .select(:id, :name, :display_name, :abbreviation, :scope, :folder)
+            .select(:id, :name, :ui_name, :abbreviation, :scope, :folder)
           types = types.where(scope: [params[:scope], "both"]) if params[:scope].present?
           return render json: {
             success: true,
@@ -25,7 +25,7 @@ module Api
               {
                 id: t.id,
                 name: t.name,
-                display_name: t.display_name,
+                display_name: t.ui_name.presence || t.name,
                 abbreviation: t.abbreviation,
                 scope: t.scope,
                 folder: t.folder
