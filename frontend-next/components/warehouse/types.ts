@@ -200,6 +200,12 @@ export interface SmTaskRequiredDocType {
   wfdtId: number | null;
   uploaded: boolean;
   lagDays: number;
+  // Per-doc-type task info (when multiple tasks contribute to one folder)
+  taskId?: number;
+  taskName?: string;
+  taskStartDate?: string | null;
+  taskEndDate?: string | null;
+  taskStatus?: string;
 }
 
 export interface SmTaskInfo {

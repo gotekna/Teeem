@@ -7501,7 +7501,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", force: :cascade do |t|
+  create_table "performance_vitals", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -9485,6 +9486,15 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.decimal "escalation_percent", precision: 5, scale: 2, default: "0.0"
     t.decimal "markup_percent", precision: 5, scale: 2, default: "0.0"
     t.datetime "record_updated_at"
+    t.integer "canonical_record_id"
+    t.text "field_overrides", default: "{}"
+    t.integer "canonical_version", default: 0
+    t.decimal "default_escalation_percent", default: "0.0"
+    t.decimal "default_markup_percent", default: "0.0"
+    t.text "tender_description"
+    t.text "po_description"
+    t.text "rfq_instructions"
+    t.decimal "budget_amount"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"

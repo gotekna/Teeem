@@ -237,13 +237,13 @@ module Api
           end
         end
 
-        # SM Task info: if filtering by warehouse_folder + Job linkable, include task info
+        # SM Task info: find tasks on this job that require document types belonging to this folder
         sm_task_info = nil
         if params[:warehouse_folder_id].present? && params[:linkable_type] == "Job" && params[:linkable_id].present?
-          sm_task = SmTask.find_by(warehouse_folder_id: params[:warehouse_folder_id], job_id: params[:linkable_id])
-          if sm_task
-            sm_task_info = build_sm_task_info_for_documents(sm_task, params[:warehouse_folder_id].to_i, params[:linkable_id].to_i)
-          end
+          sm_task_info = build_sm_task_info_for_documents(
+            params[:warehouse_folder_id].to_i,
+            params[:linkable_id].to_i
+          )
         end
 
         response = {
@@ -1449,44 +1449,74 @@ module Api
 
       private
 
-      # Build SM Task info with required document types and fulfillment status
-      def build_sm_task_info_for_documents(sm_task, folder_id, linkable_id)
-        required_doc_types = sm_task.sm_task_document_types.includes(:document_type).filter_map do |stdt|
-          dt = stdt.document_type
-          next unless dt
+      # Build SM Task info by matching document types between folder and job's SM tasks
+      # Finds ALL SM tasks on this job whose required doc types belong to this folder
+      def build_sm_task_info_for_documents(folder_id, job_id)
+        # Get this folder's document type IDs
+        folder_doc_type_ids = WarehouseFolderDocumentType
+          .where(warehouse_folder_id: folder_id)
+          .pluck(:document_type_id)
+        return nil if folder_doc_type_ids.empty?
 
-          wfdt = WarehouseFolderDocumentType.find_by(
-            warehouse_folder_id: folder_id,
-            document_type_id: dt.id
-          )
+        # Find SM tasks on this job that require any of these document types
+        sm_tasks = SmTask
+          .where(job_id: job_id)
+          .joins(:sm_task_document_types)
+          .where(sm_task_document_types: { document_type_id: folder_doc_type_ids })
+          .distinct
+          .includes(sm_task_document_types: :document_type)
+        return nil if sm_tasks.empty?
 
-          uploaded = if wfdt
-            WarehouseDocument.exists?(
-              warehouse_folder_document_type_id: wfdt.id,
-              linkable_type: "Job",
-              linkable_id: linkable_id
+        # Build required doc types list from ALL matching tasks
+        required_doc_types = []
+        sm_tasks.each do |task|
+          task.sm_task_document_types.each do |stdt|
+            dt = stdt.document_type
+            next unless dt
+            next unless folder_doc_type_ids.include?(dt.id)
+
+            wfdt = WarehouseFolderDocumentType.find_by(
+              warehouse_folder_id: folder_id,
+              document_type_id: dt.id
             )
-          else
-            false
-          end
 
-          {
-            documentTypeId: dt.id,
-            documentTypeName: dt.name,
-            wfdtId: wfdt&.id,
-            uploaded: uploaded,
-            lagDays: stdt.lag_days || 0
-          }
+            uploaded = if wfdt
+              WarehouseDocument.exists?(
+                warehouse_folder_document_type_id: wfdt.id,
+                linkable_type: "Job",
+                linkable_id: job_id
+              )
+            else
+              false
+            end
+
+            required_doc_types << {
+              documentTypeId: dt.id,
+              documentTypeName: dt.name,
+              wfdtId: wfdt&.id,
+              uploaded: uploaded,
+              lagDays: stdt.lag_days || 0,
+              taskId: task.id,
+              taskName: task.name,
+              taskStartDate: task.start_date&.iso8601,
+              taskEndDate: task.end_date&.iso8601,
+              taskStatus: task.status
+            }
+          end
         end
 
+        return nil if required_doc_types.empty?
+
+        # Use first matching task as the "primary" for backwards compat
+        primary = sm_tasks.first
         {
-          taskId: sm_task.id,
-          taskName: sm_task.name,
-          startDate: sm_task.start_date&.iso8601,
-          endDate: sm_task.end_date&.iso8601,
-          startedAt: sm_task.started_at&.iso8601,
-          completedAt: sm_task.completed_at&.iso8601,
-          status: sm_task.status,
+          taskId: primary.id,
+          taskName: primary.name,
+          startDate: primary.start_date&.iso8601,
+          endDate: primary.end_date&.iso8601,
+          startedAt: primary.started_at&.iso8601,
+          completedAt: primary.completed_at&.iso8601,
+          status: primary.status,
           requiredDocumentTypes: required_doc_types
         }
       end

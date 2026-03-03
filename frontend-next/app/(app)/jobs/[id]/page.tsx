@@ -1589,8 +1589,8 @@ export default function JobDetailPage() {
 
   return (
     <div className="h-full flex flex-col overflow-auto">
-      {/* Sticky header and tabs */}
-      <div className="sticky top-0 z-40 bg-background">
+      {/* Sticky header and tabs — hidden when expanded (matches Settings pattern) */}
+      {!tabsExpanded && <div className="sticky top-0 z-40 bg-background">
         {/* Header section - no pt-X, layout mode provides top padding */}
         <div className="px-3 pb-2">
           {/* Row 1: Title + Buttons */}
@@ -1769,7 +1769,7 @@ export default function JobDetailPage() {
             </Tabs>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Tab content - scrollable (relative z-0 creates stacking context below sticky header z-40) */}
       <ExpandableSection expanded={tabsExpanded} onToggle={toggleTabsExpanded}>

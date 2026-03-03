@@ -983,13 +983,25 @@ class SmScheduleMasterSyncService
       # Normalize lookup values where template stores ID and task stores name
       template_value = self.class.normalize_lookup_value(field.to_s, raw_template_value, is_from_template: true)
 
-      # Only show difference if template has a value and it differs
-      if template_value.present? && template_value != task_value
+      # Show difference if template has a value and it differs
+      # Use !nil? for booleans (false.present? is false, but false IS a valid value)
+      has_value = template_value.is_a?(FalseClass) || template_value.present?
+      if has_value && template_value != task_value
         differences[field.to_s] = {
           template: template_value,
           task: task_value
         }
       end
+    end
+
+    # Include document type link differences
+    template_doc_type_ids = template_row.sm_schedule_master_document_types.pluck(:document_type_id).sort
+    task_doc_type_ids = task.sm_task_document_types.pluck(:document_type_id).sort
+    if template_doc_type_ids != task_doc_type_ids
+      differences["document_type_links"] = {
+        template: "#{template_doc_type_ids.size} required doc type(s)",
+        task: "#{task_doc_type_ids.size} required doc type(s)"
+      }
     end
 
     differences
@@ -1100,7 +1112,10 @@ class SmScheduleMasterSyncService
       end
     end
 
-    if changes.empty?
+    # Always sync document type links (add/update/remove) regardless of field changes
+    doc_type_changes = sync_document_type_links(template_row, task)
+
+    if changes.empty? && !doc_type_changes
       return {
         success: true,
         task: task,
@@ -1109,17 +1124,20 @@ class SmScheduleMasterSyncService
       }
     end
 
-    task.updated_by = user if user
-    task.save!
+    if changes.any?
+      task.updated_by = user if user
+      task.save!
+    end
 
-    Rails.logger.info "[SmScheduleMasterSyncService] Updated task #{task.id} (#{task.name}) with #{changes.keys.join(', ')}"
+    all_changes = changes.merge(doc_type_changes ? { document_type_links: doc_type_changes } : {})
+    Rails.logger.info "[SmScheduleMasterSyncService] Updated task #{task.id} (#{task.name}) with #{all_changes.keys.join(', ')}"
 
     {
       success: true,
       task: task,
       action: :updated,
-      changes: changes,
-      message: "Updated #{changes.keys.count} field(s) from template"
+      changes: all_changes,
+      message: "Updated #{all_changes.keys.count} field(s) from template"
     }
   end
 
@@ -1220,18 +1238,48 @@ class SmScheduleMasterSyncService
     }
   end
 
-  # Copy document type links from template row to task
+  # Full sync of document type links from template row to task
+  # Adds missing, updates changed, removes deleted — works for both create and update
+  # Returns hash of changes if any, or nil if no changes
   def sync_document_type_links(template_row, task)
-    template_row.sm_schedule_master_document_types.each do |doc_type_link|
-      SmTaskDocumentType.create!(
-        sm_task_id: task.id,
-        document_type_id: doc_type_link.document_type_id,
-        lag_days: doc_type_link.lag_days,
-        assigned_role: doc_type_link.assigned_role
-      )
+    template_links = template_row.sm_schedule_master_document_types.index_by(&:document_type_id)
+    task_links = task.sm_task_document_types.index_by(&:document_type_id)
+    added = []
+    updated = []
+    removed = []
+
+    # Add missing + update changed
+    template_links.each do |doc_type_id, template_link|
+      existing = task_links[doc_type_id]
+      if existing
+        if existing.lag_days != template_link.lag_days || existing.assigned_role != template_link.assigned_role
+          existing.update!(lag_days: template_link.lag_days, assigned_role: template_link.assigned_role)
+          updated << doc_type_id
+        end
+      else
+        SmTaskDocumentType.create!(
+          sm_task_id: task.id,
+          document_type_id: doc_type_id,
+          lag_days: template_link.lag_days,
+          assigned_role: template_link.assigned_role
+        )
+        added << doc_type_id
+      end
     end
+
+    # Remove doc type links that no longer exist on the template
+    removed_ids = task_links.keys - template_links.keys
+    if removed_ids.any?
+      task.sm_task_document_types.where(document_type_id: removed_ids).destroy_all
+      removed = removed_ids
+    end
+
+    return nil if added.empty? && updated.empty? && removed.empty?
+
+    { added: added.size, updated: updated.size, removed: removed.size }
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.warn "[SmScheduleMasterSyncService] Failed to sync document type link: #{e.message}"
+    nil
   end
 
   def failure(message)

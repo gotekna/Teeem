@@ -113,6 +113,10 @@ export function ExpandableSection({
       )}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
+      {/* Minimize button - always visible inside the overlay so users can exit regardless of layout */}
+      <div className="absolute top-2 right-2 z-[51]">
+        <ExpandButton expanded={true} onToggle={onToggle} />
+      </div>
       {children}
     </div>
   );

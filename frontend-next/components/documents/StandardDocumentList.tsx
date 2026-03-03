@@ -360,13 +360,16 @@ export function SmTaskStatusBar({ info }: { info: SmTaskInfo }) {
 
 function RequiredDocPlaceholderRow({
   docType,
-  smTaskInfo,
   onUpload,
 }: {
   docType: SmTaskRequiredDocType;
-  smTaskInfo: SmTaskInfo;
   onUpload?: (docType: SmTaskRequiredDocType) => void;
 }) {
+  // Use per-doc-type task dates (each required doc may come from a different SM task)
+  const startDate = docType.taskStartDate;
+  const endDate = docType.taskEndDate;
+  const taskName = docType.taskName;
+
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 bg-amber-50/50 dark:bg-amber-950/10 border-b border-dashed border-amber-200 dark:border-amber-800/30">
       <div className="h-7 w-7 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
@@ -383,14 +386,19 @@ function RequiredDocPlaceholderRow({
           >
             Waiting
           </Badge>
-          {smTaskInfo.startDate && (
+          {taskName && (
             <span className="text-[11px] text-muted-foreground">
-              Start: {formatDate(smTaskInfo.startDate)}
+              {taskName}
             </span>
           )}
-          {smTaskInfo.endDate && (
+          {startDate && (
             <span className="text-[11px] text-muted-foreground">
-              Due: {formatDate(smTaskInfo.endDate)}
+              Start: {formatDate(startDate)}
+            </span>
+          )}
+          {endDate && (
+            <span className="text-[11px] text-muted-foreground">
+              Due: {formatDate(endDate)}
             </span>
           )}
         </div>
@@ -584,10 +592,10 @@ export function StandardDocumentList({
     );
   }
 
-  // Missing required doc types (only shown when task is not completed)
-  const missingRequiredDocs = smTaskInfo?.status !== "completed"
-    ? smTaskInfo?.requiredDocumentTypes?.filter(dt => !dt.uploaded) || []
-    : [];
+  // Missing required doc types (exclude uploaded + completed tasks)
+  const missingRequiredDocs = smTaskInfo?.requiredDocumentTypes?.filter(
+    dt => !dt.uploaded && dt.taskStatus !== "completed"
+  ) || [];
 
   // Empty state
   if (documents.length === 0 && missingRequiredDocs.length === 0) {
@@ -613,7 +621,6 @@ export function StandardDocumentList({
             <RequiredDocPlaceholderRow
               key={`required-${dt.documentTypeId}`}
               docType={dt}
-              smTaskInfo={smTaskInfo!}
               onUpload={onUploadForDocType}
             />
           ))}
@@ -694,7 +701,6 @@ export function StandardDocumentList({
             <RequiredDocPlaceholderRow
               key={`required-${dt.documentTypeId}`}
               docType={dt}
-              smTaskInfo={smTaskInfo!}
               onUpload={onUploadForDocType}
             />
           ))}
