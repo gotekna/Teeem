@@ -208,7 +208,7 @@ export default function WorkflowsDashboardPage() {
       </div>
 
       {/* Main Content */}
-      <Tabs value={activeTab || "tasks"} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs expandKey="workflows-tabs" value={activeTab || "tasks"} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="tasks" className="gap-2">
             <ListTodo className="h-4 w-4" />

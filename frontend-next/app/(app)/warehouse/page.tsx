@@ -1497,7 +1497,7 @@ export default function AllDocumentsPage() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <Tabs defaultValue="file-types" className="w-full">
+            <Tabs expandKey="warehouse-config-tabs" defaultValue="file-types" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="file-types">File Types</TabsTrigger>
                 <TabsTrigger value="folders">Synced Folders</TabsTrigger>

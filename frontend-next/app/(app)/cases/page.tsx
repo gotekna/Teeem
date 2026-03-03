@@ -266,7 +266,7 @@ export default function CasesPage() {
       }
     >
       {/* Tabs for Cases and Proposals */}
-      <Tabs value={activeTab || "cases"} onValueChange={setActiveTab} className="w-full">
+      <Tabs expandKey="cases-tabs" value={activeTab || "cases"} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="cases" className="flex items-center gap-2">
             <Briefcase className="h-4 w-4" />

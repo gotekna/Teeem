@@ -866,7 +866,7 @@ function AgedReportsTab({
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="financial-receivables-payables" value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="receivables" className="gap-2">
             <Users className="h-4 w-4" />
@@ -1851,7 +1851,7 @@ export default function FinancialPage() {
       )}
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="financial-main" value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
           <TabsTrigger value="dashboard" className="gap-2">
             <BarChart3 className="h-4 w-4" />

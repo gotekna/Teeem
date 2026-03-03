@@ -204,7 +204,7 @@ export default function FinancialReportsPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="financial-reports-tabs" value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-6">
           <TabsTrigger value="balance_sheet">Balance Sheet</TabsTrigger>
           <TabsTrigger value="profit_loss">Profit & Loss</TabsTrigger>

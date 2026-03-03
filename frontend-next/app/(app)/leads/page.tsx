@@ -189,7 +189,7 @@ export default function LeadsPage() {
         </Button>
       }
     >
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="leads-tabs" value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="leads">
             <TrendingUp className="h-4 w-4 mr-2" />

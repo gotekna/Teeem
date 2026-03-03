@@ -427,6 +427,7 @@ export default function XeroIntegrationPage() {
 
       {/* Tabs - FRC: Use flex for scroll compatibility */}
       <Tabs
+        expandKey="settings-xero-tabs"
         value={currentTab}
         onValueChange={(value) => {
           setUrlState({ tab: value === "overview" ? null : value });

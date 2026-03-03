@@ -1017,7 +1017,7 @@ export default function RolesSettingsPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs expandKey="settings-roles-tabs" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {ROLES_TABS.map((tab) => {
             const Icon = tab.icon;

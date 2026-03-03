@@ -204,7 +204,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab || "overview"} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs expandKey="dashboard-tabs" value={activeTab || "overview"} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" />

@@ -71,7 +71,7 @@ export default function PortalPage() {
   return (
     <TablePage>
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
+      <Tabs expandKey="portal-tabs" value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
         <div className="px-4 shrink-0">
           <TabsList>
             <TabsTrigger value="users">Portal Users</TabsTrigger>

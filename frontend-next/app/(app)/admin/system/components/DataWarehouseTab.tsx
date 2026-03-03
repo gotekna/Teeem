@@ -705,7 +705,7 @@ export function DataWarehouseTab() {
       </div>
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="data-warehouse-tabs" value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex flex-wrap gap-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           {/* Microsoft 365 Organization Tabs */}

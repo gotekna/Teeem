@@ -122,7 +122,7 @@ export default function MeetingsPage() {
         </Button>
       }
     >
-      <Tabs value={activeTab || "upcoming"} onValueChange={setActiveTab}>
+      <Tabs expandKey="meetings-tabs" value={activeTab || "upcoming"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
           <TabsTrigger value="past">Past</TabsTrigger>

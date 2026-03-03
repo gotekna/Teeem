@@ -48,7 +48,7 @@ export default function EmailSettingsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
+      <Tabs expandKey="email-settings-tabs" value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="blacklist" className="gap-2">
             <Ban className="h-4 w-4" />

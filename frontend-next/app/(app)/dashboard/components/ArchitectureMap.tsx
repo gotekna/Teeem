@@ -231,7 +231,7 @@ export default function ArchitectureMap({ activeSubTab, onSubTabChange }: Archit
       </div>
 
       {/* View Tabs */}
-      <Tabs value={activeView} onValueChange={setActiveView}>
+      <Tabs expandKey="architecture-map-tabs" value={activeView} onValueChange={setActiveView}>
         <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="beginner" className="gap-2">
             <BookOpen className="h-4 w-4" />

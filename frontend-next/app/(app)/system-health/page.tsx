@@ -462,7 +462,7 @@ export default function SystemHealthPage() {
       </div>
 
       {/* Tabs - URL controlled for proper back button support */}
-      <Tabs value={activeTab || "health"} onValueChange={handleTabChange} className="space-y-6">
+      <Tabs expandKey="system-health-tabs" value={activeTab || "health"} onValueChange={handleTabChange} className="space-y-6">
         <TabsList>
           <TabsTrigger value="health" className="gap-2">
             <Heart className="h-4 w-4" />

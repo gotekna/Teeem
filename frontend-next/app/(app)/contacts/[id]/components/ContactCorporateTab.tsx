@@ -126,7 +126,7 @@ export function ContactCorporateTab({
 
   // For person/sole_trader contacts, show the person-centric view (their roles in companies)
   return (
-    <Tabs value={activeSubTab} onValueChange={handleCorporateSubTabChange}>
+    <Tabs expandKey="contact-corporate-tabs" value={activeSubTab} onValueChange={handleCorporateSubTabChange}>
       <TabsList className="mb-4">
         <TabsTrigger value="identity">
           <IdCard className="h-3.5 w-3.5 mr-1" />

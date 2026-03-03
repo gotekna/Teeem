@@ -257,7 +257,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="template-editor-tabs" value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="content">
             Template Content

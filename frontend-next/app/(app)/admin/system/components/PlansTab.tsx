@@ -100,7 +100,7 @@ export function PlansTab({ subTab, basePath = "/admin/system/plans" }: PlansTabP
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="plans-tabs" value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="categories">
             <Folder className="h-4 w-4 mr-2" />

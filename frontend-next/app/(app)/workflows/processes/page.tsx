@@ -665,7 +665,7 @@ export default function BpmnProcessesPage() {
         />
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
+      <Tabs expandKey="workflows-processes-tabs" value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="processes" className="gap-2">
             <Workflow className="h-4 w-4" />

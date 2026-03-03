@@ -36,7 +36,7 @@ export function WarehouseTablesTab({ activeSubTab = "warehouse_types", basePath 
 
   return (
     <div className="space-y-4">
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+      <Tabs expandKey="warehouse-tables-tabs" value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList>
           <TabsTrigger value="warehouse_types">
             Warehouse Types

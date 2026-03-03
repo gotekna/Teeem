@@ -602,7 +602,7 @@ export default function LibraryPage() {
             </div>
           </div>
         )}
-        <TabsList className="mx-4 mt-2 justify-start">
+        <TabsList expandKey="library-tabs" className="mx-4 mt-2 justify-start">
           {visibleTabs.map((tab) => {
             const TabIcon = tab.icon_name ? getIcon(tab.icon_name) : FileText;
             return (

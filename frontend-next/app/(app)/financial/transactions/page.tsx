@@ -276,7 +276,7 @@ export default function FinancialTransactionsPage() {
 
   return (
     <TablePage>
-      <Tabs value={activeTab || "xero"} onValueChange={setActiveTab} className="flex flex-col h-full">
+      <Tabs expandKey="financial-transactions-tabs" value={activeTab || "xero"} onValueChange={setActiveTab} className="flex flex-col h-full">
         <div className="px-4 shrink-0">
           <TabsList className="mb-4">
             <TabsTrigger value="xero">Xero Bank Transactions</TabsTrigger>

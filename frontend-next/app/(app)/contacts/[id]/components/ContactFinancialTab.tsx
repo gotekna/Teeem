@@ -191,7 +191,7 @@ function XeroConnectionSubTabs({
   handleViewInvoiceDetail,
 }: XeroConnectionSubTabsProps) {
   return (
-    <Tabs value={activeSubTab} onValueChange={onSubTabChange}>
+    <Tabs expandKey="contact-financial-tabs" value={activeSubTab} onValueChange={onSubTabChange}>
       <TabsList className="mb-4">
         <TabsTrigger value="bank">
           <CreditCard className="h-3.5 w-3.5 mr-1" />

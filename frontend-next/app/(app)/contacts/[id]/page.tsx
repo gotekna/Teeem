@@ -1977,7 +1977,7 @@ export default function ContactDetailPage() {
       />
 
       {/* Tabs - SSoT: Rendered dynamically from EntityTabs database */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="contact-tabs" value={activeTab} onValueChange={handleTabChange}>
         <ContactTabsRenderer
           tabs={contactTabs}
           activeTab={activeTab}

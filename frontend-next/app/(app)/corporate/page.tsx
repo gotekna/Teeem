@@ -1352,7 +1352,7 @@ export default function CorporateDashboardPage() {
       </Card>
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+      <Tabs expandKey="corporate-tabs" value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-7 max-w-5xl">
           <TabsTrigger value="groups" className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />

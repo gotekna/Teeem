@@ -273,7 +273,7 @@ export default function SitePresenceDashboardPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab || "active"} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs expandKey="site-presence-tabs" value={activeTab || "active"} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="active" className="gap-2">
             <Play className="h-4 w-4" />

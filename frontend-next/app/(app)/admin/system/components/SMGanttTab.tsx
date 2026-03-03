@@ -190,7 +190,7 @@ export function SMGanttTab() {
         </Card>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs expandKey="sm-gantt-tabs" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="display">
             Display

@@ -335,7 +335,7 @@ export default function SaasCustomerDetailPage() {
       )}
 
       {/* Tabs */}
-      <Tabs value={activeTab || "billing"} onValueChange={setActiveTab}>
+      <Tabs expandKey="saas-customer-tabs" value={activeTab || "billing"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="billing">Billing History</TabsTrigger>
           <TabsTrigger value="tickets">

@@ -272,7 +272,7 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab || "overview"} onValueChange={setActiveTab}>
+      <Tabs expandKey="lead-detail-tabs" value={activeTab || "overview"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="contracts">Contracts</TabsTrigger>

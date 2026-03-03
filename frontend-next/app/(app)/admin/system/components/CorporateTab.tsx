@@ -1214,7 +1214,7 @@ export function CorporateTab({ subTab, basePath = DEFAULT_CORPORATE_BASE_PATH }:
         Manage company groups and corporate entities
       </p>
 
-      <Tabs value={activeSubTab} onValueChange={handleSubTabChange}>
+      <Tabs expandKey="admin-corporate-tabs" value={activeSubTab} onValueChange={handleSubTabChange}>
         <TabsList>
           {CORPORATE_SUB_TABS.map((tab) => (
               <TabsTrigger key={tab.id} value={tab.id}>

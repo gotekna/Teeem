@@ -324,7 +324,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs expandKey="developer-tools-tabs" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="w-full justify-start">
           <TabsTrigger value="tables">
             Database Tables

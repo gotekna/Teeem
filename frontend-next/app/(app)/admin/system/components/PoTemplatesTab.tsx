@@ -484,6 +484,7 @@ export function PoTemplatesTab() {
   return (
     <div className="flex flex-col h-full">
       <Tabs
+        expandKey="po-templates-tabs"
         value={subTab}
         onValueChange={(v) => {
           const tab = v as "templates" | "boq";

@@ -39,7 +39,7 @@ export default function DocumentsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs expandKey="settings-documents-tabs" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {DOCUMENT_TABS.map((tab) => (
             <TabsTrigger

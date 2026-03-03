@@ -227,7 +227,7 @@ function TablePageContent() {
     <TablePage>
       {/* Tabs (if configured) */}
       {uiConfig.tabs && uiConfig.tabs.length > 0 ? (
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col px-4">
+        <Tabs expandKey="slug-page-tabs" value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col px-4">
           <TabsList>
             {uiConfig.tabs.map((t) => (
               <TabsTrigger key={t.id} value={t.id}>

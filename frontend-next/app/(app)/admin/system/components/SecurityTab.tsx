@@ -900,7 +900,7 @@ export function SecurityTab({ subTab }: SecurityTabProps) {
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeSubTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="security-tabs" value={activeSubTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="roles">
             User Roles

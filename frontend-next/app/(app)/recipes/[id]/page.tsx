@@ -218,7 +218,7 @@ export default function RecipeDetailPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
-        <Tabs value={activeTab || "details"} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs expandKey="recipe-tabs" value={activeTab || "details"} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="items">

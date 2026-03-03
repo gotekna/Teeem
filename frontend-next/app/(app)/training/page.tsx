@@ -33,7 +33,7 @@ export default function TrainingPage() {
       title="Training Center"
       description="Courses and resources to help you get the most out of Teeem"
     >
-      <Tabs value={activeTab || "all"} onValueChange={setActiveTab}>
+      <Tabs expandKey="training-tabs" value={activeTab || "all"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="all">All Modules</TabsTrigger>
           <TabsTrigger value="required">Required</TabsTrigger>

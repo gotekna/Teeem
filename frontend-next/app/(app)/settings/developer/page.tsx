@@ -45,7 +45,7 @@ export default function DeveloperSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs expandKey="settings-developer-tabs" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {DEVELOPER_TABS.map((tab) => (
             <TabsTrigger

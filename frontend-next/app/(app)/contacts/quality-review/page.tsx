@@ -443,7 +443,7 @@ export default function ContactQualityReviewPage() {
       </div>
 
       {/* Tabs by Issue Type */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs expandKey="contact-quality-tabs" value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="all">
             All ({pendingCount})

@@ -47,7 +47,7 @@ export default function SystemSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs expandKey="settings-system-tabs" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {SYSTEM_TABS.map((tab) => (
             <TabsTrigger

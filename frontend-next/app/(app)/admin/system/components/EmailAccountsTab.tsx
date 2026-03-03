@@ -1633,6 +1633,7 @@ export function EmailAccountsTab({ subTab, basePath }: EmailAccountsTabProps = {
   return (
     <div className="space-y-6 pb-8">
       <Tabs
+        expandKey="email-accounts-tabs"
         value={(EMAIL_ACCOUNTS_SUB_TABS as readonly string[]).includes(subTab || "") ? subTab : "configuration"}
         onValueChange={(tabId) => {
           if (basePath) {

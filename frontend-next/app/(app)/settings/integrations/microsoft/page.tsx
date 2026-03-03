@@ -528,6 +528,7 @@ export default function MicrosoftIntegrationPage() {
 
       {/* Tabs */}
       <Tabs
+        expandKey="settings-microsoft-tabs"
         value={currentTab}
         onValueChange={(value) => {
           setUrlState({ tab: value === "organizations" ? null : value });

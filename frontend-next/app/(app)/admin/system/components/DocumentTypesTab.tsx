@@ -466,7 +466,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       </div>
 
       {/* Scope Filter Tabs */}
-      <Tabs value={scopeFilter} onValueChange={handleScopeChange} className="flex flex-col flex-1 min-h-0">
+      <Tabs expandKey="document-types-tabs" value={scopeFilter} onValueChange={handleScopeChange} className="flex flex-col flex-1 min-h-0">
         <TabsList className="grid w-full grid-cols-5 max-w-3xl shrink-0">
           <TabsTrigger value="all">
             All ({documentTypes.length})

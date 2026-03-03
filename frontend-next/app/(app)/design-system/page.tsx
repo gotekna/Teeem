@@ -233,7 +233,7 @@ export default function DesignSystemPage() {
       title="Teeem Design System"
       description="Component library and design guidelines for the Teeem construction management platform. Built with Next.js 15, React 19, Tailwind CSS, and shadcn/ui."
     >
-      <Tabs value={activeTab || "kanban"} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs expandKey="design-system-tabs" value={activeTab || "kanban"} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="kanban">Kanban & Pipeline</TabsTrigger>
           <TabsTrigger value="cards">Cards & Stats</TabsTrigger>
