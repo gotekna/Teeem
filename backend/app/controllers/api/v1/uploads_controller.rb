@@ -239,6 +239,7 @@ module Api
       end
 
       # SSoT: Uses WarehouseDocumentCreator.create_or_version! for auto-versioning
+      # Intent hierarchy for WFDT: explicit WFDT ID (user selection) > primary WFDT (smart default)
       def create_job_document(key, filename, content_type, file_size, metadata, provider)
         job_id = metadata[:job_id] || metadata["job_id"]
         job = Job.find_by(id: job_id)
@@ -255,6 +256,9 @@ module Api
 
         version_status = metadata[:version_status] || metadata["version_status"]
 
+        # User's explicit doc type selection takes precedence over folder's primary WFDT
+        wfdt_id = metadata[:warehouse_folder_document_type_id] || metadata["warehouse_folder_document_type_id"]
+
         doc = WarehouseDocumentCreator.create_or_version!(
           filename: filename,
           source_type: "job",
@@ -263,6 +267,7 @@ module Api
           file_size: file_size,
           content_type: content_type,
           warehouse_folder_id: metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"],
+          warehouse_folder_document_type_id: wfdt_id.presence&.to_i,
           expiry_date: parsed_expiry,
           metadata: {
             "document_type" => metadata[:document_type] || metadata["document_type"],

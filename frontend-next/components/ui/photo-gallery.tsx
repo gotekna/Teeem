@@ -1,17 +1,19 @@
 "use client";
 
 /**
- * PhotoGallery - Grid view for displaying photo thumbnails
+ * PhotoGallery - Grid & Filmstrip views for displaying photos
  *
- * THE ONE component for displaying photos in a grid layout.
+ * THE ONE component for displaying photos in a grid or filmstrip layout.
  * See: frontend-next/lib/component-registry.ts
  *
  * Features:
- * - CSS Grid layout (responsive)
+ * - Grid view: CSS Grid layout (responsive) with date grouping
+ * - Filmstrip view: Large main image + scrollable vertical thumbnail strip
+ * - View mode toggle (grid/filmstrip) with localStorage persistence
  * - Lazy loading images
- * - Optional date grouping
  * - Loading skeleton state
- * - Click to open lightbox
+ * - Click to open lightbox (grid) or navigate (filmstrip)
+ * - Keyboard navigation in filmstrip (arrow keys)
  *
  * Usage:
  * ```tsx
@@ -22,6 +24,8 @@
  *   onPhotoClick={(photo, index) => openLightbox(index)}
  *   groupByDate
  *   loading={isLoading}
+ *   viewMode="grid"
+ *   onViewModeChange={(mode) => setMode(mode)}
  * />
  * ```
  */
@@ -36,6 +40,10 @@ import {
   Download,
   ExternalLink,
   Mail,
+  LayoutGrid,
+  GalleryHorizontalEnd,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { getTodayAsString, getCompanyTimezone } from "@/lib/timezone-utils";
 import { Button } from "@/components/ui/button";
@@ -52,6 +60,8 @@ export interface PhotoItem {
   size?: number; // File size in bytes
   mimeType?: string; // e.g., "image/jpeg"
 }
+
+export type PhotoViewMode = "grid" | "filmstrip";
 
 export interface PhotoGalleryProps {
   /** Array of photos to display */
@@ -78,6 +88,12 @@ export interface PhotoGalleryProps {
   onSelectionChange?: (selectedIds: Set<string>) => void;
   /** Callback for actions on selected photos (e.g., delete, download) */
   onSelectionAction?: (action: string, selectedPhotos: PhotoItem[]) => void;
+  /** View mode: "grid" (default) or "filmstrip" */
+  viewMode?: PhotoViewMode;
+  /** Callback when view mode changes (parent controls persistence) */
+  onViewModeChange?: (mode: PhotoViewMode) => void;
+  /** Show view mode toggle buttons */
+  showViewToggle?: boolean;
 }
 
 // Skeleton loader for loading state
@@ -337,6 +353,321 @@ function groupPhotosByDate(photos: PhotoItem[]): Map<string, PhotoItem[]> {
   );
 }
 
+// View mode toggle buttons
+function ViewModeToggle({
+  viewMode,
+  onChange,
+}: {
+  viewMode: PhotoViewMode;
+  onChange: (mode: PhotoViewMode) => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+      <Button
+        variant={viewMode === "grid" ? "default" : "ghost"}
+        size="icon"
+        className="h-7 w-7"
+        onClick={() => onChange("grid")}
+        title="Grid view"
+      >
+        <LayoutGrid className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        variant={viewMode === "filmstrip" ? "default" : "ghost"}
+        size="icon"
+        className="h-7 w-7"
+        onClick={() => onChange("filmstrip")}
+        title="Filmstrip view"
+      >
+        <GalleryHorizontalEnd className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+// Filmstrip thumbnail in the side strip
+function FilmstripThumb({
+  photo,
+  isActive,
+  onClick,
+}: {
+  photo: PhotoItem;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const [loaded, setLoaded] = React.useState(false);
+  const [error, setError] = React.useState(false);
+  const [useFallback, setUseFallback] = React.useState(false);
+
+  const thumbnailSrc = useFallback
+    ? photo.url
+    : (photo.thumbnailUrl || photo.url);
+
+  const handleError = () => {
+    if (!useFallback && photo.thumbnailUrl && photo.url && photo.thumbnailUrl !== photo.url) {
+      setUseFallback(true);
+      setLoaded(false);
+    } else {
+      setError(true);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "relative w-full aspect-square overflow-hidden shrink-0",
+        "transition-all duration-200 cursor-pointer",
+        "focus:outline-none focus:ring-2 focus:ring-primary",
+        isActive
+          ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
+          : "opacity-60 hover:opacity-90"
+      )}
+      title={photo.name}
+    >
+      {!loaded && !error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+          <Spinner size={16} className="text-muted-foreground" />
+        </div>
+      )}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground">
+          <ImageIcon className="h-5 w-5" />
+        </div>
+      )}
+      {!error && (
+        <img
+          src={thumbnailSrc}
+          alt={photo.name}
+          loading="lazy"
+          crossOrigin="anonymous"
+          onLoad={() => setLoaded(true)}
+          onError={handleError}
+          className={cn(
+            "h-full w-full object-cover",
+            "transition-opacity duration-300",
+            loaded ? "opacity-100" : "opacity-0"
+          )}
+        />
+      )}
+    </button>
+  );
+}
+
+// Filmstrip view: vertical thumbnail strip on left, large main image on right
+function FilmstripView({
+  photos,
+  onPhotoClick,
+  onDownloadPhoto,
+}: {
+  photos: PhotoItem[];
+  onPhotoClick?: (photo: PhotoItem, index: number) => void;
+  onDownloadPhoto?: (photo: PhotoItem) => void;
+}) {
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const stripRef = React.useRef<HTMLDivElement>(null);
+  const activeThumbRef = React.useRef<HTMLDivElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Main image state
+  const [mainLoaded, setMainLoaded] = React.useState(false);
+  const [mainError, setMainError] = React.useState(false);
+  const [mainUseFallback, setMainUseFallback] = React.useState(false);
+
+  const currentPhoto = photos[activeIndex];
+
+  // Reset main image state when active photo changes
+  React.useEffect(() => {
+    setMainLoaded(false);
+    setMainError(false);
+    setMainUseFallback(false);
+  }, [activeIndex]);
+
+  // Scroll active thumbnail into view
+  React.useEffect(() => {
+    if (activeThumbRef.current && stripRef.current) {
+      activeThumbRef.current.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
+  }, [activeIndex]);
+
+  // Keyboard navigation
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!containerRef.current?.contains(document.activeElement) &&
+          document.activeElement !== document.body) return;
+
+      if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        setActiveIndex((prev) => (prev > 0 ? prev - 1 : photos.length - 1));
+      } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setActiveIndex((prev) => (prev < photos.length - 1 ? prev + 1 : 0));
+      } else if (e.key === "Enter" && onPhotoClick && currentPhoto) {
+        e.preventDefault();
+        onPhotoClick(currentPhoto, activeIndex);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [photos.length, activeIndex, currentPhoto, onPhotoClick]);
+
+  const mainSrc = mainUseFallback
+    ? currentPhoto?.url
+    : (currentPhoto?.url || "");
+
+  const handleMainError = () => {
+    if (!mainUseFallback && currentPhoto?.thumbnailUrl && currentPhoto?.url && currentPhoto.thumbnailUrl !== currentPhoto.url) {
+      setMainUseFallback(true);
+      setMainLoaded(false);
+    } else {
+      setMainError(true);
+    }
+  };
+
+  const goToPrev = () => {
+    setActiveIndex((prev) => (prev > 0 ? prev - 1 : photos.length - 1));
+  };
+
+  const goToNext = () => {
+    setActiveIndex((prev) => (prev < photos.length - 1 ? prev + 1 : 0));
+  };
+
+  if (!currentPhoto) return null;
+
+  return (
+    <div ref={containerRef} className="flex gap-3 h-full min-h-[400px]" tabIndex={0}>
+      {/* Thumbnail strip */}
+      <div
+        ref={stripRef}
+        className="w-[100px] shrink-0 overflow-y-auto flex flex-col gap-1.5 pr-1 scrollbar-thin"
+      >
+        {photos.map((photo, index) => (
+          <div
+            key={photo.id}
+            ref={index === activeIndex ? activeThumbRef : undefined}
+          >
+            <FilmstripThumb
+              photo={photo}
+              isActive={index === activeIndex}
+              onClick={() => setActiveIndex(index)}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Main image area */}
+      <div className="flex-1 min-w-0 flex flex-col relative">
+        {/* Photo info bar */}
+        <div className="flex items-center justify-between mb-2 shrink-0">
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{currentPhoto.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {activeIndex + 1} of {photos.length}
+            </p>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {onDownloadPhoto && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onDownloadPhoto(currentPhoto)}
+                title="Open document"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            )}
+            {onPhotoClick && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPhotoClick(currentPhoto, activeIndex)}
+                title="Open fullscreen"
+              >
+                <ImageIcon className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Main image container */}
+        <div
+          className="flex-1 min-h-0 flex items-center justify-center bg-muted/30 rounded-lg relative overflow-hidden cursor-pointer"
+          onClick={() => onPhotoClick?.(currentPhoto, activeIndex)}
+        >
+          {/* Navigation arrows */}
+          {photos.length > 1 && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute left-2 z-10 h-9 w-9 bg-background/80 hover:bg-background rounded-full shadow-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToPrev();
+                }}
+                title="Previous"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 z-10 h-9 w-9 bg-background/80 hover:bg-background rounded-full shadow-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToNext();
+                }}
+                title="Next"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </>
+          )}
+
+          {/* Loading */}
+          {!mainLoaded && !mainError && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Spinner size={32} className="text-muted-foreground" />
+            </div>
+          )}
+
+          {/* Error state */}
+          {mainError && (
+            <div className="flex flex-col items-center justify-center text-muted-foreground py-12">
+              <ImageIcon className="h-16 w-16 mb-2" />
+              <p className="text-sm">Failed to load image</p>
+            </div>
+          )}
+
+          {/* Main image */}
+          {!mainError && (
+            <img
+              key={currentPhoto.id}
+              src={mainSrc}
+              alt={currentPhoto.name}
+              crossOrigin="anonymous"
+              onLoad={() => setMainLoaded(true)}
+              onError={handleMainError}
+              className={cn(
+                "max-h-full max-w-full object-contain",
+                "transition-opacity duration-300",
+                mainLoaded ? "opacity-100" : "opacity-0"
+              )}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PhotoGallery({
   photos,
   onPhotoClick,
@@ -350,6 +681,9 @@ export function PhotoGallery({
   selectedIds,
   onSelectionChange,
   onSelectionAction,
+  viewMode = "grid",
+  onViewModeChange,
+  showViewToggle = false,
 }: PhotoGalleryProps) {
   // Internal selection state if not controlled
   const [internalSelectedIds, setInternalSelectedIds] = React.useState<Set<string>>(new Set());
@@ -413,10 +747,21 @@ export function PhotoGallery({
     return photos.filter(p => effectiveSelectedIds.has(p.id));
   };
 
+  // View toggle helper
+  const renderViewToggle = () => {
+    if (!showViewToggle || !onViewModeChange) return null;
+    return (
+      <div className="flex justify-end mb-3">
+        <ViewModeToggle viewMode={viewMode} onChange={onViewModeChange} />
+      </div>
+    );
+  };
+
   // Loading state
   if (loading) {
     return (
       <div className={cn("space-y-4", className)}>
+        {renderViewToggle()}
         <div className="flex flex-wrap gap-2">
           {Array.from({ length: 12 }).map((_, i) => (
             <PhotoSkeleton key={i} size={thumbnailSize} />
@@ -435,8 +780,25 @@ export function PhotoGallery({
           className
         )}
       >
+        {renderViewToggle()}
         <ImageIcon className="h-12 w-12 text-muted-foreground mb-3" />
         <p className="text-muted-foreground">{emptyMessage}</p>
+      </div>
+    );
+  }
+
+  // Filmstrip view (no selection support - filmstrip is a browsing mode)
+  if (viewMode === "filmstrip") {
+    return (
+      <div className={cn("flex flex-col h-full", className)}>
+        {renderViewToggle()}
+        <div className="flex-1 min-h-0">
+          <FilmstripView
+            photos={photos}
+            onPhotoClick={onPhotoClick}
+            onDownloadPhoto={onDownloadPhoto}
+          />
+        </div>
       </div>
     );
   }
@@ -516,6 +878,7 @@ export function PhotoGallery({
 
     return (
       <div className={cn("space-y-6", className)}>
+        {renderViewToggle()}
         <SelectionToolbar />
         {[...groupedPhotos.entries()].map(([dateKey, groupPhotos]) => (
           <div key={dateKey}>
@@ -552,6 +915,7 @@ export function PhotoGallery({
   // Flat grid view
   return (
     <div className={cn("space-y-4", className)}>
+      {renderViewToggle()}
       <SelectionToolbar />
       <div className="flex flex-wrap gap-2">
         {photos.map((photo, index) => (

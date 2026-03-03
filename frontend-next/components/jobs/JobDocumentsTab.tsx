@@ -45,8 +45,9 @@ import {
   ChevronDown,
   Layers,
 } from "lucide-react";
-import { PhotoGallery, type PhotoItem } from "@/components/ui/photo-gallery";
+import { PhotoGallery, type PhotoItem, type PhotoViewMode } from "@/components/ui/photo-gallery";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
+import { ExpandButton, ExpandableSection, useExpandedState } from "@/components/ui/expandable-section";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
@@ -297,6 +299,19 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Category photo lightbox state
   const [categoryLightboxOpen, setCategoryLightboxOpen] = useState(false);
   const [categoryLightboxIndex, setCategoryLightboxIndex] = useState(0);
+
+  // Photo view mode (grid/filmstrip) - persisted in localStorage
+  const [photoViewMode, setPhotoViewMode] = useState<PhotoViewMode>(() => {
+    if (typeof window === "undefined") return "grid";
+    return (localStorage.getItem("teeem-photo-view-mode") as PhotoViewMode) || "grid";
+  });
+  const handlePhotoViewModeChange = useCallback((mode: PhotoViewMode) => {
+    setPhotoViewMode(mode);
+    localStorage.setItem("teeem-photo-view-mode", mode);
+  }, []);
+
+  // Expand state for photo gallery fullscreen
+  const [photoExpanded, togglePhotoExpanded] = useExpandedState("job-photos");
 
   // Version grouping state (Draft/Signed document versioning)
   const [expandedVersionGroups, setExpandedVersionGroups] = useState<Set<string>>(new Set());
@@ -1629,7 +1644,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   {isPhotoCategory(activeCategory) && (
                     <div className="flex items-center gap-2">
                       {/* Select button - toggle multi-select mode */}
-                      {categoryPhotoItems.length > 0 && (
+                      {categoryPhotoItems.length > 0 && photoViewMode !== "filmstrip" && (
                         <Button
                           size="sm"
                           variant={selectMode ? "default" : "outline"}
@@ -1712,6 +1727,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           SharePoint
                         </Button>
                       )}
+                      {/* Expand button */}
+                      <ExpandButton expanded={photoExpanded} onToggle={togglePhotoExpanded} />
                     </div>
                   )}
                 </div>
@@ -1719,31 +1736,37 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               <CardContent className="p-0">
                 {/* Show Photo Gallery for photo categories (SSoT: uses tab_type='photo') */}
                 {isPhotoCategory(activeCategory) ? (
-                  <div className="p-4">
-                    {loadingAllFiles ? (
-                      <PhotoGallery photos={[]} loading={true} />
-                    ) : categoryPhotoItems.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-12 text-center">
-                        <Camera className="h-12 w-12 text-muted-foreground mb-3" />
-                        <p className="text-muted-foreground">No photos in this folder yet</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Use the "Add Photo" button to upload photos
-                        </p>
-                      </div>
-                    ) : (
-                      <PhotoGallery
-                        photos={categoryPhotoItems}
-                        onPhotoClick={selectMode ? undefined : handleCategoryPhotoClick}
-                        onDownloadPhoto={selectMode ? undefined : handleOpenPhotoDocument}
-                        groupByDate
-                        thumbnailSize="lg"
-                        selectable={selectMode}
-                        selectedIds={selectedPhotoIds}
-                        onSelectionChange={setSelectedPhotoIds}
-                        onSelectionAction={handleSelectionAction}
-                      />
-                    )}
-                  </div>
+                  <ExpandableSection expanded={photoExpanded} onToggle={togglePhotoExpanded}>
+                    <div className={cn("p-4", photoExpanded && "h-full flex flex-col")}>
+                      {loadingAllFiles ? (
+                        <PhotoGallery photos={[]} loading={true} />
+                      ) : categoryPhotoItems.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <Camera className="h-12 w-12 text-muted-foreground mb-3" />
+                          <p className="text-muted-foreground">No photos in this folder yet</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Use the "Add Photo" button to upload photos
+                          </p>
+                        </div>
+                      ) : (
+                        <PhotoGallery
+                          photos={categoryPhotoItems}
+                          onPhotoClick={selectMode ? undefined : handleCategoryPhotoClick}
+                          onDownloadPhoto={selectMode ? undefined : handleOpenPhotoDocument}
+                          groupByDate={photoViewMode === "grid"}
+                          thumbnailSize="lg"
+                          selectable={selectMode}
+                          selectedIds={selectedPhotoIds}
+                          onSelectionChange={setSelectedPhotoIds}
+                          onSelectionAction={handleSelectionAction}
+                          viewMode={photoViewMode}
+                          onViewModeChange={handlePhotoViewModeChange}
+                          showViewToggle
+                          className={photoExpanded ? "flex-1" : undefined}
+                        />
+                      )}
+                    </div>
+                  </ExpandableSection>
                 ) : loadingAllFiles ? (
                   <div className="py-12 text-center">
                     <Spinner size={32} className="mx-auto mb-3" />

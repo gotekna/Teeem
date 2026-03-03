@@ -65,7 +65,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
   // Upload dialog state
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [selectedDocType, setSelectedDocType] = useState("");
+  const [selectedWfdtId, setSelectedWfdtId] = useState<string>("");
   const [signingStatus, setSigningStatus] = useState<"draft" | "signed">("draft");
   const [executedDate, setExecutedDate] = useState<Date | undefined>(undefined);
   const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
@@ -100,8 +100,8 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
 
   // Detect if selected doc type needs signing status or special date fields
   const selectedDocTypeObj = React.useMemo(
-    () => warehouseFolder.document_types?.find(d => d.name === selectedDocType),
-    [warehouseFolder.document_types, selectedDocType]
+    () => warehouseFolder.document_types?.find(d => String(d.id) === selectedWfdtId),
+    [warehouseFolder.document_types, selectedWfdtId]
   );
 
   const needsSigningStatus = selectedDocTypeObj?.tracks_signing_status || false;
@@ -156,7 +156,8 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
     setPendingFiles(Array.from(files));
     setPreviewFileIndex(0);
     const docTypes = warehouseFolder.document_types || [];
-    setSelectedDocType(docTypes.length > 0 ? docTypes[0].name : "");
+    const primary = docTypes.find(dt => dt.is_primary) || docTypes[0];
+    setSelectedWfdtId(primary ? String(primary.id) : "");
     setUploadDialogOpen(true);
 
     if (fileInputRef.current) {
@@ -178,7 +179,8 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
           metadata: {
             job_id: jobId,
             warehouse_folder_id: warehouseFolder.id,
-            document_type: selectedDocType || undefined,
+            warehouse_folder_document_type_id: selectedWfdtId || undefined,
+            document_type: selectedDocTypeObj?.name || undefined,
             version_status: needsSigningStatus ? signingStatus : undefined,
             executed_date: executedDate ? executedDate.toISOString().split("T")[0] : undefined,
             expiry_date: expiryDate ? expiryDate.toISOString().split("T")[0] : undefined,
@@ -210,7 +212,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
       setUploading(false);
       setPendingFiles([]);
     }
-  }, [pendingFiles, jobId, warehouseFolder.id, selectedDocType, needsSigningStatus, signingStatus, executedDate, expiryDate, fetchDocuments, toast]);
+  }, [pendingFiles, jobId, warehouseFolder.id, selectedWfdtId, selectedDocTypeObj, needsSigningStatus, signingStatus, executedDate, expiryDate, fetchDocuments, toast]);
 
   // Delete
   const handleDelete = useCallback(async (doc: LibraryDocument, e: React.MouseEvent) => {
@@ -301,7 +303,8 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
     setPendingFiles(Array.from(files));
     setPreviewFileIndex(0);
     const docTypes = warehouseFolder.document_types || [];
-    setSelectedDocType(docTypes.length > 0 ? docTypes[0].name : "");
+    const primary = docTypes.find(dt => dt.is_primary) || docTypes[0];
+    setSelectedWfdtId(primary ? String(primary.id) : "");
     setUploadDialogOpen(true);
   }, [warehouseFolder.document_types]);
 
@@ -463,17 +466,17 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
                 </div>
               </div>
 
-              {/* Document type */}
+              {/* Document type — value is WFDT ID (SSoT for backend naming) */}
               {(warehouseFolder.document_types?.length ?? 0) > 0 && (
                 <div className="space-y-1.5">
                   <Label htmlFor="job-doc-type-select">Document Type</Label>
-                  <Select value={selectedDocType} onValueChange={setSelectedDocType}>
+                  <Select value={selectedWfdtId} onValueChange={setSelectedWfdtId}>
                     <SelectTrigger id="job-doc-type-select">
                       <SelectValue placeholder="Select document type..." />
                     </SelectTrigger>
                     <SelectContent>
                       {warehouseFolder.document_types?.map((dt) => (
-                        <SelectItem key={dt.id} value={dt.name}>
+                        <SelectItem key={dt.id} value={String(dt.id)}>
                           {dt.name}
                         </SelectItem>
                       ))}
