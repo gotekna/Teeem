@@ -21,6 +21,7 @@ module ConfigSyncable
 
     before_validation :generate_sync_key, on: :create, if: -> { respond_to?(:sync_key) && sync_key.blank? }
     before_save :set_record_updated_at, if: -> { respond_to?(:record_updated_at=) }
+    after_destroy :record_sync_deletion_tombstone, if: -> { respond_to?(:sync_key) && sync_key.present? }
   end
 
   # Generate a stable, slugified key from source field(s).
@@ -36,6 +37,22 @@ module ConfigSyncable
   end
 
   private
+
+  # Write a tombstone so cascade sync can propagate this deletion to TEEEM and all tenants.
+  # Without this, cascade sync would re-import the deleted record from TEEEM.
+  def record_sync_deletion_tombstone
+    current = ActsAsTenant.current_tenant
+    return unless current
+
+    ConfigSyncDeletion.create!(
+      tenant_id: current.id,
+      model_type: self.class.name,
+      sync_key: sync_key,
+      deleted_at: Time.current
+    )
+  rescue => e
+    Rails.logger.warn "[ConfigSyncable] Failed to write tombstone for #{self.class.name}##{id} sync_key=#{sync_key}: #{e.message}"
+  end
 
   # ⚠️ DO NOT SIMPLIFY - Bidirectional sync timestamp propagation (2026-03-03)
   # ════════════════════════════════════════════════════════════════════════════

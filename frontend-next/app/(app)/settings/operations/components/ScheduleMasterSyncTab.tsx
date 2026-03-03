@@ -127,6 +127,9 @@ export function ScheduleMasterSyncTab() {
 
   // Sync state
   const [syncing, setSyncing] = useState(false);
+  const [cascading, setCascading] = useState(false);
+  type CascadeTableResult = { imported: number; updated: number; skipped: number; deleted_orphans?: number };
+  const [cascadeResults, setCascadeResults] = useState<Record<string, Record<string, CascadeTableResult>>>({});
   const [tableStatus, setTableStatus] = useState<Record<TableKey, TableSyncStatus>>({} as Record<TableKey, TableSyncStatus>);
   const [tableResults, setTableResults] = useState<Record<TableKey, TableResult>>({} as Record<TableKey, TableResult>);
   const [currentTableIndex, setCurrentTableIndex] = useState(-1);
@@ -533,6 +536,61 @@ export function ScheduleMasterSyncTab() {
     setBatchProgress(null);
     setSyncing(false);
     setSyncComplete(true);
+  };
+
+  // Cascade Sync All: Phase 1 (Tekna → TEEEM) then Phase 2 (TEEEM → all customers)
+  // Includes delete propagation: tombstones processed + orphan cleanup per table
+  const handleCascadeSync = async () => {
+    setCascading(true);
+    setCascadeResults({});
+    setError(null);
+
+    // Phase 1: Pull source tenant → TEEEM (reuses existing per-table loop)
+    const initialStatus = {} as Record<TableKey, TableSyncStatus>;
+    SM_SYNC_TABLES.forEach((t) => { initialStatus[t.key] = "pending"; });
+    setTableStatus(initialStatus);
+    setTableResults({} as Record<TableKey, TableResult>);
+
+    for (let i = 0; i < SM_SYNC_TABLES.length; i++) {
+      const table = SM_SYNC_TABLES[i];
+      setCurrentTableIndex(i);
+      setBatchProgress(null);
+      const mode = getTableMode(table.key, table.defaultMode);
+      if (mode === "independent") {
+        setTableStatus((prev) => ({ ...prev, [table.key]: "skipped" }));
+        continue;
+      }
+      setTableStatus((prev) => ({ ...prev, [table.key]: "syncing" }));
+      try {
+        const result = await pullOneTable(table.key);
+        setTableResults((prev) => ({ ...prev, [table.key]: result }));
+        setTableStatus((prev) => ({ ...prev, [table.key]: result.error ? "error" : result.imported > 0 || result.updated > 0 ? "done" : "skipped" }));
+      } catch (err) {
+        setTableStatus((prev) => ({ ...prev, [table.key]: "error" }));
+      }
+    }
+
+    // Phase 2: Push TEEEM → all customer tenants (with orphan cleanup + tombstone processing)
+    for (const table of SM_SYNC_TABLES) {
+      const mode = getTableMode(table.key, table.defaultMode);
+      if (mode === "independent") continue;
+
+      const res = await api.post<{
+        success: boolean;
+        table: string;
+        results?: Record<string, CascadeTableResult>;
+        error?: string;
+      }>("/api/v1/config_sync/cascade_push_table", { table: table.key });
+
+      if (res?.results) {
+        setCascadeResults((prev) => ({ ...prev, [table.key]: res.results! }));
+      }
+    }
+
+    setCurrentTableIndex(-1);
+    setBatchProgress(null);
+    setCascading(false);
+    await fetchCounts();
   };
 
   // Compare mode: fetch diff for a table
@@ -1146,7 +1204,7 @@ export function ScheduleMasterSyncTab() {
             </div>
             <Button
               onClick={handleSync}
-              disabled={syncing || (isMasterTenant && !selectedSourceId)}
+              disabled={syncing || cascading || (isMasterTenant && !selectedSourceId)}
               size="default"
             >
               {syncing ? (
@@ -1161,6 +1219,31 @@ export function ScheduleMasterSyncTab() {
                 </>
               )}
             </Button>
+            {isMasterTenant && (
+              <div className="flex flex-col items-end gap-0.5">
+                <Button
+                  onClick={handleCascadeSync}
+                  disabled={cascading || syncing || !selectedSourceId}
+                  variant="default"
+                  size="default"
+                >
+                  {cascading ? (
+                    <>
+                      <Spinner className="h-4 w-4 mr-2" />
+                      Cascading...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Cascade Sync All
+                    </>
+                  )}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {sourceTenant?.name || "Tenant"} → TEEEM → all customers
+                </span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

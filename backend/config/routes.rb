@@ -490,7 +490,8 @@ Rails.application.routes.draw do
           post :push  # TEEEM staff only - push records to master
           post :auto_sync_compulsory  # Auto-sync all compulsory records from master
           post :pull_all  # Fresh pull of ALL records from ALL tables
-          post :pull_one_table  # Pull a single table (for live progress)
+          post :pull_one_table     # Pull a single table (for live progress)
+          post :cascade_push_table # TEEEM only — push one table to all customer tenants + orphan cleanup
           post :record_sync  # Record that a full sync was performed
           get "diff_all/:table", action: :diff_all  # Compare table across ALL tenants
           post :apply_winners  # Push winner selections to all tenants

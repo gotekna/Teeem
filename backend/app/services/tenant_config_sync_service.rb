@@ -2272,4 +2272,39 @@ class TenantConfigSyncService
   rescue => e
     { created: false, reason: e.message }
   end
+
+  # ============================================================================
+  # Delete Propagation: orphan cleanup + tombstone processing
+  # ============================================================================
+
+  # Delete records in the current tenant whose sync_key no longer exists in TEEEM master.
+  #
+  # Called after pull_from_master (two_way/one_way tables only) so that records
+  # deleted from TEEEM are also removed from the tenant.
+  #
+  # Returns { deleted: N }
+  def delete_orphaned_from_master(table:)
+    config = CONFIG_TABLES[table.to_sym]
+    return { deleted: 0 } unless config
+
+    model = config[:model].constantize
+    return { deleted: 0 } unless model.column_names.include?("sync_key")
+
+    master = master_tenant
+    return { deleted: 0 } unless master
+
+    master_sync_keys = ActsAsTenant.with_tenant(master) do
+      base = config[:scope] ? model.instance_exec(&config[:scope]) : model.all
+      base.where.not(sync_key: [nil, ""]).pluck(:sync_key)
+    end
+
+    deleted = ActsAsTenant.with_tenant(tenant) do
+      base = config[:scope] ? model.instance_exec(&config[:scope]) : model.all
+      base.where.not(sync_key: [nil, ""])
+          .where.not(sync_key: master_sync_keys)
+          .delete_all
+    end
+
+    { deleted: deleted }
+  end
 end

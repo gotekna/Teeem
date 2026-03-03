@@ -463,6 +463,15 @@ module Api
             pushed_count = push_result[:pushed] || 0
           end
 
+          # ── Orphan cleanup: delete local records no longer in TEEEM (on last batch) ──
+          # Handles records deleted from master propagating down on regular sync.
+          # Applies to two_way and one_way tables (independent = tenant manages its own).
+          deleted_orphans = 0
+          if !has_more && table_mode(table).in?(%w[two_way one_way])
+            orphan_result = service.delete_orphaned_from_master(table: table.to_s)
+            deleted_orphans = orphan_result[:deleted]
+          end
+
           # Record per-table sync timestamp (only on last batch or single batch)
           record_table_sync(table, imported: imported_count, updated: updated_count, skipped: skipped_count) unless has_more
 
@@ -472,6 +481,7 @@ module Api
             updated: updated_count,
             skipped: skipped_count,
             pushed: pushed_count,
+            deleted_orphans: deleted_orphans,
             total: batch_ids.length,
             total_records: total_records,
             has_more: has_more,
@@ -907,6 +917,109 @@ module Api
         render json: { success: true, modes: modes, cascaded: cascaded, cascade_error: cascade_error }
       end
 
+      # POST /api/v1/config_sync/cascade_push_table
+      # TEEEM master only — push one table from TEEEM to ALL customer tenants.
+      #
+      # Phase 1 of cascade sync (Tekna → TEEEM) is done by the frontend via pull_one_table.
+      # This endpoint handles Phase 2: TEEEM → all customers, including:
+      #   1. Apply tombstones: propagate deletes from any tenant to TEEEM + all customers
+      #   2. Push records: import/update TEEEM records into each customer
+      #   3. Orphan cleanup: delete customer records with sync_key no longer in TEEEM
+      #
+      # Only applies to two_way and one_way tables (independent tables are skipped).
+      def cascade_push_table
+        return render json: { error: "Master tenant only" }, status: :forbidden unless current_tenant&.is_master_tenant?
+
+        table     = params[:table].to_sym
+        table_config = TenantConfigSyncService::CONFIG_TABLES[table]
+        return render json: { error: "Unknown table: #{params[:table]}" }, status: :bad_request unless table_config
+
+        model     = table_config[:model].constantize
+        mode      = (params[:mode] || "replace_existing").to_sym
+        customer_tenants = Tenant.where(is_master_tenant: false).to_a
+
+        # ── Step 1: Apply tombstones from ALL tenants ──────────────────────────────────
+        # Collect all pending deletions for this model type across all customer tenants.
+        # Delete from TEEEM first, then from every other tenant, then mark propagated.
+        tombstone_results = {}
+        pending_tombstones = ConfigSyncDeletion.where(
+          tenant_id: customer_tenants.map(&:id),
+          model_type: table_config[:model],
+          propagated_at: nil
+        ).to_a
+
+        if pending_tombstones.any?
+          sync_keys_to_delete = pending_tombstones.map(&:sync_key).uniq
+
+          # Delete from TEEEM master
+          deleted_from_master = ActsAsTenant.with_tenant(current_tenant) do
+            model.where(sync_key: sync_keys_to_delete).delete_all
+          end
+          tombstone_results[:deleted_from_master] = deleted_from_master
+
+          # Delete from each customer tenant
+          customer_tenants.each do |t|
+            deleted = ActsAsTenant.with_tenant(t) do
+              model.where(sync_key: sync_keys_to_delete).delete_all
+            end
+            tombstone_results[t.slug] ||= {}
+            tombstone_results[t.slug][:tombstone_deleted] = deleted
+          end
+
+          # Mark propagated
+          ConfigSyncDeletion.where(id: pending_tombstones.map(&:id))
+                            .update_all(propagated_at: Time.current)
+        end
+
+        # ── Step 2 + 3: Push + orphan cleanup per customer tenant ─────────────────────
+        # Get current TEEEM record IDs and sync_keys (after tombstone cleanup above).
+        master_record_ids = ActsAsTenant.with_tenant(current_tenant) do
+          scoped_query(model, table_config).pluck(:id)
+        end
+
+        master_sync_keys = ActsAsTenant.with_tenant(current_tenant) do
+          base = table_config[:scope] ? model.instance_exec(&table_config[:scope]) : model.all
+          base.where.not(sync_key: [nil, ""]).pluck(:sync_key)
+        end
+
+        results = {}
+        customer_tenants.each do |t|
+          # Skip if this customer has the table set to independent
+          t_mode = table_mode(table, t)
+          if t_mode == "independent"
+            results[t.slug] = { skipped: true, reason: "independent mode" }
+            next
+          end
+
+          svc = TenantConfigSyncService.new(t)
+
+          # Push: import/update TEEEM records into customer
+          pull_mode = t_mode == "two_way" ? :add_new : mode
+          push_result = master_record_ids.empty? ? { imported: [], updated: [], skipped: [] } :
+            svc.pull_from_master(table: table.to_s, record_ids: master_record_ids, mode: pull_mode)
+
+          # Orphan cleanup: delete customer records with sync_key not in TEEEM
+          orphan_result = master_sync_keys.any? ? svc.delete_orphaned_from_master(table: table) : { deleted: 0 }
+
+          results[t.slug] = {
+            imported:        push_result[:imported]&.length || 0,
+            updated:         push_result[:updated]&.length  || 0,
+            skipped:         push_result[:skipped]&.length  || 0,
+            deleted_orphans: orphan_result[:deleted]
+          }
+          results[t.slug].merge!(tombstone_results[t.slug] || {})
+        end
+
+        render json: {
+          success: true,
+          table: table.to_s,
+          tombstones: tombstone_results,
+          results: results
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
       private
 
       # Filter out master record IDs that correspond to tenant records set to "independent"
@@ -1152,8 +1265,9 @@ module Api
       end
 
       # Get the sync mode for a single table (from tenant's config_sync_table_modes)
-      def table_mode(table_key)
-        (current_tenant&.tenant_setting&.config_sync_table_modes || {})[table_key.to_s]
+      # Pass an explicit tenant to check another tenant's preference (used in cascade_push_table).
+      def table_mode(table_key, for_tenant = current_tenant)
+        (for_tenant&.tenant_setting&.config_sync_table_modes || {})[table_key.to_s]
       end
 
       # Compute sync coverage per table: linked (match in master) vs local_only vs master_only
