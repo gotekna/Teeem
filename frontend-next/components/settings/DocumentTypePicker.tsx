@@ -1,20 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Paperclip } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { ComboboxDropdownMulti } from "@/components/ui/combobox-dropdown-multi";
 import type { ComboboxItem, ComboboxGroup } from "@/components/ui/combobox-dropdown";
-import { api } from "@/lib/api";
-
-interface DocTypeRaw {
-  id: number;
-  name: string;
-  folder?: string | null;
-  scope?: string | null;
-}
+import { useDocumentTypes, type DocumentTypeSelect } from "@/lib/hooks/useDocumentTypes";
 
 type ScopeFilter = "all" | "job" | "company" | "contacts" | "library";
 
@@ -32,7 +25,7 @@ interface DocumentTypePickerProps {
   /** Called when selection changes */
   onChange: (types: string[]) => void;
   /** Optional pre-loaded document types (skips API fetch if provided) */
-  documentTypes?: DocTypeRaw[];
+  documentTypes?: DocumentTypeSelect[];
   /** Label text (defaults to "Attach Document Types") */
   label?: string;
   /** Default scope filter (defaults to "job") */
@@ -57,35 +50,9 @@ export function DocumentTypePicker({
   defaultScope = "job",
   showScopeTabs = true,
 }: DocumentTypePickerProps) {
-  const [allDocTypes, setAllDocTypes] = useState<DocTypeRaw[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { documentTypes: fetchedDocTypes, loading } = useDocumentTypes({ skip: !!externalDocTypes });
+  const allDocTypes = externalDocTypes || fetchedDocTypes;
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>(defaultScope);
-
-  // Load all document types (no scope filter - filter client-side)
-  useEffect(() => {
-    if (externalDocTypes) {
-      setAllDocTypes(externalDocTypes);
-      setLoaded(true);
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.get<{
-          success: boolean;
-          data: DocTypeRaw[];
-        }>("/api/v1/document_types");
-        if (!cancelled) {
-          setAllDocTypes(res?.data || []);
-          setLoaded(true);
-        }
-      } catch (err) {
-        console.error("[DocumentTypePicker] Failed to load document types:", err);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [externalDocTypes]);
 
   // Filter by scope
   const filteredDocTypes = useMemo(() => {
@@ -122,7 +89,7 @@ export function DocumentTypePicker({
     [selected]
   );
 
-  if (!loaded) return null;
+  if (loading && !externalDocTypes) return null;
 
   return (
     <div className="space-y-1.5">

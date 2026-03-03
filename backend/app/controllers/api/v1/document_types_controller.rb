@@ -11,13 +11,26 @@ module Api
       # SSoT: Include join table to ensure is_primary flag is available
       # SSoT (Feb 2026): Use warehouse_folder_document_types/warehouse_folder
       def index
-        # Fast path: ?for=select returns lightweight id/name only (1 query, ~20ms)
-        # Used by WarehouseFoldersConfig picker which only needs id+name
+        # Fast path: ?for=select returns lightweight picker data (1 query, ~20ms)
+        # vs full serialization (1081 queries, 1375ms, 32KB response)
+        # Used by: DocumentTypePicker, DocumentTypeSinglePicker, WarehouseFoldersConfig,
+        #          schedule-templates, GoldStandardTab, document-types nav
         if params[:for] == "select"
-          types = DocumentType.active.order(:name).select(:id, :name, :display_name)
+          types = DocumentType.active.order(:name)
+            .select(:id, :name, :display_name, :abbreviation, :scope, :folder)
+          types = types.where(scope: [params[:scope], "both"]) if params[:scope].present?
           return render json: {
             success: true,
-            data: types.map { |t| { id: t.id, name: t.name, display_name: t.display_name } }
+            data: types.map { |t|
+              {
+                id: t.id,
+                name: t.name,
+                display_name: t.display_name,
+                abbreviation: t.abbreviation,
+                scope: t.scope,
+                folder: t.folder
+              }
+            }
           }
         end
 

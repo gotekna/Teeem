@@ -1,16 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ComboboxDropdown, type ComboboxItem, type ComboboxGroup } from "@/components/ui/combobox-dropdown";
-import { api } from "@/lib/api";
-
-interface DocTypeRaw {
-  id: number;
-  name: string;
-  folder?: string | null;
-  scope?: string | null;
-}
+import { useDocumentTypes, type DocumentTypeSelect } from "@/lib/hooks/useDocumentTypes";
 
 type ScopeFilter = "all" | "job" | "company" | "contacts" | "library";
 
@@ -37,27 +30,8 @@ export function DocumentTypeSinglePicker({
   selectedName,
   onChange,
 }: DocumentTypeSinglePickerProps) {
-  const [allDocTypes, setAllDocTypes] = useState<DocTypeRaw[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { documentTypes: allDocTypes, loading } = useDocumentTypes();
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.get<{ success: boolean; data: DocTypeRaw[] }>(
-          "/api/v1/document_types"
-        );
-        if (!cancelled) {
-          setAllDocTypes(res?.data || []);
-          setLoaded(true);
-        }
-      } catch (err) {
-        console.error("[DocumentTypeSinglePicker] fetch error:", err);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   // Filter by scope
   const scopeFiltered = useMemo(() => {
@@ -95,7 +69,7 @@ export function DocumentTypeSinglePicker({
     return { id: String(selectedId), label: selectedName || "" };
   }, [selectedId, selectedName]);
 
-  if (!loaded) return null;
+  if (loading) return null;
 
   return (
     <div className="space-y-1.5">
