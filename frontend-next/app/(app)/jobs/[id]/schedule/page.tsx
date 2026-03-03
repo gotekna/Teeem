@@ -1338,7 +1338,7 @@ export default function SchedulePage() {
             { id: "job-filter", column: "job_id", operator: "=", value: String(jobId) }
           ]}
           inheritViewsFrom="sm_schedule_master"
-          tableName="Schedule Tasks"
+          tableName="SM Tasks"
           defaultViewSlug={viewSlug}
           onViewChange={handleViewChange}
           leftActions={

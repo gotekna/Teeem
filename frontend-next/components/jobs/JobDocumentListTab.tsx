@@ -33,7 +33,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { DocumentViewer } from "@/components/ui/document-viewer";
 import { Upload, FileText, FolderOpen, CalendarDays, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -86,17 +86,14 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
     return () => URL.revokeObjectURL(url);
   }, [uploadDialogOpen, pendingFiles, previewFileIndex]);
 
-  // File type detection for preview
-  const previewType = useMemo(() => {
-    if (pendingFiles.length === 0) return "other";
+  // File type detection for preview — DocumentViewer handles pdf, image, excel, word
+  const hasPreview = useMemo(() => {
+    if (pendingFiles.length === 0 || !previewUrl) return false;
     const file = pendingFiles[previewFileIndex] || pendingFiles[0];
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
-    if (ext === "pdf") return "pdf";
-    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return "image";
-    return "other";
-  }, [pendingFiles, previewFileIndex]);
-
-  const hasPreview = previewType !== "other" && previewUrl;
+    const previewableExts = ["pdf", "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "xlsx", "xls", "docx", "doc"];
+    return previewableExts.includes(ext);
+  }, [pendingFiles, previewFileIndex, previewUrl]);
 
   // Detect if selected doc type needs signing status or special date fields
   // Lookup by document_type id (dt.id) — the wfdt_id is sent separately on upload
@@ -579,21 +576,18 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
               )}
             </div>
 
-            {/* Right panel: Document preview */}
+            {/* Right panel: Document preview — DocumentViewer is THE ONE gold standard */}
             {hasPreview && previewUrl && (
-              <div className="flex-1 min-w-0 rounded-lg border bg-muted/30 overflow-hidden">
-                {previewType === "pdf" ? (
-                  <PDFViewer url={previewUrl} className="h-full w-full" />
-                ) : previewType === "image" ? (
-                  <div className="flex items-center justify-center h-full p-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={previewUrl}
-                      alt={pendingFiles[previewFileIndex]?.name || "Preview"}
-                      className="max-w-full max-h-full object-contain rounded"
-                    />
-                  </div>
-                ) : null}
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <DocumentViewer
+                  url={previewUrl}
+                  fileName={pendingFiles[previewFileIndex]?.name || "document"}
+                  showHeader={true}
+                  showFooter={false}
+                  showSidebar={false}
+                  theme="light"
+                  className="h-full w-full"
+                />
               </div>
             )}
           </div>

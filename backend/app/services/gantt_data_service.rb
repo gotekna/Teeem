@@ -407,7 +407,8 @@ class GanttDataService
       stage: record&.stage,
       assigned_role: record&.assigned_role,
       assigned_role_name: roles_map[record&.assigned_role.to_i],
-      color: record&.color
+      color: record&.color,
+      sm_schedule_master_id: record.respond_to?(:sm_schedule_master_id) ? record.sm_schedule_master_id : nil
     }.compact
   end
 

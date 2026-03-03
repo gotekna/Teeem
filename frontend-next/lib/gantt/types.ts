@@ -208,6 +208,8 @@ export interface SmScheduleMaster {
   }>;
   created_at: string;
   updated_at: string;
+  // For job tasks (SmTask): ID of the SmScheduleMaster template row this was created from
+  sm_schedule_master_id?: number | null;
 }
 
 /**
