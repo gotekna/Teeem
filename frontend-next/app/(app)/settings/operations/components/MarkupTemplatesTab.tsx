@@ -9,13 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ComboboxMultiSelect } from "@/components/ui/combobox-multi-select";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
-import { ChevronDown, ChevronRight, Download, Save, Link2, Pencil, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Save, Link2, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import Link from "next/link";
-import { EditRecordModal } from "@/components/table/modals/EditRecordModal";
-import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
-import type { TableColumn, TableRow } from "@/components/table/types";
+import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 
 // ============================================
 // Types
@@ -83,11 +81,6 @@ interface TemplateMarkup {
 }
 
 // Lookup option for edit dialog dropdowns
-interface LookupOption {
-  id: number;
-  name: string;
-}
-
 // Charge type config for unified row rendering
 const MARKUP_RATES = [
   { key: "defaultBuilderMarginPercent", label: "Builder Margin", smField: "charge_builder_margin_sm_ids", chargeType: "builder_margin", step: 0.5 },
@@ -117,26 +110,32 @@ const METADATA_FIELDS: { field: keyof SmPoTask; prefix: string }[] = [
 ];
 
 // Helper: render inline clickable metadata badges for a task (opens edit dialog)
+// Shows ALL fields — missing values shown in orange as warning
 function TaskMetadataBadges({ task, onEdit }: { task: SmPoTask; onEdit?: (task: SmPoTask) => void }) {
-  const badges = METADATA_FIELDS
-    .filter(m => task[m.field])
-    .map(m => ({ ...m, value: task[m.field] as string }));
-  if (badges.length === 0) return null;
   return (
-    <span className="text-xs text-muted-foreground inline-flex items-center gap-0.5 flex-wrap">
-      {badges.map((b, i) => (
-        <React.Fragment key={b.field}>
-          {i > 0 && <span className="mx-0.5">|</span>}
-          <button
-            type="button"
-            onClick={() => onEdit?.(task)}
-            className="hover:text-foreground hover:underline transition-colors cursor-pointer"
-            title={`Edit ${b.prefix}`}
-          >
-            {b.prefix}: {b.value}
-          </button>
-        </React.Fragment>
-      ))}
+    <span className="text-xs inline-flex items-center gap-0.5 flex-wrap">
+      {METADATA_FIELDS.map((m, i) => {
+        const value = task[m.field] as string | null | undefined;
+        const missing = !value;
+        return (
+          <React.Fragment key={m.field}>
+            {i > 0 && <span className="mx-0.5 text-muted-foreground">|</span>}
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={() => onEdit?.(task)}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit?.(task); } }}
+              className={missing
+                ? "text-orange-500 hover:text-orange-600 hover:underline transition-colors cursor-pointer"
+                : "text-muted-foreground hover:text-foreground hover:underline transition-colors cursor-pointer"
+              }
+              title={missing ? `${m.prefix}: Not selected — click to edit` : `Edit ${m.prefix}`}
+            >
+              {m.prefix}: {value || "Not Selected"}
+            </span>
+          </React.Fragment>
+        );
+      })}
     </span>
   );
 }
@@ -156,11 +155,16 @@ export function MarkupTemplatesTab() {
   const [globalDefaults, setGlobalDefaults] = React.useState<Record<string, number> | null>(null);
   const [claimTemplates, setClaimTemplates] = React.useState<ClaimTemplate[]>([]);
 
-  // EditRecordModal state (uses same component as TeeemTableView row edit)
-  const [editModalOpen, setEditModalOpen] = React.useState(false);
-  const [editModalRecord, setEditModalRecord] = React.useState<TableRow | null>(null);
-  const [editModalColumns, setEditModalColumns] = React.useState<TableColumn[]>([]);
-  const [editModalLoading, setEditModalLoading] = React.useState(false);
+  // EditRowDialog state (SSoT: same component as Schedule Master table)
+  const [editRowOpen, setEditRowOpen] = React.useState(false);
+  const [editRowData, setEditRowData] = React.useState<EditRowData | null>(null);
+  const [editRowLookups, setEditRowLookups] = React.useState<{
+    trades: Array<{ id: number; name: string }>;
+    roles: Array<{ id: number; name: string; display_name: string }>;
+    stages: Array<{ id: number; name: string }>;
+    costCentres: Array<{ id: number; name: string }>;
+    tenderSections: Array<{ id: number; name: string }>;
+  } | null>(null);
 
   React.useEffect(() => {
     (async () => {
@@ -368,87 +372,104 @@ export function MarkupTemplatesTab() {
     }
   };
 
-  // Fetch lookup data for edit dialog (lazy load once per template)
-  const fetchLookups = async (templateId: number) => {
-    if (lookups) return;
-    try {
-      const res = await api.get<{
-        stages: LookupOption[]; trades: LookupOption[]; cost_centres: LookupOption[];
-        tenders: LookupOption[]; roles: LookupOption[];
-      }>(`/api/v1/sm_schedule_master_templates/${templateId}/po_task_lookups`);
-      setLookups({
-        stages: res?.stages || [],
-        trades: res?.trades || [],
-        cost_centres: res?.cost_centres || [],
-        tenders: res?.tenders || [],
-        roles: res?.roles || [],
-      });
-    } catch {
-      // Silently fail - edit dialog will show text inputs as fallback
-    }
-  };
-
+  // Open EditRowDialog (SSoT: same component as Schedule Master table)
   const openEditDialog = async (task: SmPoTask) => {
     if (!expandedId) return;
-    setEditingTask(task);
-    // Fetch the actual row data to get the current IDs.
-    // The show endpoint returns lookup columns as { id, display } objects.
     try {
-      const res = await api.get<{ row: Record<string, unknown> }>(
+      // Fetch lookups once (cached in state)
+      if (!editRowLookups) {
+        const res = await api.get<{
+          stages: Array<{ id: number; name: string }>;
+          trades: Array<{ id: number; name: string }>;
+          cost_centres: Array<{ id: number; name: string }>;
+          tenders: Array<{ id: number; name: string }>;
+          roles: Array<{ id: number; name: string }>;
+        }>(`/api/v1/sm_schedule_master_templates/${expandedId}/po_task_lookups`);
+        setEditRowLookups({
+          trades: res?.trades || [],
+          stages: res?.stages || [],
+          costCentres: res?.cost_centres || [],
+          tenderSections: res?.tenders || [],
+          roles: (res?.roles || []).map(r => ({ ...r, display_name: r.name })),
+        });
+      }
+      // Fetch full row data from the SM template rows endpoint
+      const rowRes = await api.get<{ row: Record<string, unknown> }>(
         `/api/v1/sm_schedule_master_templates/${expandedId}/rows/${task.id}`
       );
-      const row = res?.row;
+      const row = rowRes?.row;
+      if (!row) throw new Error("Row not found");
       // Extract IDs from lookup objects ({ id, display }) or raw values
-      const extractId = (val: unknown): string => {
-        if (!val) return "";
+      const extractId = (val: unknown): string | undefined => {
+        if (!val) return undefined;
         if (typeof val === "object" && val !== null && "id" in val) return String((val as { id: number }).id);
         if (typeof val === "number") return val.toString();
-        return "";
+        if (typeof val === "string") return val;
+        return undefined;
       };
-      setEditDialogFields({
-        stage: extractId(row?.stage),
-        trade: extractId(row?.trade),
-        cost_centre: extractId(row?.cost_centre),
-        tender_id: extractId(row?.tender_id),
-        assigned_role: extractId(row?.assigned_role),
+      const extractDisplay = (val: unknown): string | undefined => {
+        if (!val) return undefined;
+        if (typeof val === "object" && val !== null && "display" in val) return String((val as { display: string }).display);
+        return undefined;
+      };
+      setEditRowData({
+        id: task.id,
+        task_number: (row.task_number as number) || 0,
+        task_code: row.task_code as string | null,
+        name: (row.name as string) || task.name,
+        description: row.description as string | undefined,
+        duration_days: (row.duration_days as number) || 1,
+        sequence_order: (row.sequence_order as number) || 0,
+        trade: extractId(row.trade),
+        trade_name: extractDisplay(row.trade) || task.trade_name || undefined,
+        stage: extractId(row.stage),
+        stage_name: extractDisplay(row.stage) || task.stage_name || undefined,
+        assigned_role: extractId(row.assigned_role),
+        cost_centre: extractId(row.cost_centre),
+        cost_centre_name: extractDisplay(row.cost_centre) || task.cost_centre_name || undefined,
+        tender_id: extractId(row.tender_id),
+        is_active: row.is_active as boolean | undefined,
+        exclude_from_gantt: row.exclude_from_gantt as boolean | undefined,
+        allow_header: row.allow_header as boolean | undefined,
+        require_photo: row.require_photo as boolean | undefined,
+        pass_fail_enabled: row.pass_fail_enabled as boolean | undefined,
       });
+      setEditRowOpen(true);
     } catch {
-      setEditDialogFields({ stage: "", trade: "", cost_centre: "", tender_id: "", assigned_role: "" });
+      toast({ title: "Failed to load task details", variant: "destructive" });
     }
-    await fetchLookups(expandedId);
-    setEditDialogOpen(true);
   };
 
-  const saveEditDialog = async () => {
-    if (!editingTask || !expandedId) return;
-    setEditDialogSaving(true);
+  // Save handler for EditRowDialog
+  const handleEditRowSave = async (rowId: number, data: EditRowFormData) => {
+    if (!expandedId) return;
+    await api.patch(`/api/v1/sm_schedule_master_templates/${expandedId}/rows/${rowId}`, {
+      row: {
+        ...(data.trade !== undefined && { trade: data.trade || null }),
+        ...(data.stage !== undefined && { stage: data.stage || null }),
+        ...(data.assigned_role !== undefined && { assigned_role: data.assigned_role || null }),
+        ...(data.cost_centre !== undefined && { cost_centre: data.cost_centre || null }),
+        ...(data.tender_id !== undefined && { tender_id: data.tender_id || null }),
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.task_code !== undefined && { task_code: data.task_code }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.duration_days !== undefined && { duration_days: data.duration_days }),
+        ...(data.sequence_order !== undefined && { sequence_order: data.sequence_order }),
+        ...(data.is_active !== undefined && { is_active: data.is_active }),
+        ...(data.exclude_from_gantt !== undefined && { exclude_from_gantt: data.exclude_from_gantt }),
+        ...(data.allow_header !== undefined && { allow_header: data.allow_header }),
+        ...(data.require_photo !== undefined && { require_photo: data.require_photo }),
+        ...(data.pass_fail_enabled !== undefined && { pass_fail_enabled: data.pass_fail_enabled }),
+      },
+    });
+    toast({ title: "Task updated" });
+    // Refresh PO tasks to get updated metadata badges
     try {
-      await api.patch(`/api/v1/sm_schedule_master_templates/${expandedId}/rows/${editingTask.id}`, {
-        row: {
-          stage: editDialogFields.stage || null,
-          trade: editDialogFields.trade || null,
-          cost_centre: editDialogFields.cost_centre || null,
-          tender_id: editDialogFields.tender_id || null,
-          assigned_role: editDialogFields.assigned_role || null,
-        },
-      });
-      toast({ title: "Task updated" });
-      setEditDialogOpen(false);
-
-      // Refresh PO tasks for the expanded template to get updated metadata
-      if (expandedId) {
-        try {
-          const res = await api.get<{ tasks: SmPoTask[] }>(
-            `/api/v1/sm_schedule_master_templates/${expandedId}/po_tasks`
-          );
-          setPoTasksMap(prev => ({ ...prev, [expandedId!]: res?.tasks || [] }));
-        } catch { /* ignore */ }
-      }
-    } catch {
-      toast({ title: "Failed to update task", variant: "destructive" });
-    } finally {
-      setEditDialogSaving(false);
-    }
+      const res = await api.get<{ tasks: SmPoTask[] }>(
+        `/api/v1/sm_schedule_master_templates/${expandedId}/po_tasks`
+      );
+      setPoTasksMap(prev => ({ ...prev, [expandedId!]: res?.tasks || [] }));
+    } catch { /* ignore */ }
   };
 
   if (loading) {
@@ -628,11 +649,6 @@ export function MarkupTemplatesTab() {
                                       searchPlaceholder="Search tasks..."
                                     />
                                   </div>
-                                  {selectedTask && (
-                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => openEditDialog(selectedTask)} title="Edit task details">
-                                      <Pencil className="h-3 w-3" />
-                                    </Button>
-                                  )}
                                 </div>
                               )}
                               {!hasSmField && (
@@ -736,11 +752,6 @@ export function MarkupTemplatesTab() {
                                         searchPlaceholder="Search tasks..."
                                       />
                                     </div>
-                                    {selectedTask && (
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => openEditDialog(selectedTask)} title="Edit task details">
-                                        <Pencil className="h-3 w-3" />
-                                      </Button>
-                                    )}
                                   </div>
                                 )
                               )}
@@ -790,11 +801,6 @@ export function MarkupTemplatesTab() {
                                               <span className="text-xs text-muted-foreground">%</span>
                                             </>
                                           )}
-                                          {task && (
-                                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={() => openEditDialog(task)} title="Edit task details">
-                                              <Pencil className="h-2.5 w-2.5" />
-                                            </Button>
-                                          )}
                                         </div>
                                         {task && <div className="pl-1"><TaskMetadataBadges task={task} onEdit={openEditDialog} /></div>}
                                       </div>
@@ -810,9 +816,6 @@ export function MarkupTemplatesTab() {
                               return task ? (
                                 <div className="ml-36 pl-3 flex items-center gap-1">
                                   <TaskMetadataBadges task={task} onEdit={openEditDialog} />
-                                  <Button variant="ghost" size="sm" className="h-5 w-5 p-0 shrink-0" onClick={() => openEditDialog(task)} title="Edit task details">
-                                    <Pencil className="h-2.5 w-2.5" />
-                                  </Button>
                                 </div>
                               ) : null;
                             })()}
@@ -853,109 +856,22 @@ export function MarkupTemplatesTab() {
         </div>
       )}
 
-      {/* Task Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              Edit Task: {editingTask?.task_code ? `${editingTask.task_code} — ` : ""}{editingTask?.name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Stage */}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Stage</Label>
-              {lookups?.stages ? (
-                <ComboboxDropdown
-                  items={lookups.stages.map(s => ({ id: s.id.toString(), label: s.name }))}
-                  selectedItem={editDialogFields.stage ? { id: editDialogFields.stage, label: lookups.stages.find(s => s.id.toString() === editDialogFields.stage)?.name || "" } : undefined}
-                  onSelect={item => setEditDialogFields(prev => ({ ...prev, stage: item.id }))}
-                  onClear={() => setEditDialogFields(prev => ({ ...prev, stage: "" }))}
-                  clearable
-                  placeholder="Select stage..."
-                  searchPlaceholder="Search stages..."
-                />
-              ) : (
-                <Input value={editDialogFields.stage} onChange={e => setEditDialogFields(prev => ({ ...prev, stage: e.target.value }))} placeholder="Stage ID" />
-              )}
-            </div>
-            {/* Trade */}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Trade</Label>
-              {lookups?.trades ? (
-                <ComboboxDropdown
-                  items={lookups.trades.map(s => ({ id: s.id.toString(), label: s.name }))}
-                  selectedItem={editDialogFields.trade ? { id: editDialogFields.trade, label: lookups.trades.find(s => s.id.toString() === editDialogFields.trade)?.name || "" } : undefined}
-                  onSelect={item => setEditDialogFields(prev => ({ ...prev, trade: item.id }))}
-                  onClear={() => setEditDialogFields(prev => ({ ...prev, trade: "" }))}
-                  clearable
-                  placeholder="Select trade..."
-                  searchPlaceholder="Search trades..."
-                />
-              ) : (
-                <Input value={editDialogFields.trade} onChange={e => setEditDialogFields(prev => ({ ...prev, trade: e.target.value }))} placeholder="Trade ID" />
-              )}
-            </div>
-            {/* Cost Centre */}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Cost Centre</Label>
-              {lookups?.cost_centres ? (
-                <ComboboxDropdown
-                  items={lookups.cost_centres.map(s => ({ id: s.id.toString(), label: s.name }))}
-                  selectedItem={editDialogFields.cost_centre ? { id: editDialogFields.cost_centre, label: lookups.cost_centres.find(s => s.id.toString() === editDialogFields.cost_centre)?.name || "" } : undefined}
-                  onSelect={item => setEditDialogFields(prev => ({ ...prev, cost_centre: item.id }))}
-                  onClear={() => setEditDialogFields(prev => ({ ...prev, cost_centre: "" }))}
-                  clearable
-                  placeholder="Select cost centre..."
-                  searchPlaceholder="Search cost centres..."
-                />
-              ) : (
-                <Input value={editDialogFields.cost_centre} onChange={e => setEditDialogFields(prev => ({ ...prev, cost_centre: e.target.value }))} placeholder="Cost Centre ID" />
-              )}
-            </div>
-            {/* Tender Section */}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Tender Section</Label>
-              {lookups?.tenders ? (
-                <ComboboxDropdown
-                  items={lookups.tenders.map(s => ({ id: s.id.toString(), label: s.name }))}
-                  selectedItem={editDialogFields.tender_id ? { id: editDialogFields.tender_id, label: lookups.tenders.find(s => s.id.toString() === editDialogFields.tender_id)?.name || "" } : undefined}
-                  onSelect={item => setEditDialogFields(prev => ({ ...prev, tender_id: item.id }))}
-                  onClear={() => setEditDialogFields(prev => ({ ...prev, tender_id: "" }))}
-                  clearable
-                  placeholder="Select tender section..."
-                  searchPlaceholder="Search tender sections..."
-                />
-              ) : (
-                <Input value={editDialogFields.tender_id} onChange={e => setEditDialogFields(prev => ({ ...prev, tender_id: e.target.value }))} placeholder="Tender ID" />
-              )}
-            </div>
-            {/* Assigned Role */}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Assigned Role</Label>
-              {lookups?.roles ? (
-                <ComboboxDropdown
-                  items={lookups.roles.map(s => ({ id: s.id.toString(), label: s.name }))}
-                  selectedItem={editDialogFields.assigned_role ? { id: editDialogFields.assigned_role, label: lookups.roles.find(s => s.id.toString() === editDialogFields.assigned_role)?.name || "" } : undefined}
-                  onSelect={item => setEditDialogFields(prev => ({ ...prev, assigned_role: item.id }))}
-                  onClear={() => setEditDialogFields(prev => ({ ...prev, assigned_role: "" }))}
-                  clearable
-                  placeholder="Select role..."
-                  searchPlaceholder="Search roles..."
-                />
-              ) : (
-                <Input value={editDialogFields.assigned_role} onChange={e => setEditDialogFields(prev => ({ ...prev, assigned_role: e.target.value }))} placeholder="Role ID" />
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveEditDialog} disabled={editDialogSaving}>
-              {editDialogSaving ? <><Spinner size={14} className="mr-1.5" /> Saving...</> : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* SSoT: Same EditRowDialog used by Schedule Master table */}
+      <EditRowDialog
+        open={editRowOpen}
+        onOpenChange={setEditRowOpen}
+        row={editRowData}
+        onSave={handleEditRowSave}
+        trades={editRowLookups?.trades || []}
+        roles={editRowLookups?.roles || []}
+        stages={editRowLookups?.stages || []}
+        costCentres={editRowLookups?.costCentres || []}
+        tenderSections={editRowLookups?.tenderSections || []}
+        checklists={[]}
+        documentTypes={[]}
+        tradingNames={[]}
+        invoiceTemplates={[]}
+      />
     </div>
   );
 }

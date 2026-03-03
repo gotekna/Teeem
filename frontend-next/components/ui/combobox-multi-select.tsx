@@ -110,16 +110,18 @@ export function ComboboxMultiSelect({
                     className="inline-flex items-center gap-1 px-1.5 py-0 rounded bg-muted text-xs text-foreground"
                   >
                     {label}
-                    <button
-                      type="button"
+                    <span
+                      role="button"
+                      tabIndex={0}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleToggle(selectedIds[idx]);
                       }}
-                      className="text-muted-foreground hover:text-foreground"
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); handleToggle(selectedIds[idx]); } }}
+                      className="text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       <X className="h-3 w-3" />
-                    </button>
+                    </span>
                   </span>
                 ))}
               </div>
@@ -127,13 +129,15 @@ export function ComboboxMultiSelect({
           </div>
           <div className="flex items-center gap-1 shrink-0 ml-1">
             {selectedIds.length > 0 && (
-              <button
-                type="button"
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={handleClearAll}
-                className="text-muted-foreground hover:text-foreground"
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClearAll(e as unknown as React.MouseEvent); } }}
+                className="text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
-              </button>
+              </span>
             )}
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </div>
