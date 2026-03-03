@@ -66,7 +66,7 @@ function QuoteTemplatesWrapper() {
 
   return (
     <ExpandableSection expanded={subExpanded} onToggle={toggleSubExpanded}>
-      <Tabs value={subTab} onValueChange={setSubTab} className="flex flex-col h-full" expandKey="settings-operations-quote-templates">
+      <Tabs value={subTab} onValueChange={setSubTab} className="flex flex-col h-full">
         <div className="flex items-center gap-2 mx-4 mt-2">
           <TabsList className="w-fit">
             <TabsTrigger value="std">Std Quote Templates</TabsTrigger>
@@ -94,7 +94,7 @@ function MarkupWrapper() {
 
   return (
     <ExpandableSection expanded={subExpanded} onToggle={toggleSubExpanded}>
-      <Tabs value={subTab} onValueChange={setSubTab} className="flex flex-col h-full" expandKey="settings-operations-markup">
+      <Tabs value={subTab} onValueChange={setSubTab} className="flex flex-col h-full">
         <div className="flex items-center gap-2 mx-4 mt-2">
           <TabsList className="w-fit">
             <TabsTrigger value="defaults">Defaults</TabsTrigger>
@@ -137,7 +137,7 @@ export default function OperationsSettingsPage() {
   return (
     <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
     <div className="flex flex-col h-full">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : "flex flex-col h-full"} expandKey="settings-operations-l1">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : "flex flex-col h-full"}>
         <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
           <div className="flex items-start gap-2">
             <TabsList className="flex-wrap h-auto gap-1 shrink-0 flex-1 min-w-0">

@@ -346,6 +346,29 @@ export default function GanttPage() {
       claim_invoice_pattern: jobRow.claim_invoice_pattern as string | null | undefined,
       claim_invoice_template_id: jobRow.claim_invoice_template_id as number | null | undefined,
       claim_trading_name_id: jobRow.claim_trading_name_id as number | null | undefined,
+      // Workflow triggers
+      start_workflow_enabled: jobRow.start_workflow_enabled || false,
+      start_workflow_id: jobRow.start_workflow_id as number | null | undefined,
+      start_workflow_name: jobRow.start_workflow_name as string | null | undefined,
+      complete_workflow_enabled: jobRow.complete_workflow_enabled || false,
+      complete_workflow_id: jobRow.complete_workflow_id as number | null | undefined,
+      complete_workflow_name: jobRow.complete_workflow_name as string | null | undefined,
+      // Completion document requirement
+      requires_document_to_complete: jobRow.requires_document_to_complete === true,
+      completion_document_type_id: jobRow.completion_document_type_id as number | null | undefined,
+      completion_document_type_name: jobRow.completion_document_type_name as string | null | undefined,
+      // Dependencies
+      predecessor_ids: row.predecessor_ids || [],
+      // Relationships
+      related_po_task_ids: jobRow.related_po_task_ids || [],
+      related_po_task_names: jobRow.related_po_task_names || [],
+      linked_task_ids: jobRow.linked_task_ids || [],
+      completion_linked_task_ids: jobRow.completion_linked_task_ids || [],
+      // Plan and document reference types
+      plan_type_ids: jobRow.plan_type_ids || [],
+      plan_type_names: jobRow.plan_type_names || [],
+      document_ref_type_ids: jobRow.document_ref_type_ids || [],
+      document_ref_type_names: jobRow.document_ref_type_names || [],
     };
     setSelectedTaskForEdit(editRow);
     setShowTaskEditDialog(true);
@@ -387,6 +410,23 @@ export default function GanttPage() {
         claim_trading_name_id: data.claim_trading_name_id,
         // Active status
         is_active: data.is_active,
+        // Workflow triggers
+        start_workflow_enabled: data.start_workflow_enabled,
+        start_workflow_id: data.start_workflow_id,
+        complete_workflow_enabled: data.complete_workflow_enabled,
+        complete_workflow_id: data.complete_workflow_id,
+        // Completion document requirement
+        requires_document_to_complete: data.requires_document_to_complete,
+        completion_document_type_id: data.completion_document_type_id,
+        // Dependencies
+        predecessor_ids: data.predecessor_ids,
+        // Relationships
+        related_po_task_ids: data.related_po_task_ids,
+        linked_task_ids: data.linked_task_ids,
+        completion_linked_task_ids: data.completion_linked_task_ids,
+        // Plan and document reference types
+        plan_type_ids: data.plan_type_ids,
+        document_ref_type_ids: data.document_ref_type_ids,
       }
     });
     // Clear cache and reload gantt data

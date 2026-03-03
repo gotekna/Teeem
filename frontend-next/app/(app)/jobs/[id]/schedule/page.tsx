@@ -529,6 +529,29 @@ export default function SchedulePage() {
       claim_invoice_pattern: row.claim_invoice_pattern as string | null | undefined,
       claim_invoice_template_id: row.claim_invoice_template_id as number | null | undefined,
       claim_trading_name_id: row.claim_trading_name_id as number | null | undefined,
+      // Workflow triggers
+      start_workflow_enabled: row.start_workflow_enabled === true,
+      start_workflow_id: row.start_workflow_id as number | null | undefined,
+      start_workflow_name: row.start_workflow_name as string | null | undefined,
+      complete_workflow_enabled: row.complete_workflow_enabled === true,
+      complete_workflow_id: row.complete_workflow_id as number | null | undefined,
+      complete_workflow_name: row.complete_workflow_name as string | null | undefined,
+      // Completion document requirement
+      requires_document_to_complete: row.requires_document_to_complete === true,
+      completion_document_type_id: row.completion_document_type_id as number | null | undefined,
+      completion_document_type_name: row.completion_document_type_name as string | null | undefined,
+      // Dependencies
+      predecessor_ids: (row.predecessor_ids as Array<{ id: number; type?: string; lag?: number }>) || [],
+      // Relationships
+      related_po_task_ids: (row.related_po_task_ids as number[]) || [],
+      related_po_task_names: (row.related_po_task_names as string[]) || [],
+      linked_task_ids: (row.linked_task_ids as number[]) || [],
+      completion_linked_task_ids: (row.completion_linked_task_ids as number[]) || [],
+      // Plan and document reference types
+      plan_type_ids: (row.plan_type_ids as number[]) || [],
+      plan_type_names: (row.plan_type_names as string[]) || [],
+      document_ref_type_ids: (row.document_ref_type_ids as number[]) || [],
+      document_ref_type_names: (row.document_ref_type_names as string[]) || [],
     };
     setSelectedTaskForEdit(editRow);
     setShowTaskEditDialog(true);
@@ -571,6 +594,23 @@ export default function SchedulePage() {
         claim_trading_name_id: data.claim_trading_name_id,
         // Active status
         is_active: data.is_active,
+        // Workflow triggers
+        start_workflow_enabled: data.start_workflow_enabled,
+        start_workflow_id: data.start_workflow_id,
+        complete_workflow_enabled: data.complete_workflow_enabled,
+        complete_workflow_id: data.complete_workflow_id,
+        // Completion document requirement
+        requires_document_to_complete: data.requires_document_to_complete,
+        completion_document_type_id: data.completion_document_type_id,
+        // Dependencies
+        predecessor_ids: data.predecessor_ids,
+        // Relationships
+        related_po_task_ids: data.related_po_task_ids,
+        linked_task_ids: data.linked_task_ids,
+        completion_linked_task_ids: data.completion_linked_task_ids,
+        // Plan and document reference types
+        plan_type_ids: data.plan_type_ids,
+        document_ref_type_ids: data.document_ref_type_ids,
       }
     });
     // Clear cache and refresh

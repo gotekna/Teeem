@@ -206,6 +206,25 @@ export interface SmScheduleMaster {
     lag_days: number;
     assigned_role: string | null;
   }>;
+  // Completion document requirement
+  requires_document_to_complete?: boolean;
+  completion_document_type_id?: number | null;
+  completion_document_type_name?: string | null;
+  // Related PO tasks for supplier coordination
+  related_po_task_ids?: number[];
+  related_po_task_names?: string[];
+  // Completion linked tasks (cascade complete together)
+  completion_linked_task_ids?: number[];
+  // Plan and document reference types
+  plan_type_ids?: number[];
+  plan_type_names?: string[];
+  document_ref_type_ids?: number[];
+  document_ref_type_names?: string[];
+  // PO/Quote SSoT fields
+  tender_description?: string;
+  po_description?: string;
+  rfq_instructions?: string;
+  budget_amount?: number | null;
   created_at: string;
   updated_at: string;
   // For job tasks (SmTask): ID of the SmScheduleMaster template row this was created from
@@ -249,6 +268,9 @@ export interface JobTaskRowData extends SmScheduleMaster {
   claim_invoice_pattern?: string | null;
   claim_invoice_template_id?: number | null;
   claim_trading_name_id?: number | null;
+  // Job-level task status fields
+  status?: string;
+  started_at?: string | null;
 }
 
 /**
