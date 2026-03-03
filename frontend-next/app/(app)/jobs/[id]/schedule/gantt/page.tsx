@@ -145,58 +145,29 @@ export default function GanttPage() {
   // Load Reference Data for EditRowDialog
   // ==========================================================================
 
+  // SSoT: Load reference data for task edit dropdowns (same endpoints as Schedule Master)
+  // All calls run in parallel (Promise.allSettled) so one slow/failed call doesn't block others
   React.useEffect(() => {
     const loadReferenceData = async () => {
-      // Load trades
-      try {
-        const tradesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=1000");
-        if (tradesData?.records) setAvailableTrades(tradesData.records);
-      } catch (e) { console.error("Failed to load trades:", e); }
+      const [tradesRes, stagesRes, rolesRes, costCentresRes, checklistsRes, docTypesRes, tradingNamesRes, templatesRes] = await Promise.allSettled([
+        api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=1000"),
+        api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages/records?per_page=100"),
+        api.get<{ success: boolean; records: { id: number; name: string; display_name: string }[] }>("/api/v1/foundations/roles/records?per_page=100"),
+        api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=1000"),
+        api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/supervisor_checklist_templates/records?per_page=100"),
+        api.get<{ success: boolean; data: { id: number; name: string; display_name?: string; abbreviation?: string; scope?: string; folder?: string }[] }>("/api/v1/document_types?for=select&scope=job"),
+        api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/trading_names/records?per_page=100"),
+        api.get<{ success: boolean; data: { id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[] }>("/api/v1/claim_invoice_templates"),
+      ]);
 
-      // Load stages
-      try {
-        const stagesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages/records?per_page=100");
-        if (stagesData?.records) setAvailableStages(stagesData.records);
-      } catch (e) { console.error("Failed to load stages:", e); }
-
-      // Load roles
-      try {
-        const rolesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name: string }[] }>("/api/v1/foundations/roles/records?per_page=100");
-        if (rolesData?.records) setAvailableRoles(rolesData.records.map(r => ({ id: r.id, name: r.name, display_name: r.display_name || r.name })));
-      } catch (e) { console.error("Failed to load roles:", e); }
-
-      // Load cost centres
-      try {
-        const costCentresData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=1000");
-        if (costCentresData?.records) setAvailableCostCentres(costCentresData.records);
-      } catch (e) { console.error("Failed to load cost centres:", e); }
-
-      // Load checklists
-      try {
-        const checklistsData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/supervisor_checklist_templates/records?per_page=100");
-        if (checklistsData?.records) setAvailableChecklists(checklistsData.records);
-      } catch (e) { console.error("Failed to load checklists:", e); }
-
-      // Load document types (lightweight ?for=select fast path - 1 query, ~20ms)
-      // Full /api/v1/document_types serializes 808 types with heavy joins - too slow for dropdown
-      try {
-        const docTypesData = await api.get<{ success: boolean; data: { id: number; name: string; display_name?: string; abbreviation?: string; scope?: string; folder?: string }[] }>("/api/v1/document_types?for=select&scope=job");
-        if (docTypesData?.data) {
-          setAvailableDocumentTypes(docTypesData.data);
-        }
-      } catch (e) { console.error("Failed to load document types:", e); }
-
-      // Load trading names
-      try {
-        const tradingNamesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/trading_names/records?per_page=100");
-        if (tradingNamesData?.records) setAvailableTradingNames(tradingNamesData.records);
-      } catch (e) { console.error("Failed to load trading names:", e); }
-
-      // Load invoice templates
-      try {
-        const templatesData = await api.get<{ success: boolean; data: { id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[] }>("/api/v1/claim_invoice_templates");
-        if (templatesData?.data) setAvailableInvoiceTemplates(templatesData.data);
-      } catch (e) { console.error("Failed to load invoice templates:", e); }
+      if (tradesRes.status === "fulfilled" && tradesRes.value?.records) setAvailableTrades(tradesRes.value.records);
+      if (stagesRes.status === "fulfilled" && stagesRes.value?.records) setAvailableStages(stagesRes.value.records);
+      if (rolesRes.status === "fulfilled" && rolesRes.value?.records) setAvailableRoles(rolesRes.value.records.map(r => ({ id: r.id, name: r.name, display_name: r.display_name || r.name })));
+      if (costCentresRes.status === "fulfilled" && costCentresRes.value?.records) setAvailableCostCentres(costCentresRes.value.records);
+      if (checklistsRes.status === "fulfilled" && checklistsRes.value?.records) setAvailableChecklists(checklistsRes.value.records);
+      if (docTypesRes.status === "fulfilled" && docTypesRes.value?.data) setAvailableDocumentTypes(docTypesRes.value.data);
+      if (tradingNamesRes.status === "fulfilled" && tradingNamesRes.value?.records) setAvailableTradingNames(tradingNamesRes.value.records);
+      if (templatesRes.status === "fulfilled" && templatesRes.value?.data) setAvailableInvoiceTemplates(templatesRes.value.data);
     };
 
     loadReferenceData();
