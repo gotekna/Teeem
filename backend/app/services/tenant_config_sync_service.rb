@@ -1546,6 +1546,21 @@ class TenantConfigSyncService
       begin
         existing = find_match(master_record, existing_index, config[:match_fields], config[:remap_fks])
 
+        # FRC (Mar 2026): Align sync_key when matched by match_fields but sync_keys diverged.
+        # Pilgrim (and other tenants set up before the sync system) have sync_keys from old
+        # IDs or text strings (e.g. "pre", "150") instead of the canonical code-based keys
+        # (e.g. "100", "261"). Without alignment, orphan cleanup sees these as orphans even
+        # though the same record exists in TEEEM under a different sync_key.
+        # Fix: whenever Phase 2 finds a match by code/match_fields, align tenant's sync_key
+        # to TEEEM's canonical key. One cascade permanently fixes all diverged records.
+        if existing && master_record.respond_to?(:sync_key) && existing.respond_to?(:sync_key) &&
+           master_record.sync_key.present? && existing.sync_key != master_record.sync_key
+          ActsAsTenant.with_tenant(tenant) { existing.update_column(:sync_key, master_record.sync_key) }
+          # Update the existing_index so subsequent find_match calls see the new key
+          existing_index.delete(existing.sync_key)
+          existing_index[master_record.sync_key] = existing
+        end
+
         # Build attrs with FK remapping, deferring self-referential FKs
         attrs = build_sync_attrs(master_record, config)
 

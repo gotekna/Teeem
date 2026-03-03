@@ -11,17 +11,15 @@
  */
 
 import * as React from "react";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -35,7 +33,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Upload, FileText, FolderOpen, CalendarDays } from "lucide-react";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { Upload, FileText, FolderOpen, CalendarDays, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -69,6 +69,34 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
   const [signingStatus, setSigningStatus] = useState<"draft" | "signed">("draft");
   const [executedDate, setExecutedDate] = useState<Date | undefined>(undefined);
   const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
+
+  // Preview state
+  const [previewFileIndex, setPreviewFileIndex] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Create/revoke blob URL for preview
+  useEffect(() => {
+    if (!uploadDialogOpen || pendingFiles.length === 0) {
+      setPreviewUrl(null);
+      return;
+    }
+    const file = pendingFiles[previewFileIndex] || pendingFiles[0];
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [uploadDialogOpen, pendingFiles, previewFileIndex]);
+
+  // File type detection for preview
+  const previewType = useMemo(() => {
+    if (pendingFiles.length === 0) return "other";
+    const file = pendingFiles[previewFileIndex] || pendingFiles[0];
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (ext === "pdf") return "pdf";
+    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return "image";
+    return "other";
+  }, [pendingFiles, previewFileIndex]);
+
+  const hasPreview = previewType !== "other" && previewUrl;
 
   // Detect if selected doc type needs signing status or special date fields
   const selectedDocTypeObj = React.useMemo(
@@ -126,6 +154,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
     if (!files?.length) return;
 
     setPendingFiles(Array.from(files));
+    setPreviewFileIndex(0);
     const docTypes = warehouseFolder.document_types || [];
     setSelectedDocType(docTypes.length > 0 ? docTypes[0].name : "");
     setUploadDialogOpen(true);
@@ -270,6 +299,7 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
     if (!files?.length) return;
 
     setPendingFiles(Array.from(files));
+    setPreviewFileIndex(0);
     const docTypes = warehouseFolder.document_types || [];
     setSelectedDocType(docTypes.length > 0 ? docTypes[0].name : "");
     setUploadDialogOpen(true);
@@ -355,130 +385,184 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
         />
       </div>
 
-      {/* Upload dialog */}
-      <Dialog open={uploadDialogOpen} onOpenChange={(open) => {
+      {/* Upload sheet with document preview */}
+      <Sheet open={uploadDialogOpen} onOpenChange={(open) => {
         if (!open) {
           setUploadDialogOpen(false);
           setPendingFiles([]);
+          setPreviewFileIndex(0);
           setSigningStatus("draft");
           setExecutedDate(undefined);
           setExpiryDate(undefined);
         }
       }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              Upload to {warehouseFolder.display_name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">
-                {pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""} selected
-              </Label>
-              <div className="max-h-32 overflow-auto space-y-1">
-                {pendingFiles.map((file, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <FileText className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{file.name}</span>
-                    <span className="text-xs shrink-0">({formatFileSize(file.size)})</span>
+        <SheetContent
+          side={hasPreview ? "right-95" : "right-wide"}
+          title={`Upload to ${warehouseFolder.display_name}`}
+          className="flex flex-col overflow-hidden"
+        >
+          {/* Header */}
+          <SheetHeader className="flex flex-row items-center justify-between shrink-0 pb-4 border-b">
+            <h2 className="text-lg font-semibold">Upload to {warehouseFolder.display_name}</h2>
+            <Button variant="ghost" size="icon" onClick={() => {
+              setUploadDialogOpen(false);
+              setPendingFiles([]);
+              setPreviewFileIndex(0);
+              setSigningStatus("draft");
+              setExecutedDate(undefined);
+              setExpiryDate(undefined);
+            }} className="shrink-0">
+              <X className="h-4 w-4" />
+            </Button>
+          </SheetHeader>
+
+          {/* Body — two-column when preview available, single column otherwise */}
+          <div className={`flex-1 overflow-hidden flex ${hasPreview ? "flex-row gap-4" : "flex-col"} mt-4`}>
+            {/* Left panel: Document preview */}
+            {hasPreview && previewUrl && (
+              <div className="flex-1 min-w-0 rounded-lg border bg-muted/30 overflow-hidden">
+                {previewType === "pdf" ? (
+                  <PDFViewer url={previewUrl} className="h-full w-full" />
+                ) : previewType === "image" ? (
+                  <div className="flex items-center justify-center h-full p-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={previewUrl}
+                      alt={pendingFiles[previewFileIndex]?.name || "Preview"}
+                      className="max-w-full max-h-full object-contain rounded"
+                    />
                   </div>
-                ))}
+                ) : null}
               </div>
+            )}
+
+            {/* Right panel: File list + form fields */}
+            <div className={`${hasPreview ? "w-[380px] shrink-0" : "flex-1 max-w-md mx-auto w-full"} overflow-y-auto space-y-4 pr-1`}>
+              {/* Clickable file list */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  {pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""} selected
+                </Label>
+                <div className="max-h-40 overflow-auto space-y-0.5">
+                  {pendingFiles.map((file, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "flex items-center gap-2 text-sm px-2 py-1.5 rounded-md cursor-pointer transition-colors",
+                        i === previewFileIndex
+                          ? "bg-primary/10 text-primary ring-1 ring-primary/30"
+                          : "text-muted-foreground hover:bg-muted"
+                      )}
+                      onClick={() => setPreviewFileIndex(i)}
+                    >
+                      <FileText className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{file.name}</span>
+                      <span className="text-xs shrink-0">({formatFileSize(file.size)})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Document type */}
+              {(warehouseFolder.document_types?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="job-doc-type-select">Document Type</Label>
+                  <Select value={selectedDocType} onValueChange={setSelectedDocType}>
+                    <SelectTrigger id="job-doc-type-select">
+                      <SelectValue placeholder="Select document type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {warehouseFolder.document_types?.map((dt) => (
+                        <SelectItem key={dt.id} value={dt.name}>
+                          {dt.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Signing status */}
+              {needsSigningStatus && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="job-signing-status">Signing Status</Label>
+                  <Select value={signingStatus} onValueChange={(v) => setSigningStatus(v as "draft" | "signed")}>
+                    <SelectTrigger id="job-signing-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="signed">Signed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Executed date */}
+              {needsExecutedDate && (
+                <div className="space-y-1.5">
+                  <Label>Date Executed</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${!executedDate ? "text-muted-foreground" : ""}`}
+                      >
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {executedDate
+                          ? executedDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+                          : "When was this document signed?"
+                        }
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={executedDate}
+                        onSelect={setExecutedDate}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
+              {/* Expiry date */}
+              {needsExpiry && (
+                <div className="space-y-1.5">
+                  <Label>Expiry Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${!expiryDate ? "text-muted-foreground" : ""}`}
+                      >
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {expiryDate
+                          ? expiryDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+                          : "Select expiry date..."
+                        }
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={expiryDate}
+                        onSelect={setExpiryDate}
+                        disabled={(date) => date < new Date()}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
             </div>
-
-            {(warehouseFolder.document_types?.length ?? 0) > 0 && (
-              <div className="space-y-1.5">
-                <Label htmlFor="job-doc-type-select">Document Type</Label>
-                <Select value={selectedDocType} onValueChange={setSelectedDocType}>
-                  <SelectTrigger id="job-doc-type-select">
-                    <SelectValue placeholder="Select document type..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {warehouseFolder.document_types?.map((dt) => (
-                      <SelectItem key={dt.id} value={dt.name}>
-                        {dt.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {needsSigningStatus && (
-              <div className="space-y-1.5">
-                <Label htmlFor="job-signing-status">Signing Status</Label>
-                <Select value={signingStatus} onValueChange={(v) => setSigningStatus(v as "draft" | "signed")}>
-                  <SelectTrigger id="job-signing-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="signed">Signed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {needsExecutedDate && (
-              <div className="space-y-1.5">
-                <Label>Date Executed</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={`w-full justify-start text-left font-normal ${!executedDate ? "text-muted-foreground" : ""}`}
-                    >
-                      <CalendarDays className="mr-2 h-4 w-4" />
-                      {executedDate
-                        ? executedDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
-                        : "When was this document signed?"
-                      }
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={executedDate}
-                      onSelect={setExecutedDate}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            )}
-
-            {needsExpiry && (
-              <div className="space-y-1.5">
-                <Label>Expiry Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={`w-full justify-start text-left font-normal ${!expiryDate ? "text-muted-foreground" : ""}`}
-                    >
-                      <CalendarDays className="mr-2 h-4 w-4" />
-                      {expiryDate
-                        ? expiryDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
-                        : "Select expiry date..."
-                      }
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={expiryDate}
-                      onSelect={setExpiryDate}
-                      disabled={(date) => date < new Date()}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            )}
           </div>
-          <DialogFooter>
+
+          {/* Footer */}
+          <div className="flex justify-end gap-2 pt-4 border-t mt-4 shrink-0">
             <Button variant="outline" onClick={() => {
               setUploadDialogOpen(false);
               setPendingFiles([]);
+              setPreviewFileIndex(0);
               setSigningStatus("draft");
               setExecutedDate(undefined);
               setExpiryDate(undefined);
@@ -493,9 +577,9 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
               )}
               Upload
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
