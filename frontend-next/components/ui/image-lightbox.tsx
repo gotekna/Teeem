@@ -30,6 +30,7 @@
  */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import {
   ChevronLeft,
@@ -499,7 +500,11 @@ export function ImageLightbox({
 
   if (!open || !currentPhoto) return null;
 
-  return (
+  // ⚠️ DO NOT REMOVE PORTAL - renders at document.body to escape stacking contexts
+  // The job page has `relative z-0` on its Tabs container, which traps fixed children
+  // inside that stacking context (making z-50 ineffective against z-40 sticky tabs).
+  // Portal renders at document.body level, bypassing all parent stacking contexts.
+  const content = (
     <div
       className="fixed inset-0 z-50 bg-black/95 flex flex-col"
       onTouchStart={onTouchStart}
@@ -724,6 +729,8 @@ export function ImageLightbox({
       )}
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : null;
 }
 
 export default ImageLightbox;

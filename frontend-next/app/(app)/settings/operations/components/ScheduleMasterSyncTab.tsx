@@ -131,7 +131,7 @@ export function ScheduleMasterSyncTab() {
   const [syncing, setSyncing] = useState(false);
   const [cascading, setCascading] = useState(false);
   type SkippedOrphan = { id: number; sync_key: string; name: string; referenced_by: string };
-  type CascadeTableResult = { imported: number; updated: number; skipped: number; deleted_orphans?: number; skipped_orphans?: SkippedOrphan[] };
+  type CascadeTableResult = { imported: number; updated: number; skipped: number; deleted_orphans?: number; skipped_orphans?: SkippedOrphan[]; promoted_to_master?: number };
   const [cascadeResults, setCascadeResults] = useState<Record<string, Record<string, CascadeTableResult>>>({});
   const [tableStatus, setTableStatus] = useState<Record<TableKey, TableSyncStatus>>({} as Record<TableKey, TableSyncStatus>);
   const [tableResults, setTableResults] = useState<Record<TableKey, TableResult>>({} as Record<TableKey, TableResult>);
@@ -1119,6 +1119,19 @@ export function ScheduleMasterSyncTab() {
                                 </span>
                               )}
                             </div>
+                            {/* Promoted-to-master: orphaned records that are in-use, so we sync them up to TEEEM */}
+                            {isMasterTenant && cascadeResults[table.key] && (() => {
+                              const totalPromoted = Object.values(cascadeResults[table.key]).reduce((sum, r) => sum + (r.promoted_to_master || 0), 0);
+                              if (totalPromoted === 0) return null;
+                              return (
+                                <span
+                                  className="text-[10px] text-blue-600 dark:text-blue-400 cursor-help"
+                                  title="Tenant-only records promoted to TEEEM — will be distributed to all tenants on the next cascade sync"
+                                >
+                                  ↑ {totalPromoted} promoted to TEEEM
+                                </span>
+                              );
+                            })()}
                             {/* Skipped orphans warning — records that couldn't be deleted because they're still referenced */}
                             {isMasterTenant && cascadeResults[table.key] && (() => {
                               const allSkipped = Object.entries(cascadeResults[table.key]).flatMap(([tenantSlug, r]) =>
@@ -1276,7 +1289,7 @@ export function ScheduleMasterSyncTab() {
                         });
                       })()}
 
-                      {/* Skipped orphan sub-rows — tenant records that couldn't be deleted (FK violation) */}
+                      {/* Skipped orphan sub-rows — tenant records that couldn't be deleted (FK violation) — now auto-promoted to TEEEM */}
                       {expandedTables.has(table.key) && isMasterTenant && cascadeResults[table.key] && (() => {
                         const allSkipped = Object.entries(cascadeResults[table.key]).flatMap(([tenantSlug, r]) =>
                           (r.skipped_orphans || []).map((o) => ({ ...o, tenantSlug }))
@@ -1285,10 +1298,10 @@ export function ScheduleMasterSyncTab() {
                         const colSpan = allTenants.length > 0 ? allTenants.length + 4 : 6;
                         return (
                           <React.Fragment key={`${table.key}-orphans`}>
-                            <TableRow className="bg-amber-50/20 dark:bg-amber-950/10">
+                            <TableRow className="bg-blue-50/20 dark:bg-blue-950/10">
                               <TableCell colSpan={colSpan} className="py-1 px-4">
-                                <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">
-                                  ⚠ {allSkipped.length} record{allSkipped.length !== 1 ? "s" : ""} exist in tenant but not TEEEM — can&apos;t delete (still referenced)
+                                <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                                  ↑ {allSkipped.length} tenant-only record{allSkipped.length !== 1 ? "s" : ""} still referenced — promoted to TEEEM (run cascade again to distribute)
                                 </span>
                               </TableCell>
                             </TableRow>

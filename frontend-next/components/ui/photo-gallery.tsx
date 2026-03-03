@@ -353,8 +353,8 @@ function groupPhotosByDate(photos: PhotoItem[]): Map<string, PhotoItem[]> {
   );
 }
 
-// View mode toggle buttons
-function ViewModeToggle({
+// View mode toggle buttons - also exported for use in parent toolbars
+export function ViewModeToggle({
   viewMode,
   onChange,
 }: {

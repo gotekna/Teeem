@@ -1005,24 +1005,49 @@ module Api
         if pending_tombstones.any?
           sync_keys_to_delete = pending_tombstones.map(&:sync_key).uniq
 
-          # Delete from TEEEM master
-          deleted_from_master = ActsAsTenant.with_tenant(current_tenant) do
-            model.where(sync_key: sync_keys_to_delete).delete_all
+          # FK-safe delete: try batch first, fall back to one-by-one on FK violation.
+          # Records still referenced by child tables (e.g. sm_schedule_masters referenced by sm_tasks)
+          # cannot be deleted until their children are cleaned up. We skip them gracefully and
+          # leave their tombstones pending so the next cascade can retry after children sync.
+          blocked_sync_keys = []
+
+          fk_safe_delete = lambda do |tenant_ctx, keys|
+            deleted = 0
+            ActsAsTenant.with_tenant(tenant_ctx) do
+              begin
+                deleted = model.where(sync_key: keys).delete_all
+              rescue ActiveRecord::InvalidForeignKey
+                keys.each do |sk|
+                  begin
+                    deleted += model.where(sync_key: sk).delete_all
+                  rescue ActiveRecord::InvalidForeignKey
+                    blocked_sync_keys << sk
+                    Rails.logger.warn "[ConfigSync] Tombstone blocked: #{model} sync_key=#{sk} still referenced (will retry on next cascade)"
+                  end
+                end
+              end
+            end
+            deleted
           end
-          tombstone_results[:deleted_from_master] = deleted_from_master
+
+          # Delete from TEEEM master
+          tombstone_results[:deleted_from_master] = fk_safe_delete.call(current_tenant, sync_keys_to_delete)
 
           # Delete from each customer tenant
           customer_tenants.each do |t|
-            deleted = ActsAsTenant.with_tenant(t) do
-              model.where(sync_key: sync_keys_to_delete).delete_all
-            end
+            deleted = fk_safe_delete.call(t, sync_keys_to_delete)
             tombstone_results[t.slug] ||= {}
             tombstone_results[t.slug][:tombstone_deleted] = deleted
           end
 
-          # Mark propagated
-          ConfigSyncDeletion.where(id: pending_tombstones.map(&:id))
-                            .update_all(propagated_at: Time.current)
+          # Only mark propagated for tombstones that were successfully deleted.
+          # Blocked tombstones stay pending so next cascade retries them.
+          blocked_sync_keys.uniq!
+          propagated_ids = pending_tombstones
+            .reject { |ts| blocked_sync_keys.include?(ts.sync_key) }
+            .map(&:id)
+          ConfigSyncDeletion.where(id: propagated_ids).update_all(propagated_at: Time.current) if propagated_ids.any?
+          tombstone_results[:blocked_tombstones] = blocked_sync_keys.length if blocked_sync_keys.any?
         end
 
         # ── Step 2 + 3: Push + orphan cleanup per customer tenant ─────────────────────
@@ -1055,12 +1080,26 @@ module Api
           # Orphan cleanup: delete customer records with sync_key not in TEEEM
           orphan_result = master_sync_keys.any? ? svc.delete_orphaned_from_master(table: table) : { deleted: 0, skipped_orphans: [] }
 
+          # Promote can't-delete orphans to TEEEM so they become canonical.
+          # Records that can't be deleted (still referenced by FK) are valid in-use records
+          # that simply weren't in TEEEM yet. Import them into TEEEM so the next cascade
+          # distributes them to all tenants. This turns "2 can't delete" into an upsert.
+          promoted_count = 0
+          if orphan_result[:skipped_orphans]&.any?
+            promote_ids = orphan_result[:skipped_orphans].map { |o| o[:id] }.compact
+            if promote_ids.any?
+              master_svc.import_from_tenant(source_tenant: t, table: table.to_s, record_ids: promote_ids)
+              promoted_count = promote_ids.length
+            end
+          end
+
           results[t.slug] = {
             imported:         push_result[:imported]&.length || 0,
             updated:          push_result[:updated]&.length  || 0,
             skipped:          push_result[:skipped]&.length  || 0,
             deleted_orphans:  orphan_result[:deleted],
-            skipped_orphans:  orphan_result[:skipped_orphans]&.presence
+            skipped_orphans:  orphan_result[:skipped_orphans]&.presence,
+            promoted_to_master: promoted_count > 0 ? promoted_count : nil
           }.compact
           results[t.slug].merge!(tombstone_results[t.slug] || {})
         end
