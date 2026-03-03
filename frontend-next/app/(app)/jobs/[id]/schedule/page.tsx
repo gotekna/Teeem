@@ -455,10 +455,13 @@ export default function SchedulePage() {
         if (checklistsData?.records) setAvailableChecklists(checklistsData.records);
       } catch (e) { console.error("Failed to load checklists:", e); }
 
-      // Load document types (SSoT: document_types foundation with scope=job)
+      // Load document types (SSoT: /api/v1/document_types - same as ScheduleMasterTab)
       try {
-        const docTypesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[] }>("/api/v1/foundations/document_types/records?per_page=1000&filter[scope]=job");
-        if (docTypesData?.records) setAvailableDocumentTypes(docTypesData.records);
+        const docTypesData = await api.get<{ success: boolean; data: { id: number; name: string; display_name?: string; abbreviation?: string; scope?: string; form_number_mapping?: Record<string, string> }[] }>("/api/v1/document_types");
+        if (docTypesData?.data) {
+          const jobDocTypes = docTypesData.data.filter(dt => dt.scope === "job" || dt.scope === "both");
+          setAvailableDocumentTypes(jobDocTypes.length > 0 ? jobDocTypes : docTypesData.data);
+        }
       } catch (e) { console.error("Failed to load document types:", e); }
 
       // Load trading names
