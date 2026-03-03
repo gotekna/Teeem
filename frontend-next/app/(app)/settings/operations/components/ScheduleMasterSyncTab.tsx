@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Check, AlertCircle, RefreshCw, Minus, Ban, ArrowRight, GitCompare, X, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_TIMEOUT_HEAVY_SYNC } from "@/lib/constants/timeout-constants";
 import { cn } from "@/lib/utils";
 
 /**
@@ -647,7 +648,7 @@ export function ScheduleMasterSyncTab() {
         table: string;
         results?: Record<string, CascadeTableResult>;
         error?: string;
-      }>("/api/v1/config_sync/cascade_push_table", { table: table.key });
+      }>("/api/v1/config_sync/cascade_push_table", { table: table.key }, { timeout: API_TIMEOUT_HEAVY_SYNC });
 
       if (res?.results) {
         setCascadeResults((prev) => ({ ...prev, [table.key]: res.results! }));
