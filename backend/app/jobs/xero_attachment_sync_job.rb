@@ -28,7 +28,15 @@ class XeroAttachmentSyncJob < ApplicationJob
   include MemoryGuard
   include XeroConstants  # For XERO_ATTACHMENT_SYNC_DELAY_SEC
   include XeroJobBase
-  queue_as :xero_bulk
+  # FRC (Mar 2026): Moved from :xero_bulk to :xero_sync.
+  # Root cause: xero_bulk queue (5th priority) was permanently STARVED by higher-priority
+  # queues on the 1-thread shared worker. In 5000+ log lines, ZERO xero_bulk jobs executed.
+  # XeroInvoiceSyncJob (xero_sync, 4th priority) runs 5+ min every 15 min. Between runs,
+  # default queue recurring jobs (QueueStatus, BadgeCounts every 60s) fill the gaps.
+  # xero_bulk literally never gets a turn → PDF sync stuck at 62% for weeks.
+  # ❌ WRONG: queue_as :xero_bulk — starved by higher-priority queues
+  # ✅ CORRECT: queue_as :xero_sync — same priority as invoice sync, gets fair scheduling
+  queue_as :xero_sync
 
   # ⚠️ DO NOT SIMPLIFY - Per-variant concurrency keys (Feb 2026)
   # ════════════════════════════════════════════════════════════════

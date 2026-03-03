@@ -314,7 +314,7 @@ xero_invoice_data_sync:
 # 9 min on / 21 min off = ~2,000 invoices/day capacity — sufficient for steady-state sync.
 warehouse_xero_attachments:
   class: XeroAttachmentSyncJob
-  queue: xero_bulk
+  queue: xero_sync
   args: [null, { limit: 25 }]
   schedule: every 30 minutes
 
