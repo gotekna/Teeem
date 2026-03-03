@@ -1814,7 +1814,7 @@ export function EditRowDialog({
                       <MultipleSelector
                         value={(editRowForm.plan_type_ids || []).map(id => {
                           const dt = planDocTypes.find(d => d.id === id);
-                          const label = dt ? (dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name) : `Type ${id}`;
+                          const label = dt ? (dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name) : `Type ${id}`;
                           return { value: String(id), label };
                         })}
                         onChange={(options) => {
@@ -1825,18 +1825,18 @@ export function EditRowDialog({
                         }}
                         defaultOptions={planDocTypes.map(dt => ({
                           value: String(dt.id),
-                          label: dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name
+                          label: dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name
                         }))}
                         onSearchSync={(search) => {
                           const lower = search.toLowerCase();
                           return planDocTypes
                             .filter(dt => {
-                              const label = dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name;
+                              const label = dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name;
                               return label.toLowerCase().includes(lower);
                             })
                             .map(dt => ({
                               value: String(dt.id),
-                              label: dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name
+                              label: dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name
                             }));
                         }}
                         placeholder="Select plan types..."
@@ -1857,7 +1857,7 @@ export function EditRowDialog({
                       <div className="flex gap-2">
                         <div className="flex-1">
                           <ComboboxDropdown
-                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name }))}
+                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name }))}
                             selectedItem={(() => {
                               const firstDocType = editRowForm.document_types?.[0];
                               if (!firstDocType) return undefined;
@@ -1969,10 +1969,10 @@ export function EditRowDialog({
                       {editRowForm.requires_document_to_complete && (
                         <>
                           <ComboboxDropdown
-                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name }))}
+                            items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name }))}
                             selectedItem={editRowForm.completion_document_type_id ? {
                               id: String(editRowForm.completion_document_type_id),
-                              label: (() => { const dt = documentTypes.find(d => d.id === editRowForm.completion_document_type_id); return dt ? (dt.abbreviation ? `${dt.abbreviation} - ${dt.display_name || dt.name}` : dt.display_name || dt.name) : editRowForm.completion_document_type_name || ''; })()
+                              label: (() => { const dt = documentTypes.find(d => d.id === editRowForm.completion_document_type_id); return dt ? (dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name) : editRowForm.completion_document_type_name || ''; })()
                             } : undefined}
                             onSelect={(item) => setEditRowForm({
                               ...editRowForm,

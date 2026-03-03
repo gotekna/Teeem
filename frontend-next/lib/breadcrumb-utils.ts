@@ -274,6 +274,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "email-accounts": "Email Accounts",
   "backups": "Backups",
   "sync": "Sync",
+  "sm-sync": "SM Sync",
 
   // Settings > Connections > Email Accounts sub-tabs
   "configuration": "Configuration",
@@ -519,6 +520,7 @@ const TABBED_PAGES: string[] = [
   "/meetings",
   "/library",
   "/docs",
+  "/settings/connections",
 ];
 
 /**
