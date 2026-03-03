@@ -2411,6 +2411,8 @@ class TenantConfigSyncService
   # Delete Propagation: orphan cleanup + tombstone processing
   # ============================================================================
 
+  public
+
   # Delete records in the current tenant whose sync_key no longer exists in TEEEM master.
   #
   # Called after pull_from_master (two_way/one_way tables only) so that records
