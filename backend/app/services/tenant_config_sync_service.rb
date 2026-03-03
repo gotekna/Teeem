@@ -2447,7 +2447,9 @@ class TenantConfigSyncService
       rescue ActiveRecord::InvalidForeignKey => e
         # Record is still referenced by another table — leave it in place.
         # Surface to the UI so the user knows to clean up the reference first.
-        ref_table = e.message[/table "([^"]+)"/, 1] || "another table"
+        # FK error format: "... on table "cost_centres" violates ... on table "custom_quote_template_lines""
+        # We want the LAST table (the one holding the FK), not the first (the one being deleted).
+        ref_table = e.message.scan(/table "([^"]+)"/).last&.first || "another table"
         display  = rec.try(:name) || rec.try(:title) || rec.try(:subject) || "##{rec.id}"
         skipped << { id: rec.id, sync_key: rec.sync_key, name: display, referenced_by: ref_table }
         Rails.logger.info "[ConfigSync] Skipped orphan #{model}##{rec.id} (sync_key=#{rec.sync_key}): still referenced by #{ref_table}"
