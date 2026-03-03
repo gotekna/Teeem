@@ -2488,7 +2488,7 @@ export function ConnectionsTab({ subTab, deepTab, basePath = DEFAULT_CONNECTIONS
               </TabsTrigger>
             ))}
           </TabsList>
-          <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+          {!expanded && <ExpandButton expanded={expanded} onToggle={toggleExpanded} />}
         </div>
       </div>
 

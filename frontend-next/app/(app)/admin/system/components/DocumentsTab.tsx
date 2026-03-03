@@ -68,7 +68,7 @@ export function DocumentsTab({ subTab, deepTab, basePath = DEFAULT_DOCUMENTS_BAS
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+              {!expanded && <ExpandButton expanded={expanded} onToggle={toggleExpanded} />}
             </div>
           </div>
 

@@ -72,7 +72,7 @@ function QuoteTemplatesWrapper() {
             <TabsTrigger value="std">Std Quote Templates</TabsTrigger>
             <TabsTrigger value="custom">Custom Quote Templates</TabsTrigger>
           </TabsList>
-          <ExpandButton expanded={subExpanded} onToggle={toggleSubExpanded} />
+          {!subExpanded && <ExpandButton expanded={subExpanded} onToggle={toggleSubExpanded} />}
         </div>
         <div className="flex-1 min-h-0 mt-2">
           <TabsContent value="std" className="h-full overflow-auto">
@@ -101,7 +101,7 @@ function MarkupWrapper() {
             <TabsTrigger value="templates">Templates</TabsTrigger>
             <TabsTrigger value="qbcc">QBCC Brackets</TabsTrigger>
           </TabsList>
-          <ExpandButton expanded={subExpanded} onToggle={toggleSubExpanded} />
+          {!subExpanded && <ExpandButton expanded={subExpanded} onToggle={toggleSubExpanded} />}
         </div>
         <div className="flex-1 min-h-0 mt-2">
           <TabsContent value="defaults" className="h-full overflow-auto">
@@ -151,7 +151,7 @@ export default function OperationsSettingsPage() {
                 </TabsTrigger>
               ))}
             </TabsList>
-            <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+            {!expanded && <ExpandButton expanded={expanded} onToggle={toggleExpanded} />}
           </div>
         </div>
 

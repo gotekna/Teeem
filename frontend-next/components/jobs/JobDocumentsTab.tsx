@@ -1729,8 +1729,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       )}
                       {/* View mode toggle - grid / filmstrip */}
                       <ViewModeToggle viewMode={photoViewMode} onChange={handlePhotoViewModeChange} />
-                      {/* Expand button */}
-                      <ExpandButton expanded={photoExpanded} onToggle={togglePhotoExpanded} />
+                      {/* Expand button - hidden when expanded (ExpandableSection provides its own) */}
+                      {!photoExpanded && <ExpandButton expanded={photoExpanded} onToggle={togglePhotoExpanded} />}
                     </div>
                   )}
                 </div>

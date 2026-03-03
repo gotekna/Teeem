@@ -2700,7 +2700,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             Tables
           </TabsTrigger>
         </TabsList>
-        <ExpandButton expanded={smExpanded} onToggle={toggleSmExpanded} />
+        {!smExpanded && <ExpandButton expanded={smExpanded} onToggle={toggleSmExpanded} />}
         </div>
 
         {/* Tab content container - flex-1 to fill remaining space, relative for absolute children */}

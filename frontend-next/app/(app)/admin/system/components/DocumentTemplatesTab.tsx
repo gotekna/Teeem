@@ -124,7 +124,7 @@ export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab 
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+              {!expanded && <ExpandButton expanded={expanded} onToggle={toggleExpanded} />}
             </div>
           </div>
 

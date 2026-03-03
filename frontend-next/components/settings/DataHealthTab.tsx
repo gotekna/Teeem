@@ -274,7 +274,7 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
                 Contacts
               </TabsTrigger>
             </TabsList>
-            <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+            {!expanded && <ExpandButton expanded={expanded} onToggle={toggleExpanded} />}
           </div>
         </div>
 

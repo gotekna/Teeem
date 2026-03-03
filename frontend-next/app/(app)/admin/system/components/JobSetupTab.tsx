@@ -578,7 +578,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 </TabsTrigger>
               ))}
             </TabsList>
-            <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+            {!expanded && <ExpandButton expanded={expanded} onToggle={toggleExpanded} />}
           </div>
         </div>
 
