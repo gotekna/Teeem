@@ -107,7 +107,7 @@ export function ExpandableSection({
   return (
     <div
       className={cn(
-        "fixed top-24 left-0 md:left-[var(--sidebar-width)] right-0 bottom-0 bg-background flex flex-col z-40 transition-[left] duration-300",
+        "fixed top-24 left-0 md:left-[var(--sidebar-width)] right-0 bottom-0 bg-background flex flex-col z-50 transition-[left] duration-300",
         className
       )}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}

@@ -45,7 +45,7 @@ import {
   ChevronDown,
   Layers,
 } from "lucide-react";
-import { PhotoGallery, type PhotoItem, type PhotoViewMode } from "@/components/ui/photo-gallery";
+import { PhotoGallery, ViewModeToggle, type PhotoItem, type PhotoViewMode } from "@/components/ui/photo-gallery";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { ExpandButton, ExpandableSection, useExpandedState } from "@/components/ui/expandable-section";
 import {
@@ -1727,6 +1727,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           SharePoint
                         </Button>
                       )}
+                      {/* View mode toggle - grid / filmstrip */}
+                      <ViewModeToggle viewMode={photoViewMode} onChange={handlePhotoViewModeChange} />
                       {/* Expand button */}
                       <ExpandButton expanded={photoExpanded} onToggle={togglePhotoExpanded} />
                     </div>
@@ -1761,7 +1763,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           onSelectionAction={handleSelectionAction}
                           viewMode={photoViewMode}
                           onViewModeChange={handlePhotoViewModeChange}
-                          showViewToggle
                           className={photoExpanded ? "flex-1" : undefined}
                         />
                       )}
