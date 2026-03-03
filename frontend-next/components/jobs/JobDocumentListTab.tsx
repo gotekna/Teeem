@@ -78,11 +78,8 @@ export default function JobDocumentListTab({ jobId, warehouseFolder }: JobDocume
 
   const needsSigningStatus = selectedDocTypeObj?.tracks_signing_status || false;
 
-  const needsExecutedDate = React.useMemo(() => {
-    if (!selectedDocTypeObj) return false;
-    const templates = [selectedDocTypeObj.ui_name, selectedDocTypeObj.download_name].filter(Boolean).join(" ");
-    return /\{EXC\}|\{Executed\}/i.test(templates);
-  }, [selectedDocTypeObj]);
+  // Show executed date picker when user selects "Signed" — need to know when it was signed
+  const needsExecutedDate = needsSigningStatus && signingStatus === "signed";
 
   const needsExpiry = React.useMemo(() => {
     if (!selectedDocTypeObj) return false;
