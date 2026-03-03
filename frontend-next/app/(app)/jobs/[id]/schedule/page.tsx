@@ -455,12 +455,12 @@ export default function SchedulePage() {
         if (checklistsData?.records) setAvailableChecklists(checklistsData.records);
       } catch (e) { console.error("Failed to load checklists:", e); }
 
-      // Load document types (SSoT: /api/v1/document_types - same as ScheduleMasterTab)
+      // Load document types (lightweight ?for=select fast path - 1 query, ~20ms)
+      // Full /api/v1/document_types serializes 808 types with heavy joins - too slow for dropdown
       try {
-        const docTypesData = await api.get<{ success: boolean; data: { id: number; name: string; display_name?: string; abbreviation?: string; scope?: string; form_number_mapping?: Record<string, string> }[] }>("/api/v1/document_types");
+        const docTypesData = await api.get<{ success: boolean; data: { id: number; name: string; display_name?: string; abbreviation?: string; scope?: string; folder?: string }[] }>("/api/v1/document_types?for=select&scope=job");
         if (docTypesData?.data) {
-          const jobDocTypes = docTypesData.data.filter(dt => dt.scope === "job" || dt.scope === "both");
-          setAvailableDocumentTypes(jobDocTypes.length > 0 ? jobDocTypes : docTypesData.data);
+          setAvailableDocumentTypes(docTypesData.data);
         }
       } catch (e) { console.error("Failed to load document types:", e); }
 
