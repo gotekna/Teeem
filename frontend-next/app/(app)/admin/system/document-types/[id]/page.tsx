@@ -482,7 +482,7 @@ export default function DocumentTypeDetailPage() {
   React.useEffect(() => {
     const fetchAllDocumentTypes = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: Array<Record<string, unknown>> }>("/api/v1/document_types");
+        const response = await api.get<{ success: boolean; data: Array<Record<string, unknown>> }>("/api/v1/document_types?for=select");
         if (response.success && Array.isArray(response.data)) {
           // Sort by name for consistent navigation, include scope
           const sorted = response.data

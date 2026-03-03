@@ -1340,7 +1340,7 @@ function GoldDocumentTypeEditor() {
   const loadDocumentTypes = async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ success: boolean; data: Array<Record<string, unknown>> }>("/api/v1/document_types");
+      const response = await api.get<{ success: boolean; data: Array<Record<string, unknown>> }>("/api/v1/document_types?for=select");
       if (response.success && Array.isArray(response.data)) {
         const sorted = response.data
           .map((dt: Record<string, unknown>) => ({ id: Number(dt.id), name: String(dt.name), abbreviation: dt.abbreviation ? String(dt.abbreviation) : undefined, scope: (dt.scope as string) || "company" }))

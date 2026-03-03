@@ -312,7 +312,7 @@ export default function ScheduleTemplateDetailPage() {
         api.get<{ success: boolean; data: { id: number; name: string }[] }>(API.foundations.bySlug("sm_trades")),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>(API.foundations.bySlug("sm_stages")),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/bpmn_processes?status=published"),
-        api.get<{ success: boolean; data: { id: number; name: string; display_name: string }[] }>("/api/v1/document_types?scope=job"),
+        api.get<{ success: boolean; data: { id: number; name: string; display_name: string }[] }>("/api/v1/document_types?for=select&scope=job"),
       ]);
 
       setTemplate(templateData.sm_schedule_master_template);
