@@ -34,27 +34,41 @@
 
 production:
   workers:
-    # Single worker process: all queues in priority order.
-    # SolidQueue polls queues left-to-right, so critical/default always
-    # get a thread before xero/low jobs.
+    # ═══════════════════════════════════════════════════════════════════════
+    # DUAL WORKER POOLS (Mar 2026) — Requires async mode
+    # ═══════════════════════════════════════════════════════════════════════
     #
-    # ⚠️ Memory fix (Feb 2026): Previously split into 2 worker groups (2 forked
-    # processes × ~450MB each = 1050MB baseline on a 1024MB dyno → instant R14).
-    # SolidQueue queue ordering already prevents starvation, so 2 processes was
-    # unnecessary. Single process baseline: ~520MB → 504MB headroom for jobs.
+    # SolidQueue 1.3.0+ async mode runs all workers as THREADS in a single
+    # process (no forking). This saves ~300-450MB vs fork mode because there's
+    # no duplicate Ruby process.
     #
-    # FRC (Feb 2026): 1 thread required. Two attempts at 2 threads both hit R14:
-    #   Attempt 1: XeroAttachmentSyncJob + RetryPendingAttachmentBlobsJob (1795MB)
-    #   Attempt 2: XeroInvoiceSyncJob + XeroBillPoMatchJob (963MB after 1hr, trending to R14)
-    # Root cause: Not binary blob memory — it's sustained AR object churn from two
-    # concurrent jobs each making hundreds of API calls over 1+ hours. Ruby memory
-    # fragmentation accumulates even with jemalloc + page-by-page streaming.
-    # Baseline ~893MB with 2 threads vs ~700MB with 1 thread = 193MB thread overhead.
-    # On a 1024MB dyno, 193MB overhead leaves insufficient headroom.
-    - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
-      threads: 1
+    # Set SOLID_QUEUE_SUPERVISOR_MODE=async on Heroku to enable.
+    # If not set, falls back to fork mode (single worker entry used).
+    #
+    # ⚠️ History (Feb 2026): Fork mode with 2 worker entries crashed (R14)
+    # because each fork duplicated the ~450MB process (2 × 450 = 900MB).
+    # Async mode eliminates this: both pools share the same process memory.
+    #
+    # Memory budget (async mode on 1024MB dyno):
+    #   Process baseline:      ~530MB
+    #   Light pool (2 threads): +4MB stack + ~100MB peak job overhead
+    #   Heavy pool (1 thread):  +2MB stack + ~400MB peak job overhead
+    #   Total peak:             ~1036MB (tight — MemoryGuard aborts at 920MB)
+    #
+    # LIGHT POOL: Critical + user-facing (2 threads)
+    # These jobs are <50MB, <5s. Never blocked by heavy Xero/backup work.
+    - queues: [critical, default, solid_queue_recurring]
+      threads: 2
       processes: 1
       polling_interval: 0.1
+
+    # HEAVY POOL: Xero, bulk, background (1 thread)
+    # Single thread: heavy jobs use 400-600MB peak.
+    # Sequential processing prevents R14.
+    - queues: [xero_sync, xero_bulk, low, low_priority]
+      threads: 1
+      processes: 1
+      polling_interval: 1
 
   dispatchers:
     - polling_interval: 1

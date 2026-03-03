@@ -2129,6 +2129,7 @@ class TenantConfigSyncService
     if config[:remap_fks].present?
       config[:remap_fks].each do |field, _remap_config|
         next unless config[:sync_fields].include?(field)
+        next if defer_fields.include?(field)  # Self-ref FKs are deferred to second pass — nil here is expected, not a failure
         next unless attrs.key?(field) && attrs[field].nil? && source_record.send(field).present?
         # Source had a value but remap returned nil → parent doesn't exist in target
         return { imported: false, reason: "FK remap failed: #{field} (orphaned record)" }

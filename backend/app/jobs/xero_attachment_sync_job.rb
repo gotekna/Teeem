@@ -123,8 +123,10 @@ class XeroAttachmentSyncJob < ApplicationJob
   # FRC (Feb 2026): Reverted from 550/650 to 700/800. The 550/650 values were
   # for a 2-thread config that caused R14. With 1 thread, baseline is ~689MB,
   # so 550 warning would trigger immediately on every batch.
-  MEMORY_WARNING_MB = 700
-  MEMORY_ABORT_MB = 800
+  # FRC (Mar 2026): Raised from 700/800 for async mode. In async mode, current_rss_mb
+  # measures the ENTIRE process (all thread pools). Baseline(530) + light(100) + heavy = 920.
+  MEMORY_WARNING_MB = 800
+  MEMORY_ABORT_MB = 920
 
   # Per-tenant lock TTL (must exceed MAX_RUNTIME to prevent overlap)
   TENANT_LOCK_TTL = 12.minutes

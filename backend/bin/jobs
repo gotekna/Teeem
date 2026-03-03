@@ -10,4 +10,14 @@ if ENV["SOLID_QUEUE_CONFIG"] && !args.any? { |a| a.include?("config_file") }
   args.push("--config_file", ENV["SOLID_QUEUE_CONFIG"])
 end
 
+# Support SOLID_QUEUE_SUPERVISOR_MODE env var for async mode
+# FRC (Mar 2026): SolidQueue 1.3.0+ supports async mode where all workers,
+# dispatchers, and schedulers run as threads in a single process (no forking).
+# This saves ~300-450MB of memory vs fork mode on a 1GB Heroku dyno.
+# Set SOLID_QUEUE_SUPERVISOR_MODE=async on teeem-shared-worker.
+# Default: fork (backwards compatible with previous behavior).
+if ENV["SOLID_QUEUE_SUPERVISOR_MODE"] && !args.any? { |a| a.include?("mode") }
+  args.push("--mode", ENV["SOLID_QUEUE_SUPERVISOR_MODE"])
+end
+
 SolidQueue::Cli.start(args)

@@ -98,11 +98,14 @@ test:
 #   Release phase headroom: 10 connections remaining
 #   Total: 30 + release ≤ 40
 #
-# Queue DB (separate, per dyno): 3 connections
+# Queue DB (separate, per dyno): 3 connections (default)
+# FRC (Mar 2026): Async mode needs more connections:
+#   3 worker threads + 1 dispatcher + 1 scheduler + 1 heartbeat = 6 minimum
+#   Set DB_POOL_QUEUE=6 on teeem-shared-worker when enabling async mode.
 #
 # Override via env vars if needed:
 #   DB_POOL_PRIMARY=5  (increase for single-env setups)
-#   DB_POOL_QUEUE=5    (increase if queue DB has headroom)
+#   DB_POOL_QUEUE=6    (required for async mode with dual worker pools)
 # =============================================================================
 production:
   primary:

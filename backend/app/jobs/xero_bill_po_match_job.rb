@@ -15,9 +15,10 @@ class XeroBillPoMatchJob < ApplicationJob
   # FRC (Feb 2026): Was 30 min, blocked default queue jobs for 20+ min at 7am peak.
   TIME_BUDGET_SECONDS = 5.minutes.to_i
 
-  # Memory thresholds for MemoryGuard concern
-  MEMORY_WARNING_MB = 700
-  MEMORY_ABORT_MB = 800
+  # FRC (Mar 2026): Raised from 700/800 for async mode. In async mode, current_rss_mb
+  # measures the ENTIRE process (all thread pools). Baseline(530) + light(100) + heavy = 920.
+  MEMORY_WARNING_MB = 800
+  MEMORY_ABORT_MB = 920
 
   # ⚠️ FRC (Feb 2026): Must iterate over tenants
   # Root cause: PurchaseOrder and XeroJobTrackingLink have acts_as_tenant.

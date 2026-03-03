@@ -219,6 +219,14 @@ export const DATE_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Expiry date",
   },
   {
+    code: "{EXC}",
+    example: "EXC 09/10/25",
+    longCode: "{Executed}",
+    longExample: "Executed 9 October 2025",
+    color: "green",
+    description: "Executed/signed date",
+  },
+  {
     code: "{Time}",
     example: "14:30",
     longCode: "{TimeLong}",
@@ -402,6 +410,12 @@ export const PLAN_PLACEHOLDERS: PlaceholderToken[] = [
 export const DOCUMENT_PLACEHOLDERS: PlaceholderToken[] = [
   // NOTE: {DocTypeCode} and {DocTypeName} are added DYNAMICALLY in the document type editor
   // based on the current document type being edited. Do NOT add them here to avoid duplicates.
+  {
+    code: "{Signed}",
+    example: "Signed",
+    color: "blue",
+    description: "Signing status (Draft/Signed/Unsigned)",
+  },
   {
     code: "{Description}",
     example: "Example",
