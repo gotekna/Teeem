@@ -327,48 +327,39 @@ export function SmTaskStatusBar({ info }: { info: SmTaskInfo }) {
   };
 
   const config = statusConfig[info.status as keyof typeof statusConfig] || statusConfig.not_started;
-  const hasDates = info.startedAt || info.completedAt || info.endDate;
   const ChevronIcon = expanded ? ChevronDown : ChevronRight;
 
   return (
     <div className="border-b bg-muted/30 text-sm">
-      {/* Primary row: task name + status + chevron */}
+      {/* Collapsed: just task name + chevron toggle */}
       <div
-        className={`flex items-center gap-3 px-3 py-2 ${hasDates ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}`}
-        onClick={() => hasDates && setExpanded(!expanded)}
+        className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={() => setExpanded(!expanded)}
       >
-        <ClipboardList className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="font-medium truncate">{info.taskName}</span>
-        <span className="text-muted-foreground">·</span>
-        <Badge variant="outline" className={`text-[10px] px-2 py-0 h-5 border-0 font-semibold ${config.className}`}>
-          <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${config.dotClass}`} />
-          {config.label}
-        </Badge>
-        <div className="flex-1" />
-        {hasDates && (
-          <ChevronIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
+        <ChevronIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <ClipboardList className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-xs text-muted-foreground truncate">{info.taskName}</span>
       </div>
 
-      {/* Expanded row: schedule details */}
-      {expanded && hasDates && (
-        <div className="flex items-center gap-4 px-3 pb-2 pl-10 text-xs text-muted-foreground">
-          {info.startedAt && (
-            <span>Started: {formatDate(info.startedAt)}</span>
-          )}
-          {!info.startedAt && (
-            <span>Started: —</span>
+      {/* Expanded: full task details */}
+      {expanded && (
+        <div className="flex items-center gap-3 px-3 pb-2 pl-9 flex-wrap">
+          <Badge variant="outline" className={`text-[10px] px-2 py-0 h-5 border-0 font-semibold ${config.className}`}>
+            <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${config.dotClass}`} />
+            {config.label}
+          </Badge>
+          {info.startedAt ? (
+            <span className="text-xs text-muted-foreground">Started: {formatDate(info.startedAt)}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground">Started: —</span>
           )}
           {info.endDate && (
-            <span>Due: {formatDate(info.endDate)}</span>
+            <span className="text-xs text-muted-foreground">Due: {formatDate(info.endDate)}</span>
           )}
           {info.completedAt && (
-            <span className="text-emerald-600 dark:text-emerald-400">
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">
               Completed: {formatDate(info.completedAt)}
             </span>
-          )}
-          {!info.completedAt && !info.endDate && (
-            <span>Due: —</span>
           )}
         </div>
       )}
@@ -377,7 +368,40 @@ export function SmTaskStatusBar({ info }: { info: SmTaskInfo }) {
 }
 
 // ============================================================================
-// RequiredDocPlaceholderRow - Ghost row for missing required documents
+// Task status config (shared)
+// ============================================================================
+
+const taskStatusConfig = {
+  not_started: {
+    label: "Not Started",
+    className: "bg-muted text-muted-foreground",
+    dotClass: "bg-muted-foreground",
+  },
+  started: {
+    label: "In Progress",
+    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    dotClass: "bg-blue-500",
+  },
+  completed: {
+    label: "Completed",
+    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    dotClass: "bg-emerald-500",
+  },
+  waiting_for_response: {
+    label: "Waiting",
+    className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    dotClass: "bg-amber-500",
+  },
+  waiting_for_info: {
+    label: "Waiting for Info",
+    className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    dotClass: "bg-amber-500",
+  },
+};
+
+// ============================================================================
+// RequiredDocPlaceholderRow - Expandable placeholder for missing documents
+// Shows doc type name + Waiting badge. Click chevron to reveal task info.
 // ============================================================================
 
 function RequiredDocPlaceholderRow({
@@ -387,32 +411,60 @@ function RequiredDocPlaceholderRow({
   docType: SmTaskRequiredDocType;
   onUpload?: (docType: SmTaskRequiredDocType) => void;
 }) {
-  // Use per-doc-type task dates (each required doc may come from a different SM task)
+  const [expanded, setExpanded] = useState(false);
+  const taskName = docType.taskName;
   const startDate = docType.taskStartDate;
   const endDate = docType.taskEndDate;
-  const taskName = docType.taskName;
+  const taskStatus = docType.taskStatus || "not_started";
+  const config = taskStatusConfig[taskStatus as keyof typeof taskStatusConfig] || taskStatusConfig.not_started;
+  const ChevronIcon = expanded ? ChevronDown : ChevronRight;
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 bg-amber-50/50 dark:bg-amber-950/10 border-b border-dashed border-amber-200 dark:border-amber-800/30">
-      <div className="h-7 w-7 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-        <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-          {docType.documentTypeName}
-        </p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <Badge
+    <div className="bg-amber-50/50 dark:bg-amber-950/10 border-b border-dashed border-amber-200 dark:border-amber-800/30">
+      {/* Primary row: doc type name + waiting badge + chevron + upload */}
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        <div
+          className="cursor-pointer p-0.5 hover:bg-amber-200/50 dark:hover:bg-amber-800/30 rounded shrink-0"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <ChevronIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div className="h-7 w-7 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+          <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+            {docType.documentTypeName}
+          </p>
+        </div>
+        <Badge
+          variant="outline"
+          className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400 shrink-0"
+        >
+          Waiting
+        </Badge>
+        {onUpload && (
+          <Button
             variant="outline"
-            className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400"
+            size="sm"
+            className="shrink-0 h-7 text-xs"
+            onClick={() => onUpload(docType)}
           >
-            Waiting
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            Upload
+          </Button>
+        )}
+      </div>
+
+      {/* Expanded: task info */}
+      {expanded && taskName && (
+        <div className="flex items-center gap-2 px-3 pb-2.5 pl-12 flex-wrap">
+          <ClipboardList className="h-3 w-3 text-muted-foreground shrink-0" />
+          <span className="text-[11px] text-muted-foreground">{taskName}</span>
+          <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 border-0 font-semibold shrink-0 ${config.className}`}>
+            <span className={`h-1 w-1 rounded-full mr-1 ${config.dotClass}`} />
+            {config.label}
           </Badge>
-          {taskName && (
-            <span className="text-[11px] text-muted-foreground">
-              {taskName}
-            </span>
-          )}
           {startDate && (
             <span className="text-[11px] text-muted-foreground">
               Start: {formatDate(startDate)}
@@ -424,17 +476,6 @@ function RequiredDocPlaceholderRow({
             </span>
           )}
         </div>
-      </div>
-      {onUpload && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0 h-7 text-xs"
-          onClick={() => onUpload(docType)}
-        >
-          <Upload className="h-3.5 w-3.5 mr-1.5" />
-          Upload
-        </Button>
       )}
     </div>
   );
@@ -628,40 +669,31 @@ export function StandardDocumentList({
   // Empty state
   if (documents.length === 0 && missingRequiredDocs.length === 0) {
     return (
-      <>
-        {smTaskInfo && <SmTaskStatusBar info={smTaskInfo} />}
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-          <File className="h-10 w-10" />
-          <p className="font-medium">{emptyMessage}</p>
-          {emptyAction}
-        </div>
-      </>
+      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+        <File className="h-10 w-10" />
+        <p className="font-medium">{emptyMessage}</p>
+        {emptyAction}
+      </div>
     );
   }
 
-  // Empty documents but has missing required docs — show status bar + placeholders only
+  // Empty documents but has missing required docs — show expandable placeholder rows
   if (documents.length === 0 && missingRequiredDocs.length > 0) {
     return (
-      <>
-        {smTaskInfo && <SmTaskStatusBar info={smTaskInfo} />}
-        <div className="divide-y">
-          {missingRequiredDocs.map(dt => (
-            <RequiredDocPlaceholderRow
-              key={`required-${dt.documentTypeId}`}
-              docType={dt}
-              onUpload={onUploadForDocType}
-            />
-          ))}
-        </div>
-      </>
+      <div>
+        {missingRequiredDocs.map(dt => (
+          <RequiredDocPlaceholderRow
+            key={`required-${dt.documentTypeId}`}
+            docType={dt}
+            onUpload={onUploadForDocType}
+          />
+        ))}
+      </div>
     );
   }
 
   return (
     <>
-      {/* SM Task status bar */}
-      {smTaskInfo && <SmTaskStatusBar info={smTaskInfo} />}
-
       {/* Select All header */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b bg-muted/30">
         {canDrag && <div className="w-5" />}
@@ -722,9 +754,9 @@ export function StandardDocumentList({
         </SortableContext>
       </DndContext>
 
-      {/* Required document type placeholder rows (missing docs from SM task) */}
+      {/* Expandable placeholder rows for missing required docs */}
       {missingRequiredDocs.length > 0 && (
-        <div className="divide-y">
+        <div>
           {missingRequiredDocs.map(dt => (
             <RequiredDocPlaceholderRow
               key={`required-${dt.documentTypeId}`}
