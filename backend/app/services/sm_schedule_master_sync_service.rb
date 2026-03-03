@@ -77,6 +77,7 @@ class SmScheduleMasterSyncService
     started_at
     completed_at
     status
+    field_overrides
   ].freeze
 
   # Dynamically calculate syncable fields (all common fields minus protected)
