@@ -219,6 +219,8 @@ class SmScheduleMasterTemplateCopyService
         start_workflow_id: row.start_workflow_id,
         complete_workflow_enabled: row.complete_workflow_enabled,
         complete_workflow_id: row.complete_workflow_id,
+        # Gantt visibility (inherit from template)
+        exclude_from_gantt: row.exclude_from_gantt,
         # Claim task settings (SSoT: Schedule Master defines claims)
         is_claim_task: row.is_claim_task,
         is_variation: row.is_variation,

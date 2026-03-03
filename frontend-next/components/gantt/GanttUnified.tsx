@@ -78,6 +78,10 @@ export interface GanttUnifiedProps {
 
   // Feature toggles
   showBaselineControls?: boolean; // Hide baseline capture in template views
+
+  // Gantt visibility: show/hide tasks marked as "exclude from Gantt"
+  showExcluded?: boolean;
+  onToggleShowExcluded?: () => void;
 }
 
 interface ViewportState {
@@ -144,6 +148,8 @@ export function GanttUnified({
   showBaselineControls = true,
   onOpenScheduleMasterTable,
   onOpenMasterTask,
+  showExcluded,
+  onToggleShowExcluded,
 }: GanttUnifiedProps) {
   // ---------------------------------------------------------------------------
   // Refs
@@ -796,6 +802,8 @@ export function GanttUnified({
             const task = tasks.find((t) => String(t.id) === String(firstId));
             if (task && onTaskDoubleClick) onTaskDoubleClick(task);
           }}
+          showExcluded={showExcluded}
+          onToggleShowExcluded={onToggleShowExcluded}
           onOpenScheduleMasterTable={onOpenScheduleMasterTable}
           onOpenMasterTask={onOpenMasterTask ? () => {
             const firstId = selectedTaskIds.values().next().value;

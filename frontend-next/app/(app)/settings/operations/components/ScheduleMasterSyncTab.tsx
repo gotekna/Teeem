@@ -133,7 +133,9 @@ export function ScheduleMasterSyncTab() {
   const [cascading, setCascading] = useState(false);
   type SkippedOrphan = { id: number; sync_key: string; name: string; referenced_by: string };
   type CascadeTableResult = { imported: number; updated: number; skipped: number; deleted_orphans?: number; skipped_orphans?: SkippedOrphan[]; promoted_to_master?: number };
+  type Phase0TenantResult = { pulled: number; imported: number; skipped: { name: string; reason: string }[]; errors: string[] };
   const [cascadeResults, setCascadeResults] = useState<Record<string, Record<string, CascadeTableResult>>>({});
+  const [phase0Results, setPhase0Results] = useState<Record<string, Record<string, Phase0TenantResult>>>({});
   const [tableStatus, setTableStatus] = useState<Record<TableKey, TableSyncStatus>>({} as Record<TableKey, TableSyncStatus>);
   const [tableResults, setTableResults] = useState<Record<TableKey, TableResult>>({} as Record<TableKey, TableResult>);
   const [currentTableIndex, setCurrentTableIndex] = useState(-1);
@@ -623,6 +625,7 @@ export function ScheduleMasterSyncTab() {
   const handleCascadeSync = async () => {
     setCascading(true);
     setCascadeResults({});
+    setPhase0Results({});
     setError(null);
 
     const initialStatus = {} as Record<TableKey, TableSyncStatus>;
@@ -646,9 +649,14 @@ export function ScheduleMasterSyncTab() {
       const res = await api.post<{
         success: boolean;
         table: string;
+        phase0?: Record<string, Phase0TenantResult>;
         results?: Record<string, CascadeTableResult>;
         error?: string;
       }>("/api/v1/config_sync/cascade_push_table", { table: table.key }, { timeout: API_TIMEOUT_HEAVY_SYNC });
+
+      if (res?.phase0) {
+        setPhase0Results((prev) => ({ ...prev, [table.key]: res.phase0! }));
+      }
 
       if (res?.results) {
         setCascadeResults((prev) => ({ ...prev, [table.key]: res.results! }));
@@ -1151,6 +1159,24 @@ export function ScheduleMasterSyncTab() {
                                 </span>
                               );
                             })()}
+                            {/* Phase 0 skipped — records that failed to pull into TEEEM (FK remap failures) */}
+                            {isMasterTenant && phase0Results[table.key] && (() => {
+                              const allSkipped = Object.entries(phase0Results[table.key]).flatMap(([tenantSlug, r]) =>
+                                (r.skipped || []).map((s) => ({ ...s, tenantSlug }))
+                              );
+                              if (allSkipped.length === 0) return null;
+                              const tooltip = allSkipped
+                                .map((s) => `${s.tenantSlug}: "${s.name}" — ${s.reason}`)
+                                .join("\n");
+                              return (
+                                <span
+                                  className="text-[10px] text-red-600 dark:text-red-400 cursor-help"
+                                  title={tooltip}
+                                >
+                                  ⚠ {allSkipped.length} failed to pull (hover)
+                                </span>
+                              );
+                            })()}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1325,6 +1351,49 @@ export function ScheduleMasterSyncTab() {
                                     title={`Remove the reference in ${o.referenced_by} first, then re-sync to clean this up`}
                                   >
                                     used by {o.referenced_by}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })()}
+
+                      {/* Phase 0 skipped sub-rows — records that failed to pull into TEEEM (FK remap failures) */}
+                      {expandedTables.has(table.key) && isMasterTenant && phase0Results[table.key] && (() => {
+                        const allSkipped = Object.entries(phase0Results[table.key]).flatMap(([tenantSlug, r]) =>
+                          (r.skipped || []).map((s) => ({ ...s, tenantSlug }))
+                        );
+                        if (allSkipped.length === 0) return null;
+                        const colSpan = allTenants.length > 0 ? allTenants.length + 4 : 6;
+                        return (
+                          <React.Fragment key={`${table.key}-phase0`}>
+                            <TableRow className="bg-red-50/20 dark:bg-red-950/10">
+                              <TableCell colSpan={colSpan} className="py-1 px-4">
+                                <span className="text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide">
+                                  ⚠ {allSkipped.length} record{allSkipped.length !== 1 ? "s" : ""} failed to pull into TEEEM (FK remap failures)
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                            {allSkipped.map((s, i) => (
+                              <TableRow key={`${table.key}-phase0-${s.tenantSlug}-${i}`} className="bg-red-50/10 dark:bg-red-950/5">
+                                <TableCell className="py-1" />
+                                <TableCell className="py-1 pl-10">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-red-600 dark:text-red-400 font-medium">{s.name}</span>
+                                    <span className="text-[10px] text-muted-foreground">({s.tenantSlug})</span>
+                                  </div>
+                                </TableCell>
+                                {allTenants.map((t) => (
+                                  <TableCell key={t.slug} className="py-1" />
+                                ))}
+                                <TableCell className="py-1" />
+                                <TableCell className="py-1 text-right">
+                                  <span
+                                    className="text-[10px] text-red-600 dark:text-red-400"
+                                    title={s.reason}
+                                  >
+                                    {s.reason.length > 60 ? s.reason.slice(0, 60) + "..." : s.reason}
                                   </span>
                                 </TableCell>
                               </TableRow>

@@ -45,9 +45,10 @@ module Api
         # This ensures the lookup map is complete for dependency rewiring
         filter_po = params[:show_all_po] != "true"
         filter_claims = params[:show_claims] != "true"
-        Rails.logger.debug "[gantt_data] filter_po_tasks: #{filter_po}, filter_claim_tasks: #{filter_claims}"
+        show_excluded = params[:show_excluded_from_gantt] == "true"
+        Rails.logger.debug "[gantt_data] filter_po_tasks: #{filter_po}, filter_claim_tasks: #{filter_claims}, show_excluded_from_gantt: #{show_excluded}"
 
-        service = GanttDataService.new(all_records, date_overrides: date_overrides, filter_po_tasks: filter_po, filter_claim_tasks: filter_claims)
+        service = GanttDataService.new(all_records, date_overrides: date_overrides, filter_po_tasks: filter_po, filter_claim_tasks: filter_claims, show_excluded_from_gantt: show_excluded)
         result = service.build_response
 
         render json: {

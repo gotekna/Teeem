@@ -37,6 +37,7 @@ import {
   RefreshCw,
   GripVertical,
   FastForward,
+  EyeOff,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { TableColumn } from './UnifiedGanttCanvas';
@@ -116,6 +117,10 @@ interface GanttToolbarProps {
   onOpenScheduleMasterTable?: () => void;
   onOpenMasterTask?: () => void;
   hasMasterTask?: boolean; // true when selected task has an sm_schedule_master_id
+
+  // Gantt visibility: show/hide tasks marked as "exclude from Gantt"
+  showExcluded?: boolean;
+  onToggleShowExcluded?: () => void;
 }
 
 // =============================================================================
@@ -162,6 +167,8 @@ export function GanttToolbar({
   onOpenScheduleMasterTable,
   onOpenMasterTask,
   hasMasterTask = false,
+  showExcluded = false,
+  onToggleShowExcluded,
 }: GanttToolbarProps) {
   // Drag state for column reordering
   const [draggedColumnIndex, setDraggedColumnIndex] = React.useState<number | null>(null);
@@ -337,6 +344,20 @@ export function GanttToolbar({
           >
             <Filter className="h-3.5 w-3.5" />
             Grouped
+          </Button>
+        )}
+
+        {/* Show Hidden Tasks Toggle */}
+        {onToggleShowExcluded && (
+          <Button
+            variant={showExcluded ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={onToggleShowExcluded}
+            title={showExcluded ? 'Hide excluded tasks' : 'Show hidden tasks'}
+            className="h-8 text-xs gap-1"
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+            Hidden
           </Button>
         )}
 

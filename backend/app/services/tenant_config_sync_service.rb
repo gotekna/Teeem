@@ -1573,11 +1573,12 @@ class TenantConfigSyncService
         # NOTE: self_ref_fks are deferred to a second pass — nil here is expected, not a failure.
         if config[:remap_fks].present?
           orphaned = false
-          config[:remap_fks].each do |field, _rc|
+          config[:remap_fks].each do |field, rc|
             next unless config[:sync_fields].include?(field)
             next if self_ref_fks.key?(field)  # Self-ref FKs are deferred to second pass — nil here is expected
             next unless attrs.key?(field) && attrs[field].nil? && master_record.send(field).present?
-            skipped << { name: master_record.send(config[:name_field]), reason: "FK remap failed: #{field}" }
+            source_value = master_record.send(field)
+            skipped << { name: master_record.send(config[:name_field]), reason: "FK remap failed: #{field} — no #{rc[:model]} with #{rc[:match_field]}='#{source_value}' in target tenant" }
             orphaned = true
             break
           end
@@ -2190,12 +2191,13 @@ class TenantConfigSyncService
     # whose parent doesn't exist in the target, creating duplicates.
     # e.g. PO template line items whose parent item was deleted — remap returns nil.
     if config[:remap_fks].present?
-      config[:remap_fks].each do |field, _remap_config|
+      config[:remap_fks].each do |field, remap_config|
         next unless config[:sync_fields].include?(field)
         next if defer_fields.include?(field)  # Self-ref FKs are deferred to second pass — nil here is expected, not a failure
         next unless attrs.key?(field) && attrs[field].nil? && source_record.send(field).present?
         # Source had a value but remap returned nil → parent doesn't exist in target
-        return { imported: false, reason: "FK remap failed: #{field} (orphaned record)" }
+        source_value = source_record.send(field)
+        return { imported: false, reason: "FK remap failed: #{field} — no #{remap_config[:model]} with #{remap_config[:match_field]}='#{source_value}' in target tenant" }
       end
     end
 

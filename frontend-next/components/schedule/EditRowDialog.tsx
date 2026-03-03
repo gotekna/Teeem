@@ -69,6 +69,7 @@ export interface EditRowData {
   header_gantt?: string | { id: number; display: string } | null;
   allow_header?: boolean;
   is_active?: boolean;
+  exclude_from_gantt?: boolean;
   tags?: string[];
   po_required?: boolean;
   critical_po?: boolean;
@@ -327,6 +328,7 @@ export function EditRowDialog({
         completion_linked_task_ids: row.completion_linked_task_ids || [],
         allow_header: row.allow_header,
         is_active: row.is_active,
+        exclude_from_gantt: row.exclude_from_gantt || false,
         document_types: row.document_types || [],
         checklist_id: typeof row.checklist_id === 'object' ? (row.checklist_id as { id: number })?.id : row.checklist_id,
         is_claim_task: row.is_claim_task || false,
@@ -888,6 +890,24 @@ export function EditRowDialog({
                       </div>
                       {editRowForm.is_active === false ? (
                         <Badge variant="destructive" className="text-[10px]">Inactive</Badge>
+                      ) : null}
+                    </div>
+
+                    {/* Exclude from Gantt */}
+                    <div className="flex items-center gap-2 pt-2 border-t">
+                      <Switch
+                        id="row-exclude-from-gantt"
+                        checked={editRowForm.exclude_from_gantt || false}
+                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, exclude_from_gantt: checked })}
+                      />
+                      <div>
+                        <Label htmlFor="row-exclude-from-gantt" className="text-xs">
+                          Exclude from Gantt
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground">Hidden from Gantt chart by default (use toolbar to reveal)</p>
+                      </div>
+                      {editRowForm.exclude_from_gantt ? (
+                        <Badge variant="secondary" className="text-[10px]">Hidden</Badge>
                       ) : null}
                     </div>
                   </div>

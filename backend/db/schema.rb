@@ -9154,6 +9154,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.text "rfq_instructions"
     t.decimal "budget_amount", precision: 12, scale: 2
     t.datetime "record_updated_at"
+    t.boolean "exclude_from_gantt", default: false, null: false
     t.index ["canonical_record_id"], name: "idx_sm_schedule_masters_canonical_record_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
@@ -9496,6 +9497,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.text "po_description"
     t.text "rfq_instructions"
     t.decimal "budget_amount"
+    t.boolean "exclude_from_gantt", default: false, null: false
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"

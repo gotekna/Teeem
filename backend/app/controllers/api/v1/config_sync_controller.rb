@@ -987,10 +987,20 @@ module Api
         # union of all tenants' records before pushing back out. source_newer? ensures
         # the most-recently-edited version of any record wins across tenants.
         master_svc = TenantConfigSyncService.new(current_tenant)
+        phase0_results = {}
         customer_tenants.each do |source_t|
           source_ids = ActsAsTenant.with_tenant(source_t) { scoped_model(model, table_config).pluck(:id) }
           next if source_ids.empty?
-          master_svc.import_from_tenant(source_tenant: source_t, table: table.to_s, record_ids: source_ids)
+          result = master_svc.import_from_tenant(source_tenant: source_t, table: table.to_s, record_ids: source_ids)
+          phase0_results[source_t.slug] = {
+            pulled: source_ids.length,
+            imported: result[:imported]&.length || 0,
+            skipped: result[:skipped] || [],
+            errors: result[:errors] || []
+          }
+          if result[:skipped]&.any?
+            Rails.logger.info "[ConfigSync] Phase 0: #{result[:skipped].length} records skipped pulling #{table} from #{source_t.name}: #{result[:skipped].map { |s| "#{s[:name]} (#{s[:reason]})" }.join(', ')}"
+          end
         end
 
         # ── Step 1: Apply tombstones from ALL tenants ──────────────────────────────────
@@ -1109,6 +1119,7 @@ module Api
         render json: {
           success: true,
           table: table.to_s,
+          phase0: phase0_results,
           tombstones: tombstone_results,
           results: results
         }

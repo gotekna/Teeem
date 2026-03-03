@@ -38,6 +38,9 @@ class GanttDataService
     # filter_claim_tasks (templates): filter out claim tasks (is_claim_task=true)
     # Claims in templates are hidden by default since they only become visible when invoiced
     @filter_claim_tasks = options[:filter_claim_tasks] || false
+    # show_excluded_from_gantt: when true, include tasks marked exclude_from_gantt=true
+    # Default false - excluded tasks are hidden from Gantt by default
+    @show_excluded_from_gantt = options[:show_excluded_from_gantt] || false
     # date_overrides: Hash of task_number => { start_date: Date, end_date: Date }
     # Used for templates where dates are calculated from dependencies, not stored
     # SSoT: Calculated by GanttDateCalculationService using topological sort
@@ -138,7 +141,7 @@ class GanttDataService
   # - filter_claim_tasks (templates): is_claim_task=true (claims hidden by default in templates)
   # Returns [visible_records, invisible_ids_set]
   def filter_records
-    return [@records, Set.new] unless @filter_invisible || @filter_po_tasks || @filter_claim_tasks
+    return [@records, Set.new] unless @filter_invisible || @filter_po_tasks || @filter_claim_tasks || !@show_excluded_from_gantt
 
     invisible_ids = Set.new
     visible_records = []
@@ -174,6 +177,14 @@ class GanttDataService
           has_claim = record.respond_to?(:has_linked_claim?) ? record.has_linked_claim? : false
           should_hide = !has_claim
         end
+      end
+
+      # exclude_from_gantt filtering
+      # By default, hide tasks marked as exclude_from_gantt=true
+      # When show_excluded_from_gantt=true (toolbar toggle), show them
+      if !@show_excluded_from_gantt && !should_hide
+        excluded = record.respond_to?(:exclude_from_gantt) ? record.exclude_from_gantt : false
+        should_hide = excluded
       end
 
       if should_hide
@@ -408,7 +419,9 @@ class GanttDataService
       assigned_role: record&.assigned_role,
       assigned_role_name: roles_map[record&.assigned_role.to_i],
       color: record&.color,
-      sm_schedule_master_id: record.respond_to?(:sm_schedule_master_id) ? record.sm_schedule_master_id : nil
+      sm_schedule_master_id: record.respond_to?(:sm_schedule_master_id) ? record.sm_schedule_master_id : nil,
+      # Gantt visibility flag
+      exclude_from_gantt: record.respond_to?(:exclude_from_gantt) ? (record.exclude_from_gantt || false) : false
     }.compact
   end
 

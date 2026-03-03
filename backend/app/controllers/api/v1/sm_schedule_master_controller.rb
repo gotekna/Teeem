@@ -439,6 +439,8 @@ module Api
           :completed, :completed_at,
           # Header and active status
           :allow_header, :is_active,
+          # Gantt visibility
+          :exclude_from_gantt,
           # Task group for PO/non-PO grouping
           :sm_task_group_id,
           # PO/Quote SSoT fields
@@ -476,6 +478,8 @@ module Api
           :spawn_order_task, :spawn_call_task, :pass_fail_enabled,
           :order_time_days, :call_time_days,
           :color,
+          # Gantt visibility
+          :exclude_from_gantt,
           predecessor_ids: [ :id, :type, :lag ],
           subtask_names: [],
           tags: []

@@ -28,7 +28,7 @@ export interface GanttApiConfig {
  */
 export function getGanttApiConfig(
   mode: GanttMode,
-  options: { templateId?: number; jobId?: number; showAllPOTasks?: boolean; showClaims?: boolean }
+  options: { templateId?: number; jobId?: number; showAllPOTasks?: boolean; showClaims?: boolean; showExcluded?: boolean }
 ): GanttApiConfig {
   if (mode === 'template') {
     if (!options.templateId) {
@@ -40,8 +40,9 @@ export function getGanttApiConfig(
     // show_claims=true shows claim tasks (hidden by default in templates)
     const showAllPO = options.showAllPOTasks ? '&show_all_po=true' : '';
     const showClaims = options.showClaims ? '&show_claims=true' : '';
+    const showExcluded = options.showExcluded ? '&show_excluded_from_gantt=true' : '';
     return {
-      fetchUrl: `${baseUrl}/gantt_data?for=gantt${showAllPO}${showClaims}`,
+      fetchUrl: `${baseUrl}/gantt_data?for=gantt${showAllPO}${showClaims}${showExcluded}`,
       updateUrl: (taskId) => `${baseUrl}/rows/${taskId}`,
       validateDatesUrl: `${baseUrl}/validate_dates`,
       payloadWrapper: 'row',
@@ -51,8 +52,9 @@ export function getGanttApiConfig(
     if (!options.jobId) {
       throw new Error('jobId required for job mode');
     }
+    const showExcluded = options.showExcluded ? '?show_excluded_from_gantt=true' : '';
     return {
-      fetchUrl: `/api/v1/jobs/${options.jobId}/sm_tasks/gantt_data`,
+      fetchUrl: `/api/v1/jobs/${options.jobId}/sm_tasks/gantt_data${showExcluded}`,
       updateUrl: (taskId) => `/api/v1/sm_tasks/${taskId}`,
       payloadWrapper: 'sm_task',
       responseKey: 'tasks',

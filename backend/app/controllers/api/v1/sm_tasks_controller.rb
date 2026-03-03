@@ -2776,6 +2776,9 @@ module Api
           # Completion document requirement
           :requires_document_to_complete, :completion_document_type_id,
 
+          # Gantt visibility
+          :exclude_from_gantt,
+
           # Dependency broken tracking
           :dependency_broken, :dependency_broken_at, :dependency_broken_by_id,
 
@@ -3569,7 +3572,8 @@ module Api
         date_overrides = GanttDateCalculationService.new(tasks).calculate_date_map
 
         # Use GanttDataService for SSoT conversion of task_number -> row.id
-        service = GanttDataService.new(tasks, filter_invisible: true, date_overrides: date_overrides)
+        show_excluded = params[:show_excluded_from_gantt] == "true"
+        service = GanttDataService.new(tasks, filter_invisible: true, date_overrides: date_overrides, show_excluded_from_gantt: show_excluded)
         result = service.build_response
 
         render json: {

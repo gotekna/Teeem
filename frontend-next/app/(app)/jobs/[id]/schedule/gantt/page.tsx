@@ -71,8 +71,11 @@ export default function GanttPage() {
   // Job-specific state (must be declared before offline hooks that reference it)
   const [job, setJob] = React.useState<Job | null>(null);
 
+  // Gantt visibility: show tasks marked "exclude from Gantt" when toggled on
+  const [showExcluded, setShowExcluded] = React.useState(false);
+
   // SSoT: Use shared hook for all Gantt behavior
-  const gantt = useGanttDataManager({ mode: 'job', jobId });
+  const gantt = useGanttDataManager({ mode: 'job', jobId, showExcluded });
 
   // Offline cache - tracks sync status and auto-caches when online
   const offlineCache = useGanttOfflineCache({
@@ -140,6 +143,14 @@ export default function GanttPage() {
       gantt.loadData();
     }
   }, [jobId, gantt.loadData]);
+
+  // Reload Gantt data when showExcluded changes (new API param)
+  React.useEffect(() => {
+    if (jobId) {
+      gantt.loadData({ silent: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showExcluded]);
 
   // ==========================================================================
   // Load Reference Data for EditRowDialog
@@ -593,6 +604,8 @@ export default function GanttPage() {
             onTogglePhotoPanel={() => setShowPhotoPanel(!showPhotoPanel)}
             onOpenScheduleMasterTable={handleOpenScheduleMasterTable}
             onOpenMasterTask={handleOpenMasterTask}
+            showExcluded={showExcluded}
+            onToggleShowExcluded={() => setShowExcluded((prev) => !prev)}
           />
         </div>
 
