@@ -21,11 +21,13 @@ type TableColumn = { key: string; column_type?: string };
  * Get display value from a cell value (handles lookup objects)
  */
 function getSortDisplayValue(val: unknown): string {
+  // Normalize whitespace: trim edges and collapse internal runs (e.g. "Build -  QBCC" → "Build - QBCC")
+  const normalize = (s: string) => s.trim().replace(/\s+/g, " ");
   if (typeof val === "object" && val !== null) {
     const obj = val as { display?: string; name?: string; id?: number };
-    return obj.display || obj.name || String(obj.id || "");
+    return normalize(obj.display || obj.name || String(obj.id || ""));
   }
-  return String(val);
+  return normalize(String(val));
 }
 
 /**
@@ -117,7 +119,7 @@ export function sortRows<TRow extends TableRow>(
             if (aIsNum && bIsNum) {
               comparison = parseInt(aChunk, 10) - parseInt(bChunk, 10);
             } else {
-              comparison = aChunk.toLowerCase().localeCompare(bChunk.toLowerCase());
+              comparison = aChunk.trim().toLowerCase().localeCompare(bChunk.trim().toLowerCase());
             }
             if (comparison !== 0) break;
           }

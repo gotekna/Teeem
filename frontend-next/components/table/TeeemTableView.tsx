@@ -3021,7 +3021,7 @@ export default function TeeemTableView({
                   if (aIsNum && bIsNum) {
                     comparison = parseInt(aChunk, 10) - parseInt(bChunk, 10);
                   } else {
-                    comparison = aChunk.toLowerCase().localeCompare(bChunk.toLowerCase());
+                    comparison = aChunk.trim().toLowerCase().localeCompare(bChunk.trim().toLowerCase());
                   }
 
                   if (comparison !== 0) break;
