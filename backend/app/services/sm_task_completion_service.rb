@@ -112,12 +112,23 @@ class SmTaskCompletionService
     required_doc_type_id = task.completion_document_type_id
     return false unless required_doc_type_id
 
-    # Check attached documents for matching document type
-    # SSoT (Jan 2026): All documents are now WarehouseDocument
-    task.sm_task_attachments.documents.any? do |attachment|
+    # Check 1: sm_task_attachments (direct attachment to task)
+    has_attachment = task.sm_task_attachments.documents.any? do |attachment|
       doc = attachment.attachable
       doc.is_a?(WarehouseDocument) && doc.meta("document_type_id")&.to_i == required_doc_type_id
     end
+    return true if has_attachment
+
+    # Check 2: WarehouseDocuments linked to the job with matching document type
+    # Documents uploaded via the document tab go into WarehouseDocument with
+    # warehouse_folder_document_type FK, not sm_task_attachments.
+    return false unless task.job_id.present?
+
+    WarehouseDocument
+      .where(linkable_type: "Job", linkable_id: task.job_id)
+      .joins(:warehouse_folder_document_type)
+      .where(warehouse_folder_document_types: { document_type_id: required_doc_type_id })
+      .exists?
   end
 
   def complete_task!(passed)

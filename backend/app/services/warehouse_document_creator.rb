@@ -136,7 +136,9 @@ class WarehouseDocumentCreator
     attrs[:folder_path] = folder_path if folder_path.present?
     attrs[:expiry_date] = expiry_date if expiry_date.present?
 
-    WarehouseDocument.create!(attrs)
+    doc = WarehouseDocument.create!(attrs)
+    auto_complete_sm_tasks(doc)
+    doc
   end
 
   # Create a WarehouseDocument with automatic StorageBlob creation from file content.
@@ -286,7 +288,9 @@ class WarehouseDocumentCreator
         version_attrs[:warehouse_folder_document_type_id] = warehouse_folder_document_type_id
       end
 
-      existing.create_new_version(**version_attrs)
+      new_version = existing.create_new_version(**version_attrs)
+      auto_complete_sm_tasks(new_version)
+      new_version
     else
       # First upload — version A (or explicit letter for plans)
       create!(
@@ -416,5 +420,39 @@ class WarehouseDocumentCreator
     end
 
     scope.first
+  end
+
+  # Auto-complete SM tasks when a matching document type is uploaded.
+  # Pattern follows SmFieldController photo task auto-complete (lines 24-34).
+  #
+  # Match chain: WarehouseDocument → warehouse_folder_document_type → document_type_id
+  #              SmTask → completion_document_type_id (same document_type_id)
+  #
+  # Only triggers when:
+  #   1. Document has a WFDT with a document_type_id
+  #   2. Document is linked to a Job
+  #   3. An SM task for that job requires that doc type and isn't already completed
+  def self.auto_complete_sm_tasks(warehouse_document)
+    wfdt = warehouse_document.warehouse_folder_document_type
+    doc_type_id = wfdt&.document_type_id
+    return unless doc_type_id
+
+    job = warehouse_document.linkable
+    return unless job.is_a?(Job)
+
+    SmTask.where(
+      job_id: job.id,
+      requires_document_to_complete: true,
+      completion_document_type_id: doc_type_id
+    ).where.not(status: SmTask::STATUS_COMPLETED).find_each do |task|
+      task.update!(
+        status: SmTask::STATUS_COMPLETED,
+        completed_at: Time.current
+      )
+      Rails.logger.info("[AutoComplete] SM Task ##{task.id} '#{task.name}' auto-completed: document type #{doc_type_id} uploaded for job #{job.id}")
+    end
+  rescue StandardError => e
+    # Don't let auto-complete failures block document creation
+    Rails.logger.error("[AutoComplete] Failed to auto-complete SM tasks: #{e.message}")
   end
 end

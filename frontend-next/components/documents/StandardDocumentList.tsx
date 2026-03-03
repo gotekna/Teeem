@@ -47,6 +47,8 @@ import {
   AlertTriangle,
   ClipboardList,
   Upload,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { formatFileSize } from "@/utils/formatters";
 import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
@@ -287,6 +289,8 @@ function SortableDocumentRow({
 // ============================================================================
 
 export function SmTaskStatusBar({ info }: { info: SmTaskInfo }) {
+  const [expanded, setExpanded] = useState(false);
+
   const statusConfig = {
     not_started: {
       label: "Not Started",
@@ -316,39 +320,50 @@ export function SmTaskStatusBar({ info }: { info: SmTaskInfo }) {
   };
 
   const config = statusConfig[info.status as keyof typeof statusConfig] || statusConfig.not_started;
+  const hasDates = info.startedAt || info.completedAt || info.endDate;
+  const ChevronIcon = expanded ? ChevronDown : ChevronRight;
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 border-b bg-muted/30 text-sm">
-      <ClipboardList className="h-4 w-4 text-muted-foreground shrink-0" />
-      <span className="font-medium truncate">{info.taskName}</span>
-      <span className="text-muted-foreground">·</span>
-      <Badge variant="outline" className={`text-[10px] px-2 py-0 h-5 border-0 font-semibold ${config.className}`}>
-        <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${config.dotClass}`} />
-        {config.label}
-      </Badge>
-      {info.startedAt && (
-        <>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-xs text-muted-foreground">
-            Started {formatDate(info.startedAt)}
-          </span>
-        </>
-      )}
-      {info.completedAt && (
-        <>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-xs text-emerald-600 dark:text-emerald-400">
-            Completed {formatDate(info.completedAt)}
-          </span>
-        </>
-      )}
-      {!info.completedAt && info.endDate && (
-        <>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-xs text-muted-foreground">
-            Due {formatDate(info.endDate)}
-          </span>
-        </>
+    <div className="border-b bg-muted/30 text-sm">
+      {/* Primary row: task name + status + chevron */}
+      <div
+        className={`flex items-center gap-3 px-3 py-2 ${hasDates ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}`}
+        onClick={() => hasDates && setExpanded(!expanded)}
+      >
+        <ClipboardList className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="font-medium truncate">{info.taskName}</span>
+        <span className="text-muted-foreground">·</span>
+        <Badge variant="outline" className={`text-[10px] px-2 py-0 h-5 border-0 font-semibold ${config.className}`}>
+          <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${config.dotClass}`} />
+          {config.label}
+        </Badge>
+        <div className="flex-1" />
+        {hasDates && (
+          <ChevronIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+        )}
+      </div>
+
+      {/* Expanded row: schedule details */}
+      {expanded && hasDates && (
+        <div className="flex items-center gap-4 px-3 pb-2 pl-10 text-xs text-muted-foreground">
+          {info.startedAt && (
+            <span>Started: {formatDate(info.startedAt)}</span>
+          )}
+          {!info.startedAt && (
+            <span>Started: —</span>
+          )}
+          {info.endDate && (
+            <span>Due: {formatDate(info.endDate)}</span>
+          )}
+          {info.completedAt && (
+            <span className="text-emerald-600 dark:text-emerald-400">
+              Completed: {formatDate(info.completedAt)}
+            </span>
+          )}
+          {!info.completedAt && !info.endDate && (
+            <span>Due: —</span>
+          )}
+        </div>
       )}
     </div>
   );
