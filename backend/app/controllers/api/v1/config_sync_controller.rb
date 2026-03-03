@@ -68,6 +68,13 @@ module Api
           all_counts = service.all_tenant_counts
           response[:all_tenant_counts] = all_counts[:counts]
           response[:all_tenants] = all_counts[:tenants]
+
+          # Per-tenant sync mode settings so TEEEM can see what Tekna/Pilgrim have configured
+          all_tenant_modes = {}
+          Tenant.where(is_master_tenant: false).each do |t|
+            all_tenant_modes[t.slug] = t.tenant_setting&.config_sync_table_modes || {}
+          end
+          response[:all_tenant_modes] = all_tenant_modes
         end
 
         # Compute sync coverage: how many local records are linked to master vs local-only
