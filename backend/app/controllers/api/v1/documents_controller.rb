@@ -198,6 +198,11 @@ module Api
           documents = documents.where(id: combined_ids)
         end
 
+        # Filter by warehouse_folder_id (exact match, indexed)
+        if params[:warehouse_folder_id].present?
+          documents = documents.where(warehouse_folder_id: params[:warehouse_folder_id])
+        end
+
         # Filter by folder
         if params[:folder].present?
           documents = documents.where("folder_path LIKE ?", "#{params[:folder]}%")

@@ -106,6 +106,10 @@ const JobDocumentsTab = dynamic(() => import("@/components/jobs/JobDocumentsTab"
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const JobDocumentListTab = dynamic(() => import("@/components/jobs/JobDocumentListTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const JobPlansTab = dynamic(() => import("@/components/jobs/JobPlansTab").then(m => m.JobPlansTab), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -2119,14 +2123,20 @@ export default function JobDetailPage() {
             );
           }
 
-          // Document/Photo tabs use JobDocumentsTab with initialCategory
-          // SSoT: Pass composite key (parent__child) to disambiguate same-named categories
-          // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
-          // Render JobDocumentsTab for:
-          // 1. Photo categories (tab_type='photo') - shows photo gallery
-          // 2. Document categories (tab_type='document') - shows document viewer
-          // 3. Any tab with folder_path set - backward compat for legacy config
-          if (tab.tab_type === 'photo' || tab.tab_type === 'document' || tab.is_photo_category || tab.folder_path) {
+          // Document tabs → StandardDocumentList (THE ONE) via JobDocumentListTab
+          // Clean list view with upload, preview, verify/expiry - same UX as Library
+          if (tab.tab_type === 'document') {
+            return (
+              <TabsContent key={tabValue} value={tabValue} className="mt-4">
+                <React.Suspense fallback={<TabLoadingSkeleton />}>
+                  <JobDocumentListTab jobId={job.id} warehouseFolder={tab} />
+                </React.Suspense>
+              </TabsContent>
+            );
+          }
+
+          // Photo tabs → JobDocumentsTab (gallery view + camera capture)
+          if (tab.tab_type === 'photo' || tab.is_photo_category || tab.folder_path) {
             // SSoT: Find parent tab to pass its children as categories
             // This eliminates duplicate API call - parent already has the data from useWarehouseFolders
             const parentTab = visibleJobTabs.find(p =>

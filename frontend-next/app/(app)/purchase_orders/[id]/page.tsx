@@ -1550,14 +1550,14 @@ export default function PurchaseOrderDetailPage() {
                     .map((li) => li.pricebook_item_id!)
                     .filter(Boolean);
                   if (itemIds.length > 0) {
-                    api.get<{ prices: Record<number, number> }>(
+                    api.get<{ prices: Record<string, number> }>(
                       `/api/v1/pricebook/supplier_prices?supplier_id=${typedSupplier.id}&item_ids=${itemIds.join(",")}`
                     ).then((res) => {
                       if (res?.prices) {
                         setLineItems((prev) => prev.map((li) => {
                           if (!li.pricebook_item) return li;
                           // API returns string keys and string values — coerce both sides
-                          const rawPrice = res.prices[li.pricebook_item.id] ?? res.prices[String(li.pricebook_item.id)];
+                          const rawPrice = res.prices[String(li.pricebook_item.id)];
                           const supplierPrice = rawPrice != null ? Number(rawPrice) : null;
                           return { ...li, pricebook_item: { ...li.pricebook_item, supplier_price: supplierPrice } };
                         }));
