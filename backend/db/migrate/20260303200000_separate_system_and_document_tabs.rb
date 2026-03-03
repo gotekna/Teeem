@@ -33,20 +33,18 @@ class SeparateSystemAndDocumentTabs < ActiveRecord::Migration[7.2]
           force_system: true  # Change existing from document → system
         )
 
-        # 1b. Expenses (under Finance)
+        # 1b. Expenses (under Finance) - use existing parent, don't look up by key
         split_tab(
           tab_key: "expenses",
           new_display_name: "Expense Docs",
-          new_tab_key: "expense-docs",
-          parent_tab_key: "finance"  # expenses is child of finance
+          new_tab_key: "expense-docs"
         )
 
-        # 1c. Purchase Orders (under Estimating)
+        # 1c. Purchase Orders (under Estimating) - use existing parent, don't look up by key
         split_tab(
           tab_key: "purchase-orders",
           new_display_name: "PO Docs",
-          new_tab_key: "po-docs",
-          parent_tab_key: "estimating"  # purchase-orders is child of estimating
+          new_tab_key: "po-docs"
         )
 
         # 1d. Xero Bank (parent with children) → create doc child
