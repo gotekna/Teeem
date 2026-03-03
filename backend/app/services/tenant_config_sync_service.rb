@@ -2276,8 +2276,21 @@ class TenantConfigSyncService
           # Nested hash: { charge_type: { local_sm_id: pct } } — remap each task ID via sync_key
           value = remap_po_allocations(value, remap_config)
         elsif remap_config[:array] && value.is_a?(Array)
-          # JSONB array of FKs (e.g., sm_template_ids) - remap each element
-          value = value.filter_map { |id| remap_foreign_key(field, id, remap_config) }
+          # JSONB array of FKs — remap each element.
+          # Elements may be plain integer IDs OR Hashes with an "id" key plus metadata
+          # (e.g. predecessor_ids: [{"id"=>123,"lag"=>0}]). For Hash elements, extract
+          # the integer id, remap it, then reconstruct the Hash with the remapped id so
+          # metadata like lag/offset is preserved across tenants.
+          value = value.filter_map do |element|
+            if element.is_a?(Hash)
+              raw_id = (element["id"] || element[:id])&.to_i
+              next nil unless raw_id.to_i > 0
+              remapped_id = remap_foreign_key(field, raw_id, remap_config)
+              remapped_id ? element.merge("id" => remapped_id) : nil
+            else
+              remap_foreign_key(field, element, remap_config)
+            end
+          end
         else
           value = remap_foreign_key(field, value, remap_config)
         end
