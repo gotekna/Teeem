@@ -61,7 +61,15 @@ const Tabs = React.forwardRef<
     // ref not forwarded here — acceptable tradeoff for the expand wrapper
     return <TabsWithExpand expandKey={expandKey} {...props} />;
   }
-  return <TabsPrimitive.Root ref={ref} {...props} />;
+  // ⚠️ Reset context so nested TabsLists don't inherit a parent Tabs' expand button.
+  // Without this, a <Tabs> without expandKey is transparent to TabsExpandContext and any
+  // nested <TabsList> inside a child component would incorrectly pick up an ancestor's
+  // expand button — causing double expand buttons when manual ExpandButton is also present.
+  return (
+    <TabsExpandContext.Provider value={null}>
+      <TabsPrimitive.Root ref={ref} {...props} />
+    </TabsExpandContext.Provider>
+  );
 });
 Tabs.displayName = TabsPrimitive.Root.displayName;
 
