@@ -1551,10 +1551,12 @@ class TenantConfigSyncService
 
         # Skip orphaned records where a required FK couldn't be remapped to target tenant.
         # Prevents importing child records whose parent doesn't exist in the target.
+        # NOTE: self_ref_fks are deferred to a second pass — nil here is expected, not a failure.
         if config[:remap_fks].present?
           orphaned = false
           config[:remap_fks].each do |field, _rc|
             next unless config[:sync_fields].include?(field)
+            next if self_ref_fks.key?(field)  # Self-ref FKs are deferred to second pass — nil here is expected
             next unless attrs.key?(field) && attrs[field].nil? && master_record.send(field).present?
             skipped << { name: master_record.send(config[:name_field]), reason: "FK remap failed: #{field}" }
             orphaned = true
