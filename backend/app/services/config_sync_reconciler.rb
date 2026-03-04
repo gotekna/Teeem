@@ -63,7 +63,7 @@ class ConfigSyncReconciler
       tenant_data = {}
       @all_tenants.each do |t|
         ActsAsTenant.with_tenant(t) do
-          records = scoped_records(model, config)
+          records = syncable_records(model, config, key)
           sync_keys = has_sync_key ? records.where.not(sync_key: [nil, ""]).pluck(:sync_key) : []
           missing_keys = has_sync_key ? records.where(sync_key: [nil, ""]).count : 0
           duplicate_keys = has_sync_key ? sync_keys.tally.select { |_, c| c > 1 } : {}
@@ -128,8 +128,8 @@ class ConfigSyncReconciler
       model = config[:model].constantize
       has_sync_key = model.column_names.include?("sync_key")
 
-      # Load master records
-      master_records = ActsAsTenant.with_tenant(@master) { scoped_records(model, config).to_a }
+      # Load master records (only syncable — e.g. "Teeem" templates only)
+      master_records = ActsAsTenant.with_tenant(@master) { syncable_records(model, config, key).to_a }
       master_by_key = {}
       master_no_key = []
       if has_sync_key
@@ -144,7 +144,7 @@ class ConfigSyncReconciler
 
       tenant_reports = {}
       @customers.each do |t|
-        customer_records = ActsAsTenant.with_tenant(t) { scoped_records(model, config).to_a }
+        customer_records = ActsAsTenant.with_tenant(t) { syncable_records(model, config, key).to_a }
 
         customer_by_key = {}
         customer_no_key = []
@@ -239,7 +239,7 @@ class ConfigSyncReconciler
       if has_sync_key
         backfill_results = {}
         @all_tenants.each do |t|
-          count = backfill_sync_keys(t, model, config)
+          count = backfill_sync_keys(t, key, model, config)
           backfill_results[t.name] = count if count > 0
         end
         table_phases[:backfill_sync_keys] = backfill_results if backfill_results.any?
@@ -249,7 +249,7 @@ class ConfigSyncReconciler
       if has_sync_key
         dedup_results = {}
         @all_tenants.each do |t|
-          count = delete_duplicate_sync_keys(t, model, config)
+          count = delete_duplicate_sync_keys(t, key, model, config)
           dedup_results[t.name] = count if count > 0
         end
         table_phases[:delete_duplicates] = dedup_results if dedup_results.any?
@@ -259,7 +259,7 @@ class ConfigSyncReconciler
       pull_results = {}
       master_svc = TenantConfigSyncService.new(@master)
       @customers.each do |t|
-        source_ids = ActsAsTenant.with_tenant(t) { scoped_records(model, config).pluck(:id) }
+        source_ids = ActsAsTenant.with_tenant(t) { syncable_records(model, config, key).pluck(:id) }
         next if source_ids.empty?
 
         result = master_svc.import_from_tenant(
@@ -271,7 +271,7 @@ class ConfigSyncReconciler
       table_phases[:pull_to_master] = pull_results if pull_results.any?
 
       # ── Phase 3: Push TEEEM → customers ────────────────────────────────
-      master_ids = ActsAsTenant.with_tenant(@master) { scoped_records(model, config).pluck(:id) }
+      master_ids = ActsAsTenant.with_tenant(@master) { syncable_records(model, config, key).pluck(:id) }
       push_results = {}
       @customers.each do |t|
         next if master_ids.empty?
@@ -321,6 +321,23 @@ class ConfigSyncReconciler
   # Apply scope filter if configured
   def scoped_records(model, config)
     config[:scope] ? model.instance_exec(&config[:scope]) : model.all
+  end
+
+  # Returns only records that should be synced for this table.
+  # For SM tables: only templates starting with "Teeem" and their child tasks.
+  # Non-Teeem templates are tenant-specific (independent) and invisible to reconciliation.
+  def syncable_records(model, config, table_key)
+    base = scoped_records(model, config)
+
+    case table_key.to_s
+    when "sm_schedule_master_templates"
+      base.where("name ILIKE ?", "Teeem%")
+    when "sm_schedule_masters"
+      teeem_tmpl_ids = SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
+      base.where(sm_schedule_master_template_id: teeem_tmpl_ids)
+    else
+      base
+    end
   end
 
   # Human-readable name for a record
@@ -413,10 +430,10 @@ class ConfigSyncReconciler
 
   # ── Phase 0: Backfill sync_keys ──────────────────────────────────────
   # For records missing sync_key, generate one using the model's sync_key_source.
-  def backfill_sync_keys(tenant, model, config)
+  def backfill_sync_keys(tenant, table_key, model, config)
     count = 0
     ActsAsTenant.with_tenant(tenant) do
-      records = scoped_records(model, config).where(sync_key: [nil, ""])
+      records = syncable_records(model, config, table_key).where(sync_key: [nil, ""])
       records.find_each do |record|
         new_key = generate_sync_key(record, model)
         next if new_key.blank?
@@ -448,10 +465,10 @@ class ConfigSyncReconciler
 
   # ── Phase 1: Delete duplicates ───────────────────────────────────────
   # When multiple records share the same sync_key, keep the most recently updated one.
-  def delete_duplicate_sync_keys(tenant, model, config)
+  def delete_duplicate_sync_keys(tenant, table_key, model, config)
     count = 0
     ActsAsTenant.with_tenant(tenant) do
-      dupes = scoped_records(model, config)
+      dupes = syncable_records(model, config, table_key)
         .where.not(sync_key: [nil, ""])
         .group(:sync_key)
         .having("COUNT(*) > 1")
