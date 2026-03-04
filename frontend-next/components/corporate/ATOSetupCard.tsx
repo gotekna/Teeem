@@ -44,30 +44,14 @@ export function ATOSetupCard({ company }: ATOSetupCardProps) {
     setShowTfn(!showTfn);
   };
 
+  // Don't show "Contact Not Linked" warning here — InformationTab shows that inline
   if (!company.contact_id) {
-    return (
-      <Card className="mb-4 border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
-            <AlertTriangle className="h-5 w-5" />
-            Contact Not Linked
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">
-            This company is not linked to a Contact record. Link to a Contact for centralised data management.
-          </p>
-          <Button variant="outline" size="sm" onClick={() => router.push("/contacts")}>
-            Link to Contact
-          </Button>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   return (
     <>
-      <Card className="mb-4 border-blue-200 dark:border-blue-800">
+      <Card className="mt-6 border-muted">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">

@@ -44,7 +44,7 @@ interface OverviewTabRendererProps {
   company: Corporate;
   companyId: string;
   onUpdate?: () => void;
-  // Special handling for "info" tab which has ATOSetupCard
+  // Special handling for "info" tab which has ATOSetupCard (renders after main content)
   renderInfoPrefix?: React.ReactNode;
 }
 
@@ -108,10 +108,10 @@ export function OverviewTabRenderer({
 
   return (
     <>
-      {tabKey === "info" && renderInfoPrefix}
       <Suspense fallback={<TabSkeleton />}>
         <Component {...props} />
       </Suspense>
+      {tabKey === "info" && renderInfoPrefix}
     </>
   );
 }

@@ -188,8 +188,11 @@ export default function CompanyDetailPage() {
     // Find the Overview main tab and get its children
     const overviewTab = entityTabs.find((t) => t.tab_key === "overview" && t.tab_group === "main");
     if (!overviewTab?.children) return [];
+    // Filter to overview tabs that have renderable components
+    // Exclude system/redirect tabs like "data-main" that have no overview component
+    const SYSTEM_TAB_KEYS = ["data-main", "activity-main"];
     return overviewTab.children
-      .filter((child) => child.tab_group === "overview")
+      .filter((child) => child.tab_group === "overview" && !SYSTEM_TAB_KEYS.includes(child.tab_key))
       .map((child) => ({
         id: child.tab_key,
         name: child.display_name

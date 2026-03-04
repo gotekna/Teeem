@@ -71,7 +71,7 @@ module Api
             contact: {}, # Include contact with ABN verification fields
             company_group: {} # Include company group for display
           },
-          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :storage_folder_url, :has_consolidated_children? ],
+          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :storage_folder_url, :has_consolidated_children?, :full_legal_name ],
           except: [ :tfn, :encrypted_asic_password, :encrypted_recovery_answer ]
         )
 

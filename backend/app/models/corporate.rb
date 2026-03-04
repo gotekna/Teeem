@@ -467,6 +467,35 @@ class Corporate < ApplicationRecord
     parent_company_id.present?
   end
 
+  # Find the corporate trustee for this trust/superfund
+  # The trustee is a company in the same group with is_trustee=true and trust_name matching this entity
+  def corporate_trustee
+    return nil unless company_group_id.present?
+    return nil unless %w[Trust Superfund].include?(entity_type)
+
+    Corporate.where(company_group_id: company_group_id, is_trustee: true)
+             .where("trust_name = ? OR trust_name = ?", name, trust_name.presence || name)
+             .where.not(id: id)
+             .first
+  end
+
+  # Full formal name: "Company Pty Ltd (ACN xxx)" or "Trustee Pty Ltd (ACN xxx) ATF Fund Name"
+  def full_legal_name
+    acn_part = formatted_acn.presence || acn.presence
+    if %w[Trust Superfund].include?(entity_type)
+      trustee = corporate_trustee
+      if trustee
+        trustee_acn = trustee.formatted_acn.presence || trustee.acn.presence
+        trustee_part = trustee_acn ? "#{trustee.name} (ACN #{trustee_acn})" : trustee.name
+        "#{trustee_part} ATF #{name}"
+      else
+        acn_part ? "#{name} (ACN #{acn_part})" : name
+      end
+    else
+      acn_part ? "#{name} (ACN #{acn_part})" : name
+    end
+  end
+
   # Check if this company has subsidiaries
   def has_subsidiaries?
     subsidiaries.exists?

@@ -73,6 +73,9 @@ export interface Corporate {
   entity_type?: string;
   contact_id?: number;
   contact?: {
+    id?: number;
+    display_name?: string;
+    entity_type?: string;
     abn?: string;
     abn_valid?: boolean;
     abn_entity_name?: string;
@@ -100,8 +103,9 @@ export interface Corporate {
   company_group?: string | { id: number; name: string; code?: string };
   company_group_id?: number;
   group_name?: string;
+  full_legal_name?: string;
   parent_company_id?: number;
-  parent_company?: { id: number; name: string };
+  parent_company?: { id: number; name: string; acn?: string; code?: string; formatted_acn?: string };
   // Consolidation
   consolidation_parent_id?: number;
   consolidation_parent?: { id: number; name: string };
