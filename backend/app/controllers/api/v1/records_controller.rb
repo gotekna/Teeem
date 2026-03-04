@@ -57,10 +57,13 @@ module Api
         end
 
         # Filter contacts by Xero org (SSoT: ContactExternalLink.xero_org_id)
-        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+        # FRC (Mar 2026): Use subquery instead of .joins(:external_links) because
+        # Foundation's dynamic model class doesn't have the :external_links association.
+        # The Contact model does, but records_controller uses @foundation's model class.
         if params[:xero_tenant_id].present? && model.table_name == "contacts"
-          query = query.joins(:external_links)
-                       .where(contact_external_links: { source: "xero", xero_org_id: params[:xero_tenant_id] })
+          query = query.where(
+            id: ContactExternalLink.where(source: "xero", xero_org_id: params[:xero_tenant_id]).select(:contact_id)
+          )
         end
 
         # Filter PO line items by job_id through parent purchase_order

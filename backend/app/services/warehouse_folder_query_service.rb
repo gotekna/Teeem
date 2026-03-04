@@ -186,8 +186,11 @@ class WarehouseFolderQueryService
   # Pre-build document_types JSON for all tabs
   def build_document_types_json(all_tabs)
     all_tabs.each_with_object({}) do |tab, hash|
+      # Pre-build lookup hash to avoid O(n*m) Array.find per document_type
+      wfdt_by_doc_type = tab.warehouse_folder_document_types.index_by(&:document_type_id)
+
       hash[tab.id] = tab.document_types.map do |dt|
-        join = tab.warehouse_folder_document_types.find { |j| j.document_type_id == dt.id }
+        join = wfdt_by_doc_type[dt.id]
 
         effective_ui = join&.ui_name_template.presence || dt.ui_name.presence || tab.ui_name_template.presence
         effective_dl = join&.download_name_template.presence || dt.download_name.presence || tab.download_name_template.presence
