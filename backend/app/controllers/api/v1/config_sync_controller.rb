@@ -1239,21 +1239,38 @@ module Api
         count
       end
 
-      # SM Sync page convention: only Teeem-prefixed templates/tasks are synced.
+      # SM Sync page convention: only Teeem-prefixed templates/packs are synced.
       # Recount these tables so the UI shows accurate syncable counts, not total counts.
+      TEEEM_PREFIX_TABLES = %w[
+        sm_schedule_master_templates sm_schedule_masters
+        po_template_packs po_template_items po_template_line_items
+      ].freeze
+
       def recount_teeem_prefixed!(all_counts)
         tenants = Tenant.order(:id)
-        %w[sm_schedule_master_templates sm_schedule_masters].each do |table_key|
+        TEEEM_PREFIX_TABLES.each do |table_key|
           next unless all_counts[:counts][table_key]
           tenants.each do |t|
             slug = t.slug || t.id.to_s
             count = ActsAsTenant.with_tenant(t) do
+              teeem_pack_ids = PoTemplatePack.where("name ILIKE ?", "Teeem%").pluck(:id) if table_key.start_with?("po_template")
               case table_key
               when "sm_schedule_master_templates"
                 SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").count
               when "sm_schedule_masters"
                 teeem_ids = SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
                 teeem_ids.any? ? SmScheduleMaster.where(sm_schedule_master_template_id: teeem_ids).count : 0
+              when "po_template_packs"
+                teeem_pack_ids.size
+              when "po_template_items"
+                teeem_pack_ids.any? ? PoTemplateItem.where(po_template_pack_id: teeem_pack_ids).count : 0
+              when "po_template_line_items"
+                if teeem_pack_ids.any?
+                  teeem_item_ids = PoTemplateItem.where(po_template_pack_id: teeem_pack_ids).pluck(:id)
+                  teeem_item_ids.any? ? PoTemplateLineItem.where(po_template_item_id: teeem_item_ids).count : 0
+                else
+                  0
+                end
               end
             end
             all_counts[:counts][table_key][slug] = count
