@@ -64,7 +64,7 @@ class CanonicalRecordTenantPropagationJob < ApplicationJob
     Rails.logger.warn("[CanonicalSync] Record not found during propagation: #{e.message}")
   rescue => e
     Rails.logger.error(
-      "[CanonicalSync] Error propagating canonical #{canonical_record_id} to tenant #{tenant_id}: #{e.message}"
+      "[CanonicalSync] Error propagating canonical #{canonical.id} to tenant #{tenant_id}: #{e.message}"
     )
     raise # Re-raise so SolidQueue retries
   end

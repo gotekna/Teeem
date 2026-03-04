@@ -1601,24 +1601,35 @@ module Api
           end
 
           # SSoT: Job client_name comes from job_contacts where role='client'
-          # This enables searching and displaying client name without denormalization
+          # FRC (Mar 2026): Use eager-loaded job_contacts.detect instead of find_by
+          # to avoid N+1 (73x job_contacts + 53x contacts queries per page load).
+          # job_contacts are already eager-loaded with :contact in apply_eager_loading.
           if record.class.name == "Job"
-            json[:client_name] = record.client&.display_name
+            client_jc = record.job_contacts.detect { |jc| jc.role == "client" }
+            json[:client_name] = client_jc&.contact&.display_name
           end
 
           return json
         end
 
         # First pass: collect all base column values
+        # FRC (Mar 2026): Use read_attribute for actual DB columns to avoid method overrides
+        # that trigger N+1 queries. Example: Job#live_profit overrides the DB column getter
+        # with calculate_live_profit → purchase_orders.sum(:total) per record (87x N+1).
+        # read_attribute reads the stored DB value directly without invoking the method.
+        db_column_names = record.class.column_names
         record_data = {}
         @foundation.columns.each do |column|
           begin
-            # Check if the column actually exists on the model
-            if record.respond_to?(column.column_name)
-              record_data[column.column_name] = record.send(column.column_name)
+            col_name = column.column_name
+            if db_column_names.include?(col_name)
+              # DB column: read stored value directly (skips method overrides like Job#live_profit)
+              record_data[col_name] = record.read_attribute(col_name)
+            elsif record.respond_to?(col_name)
+              record_data[col_name] = record.send(col_name)
             else
-              Rails.logger.warn "Column #{column.column_name} not found on foundation #{@foundation.name}"
-              record_data[column.column_name] = nil
+              Rails.logger.warn "Column #{col_name} not found on foundation #{@foundation.name}"
+              record_data[col_name] = nil
             end
           rescue => e
             Rails.logger.error "Error reading column #{column.column_name}: #{e.message}"

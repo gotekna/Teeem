@@ -1,4 +1,6 @@
 class FoundationView < ApplicationRecord
+  include ConfigSyncable
+
   acts_as_tenant :tenant
 
   belongs_to :tenant
@@ -66,6 +68,17 @@ class FoundationView < ApplicationRecord
 
   # Before saving, deduplicate column order to prevent React duplicate key errors
   before_save :deduplicate_column_order
+
+  # Override ConfigSyncable — sync_key must include foundation slug
+  # because view names aren't unique across foundations (e.g. "Setup" on jobs AND contacts).
+  # Key format: "jobs--setup", "sm-tasks--my-custom-view"
+  def generate_sync_key
+    return unless respond_to?(:sync_key=)
+    return if sync_key.present?
+
+    f_slug = foundation&.slug || "f#{foundation_id}"
+    self.sync_key = self.class.build_sync_key(f_slug, name.to_s)
+  end
 
   private
 

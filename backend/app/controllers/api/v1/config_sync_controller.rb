@@ -39,6 +39,7 @@ module Api
         "tenders"                          => "one_way",
         "claim_stage_templates"            => "one_way",
         "claim_stage_template_lines"       => "two_way",
+        "foundation_views"                 => "one_way",
       }.freeze
 
       # GET /api/v1/config_sync/tables

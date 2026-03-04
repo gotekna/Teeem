@@ -732,6 +732,28 @@ class TenantConfigSyncService
       sync_fields: [:name, :code, :is_active, :sequence_order],
       description: "Plan category groupings",
       group: "plans"
+    },
+
+    # ============================================================================
+    # Views Group
+    # ============================================================================
+    foundation_views: {
+      model: "FoundationView",
+      name_field: :name,
+      match_fields: [:sync_key],
+      sync_fields: [:name, :view_type, :view_display_type, :filters, :columns, :sort_order,
+                    :group_by_column, :group_by_columns, :is_default, :display_order,
+                    :is_global, :foundation_id],
+      # Foundation is shared (no tenant_id) — foundation_id is the same across tenants.
+      # Columns/filters/sort_order use column NAMES (not IDs) so they're portable.
+      # Only sync global views for tables that are in CONFIG_TABLES.
+      scope: -> {
+        config_models = TenantConfigSyncService::CONFIG_TABLES.values.map { |c| c[:model] }
+        config_foundation_ids = Foundation.where(model_class: config_models).pluck(:id)
+        where(is_global: true, foundation_id: config_foundation_ids)
+      },
+      description: "Global table views (column visibility, filters, sort, grouping)",
+      group: "views"
     }
   }.freeze
 
@@ -760,7 +782,8 @@ class TenantConfigSyncService
     "warehouse" => "Warehouse",
     "whs" => "WHS",
     "email" => "Email",
-    "plans" => "Plans"
+    "plans" => "Plans",
+    "views" => "Views"
   }.freeze
 
   # Derive table dependencies from remap_fks configuration.
