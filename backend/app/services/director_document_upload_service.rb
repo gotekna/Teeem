@@ -15,21 +15,33 @@ class DirectorDocumentUploadService
     "other" => "Other Documents"
   }.freeze
 
-  # Upload a file to the director's folder in storage
-  # Returns the storage URL for the uploaded file
+  # Upload a file to blob storage and create WarehouseDocument
+  # Returns hash with :success, :id, :path, :name, :size
   def upload_document(director_name:, document_type:, file:, filename: nil)
     actual_filename = filename || file.original_filename
     prefixed_filename = "#{DOCUMENT_TYPES[document_type] || document_type} - #{actual_filename}"
     content = file.respond_to?(:read) ? file.read : file
-    folder_path = "/#{DIRECTOR_IDS_FOLDER}/#{director_name}"
+    content_type = file.respond_to?(:content_type) ? file.content_type : "application/octet-stream"
 
-    result = upload_to_storage_path(folder_path, content, prefixed_filename, content_type: file.content_type)
+    # SSoT: Create StorageBlob with content-hash deduplication
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: prefixed_filename,
+      content_type: content_type
+    )
 
-    if result[:success]
-      result.merge(name: prefixed_filename, size: content.bytesize)
-    else
-      result
-    end
+    # SSoT: Create WarehouseDocument for File Warehouse visibility
+    WarehouseDocumentCreator.create!(
+      filename: prefixed_filename,
+      source_type: "compliance",
+      storage_blob: blob,
+      file_size: content.bytesize,
+      content_type: content_type,
+      metadata: { "source" => "director_document", "director_name" => director_name, "document_type" => document_type }
+    )
+    blob.increment_reference!
+
+    { success: true, id: blob.storage_path, path: blob.storage_path, name: prefixed_filename, size: content.bytesize }
   end
 
   # Get the shareable URL for a file

@@ -707,13 +707,25 @@ export function ScheduleMasterSyncTab() {
 
       setTableStatus((prev) => ({ ...prev, [table.key]: "syncing" }));
 
-      const res = await api.post<{
-        success: boolean;
-        table: string;
-        queued?: boolean;
-        job_key?: string;
-        error?: string;
-      }>("/api/v1/config_sync/cascade_push_table", { table: table.key }, { timeout: API_TIMEOUT_HEAVY_SYNC });
+      let res: { success: boolean; table: string; queued?: boolean; job_key?: string; error?: string } | null = null;
+      try {
+        res = await api.post<{
+          success: boolean;
+          table: string;
+          queued?: boolean;
+          job_key?: string;
+          error?: string;
+        }>("/api/v1/config_sync/cascade_push_table", { table: table.key }, { timeout: API_TIMEOUT_HEAVY_SYNC });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[SMSync] cascade_push_table failed for ${table.key}:`, errMsg);
+        setTableStatus((prev) => ({ ...prev, [table.key]: "error" }));
+        setTableResults((prev) => ({
+          ...prev,
+          [table.key]: { imported: 0, updated: 0, skipped: 0, total: 0, error: errMsg },
+        }));
+        continue;
+      }
 
       if (res?.queued && res?.job_key) {
         // Background job queued — poll until it finishes
@@ -1399,9 +1411,11 @@ export function ScheduleMasterSyncTab() {
                               {status === "skipped" && (
                                 <span className="text-xs text-muted-foreground">no changes</span>
                               )}
-                              {status === "error" && result && (result.imported > 0 || result.updated > 0) && (
-                                <span className="text-xs text-green-600 dark:text-green-400">
-                                  {result.imported + result.updated} ok
+                              {status === "error" && result && (
+                                <span className="text-xs text-destructive" title={result.error || "Unknown error"}>
+                                  {result.imported > 0 || result.updated > 0
+                                    ? `${result.imported + result.updated} ok, failed`
+                                    : (result.error || "failed")}
                                 </span>
                               )}
                             </div>

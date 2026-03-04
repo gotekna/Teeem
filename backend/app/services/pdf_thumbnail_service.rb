@@ -10,7 +10,6 @@
 require "mini_magick"
 
 class PdfThumbnailService
-  include DocumentProviderAware
   # Micro thumbnail (instant display, large enough for preview panel)
   MICRO_WIDTH = 600   # Large enough to fill preview panel without pixelation
   MICRO_BLUR = 0      # No blur - keep it readable
@@ -159,46 +158,26 @@ class PdfThumbnailService
     end
   end
 
-  # Upload thumbnail using provider-agnostic storage
-  # SSoT: Uses DocumentProviderAware for uploads
+  # Upload thumbnail to blob storage (no WarehouseDocument - derived artifact)
   def upload_thumbnail(thumbnail_content)
-    Rails.logger.info "[PdfThumbnail] Uploading thumbnail to storage..."
+    Rails.logger.info "[PdfThumbnail] Uploading thumbnail to blob storage..."
 
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      raise ThumbnailError, "Storage not connected: #{e.message}"
-    end
-
-    # Generate thumbnail filename: original_name_thumb.webp
     base_name = File.basename(@revision.file_name || 'plan', '.*')
     thumbnail_name = "#{base_name}_thumb.#{THUMBNAIL_FORMAT}"
 
-    # Determine parent folder path from original file
-    parent_folder_path = if @revision.storage_path.present?
-      File.dirname(@revision.storage_path)
-    elsif @job_plan&.job&.storage_folder_path.present?
-      @job_plan.job.storage_folder_path
-    else
-      raise ThumbnailError, "Could not determine parent folder for thumbnail"
-    end
-
-    # Upload thumbnail to same folder
-    result = upload_to_provider(
-      parent_folder_path,
+    # SSoT: Create StorageBlob with content-hash deduplication
+    blob = StorageBlob.find_or_create_for_content!(
       thumbnail_content,
-      thumbnail_name,
+      filename: thumbnail_name,
       content_type: "image/webp"
     )
 
     {
-      file_id: result[:id],
+      file_id: blob.storage_path,
       name: thumbnail_name,
-      web_url: result[:web_url] || result[:url],
-      path: result[:path]
+      web_url: nil,
+      path: blob.storage_path
     }
-  rescue DocumentProviders::Error => e
-    raise ThumbnailError, "Storage API error: #{e.message}"
   end
 
   def update_revision(thumbnail_info, micro_content)

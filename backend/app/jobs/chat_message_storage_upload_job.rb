@@ -1,54 +1,61 @@
 # frozen_string_literal: true
 
-# Job to upload ChatMessage files to storage
+# Job to upload ChatMessage files to blob storage
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Uploads to Wasabi, SharePoint, or S3 based on WarehouseProvider║
+# ║  SSoT: Uses StorageBlob for deduplicated storage                  ║
+# ║  Creates WarehouseDocument for File Warehouse visibility          ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 class ChatMessageStorageUploadJob < ApplicationJob
-  include DocumentProviderAware
-
   queue_as :default
 
   def perform(chat_message_id)
     # unscoped: background jobs don't have ActsAsTenant context
     message = ChatMessage.unscoped.find_by(id: chat_message_id)
     return unless message
-    return if message.storage_reference.present?
+    return if message.storage_blob_id.present?
     return unless message.file.attached?
 
     Rails.logger.info("[ChatMessageUpload] Uploading file for ChatMessage #{chat_message_id}")
 
-    # SSoT: Setup document provider using WarehouseProvider
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      Rails.logger.error("[ChatMessageUpload] No storage provider configured: #{e.message}")
-      return
-    end
-
-    # Build folder path: Warehousing/Chat/{YYYY-MM}
-    date = message.created_at || Time.current
-    base_folder = scope_folder_path(:chat)
-    folder_path = "/#{base_folder}/#{date.strftime('%Y-%m')}"
     filename = message.file.filename.to_s
+    content = message.file.download
+    content_type = message.file.content_type
 
-    file_content = message.file.download
+    # Set tenant context for StorageBlob creation
+    tenant = message.respond_to?(:tenant) ? message.tenant : nil
+    tenant ||= message.job&.tenant if message.respond_to?(:job)
 
-    get_or_create_folder_path(folder_path)
-    upload_result = upload_to_provider(folder_path, file_content, filename)
+    ActsAsTenant.with_tenant(tenant) do
+      # SSoT: Create StorageBlob with content-hash deduplication
+      blob = StorageBlob.find_or_create_for_content!(
+        content,
+        filename: filename,
+        content_type: content_type
+      )
 
-    if upload_result && upload_result[:id]
-      message.update_columns(storage_file_id: upload_result[:id])
-      Rails.logger.info("[ChatMessageUpload] Uploaded: #{filename} -> #{upload_result[:path]}")
-    else
-      Rails.logger.error("[ChatMessageUpload] Upload failed - no ID returned")
+      # Link blob to record
+      message.update_columns(storage_blob_id: blob.id)
+
+      # SSoT: Create WarehouseDocument for File Warehouse visibility
+      job = message.respond_to?(:job) ? message.job : nil
+      WarehouseDocumentCreator.create!(
+        filename: filename,
+        source_type: "warehouse",
+        linkable: job,
+        storage_blob: blob,
+        file_size: content.bytesize,
+        content_type: content_type,
+        metadata: { "source" => "chat_message", "chat_message_id" => chat_message_id }
+      )
+      blob.increment_reference!
+
+      Rails.logger.info("[ChatMessageUpload] Uploaded to blob storage: #{filename} -> #{blob.storage_path}")
     end
-  rescue DocumentProviders::Error => e
-    Rails.logger.error("[ChatMessageUpload] Provider error: #{e.message}")
   rescue StandardError => e
     Rails.logger.error("[ChatMessageUpload] Error: #{e.message}")
+    Rails.logger.error(e.backtrace.first(5).join("\n"))
+    raise
   end
 end

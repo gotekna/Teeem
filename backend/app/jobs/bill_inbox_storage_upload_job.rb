@@ -1,77 +1,57 @@
 # frozen_string_literal: true
 
-# Job to upload BillInbox invoice files to storage
-# Triggered after a BillInbox is created/updated with an attached file
+# Job to upload BillInbox invoice files to blob storage
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Uploads to Wasabi, SharePoint, or S3 based on WarehouseProvider║
+# ║  SSoT: Uses StorageBlob for deduplicated storage                  ║
+# ║  Creates WarehouseDocument for File Warehouse visibility          ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 class BillInboxStorageUploadJob < ApplicationJob
-  include DocumentProviderAware
-
   queue_as :default
 
   def perform(bill_inbox_id)
     bill = BillInbox.find_by(id: bill_inbox_id)
     return unless bill
-    return if bill.storage_reference.present? # Already uploaded
+    return if bill.storage_blob_id.present? # Already uploaded to blob storage
     return unless bill.invoice_file.attached?
 
     Rails.logger.info("[BillInboxUpload] Uploading file for BillInbox #{bill_inbox_id}")
 
-    # SSoT: Setup document provider using WarehouseProvider
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      Rails.logger.error("[BillInboxUpload] No storage provider configured: #{e.message}")
-      return
-    end
-
-    # Build folder path: Warehousing/BillInbox/{YYYY-MM}/{source}
-    folder_path = build_folder_path(bill)
     filename = bill.invoice_file.filename.to_s
+    content = bill.invoice_file.download
+    content_type = bill.invoice_file.content_type
 
-    # Download from Active Storage
-    file_content = bill.invoice_file.download
+    # SSoT: Create StorageBlob with content-hash deduplication
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
 
-    # Ensure folder exists and upload
-    get_or_create_folder_path(folder_path)
-    upload_result = upload_to_provider(folder_path, file_content, filename)
+    # Link blob to record
+    bill.update_columns(storage_blob_id: blob.id)
 
-    if upload_result && upload_result[:id]
-      bill.update_columns(
-        storage_file_id: upload_result[:id],
-        original_filename: filename
-      )
-      Rails.logger.info("[BillInboxUpload] Uploaded: #{filename} -> #{upload_result[:path]}")
+    # SSoT: Create WarehouseDocument for File Warehouse visibility
+    WarehouseDocumentCreator.create!(
+      filename: filename,
+      source_type: "financial",
+      storage_blob: blob,
+      file_size: content.bytesize,
+      content_type: content_type,
+      metadata: { "source" => "bill_inbox", "bill_inbox_id" => bill_inbox_id }
+    )
+    blob.increment_reference!
 
-      # Queue extraction now that file is in storage
-      if bill.status == "pending"
-        InvoiceExtractionJob.perform_later(bill.id)
-      end
-    else
-      Rails.logger.error("[BillInboxUpload] Upload failed - no ID returned")
+    Rails.logger.info("[BillInboxUpload] Uploaded to blob storage: #{filename} -> #{blob.storage_path}")
+
+    # Queue extraction now that file is in storage
+    if bill.status == "pending"
+      InvoiceExtractionJob.perform_later(bill.id)
     end
-  rescue DocumentProviders::AuthenticationError => e
-    Rails.logger.error("[BillInboxUpload] Auth error: #{e.message}")
-  rescue DocumentProviders::Error => e
-    Rails.logger.error("[BillInboxUpload] Provider error: #{e.message}")
   rescue StandardError => e
     Rails.logger.error("[BillInboxUpload] Error: #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))
-  end
-
-  private
-
-  def build_folder_path(bill)
-    # SSoT: Get base path from WarehouseProvider
-    base_folder = scope_folder_path(:bill_inbox)
-    date = bill.created_at || Time.current
-    year_month = date.strftime("%Y-%m")
-    source = bill.source || "upload"
-
-    "/#{base_folder}/#{year_month}/#{source}"
+    raise
   end
 end

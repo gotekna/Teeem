@@ -6368,10 +6368,12 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "thumbnail_generated_at"
     t.text "micro_thumbnail_base64"
     t.string "storage_item_id"
+    t.bigint "storage_blob_id"
     t.index ["is_on_issue"], name: "index_job_plan_revisions_on_is_on_issue"
     t.index ["issued_by_id"], name: "index_job_plan_revisions_on_issued_by_id"
     t.index ["job_plan_id", "revision"], name: "index_job_plan_revisions_on_job_plan_id_and_revision", unique: true
     t.index ["job_plan_id"], name: "index_job_plan_revisions_on_job_plan_id"
+    t.index ["storage_blob_id"], name: "index_job_plan_revisions_on_storage_blob_id"
     t.index ["storage_item_id"], name: "index_job_plan_revisions_on_storage_item_id"
     t.index ["thumbnail_file_id"], name: "index_job_plan_revisions_on_thumbnail_file_id"
   end
@@ -7426,7 +7428,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", force: :cascade do |t|
+  create_table "performance_requests", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -7504,7 +7507,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", force: :cascade do |t|
+  create_table "performance_vitals", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -12497,6 +12501,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "job_markup_charges", "purchase_orders"
   add_foreign_key "job_markup_charges", "tenants"
   add_foreign_key "job_plan_revisions", "job_plans"
+  add_foreign_key "job_plan_revisions", "storage_blobs"
   add_foreign_key "job_plan_revisions", "users", column: "issued_by_id"
   add_foreign_key "job_plan_tabs", "job_plan_tabs", column: "parent_id"
   add_foreign_key "job_plan_tabs", "jobs"

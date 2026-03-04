@@ -131,9 +131,9 @@ class BatchPlanUploadJob < ApplicationJob
       content_type: "application/pdf"
     )
 
-    # Create JobPlan record
+    # Create JobPlan record (pass page_content for blob creation)
     display_name = filename.sub(/\.pdf$/i, "")
-    create_job_plan!(display_name, result, page_content.bytesize)
+    create_job_plan!(display_name, result, page_content.bytesize, page_content: page_content)
 
     # Track completed item
     @operation.add_completed_item!(display_name)
@@ -159,6 +159,9 @@ class BatchPlanUploadJob < ApplicationJob
       content_type: "application/pdf"
     )
 
+    # Create StorageBlob for Phase 3 blob storage (non-fatal if fails)
+    blob = create_storage_blob(@file_content, "All Plans.pdf")
+
     plan = @job.job_plans.create!(
       job_plan_tab_id: job_plan_tab_id,
       plan_type_id: nil,
@@ -169,10 +172,14 @@ class BatchPlanUploadJob < ApplicationJob
     plan.add_revision!(
       storage_file_id: result[:id],
       storage_web_url: result[:webUrl] || result[:web_url],
+      storage_blob: blob,
       file_name: "All Plans.pdf",
       file_size: @file_content.bytesize,
       revision_date: Date.current
     )
+
+    # Create WarehouseDocument for File Warehouse visibility (non-fatal if fails)
+    create_warehouse_document(blob, "All Plans.pdf", @file_content.bytesize) if blob
 
     # Add at beginning of items_completed
     items = @operation.items_completed || []
@@ -312,12 +319,46 @@ class BatchPlanUploadJob < ApplicationJob
     Warehouse::FilenameSanitizer.sanitize(filename)
   end
 
-  def create_job_plan!(display_name, storage_result, file_size)
+  # Create StorageBlob from content (non-fatal - plan upload continues even if blob creation fails)
+  def create_storage_blob(content, filename)
+    StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: "application/pdf"
+    )
+  rescue => e
+    Rails.logger.warn "[BatchPlanUploadJob] Failed to create StorageBlob for #{filename}: #{e.message}"
+    nil
+  end
+
+  # Create WarehouseDocument for File Warehouse visibility (non-fatal)
+  def create_warehouse_document(blob, filename, file_size)
+    plans_folder = WarehouseFolder.where(warehouse_type: "job", tab_key: "plans").enabled.first
+
+    WarehouseDocumentCreator.create!(
+      filename: filename,
+      source_type: "job",
+      linkable: @job,
+      storage_blob: blob,
+      warehouse_folder_id: plans_folder&.id,
+      file_size: file_size,
+      content_type: "application/pdf"
+    )
+    blob.increment_reference!
+    Rails.logger.info "[BatchPlanUploadJob] Created WarehouseDocument for #{filename}"
+  rescue => e
+    Rails.logger.warn "[BatchPlanUploadJob] Failed to create WarehouseDocument for #{filename}: #{e.message}"
+  end
+
+  def create_job_plan!(display_name, storage_result, file_size, page_content: nil)
     existing = @job.job_plans.find_by(display_name: display_name)
     if existing
       Rails.logger.info "[BatchPlanUploadJob] Plan '#{display_name}' already exists, skipping"
       return existing
     end
+
+    # Create StorageBlob for Phase 3 blob storage (non-fatal if fails)
+    blob = create_storage_blob(page_content, "#{display_name}.pdf") if page_content
 
     plan = @job.job_plans.create!(
       job_plan_tab_id: job_plan_tab_id,
@@ -328,10 +369,14 @@ class BatchPlanUploadJob < ApplicationJob
     plan.add_revision!(
       storage_file_id: storage_result[:id],
       storage_web_url: storage_result[:webUrl] || storage_result[:web_url],
+      storage_blob: blob,
       file_name: "#{display_name}.pdf",
       file_size: file_size,
       revision_date: Date.current
     )
+
+    # Create WarehouseDocument for File Warehouse visibility (non-fatal if fails)
+    create_warehouse_document(blob, "#{display_name}.pdf", file_size) if blob
 
     plan
   end

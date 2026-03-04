@@ -1,15 +1,13 @@
 # frozen_string_literal: true
 
-# Job to upload PayNowRequest files to storage
+# Job to upload PayNowRequest files to blob storage
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Uploads to Wasabi, SharePoint, or S3 based on WarehouseProvider║
+# ║  SSoT: Uses StorageBlob for deduplicated storage                  ║
+# ║  Creates WarehouseDocument for File Warehouse visibility          ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 class PayNowStorageUploadJob < ApplicationJob
-  include DocumentProviderAware
-
   queue_as :default
 
   def perform(pay_now_request_id)
@@ -17,14 +15,6 @@ class PayNowStorageUploadJob < ApplicationJob
     return unless request
 
     Rails.logger.info("[PayNowUpload] Uploading files for PayNowRequest #{pay_now_request_id}")
-
-    # SSoT: Setup document provider using WarehouseProvider
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      Rails.logger.error("[PayNowUpload] No storage provider configured: #{e.message}")
-      return
-    end
 
     # Upload invoice file
     if request.invoice_file.attached? && request.storage_reference.blank?
@@ -35,45 +25,73 @@ class PayNowStorageUploadJob < ApplicationJob
     if request.proof_photos.attached? && request.proof_photos_storage_ids.blank?
       upload_proof_photos(request)
     end
-  rescue DocumentProviders::Error => e
-    Rails.logger.error("[PayNowUpload] Provider error: #{e.message}")
   rescue StandardError => e
     Rails.logger.error("[PayNowUpload] Error: #{e.message}")
+    Rails.logger.error(e.backtrace.first(5).join("\n"))
+    raise
   end
 
   private
 
   def upload_invoice_file(request)
-    wt_root = WarehouseType.find_by_code("warehouse")&.folder_path_template.presence || "Warehouse"
-    folder_path = "/#{wt_root}/PayNowRequests/#{request.created_at.strftime('%Y-%m')}/Invoices"
     filename = request.invoice_file.filename.to_s
     content = request.invoice_file.download
+    content_type = request.invoice_file.content_type
 
-    get_or_create_folder_path(folder_path)
-    result = upload_to_provider(folder_path, content, filename)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
 
-    if result && result[:id]
-      request.update_columns(storage_file_id: result[:id])
-      Rails.logger.info("[PayNowUpload] Uploaded invoice: #{filename} -> #{result[:path]}")
-    end
+    request.update_columns(storage_file_id: blob.storage_path)
+
+    job = request.respond_to?(:job) ? request.job : nil
+    WarehouseDocumentCreator.create!(
+      filename: filename,
+      source_type: "financial",
+      linkable: job,
+      storage_blob: blob,
+      file_size: content.bytesize,
+      content_type: content_type,
+      metadata: { "source" => "pay_now_invoice", "pay_now_request_id" => request.id }
+    )
+    blob.increment_reference!
+
+    Rails.logger.info("[PayNowUpload] Uploaded invoice to blob: #{filename} -> #{blob.storage_path}")
   end
 
   def upload_proof_photos(request)
-    wt_root = WarehouseType.find_by_code("warehouse")&.folder_path_template.presence || "Warehouse"
-    folder_path = "/#{wt_root}/PayNowRequests/#{request.created_at.strftime('%Y-%m')}/ProofPhotos/#{request.id}"
-    get_or_create_folder_path(folder_path)
-
     ids = []
     request.proof_photos.each do |photo|
       filename = photo.filename.to_s
       content = photo.download
-      result = upload_to_provider(folder_path, content, filename)
-      ids << result[:id] if result && result[:id]
+      content_type = photo.content_type
+
+      blob = StorageBlob.find_or_create_for_content!(
+        content,
+        filename: filename,
+        content_type: content_type
+      )
+
+      ids << blob.storage_path
+
+      job = request.respond_to?(:job) ? request.job : nil
+      WarehouseDocumentCreator.create!(
+        filename: filename,
+        source_type: "financial",
+        linkable: job,
+        storage_blob: blob,
+        file_size: content.bytesize,
+        content_type: content_type,
+        metadata: { "source" => "pay_now_proof_photo", "pay_now_request_id" => request.id }
+      )
+      blob.increment_reference!
     end
 
     if ids.any?
       request.update_columns(proof_photos_storage_ids: ids)
-      Rails.logger.info("[PayNowUpload] Uploaded #{ids.count} proof photos")
+      Rails.logger.info("[PayNowUpload] Uploaded #{ids.count} proof photos to blob storage")
     end
   end
 end

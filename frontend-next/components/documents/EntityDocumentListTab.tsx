@@ -45,8 +45,8 @@ import { Upload, FileText, FolderOpen, CalendarDays, X, Mail } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
+import type { UploadScope, UploadStep } from "@/lib/upload-utils";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
-import type { UploadScope } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { formatFileSize } from "@/utils/formatters";
 import {
@@ -410,16 +410,40 @@ export default function EntityDocumentListTab({
     fileInputRef.current?.click();
   }, []);
 
-  // Upload after dialog confirmation
+  // Upload after dialog confirmation — with progress toast
   const handleConfirmUpload = useCallback(async () => {
     if (!pendingFiles.length) return;
 
     setUploadDialogOpen(false);
     setUploading(true);
+
+    const totalFiles = pendingFiles.length;
+    const multiPrefix = totalFiles > 1;
+
+    // Step label mapping
+    const stepLabels: Record<UploadStep, string> = {
+      presigning: "Preparing",
+      uploading: "Uploading",
+      hashing: "Processing",
+      confirming: "Finalizing",
+    };
+
+    // Create persistent progress toast
+    const { id: toastId, update, dismiss } = toast({
+      title: multiPrefix ? `(1/${totalFiles}) ${pendingFiles[0].name}` : pendingFiles[0].name,
+      description: "Preparing upload...",
+      variant: "progress",
+      progress: 0,
+      duration: Infinity,
+    });
+
     try {
       let successCount = 0;
 
-      for (const file of pendingFiles) {
+      for (let i = 0; i < totalFiles; i++) {
+        const file = pendingFiles[i];
+        const fileLabel = multiPrefix ? `(${i + 1}/${totalFiles}) ${file.name}` : file.name;
+
         const result = await uploadFile(file, uploadScope, {
           metadata: {
             [entityIdKey]: entityId,
@@ -430,29 +454,67 @@ export default function EntityDocumentListTab({
             executed_date: executedDate ? executedDate.toISOString().split("T")[0] : undefined,
             expiry_date: expiryDate ? expiryDate.toISOString().split("T")[0] : undefined,
           },
+          onByteProgress: (loaded, total) => {
+            const pct = Math.round((loaded / total) * 100);
+            update({
+              id: toastId,
+              title: fileLabel,
+              description: `Uploading — ${formatFileSize(loaded)} / ${formatFileSize(total)}`,
+              variant: "progress",
+              progress: pct,
+            });
+          },
+          onStepChange: (step) => {
+            if (step === "uploading") return; // byte progress handles this
+            update({
+              id: toastId,
+              title: fileLabel,
+              description: `${stepLabels[step]}...`,
+              variant: "progress",
+              progress: step === "confirming" ? 100 : undefined,
+            });
+          },
         });
 
         if (result.success) {
           successCount++;
         } else {
-          toast({
+          update({
+            id: toastId,
             title: "Upload Failed",
             description: `${file.name}: ${result.error || "Failed to upload"}`,
             variant: "destructive",
           });
+          // Give user time to read the error before next file starts
+          if (i < totalFiles - 1) {
+            await new Promise(r => setTimeout(r, 2000));
+          }
         }
       }
 
       if (successCount > 0) {
-        toast({ title: "Upload Complete", description: `${successCount} file(s) uploaded` });
+        update({
+          id: toastId,
+          title: "Upload Complete",
+          description: `${successCount} file(s) uploaded`,
+          variant: "success",
+          progress: 100,
+        });
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => dismiss(), 3000);
         fetchDocuments();
+      } else {
+        // All failed — dismiss after reading
+        setTimeout(() => dismiss(), 5000);
       }
     } catch (error) {
-      toast({
+      update({
+        id: toastId,
         title: "Upload Error",
         description: "An error occurred during upload",
         variant: "destructive",
       });
+      setTimeout(() => dismiss(), 5000);
     } finally {
       setUploading(false);
       setPendingFiles([]);

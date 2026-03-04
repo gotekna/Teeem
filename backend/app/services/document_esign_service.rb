@@ -32,8 +32,6 @@ require "hexapdf"
 #   )
 #
 class DocumentEsignService
-  include DocumentProviderAware
-
   class Error < StandardError; end
 
   attr_reader :template, :template_key, :job, :signers, :options
@@ -143,38 +141,29 @@ class DocumentEsignService
   end
 
   def upload_to_storage(generated)
-    # Setup provider-agnostic storage
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      raise Error, "Storage not connected: #{e.message}"
-    end
-
-    # Determine destination folder (job's Documents folder or specified folder)
-    folder_path = options[:destination_folder] || build_job_folder_path
-
-    # Upload the PDF (preferred for e-signing) or DOCX
     content = generated[:pdf_content] || generated[:docx_content]
     filename = generated[:pdf_filename] || generated[:filename]
 
-    # Ensure folder exists
-    get_or_create_folder_path(folder_path)
+    # SSoT: Create StorageBlob with content-hash deduplication
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: "application/pdf"
+    )
 
-    # Upload using provider-agnostic method
-    upload_to_provider(folder_path, content, filename, content_type: "application/pdf")
-  end
+    # SSoT: Create WarehouseDocument for File Warehouse visibility
+    WarehouseDocumentCreator.create!(
+      filename: filename,
+      source_type: "job",
+      linkable: job,
+      storage_blob: blob,
+      file_size: content.bytesize,
+      content_type: "application/pdf",
+      metadata: { "source" => "esign_document", "template_key" => template_key.to_s }
+    )
+    blob.increment_reference!
 
-  def build_job_folder_path
-    # Build path like: "Jobs/123 - Smith Residence/Documents"
-    # SSoT: WarehouseFolder owns folder names, WarehouseProvider owns base path
-    base_path = WarehouseProvider.instance.path_for(:jobs)
-    job_folder = "#{job.id} - #{job.name}"
-
-    # SSoT (Feb 2026): Use WarehouseFolder for folder name instead of hardcoding
-    documents_tab = WarehouseFolder.for_warehouse_type("job").find_by(tab_key: "documents")
-    folder_name = documents_tab&.display_name || "Documents"
-
-    "#{base_path}/#{job_folder}/#{folder_name}"
+    { id: blob.storage_path, path: blob.storage_path, content_hash: blob.content_hash }
   end
 
   def create_esign_request(uploaded_file, document_filename)
@@ -208,30 +197,11 @@ class DocumentEsignService
       )
     end
 
-    # Calculate document hash for integrity
-    request.original_document_hash = calculate_document_hash(uploaded_file[:id])
+    # Content hash from StorageBlob (computed during blob creation)
+    request.original_document_hash = uploaded_file[:content_hash]
 
     request.save!
     request
-  end
-
-  def calculate_document_hash(file_info)
-    # file_info can have :id or :path from any storage provider
-    file_identifier = file_info[:path] || file_info[:id]
-    return nil unless file_identifier
-
-    storage_service = DocumentStorageService.new
-    doc = OpenStruct.new(
-      storage_path: file_info[:path],
-      storage_file_id: file_info[:id]
-    )
-    result = storage_service.download(doc)
-    return nil unless result[:success] && result[:content].present?
-
-    Digest::SHA256.hexdigest(result[:content])
-  rescue StandardError => e
-    Rails.logger.warn "[DocumentEsignService] Could not calculate document hash: #{e.message}"
-    nil
   end
 
   # Generate additional documents from template keys

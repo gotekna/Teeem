@@ -8,6 +8,7 @@
 class JobPlanRevision < ApplicationRecord
   belongs_to :job_plan
   belongs_to :issued_by, class_name: 'User', optional: true
+  belongs_to :storage_blob, optional: true
 
   validates :revision, presence: true
   validates :revision, uniqueness: { scope: :job_plan_id }
@@ -21,13 +22,13 @@ class JobPlanRevision < ApplicationRecord
 
   # Check if this revision has a file attached
   def has_file?
-    storage_reference.present? || storage_web_url.present?
+    storage_blob_id.present? || storage_reference.present? || storage_web_url.present?
   end
 
-  # Provider-agnostic storage reference (SSoT: storage_item_id)
-  # Falls back to storage_file_id for backwards compatibility
+  # Provider-agnostic storage reference
+  # Prefers blob storage path (Phase 3), falls back to legacy references
   def storage_reference
-    storage_item_id.presence || storage_file_id
+    storage_blob&.storage_path || storage_item_id.presence || storage_file_id
   end
 
   # Human-readable file size

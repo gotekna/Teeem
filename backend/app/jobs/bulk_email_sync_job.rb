@@ -29,7 +29,6 @@
 
 class BulkEmailSyncJob < ApplicationJob
   include XeroConstants  # For BULK_EMAIL_SYNC_THROTTLE_SEC
-  include DocumentProviderAware
 
   queue_as :low
 
@@ -69,14 +68,6 @@ class BulkEmailSyncJob < ApplicationJob
         @progress["phase2_complete"] = true
         save_progress!
       end
-
-      # Phase 3: Upload email .eml files to storage
-      # DISABLED - EML upload takes too long and times out on Heroku
-      # unless @progress["phase3_complete"]
-      #   sync_emails_to_storage
-      #   @progress["phase3_complete"] = true
-      #   save_progress!
-      # end
 
       # Mark complete
       @progress["status"] = "completed"
@@ -166,15 +157,9 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "[BulkSync] Phase 1 complete: #{@progress["emails_synced"]} emails synced"
   end
 
-  # Phase 2: Upload attachments to storage (provider-agnostic)
+  # Phase 2: Upload attachments to blob storage (StorageBlob handles provider internally)
   def sync_attachments_to_storage
-    Rails.logger.info "[BulkSync] Phase 2: Uploading attachments to storage..."
-
-    # SSoT: Use DocumentProviderAware for provider-agnostic storage
-    setup_default_provider!
-    unless document_provider_available?
-      raise "Storage provider not configured"
-    end
+    Rails.logger.info "[BulkSync] Phase 2: Uploading attachments to blob storage..."
 
     # Get emails with unprocessed attachments
     # Note: email_attachments table DROPPED (Jan 2026) - use WarehouseDocument with source_type='email_attachment'
@@ -286,114 +271,6 @@ class BulkEmailSyncJob < ApplicationJob
     email.update!(attachment_count: email.attachment_documents.count)
   end
 
-  def upload_attachment(filename, content, content_type, file_size, email_date, content_hash)
-    year = email_date.year
-    month = email_date.strftime("%m")
-    # SSoT: Use centralized path sanitization
-    org_name = Warehouse::FilenameSanitizer.sanitize_path_segment(@credential.name)
-    # SSoT: Get base path from WarehouseProvider
-    base_path = scope_folder_path(:email_attachments)
-    folder_path = "#{base_path}/#{org_name}/#{year}/#{month}"
-
-    hash_prefix = content_hash[0..7]
-    # SSoT: Use centralized filename sanitization
-    safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
-    final_filename = "#{hash_prefix}_#{safe_filename}"
-
-    # SSoT: Use provider-agnostic upload (provider handles large files automatically)
-    result = upload_to_provider(folder_path, content, final_filename, content_type: content_type)
-
-    # Ensure path is always set
-    result[:path] ||= "#{folder_path}/#{final_filename}"
-    result
-  end
-
-  # Phase 3: Upload email .eml files to storage (provider-agnostic)
-  def sync_emails_to_storage
-    Rails.logger.info "[BulkSync] Phase 3: Uploading emails to storage..."
-
-    # SSoT: Use DocumentProviderAware for provider-agnostic storage
-    # Provider was already set up in Phase 2, but ensure it's ready
-    setup_default_provider! unless document_provider_available?
-    unless document_provider_available?
-      Rails.logger.info "[BulkSync] Storage provider not configured, skipping email upload"
-      return
-    end
-
-    scope = SyncedEmail
-      .where(microsoft_credential_id: @credential.id)
-      .where(storage_email_file_id: nil)
-      .where.not(mailbox_owner_email: nil)
-      .order(:id)
-
-    # Resume from checkpoint
-    if @progress["last_uploaded_email_id"]
-      scope = scope.where("id > ?", @progress["last_uploaded_email_id"])
-    end
-
-    total_to_process = scope.count
-    Rails.logger.info "[BulkSync] Found #{total_to_process} emails to upload"
-
-    return if total_to_process == 0
-
-    # Graph API client to fetch email content from Outlook
-    client = MicrosoftAppGraphClient.new(@credential)
-
-    processed = 0
-    scope.find_each(batch_size: EMAIL_BATCH_SIZE) do |email|
-      begin
-        upload_email_to_storage(email, client)
-        @progress["last_uploaded_email_id"] = email.id
-        @progress["emails_uploaded_to_storage"] += 1
-        processed += 1
-
-        # Checkpoint periodically
-        if processed % CHECKPOINT_INTERVAL == 0
-          save_progress!
-          log_email_upload_progress(processed, total_to_process)
-        end
-
-        # Throttle to avoid rate limits (every 10 emails)
-        sleep(BULK_EMAIL_SYNC_THROTTLE_SEC) if processed % 10 == 0
-      rescue StandardError => e
-        log_error("email_upload", email.id, e.message)
-      end
-    end
-
-    save_progress!
-    Rails.logger.info "[BulkSync] Phase 3 complete: #{@progress['emails_uploaded_to_storage']} emails uploaded"
-  end
-
-  def upload_email_to_storage(email, client)
-    mime_content = client.get_email_mime_content(email.mailbox_owner_email, email.outlook_id)
-
-    year = email.received_at.year
-    month = email.received_at.strftime("%m")
-    # SSoT: Use centralized path sanitization
-    org_name = Warehouse::FilenameSanitizer.sanitize_path_segment(@credential.name)
-
-    # SSoT: Get email storage path from WarehouseFolder (system-managed)
-    folder_path = email_storage_path(
-      org_name: org_name,
-      year: year,
-      month: month,
-      mailbox: email.mailbox_owner_email,
-      date: email.received_at
-    )
-    filename = "#{email.id}.eml"
-
-    # SSoT: Use provider-agnostic upload (provider handles large files automatically)
-    result = upload_to_provider(folder_path, mime_content, filename, content_type: "message/rfc822")
-
-    # Ensure path is always set
-    result[:path] ||= "#{folder_path}/#{filename}"
-
-    email.update!(
-      storage_email_file_id: result[:id],
-      storage_email_path: result[:path]
-    )
-  end
-
   def log_error(type, id, message)
     error = { "type" => type, "id" => id, "message" => message, "at" => Time.current.iso8601 }
     @progress["errors"] << error
@@ -404,11 +281,6 @@ class BulkEmailSyncJob < ApplicationJob
   def log_attachment_progress(processed, total)
     pct = total > 0 ? (processed.to_f / total * 100).round(1) : 0
     Rails.logger.info "[BulkSync] Attachments: #{processed}/#{total} emails processed (#{pct}%) - #{@progress['attachments_uploaded']} uploaded, #{@progress['attachments_deduplicated']} deduplicated"
-  end
-
-  def log_email_upload_progress(processed, total)
-    pct = total > 0 ? (processed.to_f / total * 100).round(1) : 0
-    Rails.logger.info "[BulkSync] Email uploads: #{processed}/#{total} (#{pct}%)"
   end
 
   def log_final_stats
@@ -427,43 +299,6 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "Emails uploaded to storage: #{@progress['emails_uploaded_to_storage']}"
     Rails.logger.info "Errors: #{@progress['errors'].count}"
     Rails.logger.info "=" * 60
-  end
-
-  # SSoT (Feb 2026): Get email storage path from WarehouseFolder (system-managed)
-  # Resolves templates like: "{{UserName}}/{{Year}}/{{Date}}" or "{{Mailbox}}/{{Year}}/{{Month}}"
-  # Falls back to hardcoded path if WarehouseFolder doesn't exist
-  #
-  # Available placeholders:
-  #   {{OrgName}}  - Organization name (sanitized)
-  #   {{Year}}     - 4-digit year (e.g., "2025")
-  #   {{Month}}    - 2-digit month (e.g., "01")
-  #   {{Date}}     - Date in d-m-yy format (e.g., "9-12-25")
-  #   {{Mailbox}}  - Email mailbox address (e.g., "robert@tekna.com.au")
-  #   {{UserName}} - User's display name from mailbox (e.g., "Robert Harder")
-  def email_storage_path(org_name:, year:, month:, mailbox: nil, date: nil)
-    email_tab = WarehouseFolder.for_warehouse_type("email").find_by(tab_key: "email-storage")
-
-    if email_tab&.full_folder_path.present?
-      # Derive user name from mailbox email
-      user = mailbox.present? ? User.find_by("LOWER(email) = ?", mailbox.downcase) : nil
-      user_name = user&.display_name || mailbox&.split("@")&.first&.titleize || "Unknown"
-
-      # Format date as d-m-yy (e.g., "9-12-25") to match frontend preview
-      formatted_date = date.present? ? date.strftime("%-d-%-m-%y") : ""
-
-      # Resolve placeholders in the template
-      email_tab.full_folder_path
-        .gsub("{{OrgName}}", org_name.to_s)
-        .gsub("{{Year}}", year.to_s)
-        .gsub("{{Month}}", month.to_s.rjust(2, "0"))
-        .gsub("{{Date}}", formatted_date)
-        .gsub("{{Mailbox}}", Warehouse::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
-        .gsub("{{UserName}}", Warehouse::FilenameSanitizer.sanitize_path_segment(user_name))
-    else
-      # Fallback if WarehouseFolder doesn't exist - use WarehouseProvider SSoT
-      base_path = WarehouseProvider.instance.path_for(:email)
-      "#{base_path}/#{org_name}/#{year}/#{month}"
-    end
   end
 
 end

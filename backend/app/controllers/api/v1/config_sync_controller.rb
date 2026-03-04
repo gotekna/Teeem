@@ -949,7 +949,12 @@ module Api
       #
       # Only applies to two_way and one_way tables (independent tables are skipped).
       def cascade_push_table
-        return render json: { error: "Master tenant only" }, status: :forbidden unless current_tenant&.is_master_tenant?
+        unless current_tenant&.is_master_tenant?
+          Rails.logger.warn "[ConfigSync] cascade_push_table 403: tenant=#{current_tenant&.id} (#{current_tenant&.name}), " \
+                            "is_master=#{current_tenant&.is_master_tenant?}, user=#{current_user&.id}, " \
+                            "override=#{request.headers['X-Tenant-Override']}, table=#{params[:table]}"
+          return render json: { error: "Master tenant only" }, status: :forbidden
+        end
 
         table = params[:table].to_sym
         table_config = TenantConfigSyncService::CONFIG_TABLES[table]

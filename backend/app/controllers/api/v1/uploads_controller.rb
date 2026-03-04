@@ -101,6 +101,7 @@ module Api
         content_type = params[:content_type] || "application/octet-stream"
         scope = params[:scope] || "documents"
         metadata = params[:metadata] || {}
+        client_hash = params[:content_hash]
 
         unless key.present? && filename.present?
           return render_error("Key and filename required", status: :bad_request)
@@ -114,7 +115,7 @@ module Api
           file_size = file_info[:size] || 0
 
           # Create the appropriate record based on scope
-          result = create_record_for_scope(scope, key, filename, content_type, file_size, metadata, provider)
+          result = create_record_for_scope(scope, key, filename, content_type, file_size, metadata, provider, client_hash)
 
           if result[:success]
             render json: result
@@ -169,14 +170,14 @@ module Api
         end
       end
 
-      def create_record_for_scope(scope, key, filename, content_type, file_size, metadata, provider)
+      def create_record_for_scope(scope, key, filename, content_type, file_size, metadata, provider, client_hash = nil)
         case scope
         when "documents"
-          create_corporate_document(key, filename, content_type, file_size, metadata, provider)
+          create_corporate_document(key, filename, content_type, file_size, metadata, provider, client_hash)
         when "user_documents"
-          create_user_document(key, filename, content_type, file_size, metadata, provider)
+          create_user_document(key, filename, content_type, file_size, metadata, provider, client_hash)
         when "job_documents"
-          create_job_document(key, filename, content_type, file_size, metadata, provider)
+          create_job_document(key, filename, content_type, file_size, metadata, provider, client_hash)
         when "imports"
           # Imports don't create a record - just return the key for processing
           { success: true, key: key, filename: filename, size: file_size }
@@ -187,7 +188,7 @@ module Api
           # Transaction receipts are handled by Transaction update
           { success: true, key: key, filename: filename, size: file_size }
         when "library_documents"
-          create_library_document(key, filename, content_type, file_size, metadata, provider)
+          create_library_document(key, filename, content_type, file_size, metadata, provider, client_hash)
         else
           { success: false, error: "Unknown scope: #{scope}" }
         end
@@ -196,14 +197,14 @@ module Api
       # SSoT: Uses WarehouseDocumentCreator.create_or_version! for auto-versioning
       # Supports full upload features: doc type selection, signing status, expiry/executed dates
       # (Feature parity with create_job_document — Mar 2026)
-      def create_corporate_document(key, filename, content_type, file_size, metadata, provider)
+      def create_corporate_document(key, filename, content_type, file_size, metadata, provider, client_hash = nil)
         # Get company from metadata or current user's default
         company_id = metadata[:company_id] || metadata["company_id"]
         company = company_id ? Corporate.find_by(id: company_id) : current_user.corporates.first
         return { success: false, error: "Company required for corporate documents" } unless company
 
         # Move to permanent location with content-hash deduplication
-        blob = find_or_create_blob(key, filename, content_type, file_size, provider)
+        blob = find_or_create_blob(key, filename, content_type, file_size, provider, client_hash)
 
         # Parse dates from metadata (ISO date strings "YYYY-MM-DD")
         raw_expiry = metadata[:expiry_date] || metadata["expiry_date"]
@@ -239,8 +240,8 @@ module Api
         { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name, versionLetter: doc.version_letter } }
       end
 
-      def create_user_document(key, filename, content_type, file_size, metadata, provider)
-        blob = find_or_create_blob(key, filename, content_type, file_size, provider)
+      def create_user_document(key, filename, content_type, file_size, metadata, provider, client_hash = nil)
+        blob = find_or_create_blob(key, filename, content_type, file_size, provider, client_hash)
 
         doc = UserDocument.create!(
           file_name: filename,
@@ -258,12 +259,12 @@ module Api
 
       # SSoT: Uses WarehouseDocumentCreator.create_or_version! for auto-versioning
       # Intent hierarchy for WFDT: explicit WFDT ID (user selection) > primary WFDT (smart default)
-      def create_job_document(key, filename, content_type, file_size, metadata, provider)
+      def create_job_document(key, filename, content_type, file_size, metadata, provider, client_hash = nil)
         job_id = metadata[:job_id] || metadata["job_id"]
         job = Job.find_by(id: job_id)
         return { success: false, error: "Job not found" } unless job
 
-        blob = find_or_create_blob(key, filename, content_type, file_size, provider)
+        blob = find_or_create_blob(key, filename, content_type, file_size, provider, client_hash)
 
         # Parse dates from metadata (ISO date strings "YYYY-MM-DD")
         raw_expiry = metadata[:expiry_date] || metadata["expiry_date"]
@@ -301,8 +302,8 @@ module Api
 
       # SSoT: Uses WarehouseDocumentCreator.create_or_version! for auto-versioning
       # Replaces inline version detection that was duplicated here
-      def create_library_document(key, filename, content_type, file_size, metadata, provider)
-        blob = find_or_create_blob(key, filename, content_type, file_size, provider)
+      def create_library_document(key, filename, content_type, file_size, metadata, provider, client_hash = nil)
+        blob = find_or_create_blob(key, filename, content_type, file_size, provider, client_hash)
 
         wf_id = metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"]
         f_path = metadata[:folder_path] || metadata["folder_path"]
@@ -337,50 +338,78 @@ module Api
         { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name, versionLetter: doc.version_letter } }
       end
 
-      def find_or_create_blob(temp_key, filename, content_type, file_size, provider)
-        # Download file to compute hash
+      # Two paths for blob creation:
+      # 1. Client hash provided → skip download, use hash directly (fast path)
+      # 2. No client hash → download file to compute hash (fallback)
+      def find_or_create_blob(temp_key, filename, content_type, file_size, provider, client_hash = nil)
+        if client_hash.present?
+          find_or_create_blob_with_client_hash(temp_key, filename, content_type, file_size, provider, client_hash)
+        else
+          find_or_create_blob_with_download(temp_key, filename, content_type, file_size, provider)
+        end
+      end
+
+      # Fast path: client already computed SHA256 — no download needed
+      def find_or_create_blob_with_client_hash(temp_key, filename, content_type, file_size, provider, content_hash)
+        Rails.logger.info "[Uploads] Using client-provided hash: #{content_hash[0, 12]}... (#{file_size} bytes)"
+
+        # Check for existing blob with same hash (deduplication)
+        existing_blob = StorageBlob.find_by(content_hash: content_hash)
+        if existing_blob
+          Rails.logger.info "[Uploads] Dedup hit — reusing blob #{existing_blob.id}"
+          delete_temp_file(provider, temp_key)
+          existing_blob.increment_reference!
+          return existing_blob
+        end
+
+        # Move to permanent Blobs location using S3 copy (no download)
+        move_to_permanent_location(provider, temp_key, filename, content_hash, file_size, content_type)
+      end
+
+      # Fallback path: download file from S3 to compute hash server-side
+      def find_or_create_blob_with_download(temp_key, filename, content_type, file_size, provider)
+        Rails.logger.info "[Uploads] No client hash — downloading to compute server-side (#{file_size} bytes)"
+
         content = provider.download_file(temp_key)
         computed_hash = Digest::SHA256.hexdigest(content)
 
         # Check for existing blob with same hash (deduplication)
         existing_blob = StorageBlob.find_by(content_hash: computed_hash)
         if existing_blob
-          # Delete temp file, reuse existing blob
-          begin
-            provider.delete_file(temp_key)
-          rescue StandardError => e
-            Rails.logger.warn "[Uploads] Failed to delete temp file #{temp_key} after dedup: #{e.message}"
-          end
+          delete_temp_file(provider, temp_key)
           existing_blob.increment_reference!
           return existing_blob
         end
 
         # Move to permanent Blobs location
+        move_to_permanent_location(provider, temp_key, filename, computed_hash, file_size, content_type)
+      end
+
+      def move_to_permanent_location(provider, temp_key, filename, content_hash, file_size, content_type)
         extension = File.extname(filename)
-        permanent_key = "Blobs/#{computed_hash[0, 2]}/#{computed_hash}#{extension}"
+        permanent_key = "Blobs/#{content_hash[0, 2]}/#{content_hash}#{extension}"
 
         provider.native_client.copy_object(
           bucket: provider.instance_variable_get(:@bucket),
           copy_source: "#{provider.instance_variable_get(:@bucket)}/#{temp_key}",
           key: permanent_key
         )
-        begin
-          provider.delete_file(temp_key)
-        rescue StandardError => e
-          Rails.logger.warn "[Uploads] Failed to delete temp file #{temp_key} after move: #{e.message}"
-        end
+        delete_temp_file(provider, temp_key)
 
-        # Create blob record
-        blob = StorageBlob.create!(
-          content_hash: computed_hash,
+        StorageBlob.create!(
+          content_hash: content_hash,
           storage_path: permanent_key,
           file_size: file_size,
           content_type: content_type,
           original_filename: filename,
           reference_count: 1
         )
+      end
 
-        blob
+      def delete_temp_file(provider, key)
+        provider.delete_file(key)
+      rescue StandardError => e
+        Rails.logger.warn "[Uploads] Failed to delete temp file #{key}: #{e.message}"
       end
 
       def document_to_json(doc)

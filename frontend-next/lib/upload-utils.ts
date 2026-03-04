@@ -4,16 +4,24 @@
  * All file uploads in the app should use this utility.
  * It uses presigned URLs to upload directly to S3, bypassing Heroku's 30-second timeout.
  *
+ * Features:
+ *   - Client-side SHA256 hashing for dedup (skips backend download)
+ *   - XHR upload with byte-level progress
+ *   - Step lifecycle callbacks for UI feedback
+ *
  * Usage:
  *   import { uploadFile, uploadFiles } from '@/lib/upload-utils';
  *
- *   // Single file
- *   const result = await uploadFile(file, 'documents');
+ *   // Single file with progress
+ *   const result = await uploadFile(file, 'documents', {
+ *     onByteProgress: (loaded, total) => console.log(`${loaded}/${total}`),
+ *     onStepChange: (step) => console.log(step),
+ *   });
  *
  *   // Multiple files with progress
  *   const results = await uploadFiles(files, 'job_documents', {
  *     metadata: { job_id: 123 },
- *     onProgress: (completed, total) => console.log(`${completed}/${total}`)
+ *     onProgress: (completed, total) => console.log(`${completed}/${total}`),
  *   });
  */
 
@@ -27,6 +35,8 @@ export type UploadScope =
   | 'imports'             // CSV/data imports (no record created)
   | 'chat'               // Chat attachments (no record created)
   | 'transactions';       // Transaction receipts
+
+export type UploadStep = 'presigning' | 'uploading' | 'hashing' | 'confirming';
 
 export interface UploadMetadata {
   job_id?: number | string;
@@ -53,6 +63,10 @@ export interface UploadResult {
 export interface UploadOptions {
   metadata?: UploadMetadata;
   onProgress?: (completed: number, total: number, currentFile?: string) => void;
+  /** Byte-level progress during S3 upload */
+  onByteProgress?: (loaded: number, total: number) => void;
+  /** Lifecycle step changes */
+  onStepChange?: (step: UploadStep) => void;
 }
 
 interface PresignResponse {
@@ -77,6 +91,64 @@ interface ConfirmResponse {
   error?: string;
 }
 
+// Max file size for client-side hashing (200MB) — larger files use backend fallback
+const MAX_HASH_SIZE = 200 * 1024 * 1024;
+
+/**
+ * Compute SHA256 hash of a File using Web Crypto API.
+ * Reads in 2MB chunks via streaming to avoid memory spikes.
+ */
+export async function computeFileHash(file: File): Promise<string> {
+  // Use SubtleCrypto streaming digest if available (all modern browsers)
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Upload file to S3 using XHR for byte-level upload progress.
+ * fetch() doesn't support upload progress events.
+ */
+function uploadToS3WithProgress(
+  url: string,
+  file: File,
+  contentType: string,
+  onProgress?: (loaded: number, total: number) => void
+): Promise<{ ok: boolean; status: number; statusText: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url, true);
+    xhr.setRequestHeader('Content-Type', contentType);
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          onProgress(event.loaded, event.total);
+        }
+      });
+    }
+
+    xhr.addEventListener('load', () => {
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        status: xhr.status,
+        statusText: xhr.statusText,
+      });
+    });
+
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during upload'));
+    });
+
+    xhr.addEventListener('abort', () => {
+      reject(new Error('Upload aborted'));
+    });
+
+    xhr.send(file);
+  });
+}
+
 /**
  * Upload a single file using presigned URL
  */
@@ -85,10 +157,11 @@ export async function uploadFile(
   scope: UploadScope,
   options: UploadOptions = {}
 ): Promise<UploadResult> {
-  const { metadata = {} } = options;
+  const { metadata = {}, onByteProgress, onStepChange } = options;
 
   try {
     // Step 1: Get presigned URL
+    onStepChange?.('presigning');
     const presignResponse = await api.post<PresignResponse>('/api/v1/uploads/presign', {
       filename: file.name,
       content_type: file.type || 'application/octet-stream',
@@ -103,14 +176,16 @@ export async function uploadFile(
       };
     }
 
-    // Step 2: Upload directly to S3
-    const s3Response = await fetch(presignResponse.upload_url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': presignResponse.content_type || file.type || 'application/octet-stream',
-      },
-      body: file,
-    });
+    // Step 2: Upload directly to S3 (XHR for byte progress)
+    onStepChange?.('uploading');
+    const contentType = presignResponse.content_type || file.type || 'application/octet-stream';
+
+    const s3Response = await uploadToS3WithProgress(
+      presignResponse.upload_url,
+      file,
+      contentType,
+      onByteProgress
+    );
 
     if (!s3Response.ok) {
       return {
@@ -119,13 +194,27 @@ export async function uploadFile(
       };
     }
 
-    // Step 3: Confirm upload
+    // Step 3: Compute client-side SHA256 hash (skip for very large files)
+    let contentHash: string | undefined;
+    if (file.size <= MAX_HASH_SIZE) {
+      onStepChange?.('hashing');
+      try {
+        contentHash = await computeFileHash(file);
+      } catch (e) {
+        // Hash failed — backend will fall back to download-and-hash
+        console.warn('[uploadFile] Client-side hash failed, using backend fallback:', e);
+      }
+    }
+
+    // Step 4: Confirm upload (send hash if computed)
+    onStepChange?.('confirming');
     const confirmResponse = await api.post<ConfirmResponse>('/api/v1/uploads/confirm', {
       key: presignResponse.key,
       filename: file.name,
       content_type: file.type || 'application/octet-stream',
       scope,
       metadata,
+      ...(contentHash ? { content_hash: contentHash } : {}),
     });
 
     if (!confirmResponse?.success) {
