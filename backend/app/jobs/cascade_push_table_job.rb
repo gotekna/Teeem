@@ -58,8 +58,11 @@ class CascadePushTableJob < ApplicationJob
     end
 
     # ── Step 1: Apply tombstones ──────────────────────────────────────────
+    # Include master tenant tombstones too — records deleted in TEEEM
+    # must propagate to all customers
+    all_tenant_ids = [tenant.id] + customer_tenants.map(&:id)
     pending_tombstones = has_sync_key ? ConfigSyncDeletion.where(
-      tenant_id: customer_tenants.map(&:id),
+      tenant_id: all_tenant_ids,
       model_type: table_config[:model],
       propagated_at: nil
     ).to_a : []
