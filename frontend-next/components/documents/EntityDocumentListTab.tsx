@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/popover";
 import { DocumentViewer } from "@/components/ui/document-viewer";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { Input } from "@/components/ui/input";
 import { Upload, FileText, FolderOpen, CalendarDays, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -65,6 +66,100 @@ export interface EntityDocumentListTabProps {
   entityName?: string;
   /** Entity code for template preview (e.g. company code, job code) */
   entityCode?: string;
+}
+
+/** Inline date picker with manual text input + calendar with year dropdown */
+function DatePickerWithInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+  disablePast,
+}: {
+  label: string;
+  placeholder: string;
+  value: Date | undefined;
+  onChange: (date: Date | undefined) => void;
+  disablePast?: boolean;
+}) {
+  const [textValue, setTextValue] = useState(
+    value ? value.toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }) : ""
+  );
+  const [popoverOpen, setPopoverOpen] = useState(false);
+
+  // Sync text when calendar selection changes
+  React.useEffect(() => {
+    if (value) {
+      setTextValue(value.toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }));
+    }
+  }, [value]);
+
+  // Parse dd/mm/yyyy input
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setTextValue(raw);
+
+    // Try parsing dd/mm/yyyy
+    const match = raw.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const year = parseInt(match[3], 10);
+      const date = new Date(year, month, day);
+      if (!isNaN(date.getTime()) && date.getDate() === day && date.getMonth() === month) {
+        if (disablePast && date < new Date(new Date().setHours(0, 0, 0, 0))) return;
+        onChange(date);
+      }
+    }
+  };
+
+  const handleCalendarSelect = (date: Date | undefined) => {
+    onChange(date);
+    if (date) setPopoverOpen(false);
+  };
+
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={placeholder}
+              value={textValue}
+              onChange={handleTextChange}
+              className="pl-9 font-normal"
+            />
+          </div>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="icon" className="shrink-0">
+              <CalendarDays className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+        </div>
+        <PopoverContent
+          className="w-auto p-0"
+          align="end"
+          onInteractOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
+          <Calendar
+            mode="single"
+            captionLayout="dropdown"
+            selected={value}
+            onSelect={handleCalendarSelect}
+            defaultMonth={value}
+            fromYear={1900}
+            toYear={currentYear + 10}
+            disabled={disablePast ? (date) => date < new Date(new Date().setHours(0, 0, 0, 0)) : undefined}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
 
 export default function EntityDocumentListTab({
@@ -605,59 +700,23 @@ export default function EntityDocumentListTab({
 
               {/* Executed date */}
               {needsExecutedDate && (
-                <div className="space-y-1.5">
-                  <Label>Date Executed</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={`w-full justify-start text-left font-normal ${!executedDate ? "text-muted-foreground" : ""}`}
-                      >
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        {executedDate
-                          ? executedDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
-                          : "When was this document signed?"
-                        }
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={executedDate}
-                        onSelect={setExecutedDate}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <DatePickerWithInput
+                  label="Date Executed"
+                  placeholder="When was this document signed?"
+                  value={executedDate}
+                  onChange={setExecutedDate}
+                />
               )}
 
               {/* Expiry date */}
               {needsExpiry && (
-                <div className="space-y-1.5">
-                  <Label>Expiry Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={`w-full justify-start text-left font-normal ${!expiryDate ? "text-muted-foreground" : ""}`}
-                      >
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        {expiryDate
-                          ? expiryDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
-                          : "Select expiry date..."
-                        }
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={expiryDate}
-                        onSelect={setExpiryDate}
-                        disabled={(date) => date < new Date()}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <DatePickerWithInput
+                  label="Expiry Date"
+                  placeholder="Select expiry date..."
+                  value={expiryDate}
+                  onChange={setExpiryDate}
+                  disablePast
+                />
               )}
 
               {/* Name preview */}
