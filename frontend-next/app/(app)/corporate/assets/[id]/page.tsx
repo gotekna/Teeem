@@ -70,6 +70,10 @@ import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import {
+  StandardDocumentList,
+  type LibraryDocument,
+} from "@/components/documents/StandardDocumentList";
 
 // Tab definitions - base tabs always shown
 const BASE_TABS = [
@@ -253,6 +257,35 @@ interface AssetDocument {
   created_at: string;
   updated_at: string;
   metadata?: Record<string, unknown>;
+}
+
+/** Map asset document to StandardDocumentList's LibraryDocument */
+function toLibraryDocument(doc: AssetDocument): LibraryDocument {
+  return {
+    id: doc.id,
+    displayName: doc.display_name,
+    sendName: doc.download_filename || doc.display_name,
+    originalFilename: doc.download_filename || doc.display_name,
+    mimeType: doc.content_type || "application/octet-stream",
+    fileSize: doc.file_size || 0,
+    fileUrl: doc.download_url || null,
+    storagePath: null,
+    folder: doc.folder,
+    createdAt: doc.created_at,
+    source: doc.source_type,
+    verified: false,
+    verifiedBy: null,
+    verifiedAt: null,
+    versionNumber: 1,
+    versionLetter: null,
+    versionGroupId: null,
+    versionCount: 1,
+    expiryDate: null,
+    isExpired: false,
+    isExpiringSoon: false,
+    expiryStatus: null,
+    daysUntilExpiry: null,
+  };
 }
 
 export default function AssetDetailPage() {
@@ -933,67 +966,14 @@ export default function AssetDetailPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            {documents.length > 0 ? (
-              <div className="space-y-4">
-                {/* Source type summary */}
-                {Object.keys(documentCounts.by_source).length > 1 && (
-                  <div className="flex flex-wrap gap-2 pb-4 border-b">
-                    {Object.entries(documentCounts.by_source).map(([source, count]) => (
-                      <Badge key={source} variant="outline" className="capitalize">
-                        {source}: {count}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-
-                {/* Document list */}
-                <div className="space-y-2">
-                  {documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{doc.display_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {doc.folder}
-                            {doc.file_size && (
-                              <> • {(doc.file_size / 1024).toFixed(0)} KB</>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="capitalize">
-                          {doc.source_type}
-                        </Badge>
-                        {doc.download_url && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => window.open(doc.download_url, "_blank")}
-                          >
-                            Download
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No documents attached to this asset</p>
-                <p className="text-sm mt-2">
-                  Documents will appear here when uploaded via Service, Expenses, or Readings
-                </p>
-              </div>
-            )}
+            <StandardDocumentList
+              documents={documents.map(toLibraryDocument)}
+              loading={false}
+              showVerifiedBadge={false}
+              showExpiryBadge={false}
+              showVerifyActions={false}
+              emptyMessage="No documents attached to this asset"
+            />
           </CardContent>
         </Card>
       )}

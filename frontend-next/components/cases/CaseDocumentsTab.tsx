@@ -7,7 +7,7 @@
  * - Case folder creation in SharePoint
  * - Source folder selection and browsing
  * - Document scanning and linking
- * - Document list display
+ * - Document list display (via StandardDocumentList)
  *
  * Extracted from cases/[id]/page.tsx for maintainability.
  */
@@ -18,24 +18,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  FileText,
   Search,
   ExternalLink,
   Plus,
   XCircle,
   Trash2,
-  Download,
   RefreshCw,
   FolderOpen,
   FolderInput,
   Pencil,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { format } from "date-fns";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
-import { formatFileSize } from "@/utils/formatters";
+import {
+  StandardDocumentList,
+  type LibraryDocument,
+} from "@/components/documents/StandardDocumentList";
 
 interface CaseDocument {
   id: number;
@@ -60,19 +59,33 @@ interface CaseDocumentsTabProps {
   caseNumber: string | null;
 }
 
-function getRelevanceColor(relevance: string) {
-  switch (relevance) {
-    case "critical":
-      return "bg-status-error text-status-error-foreground";
-    case "high":
-      return "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300";
-    case "medium":
-      return "bg-status-warning text-status-warning-foreground";
-    case "low":
-      return "bg-status-success text-status-success-foreground";
-    default:
-      return "bg-muted text-foreground";
-  }
+/** Map case document to StandardDocumentList's LibraryDocument */
+function toLibraryDocument(doc: CaseDocument): LibraryDocument {
+  return {
+    id: doc.id,
+    displayName: doc.filename,
+    sendName: doc.filename,
+    originalFilename: doc.filename,
+    mimeType: "application/octet-stream",
+    fileSize: doc.file_size || 0,
+    fileUrl: doc.web_url,
+    storagePath: doc.storage_path,
+    folder: doc.document_type,
+    createdAt: doc.document_date || new Date().toISOString(),
+    source: doc.relevance || "linked",
+    verified: false,
+    verifiedBy: null,
+    verifiedAt: null,
+    versionNumber: 1,
+    versionLetter: null,
+    versionGroupId: null,
+    versionCount: 1,
+    expiryDate: null,
+    isExpired: false,
+    isExpiringSoon: false,
+    expiryStatus: null,
+    daysUntilExpiry: null,
+  };
 }
 
 export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) {
@@ -403,7 +416,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
         </CardContent>
       </Card>
 
-      {/* Documents List */}
+      {/* Documents List — uses StandardDocumentList */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Documents ({documents.length})</CardTitle>
@@ -413,65 +426,14 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
           </Button>
         </CardHeader>
         <CardContent>
-          {loadingDocuments ? (
-            <div className="flex items-center justify-center h-32">
-              <Spinner size={24} className="text-muted-foreground" />
-            </div>
-          ) : documents.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No documents linked to this case</p>
-              <p className="text-sm mt-1">Add source folders above to scan for documents</p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {documents.map((doc) => (
-                <div key={doc.id} className="py-3 flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-blue-100 rounded text-blue-600 dark:text-blue-400">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{doc.filename}</span>
-                        <Badge className={getRelevanceColor(doc.relevance)}>
-                          {doc.relevance?.replace("_", " ") || "linked"}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        <span>{doc.document_type}</span>
-                        {doc.document_date && (
-                          <span className="ml-3">
-                            {format(new Date(doc.document_date), "d MMM yyyy")}
-                          </span>
-                        )}
-                        <span className="ml-3">{formatFileSize(doc.file_size)}</span>
-                      </div>
-                      {doc.notes && (
-                        <p className="text-sm text-muted-foreground mt-1 italic">
-                          {doc.notes}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm">
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    {doc.web_url && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => window.open(doc.web_url!, "_blank")}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <StandardDocumentList
+            documents={documents.map(toLibraryDocument)}
+            loading={loadingDocuments}
+            showVerifiedBadge={false}
+            showExpiryBadge={false}
+            showVerifyActions={false}
+            emptyMessage="No documents linked to this case"
+          />
         </CardContent>
       </Card>
     </div>

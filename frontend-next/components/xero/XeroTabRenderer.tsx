@@ -24,9 +24,12 @@ import * as React from "react";
 import { Suspense } from "react";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { getTabComponent } from "@/lib/tab-component-registry";
-import { TabNavigation } from "@/components/common/TabNavigation";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle } from "lucide-react";
+import { getIcon } from "@/lib/icon-map";
+import { cn } from "@/lib/utils";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 
 // ============================================
@@ -144,6 +147,9 @@ export function XeroTabRenderer({
   DocumentsTabComponent,
 }: XeroTabRendererProps) {
   const isEnabled = forceEnabled || isUnifiedXeroTabsEnabled();
+
+  // Expand state (must be before early returns - hooks rule)
+  const [xeroExpanded, toggleXeroExpanded] = useExpandedState("xero-tabs");
 
   // State for current sub-tab
   const [activeSubTab, setActiveSubTab] = React.useState(initialTab);
@@ -378,23 +384,56 @@ export function XeroTabRenderer({
   // MAIN RENDER
   // ============================================
   return (
-    <div className="flex flex-col h-full">
-      {/* Tab Navigation */}
-      <TabNavigation
-        l1Tabs={l1Tabs}
-        l2Tabs={l2Tabs}
-        l3Tabs={[]}
-        activeL1Key={activeL1?.tab_key || null}
-        activeL2Key={activeL2?.tab_key || null}
-        activeL3Key={null}
-        onL1Change={handleL1Change}
-        onL2Change={handleL2Change}
-        onL3Change={() => {}}
-      />
+    <ExpandableSection expanded={xeroExpanded} onToggle={toggleXeroExpanded}>
+      <div className={xeroExpanded ? "flex flex-col h-full" : "flex flex-col h-full"}>
+        {/* L1 Tabs */}
+        <div className={cn("px-3 pb-2 shrink-0", xeroExpanded && "pt-3")}>
+          <Tabs value={activeL1?.tab_key || ""} onValueChange={handleL1Change}>
+            <div className="flex items-start gap-2">
+              <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
+                {l1Tabs.map((tab) => {
+                  const Icon = getIcon(tab.icon_name || "");
+                  return (
+                    <TabsTrigger key={tab.tab_key} value={tab.tab_key}>
+                      {Icon && <Icon className="h-4 w-4 mr-1.5" />}
+                      {tab.display_name}
+                      {tab.document_count > 0 && (
+                        <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-background/50">
+                          {tab.document_count}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+              {!xeroExpanded && <ExpandButton expanded={xeroExpanded} onToggle={toggleXeroExpanded} />}
+            </div>
+          </Tabs>
+        </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 overflow-auto p-4">{renderTabContent()}</div>
-    </div>
+        {/* L2 Tabs (if any) */}
+        {l2Tabs.length > 0 && (
+          <div className="px-3 pb-2 shrink-0">
+            <Tabs value={activeL2?.tab_key || ""} onValueChange={handleL2Change}>
+              <TabsList className="flex-wrap h-auto gap-1">
+                {l2Tabs.map((tab) => {
+                  const Icon = getIcon(tab.icon_name || "");
+                  return (
+                    <TabsTrigger key={tab.tab_key} value={tab.tab_key}>
+                      {Icon && <Icon className="h-4 w-4 mr-1.5" />}
+                      {tab.display_name}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
+
+        {/* Tab Content */}
+        <div className={cn("flex-1 overflow-auto p-4", xeroExpanded && "p-4")}>{renderTabContent()}</div>
+      </div>
+    </ExpandableSection>
   );
 }
 

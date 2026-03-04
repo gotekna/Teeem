@@ -3,24 +3,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Paperclip,
-  ChevronDown,
-  Download,
-  FileText,
-  Image,
-  File,
-  FileSpreadsheet,
-} from "lucide-react";
+import { Paperclip, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatFileSize, formatDateWithFallback } from "@/utils/formatters";
+import {
+  StandardDocumentList,
+  type LibraryDocument,
+} from "@/components/documents/StandardDocumentList";
 
 interface PODocument {
   id: number;
@@ -39,27 +33,33 @@ interface PODocumentsResponse {
   sources: Record<string, number>;
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-  po_pdf: "PO PDF",
-  quote: "Quote",
-  task_attachment: "Task",
-  uploaded: "Uploaded",
-};
-
-const SOURCE_COLORS: Record<string, string> = {
-  po_pdf: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  quote: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  task_attachment: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  uploaded: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
-};
-
-function getFileIcon(mimeType: string | null) {
-  if (!mimeType) return <File className="h-4 w-4 text-muted-foreground" />;
-  if (mimeType.startsWith("image/")) return <Image className="h-4 w-4 text-blue-500" />;
-  if (mimeType === "application/pdf") return <FileText className="h-4 w-4 text-red-500" />;
-  if (mimeType.includes("spreadsheet") || mimeType.includes("excel"))
-    return <FileSpreadsheet className="h-4 w-4 text-green-500" />;
-  return <File className="h-4 w-4 text-muted-foreground" />;
+/** Map PO-specific document shape to StandardDocumentList's LibraryDocument */
+function toLibraryDocument(doc: PODocument): LibraryDocument {
+  return {
+    id: doc.id,
+    displayName: doc.displayName,
+    sendName: doc.originalFilename || doc.displayName,
+    originalFilename: doc.originalFilename || doc.displayName,
+    mimeType: doc.mimeType || "application/octet-stream",
+    fileSize: doc.fileSize || 0,
+    fileUrl: doc.fileUrl,
+    storagePath: null,
+    folder: doc.source,
+    createdAt: doc.createdAt || new Date().toISOString(),
+    source: doc.source,
+    verified: false,
+    verifiedBy: null,
+    verifiedAt: null,
+    versionNumber: 1,
+    versionLetter: null,
+    versionGroupId: null,
+    versionCount: 1,
+    expiryDate: null,
+    isExpired: false,
+    isExpiringSoon: false,
+    expiryStatus: null,
+    daysUntilExpiry: null,
+  };
 }
 
 interface PODocumentsSectionProps {
@@ -100,19 +100,7 @@ export default function PODocumentsSection({ purchaseOrderId }: PODocumentsSecti
   }, [open, fetched, fetchDocuments]);
 
   const totalCount = data?.totalCount ?? 0;
-
-  // Group documents by display section
-  const poDocuments = data?.documents.filter(
-    (d) => d.source === "po_pdf" || d.source === "uploaded"
-  ) ?? [];
-  const quoteDocuments = data?.documents.filter((d) => d.source === "quote") ?? [];
-  const taskDocuments = data?.documents.filter((d) => d.source === "task_attachment") ?? [];
-
-  const sections = [
-    { label: "PO Documents", docs: poDocuments },
-    { label: "Quote", docs: quoteDocuments },
-    { label: "Task Attachments", docs: taskDocuments },
-  ].filter((s) => s.docs.length > 0);
+  const libraryDocs = (data?.documents || []).map(toLibraryDocument);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -153,70 +141,15 @@ export default function PODocumentsSection({ purchaseOrderId }: PODocumentsSecti
               <p className="text-sm text-destructive">{error}</p>
             )}
 
-            {fetched && !loading && totalCount === 0 && (
-              <p className="text-sm text-muted-foreground py-2">
-                No documents attached
-              </p>
-            )}
-
-            {fetched && !loading && sections.length > 0 && (
-              <div className="space-y-4">
-                {sections.map((section) => (
-                  <div key={section.label}>
-                    {sections.length > 1 && (
-                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                        {section.label}
-                      </h4>
-                    )}
-                    <div className="space-y-1">
-                      {section.docs.map((doc) => (
-                        <div
-                          key={doc.id}
-                          className="flex items-center gap-3 py-2 px-3 rounded-md hover:bg-muted/50 group"
-                        >
-                          {getFileIcon(doc.mimeType)}
-                          <span className="text-sm font-medium truncate flex-1 min-w-0">
-                            {doc.displayName}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] px-1.5 py-0 shrink-0 ${
-                              SOURCE_COLORS[doc.source] ?? ""
-                            }`}
-                          >
-                            {SOURCE_LABELS[doc.source] ?? doc.source}
-                          </Badge>
-                          {doc.fileSize && (
-                            <span className="text-xs text-muted-foreground shrink-0">
-                              {formatFileSize(doc.fileSize)}
-                            </span>
-                          )}
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            {formatDateWithFallback(doc.createdAt, "")}
-                          </span>
-                          {doc.fileUrl && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                              asChild
-                            >
-                              <a
-                                href={doc.fileUrl}
-                                download
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <Download className="h-3.5 w-3.5" />
-                              </a>
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {fetched && !loading && (
+              <StandardDocumentList
+                documents={libraryDocs}
+                loading={false}
+                showVerifiedBadge={false}
+                showExpiryBadge={false}
+                showVerifyActions={false}
+                emptyMessage="No documents attached"
+              />
             )}
           </CardContent>
         </CollapsibleContent>
