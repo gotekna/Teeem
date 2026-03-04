@@ -13,34 +13,8 @@ module Api
     class ConfigSyncController < ApplicationController
       before_action :require_admin!
 
-      # Default sync modes — mirrors SM_SYNC_TABLES defaultMode in the frontend.
-      # Used as fallback when a tenant has no explicit mode saved in config_sync_table_modes.
-      # SSoT: keep in sync with SM_SYNC_TABLES in ScheduleMasterSyncTab.tsx.
-      TABLE_DEFAULT_MODES = {
-        "sm_trades"                        => "two_way",
-        "sm_stages"                        => "two_way",
-        "cost_centres"                     => "one_way",
-        "supervisor_checklist_templates"   => "one_way",
-        "document_types"                   => "one_way",
-        "sm_schedule_master_templates"     => "two_way",
-        "sm_task_groups"                   => "two_way",
-        "bpmn_processes"                   => "two_way",
-        "sm_schedule_masters"              => "two_way",
-        "sm_schedule_master_document_types"=> "two_way",
-        "sm_schedule_master_related_pos"   => "one_way",
-        "sm_hold_reasons"                  => "two_way",
-        "sm_resources"                     => "two_way",
-        "po_template_packs"                => "one_way",
-        "po_template_items"                => "one_way",
-        "po_template_line_items"           => "one_way",
-        "quote_templates"                  => "one_way",
-        "custom_quote_templates"           => "one_way",
-        "tender_headers"                   => "one_way",
-        "tenders"                          => "one_way",
-        "claim_stage_templates"            => "one_way",
-        "claim_stage_template_lines"       => "two_way",
-        "foundation_views"                 => "one_way",
-      }.freeze
+      # SSoT: TenantConfigSyncService::TABLE_DEFAULT_MODES
+      # Used by both this controller and CascadePushTableJob.
 
       # GET /api/v1/config_sync/tables
       # List available configuration tables for sync (with counts)
@@ -1366,7 +1340,7 @@ module Api
       # Pass an explicit tenant to check another tenant's preference (used in cascade_push_table).
       def table_mode(table_key, for_tenant = current_tenant)
         explicit = (for_tenant&.tenant_setting&.config_sync_table_modes || {})[table_key.to_s]
-        explicit.presence || TABLE_DEFAULT_MODES[table_key.to_s]
+        explicit.presence || TenantConfigSyncService::TABLE_DEFAULT_MODES[table_key.to_s]
       end
 
       # Compute sync coverage per table: linked (match in master) vs local_only vs master_only

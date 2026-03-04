@@ -774,6 +774,34 @@ class TenantConfigSyncService
   # Browse & Compare Operations
   # ============================================================================
 
+  # Default sync modes per table — used when tenant has no explicit override.
+  # SSoT: keep in sync with SM_SYNC_TABLES defaultMode in ScheduleMasterSyncTab.tsx.
+  TABLE_DEFAULT_MODES = {
+    "sm_trades"                        => "two_way",
+    "sm_stages"                        => "two_way",
+    "cost_centres"                     => "one_way",
+    "supervisor_checklist_templates"   => "one_way",
+    "document_types"                   => "one_way",
+    "sm_schedule_master_templates"     => "two_way",
+    "sm_task_groups"                   => "two_way",
+    "bpmn_processes"                   => "two_way",
+    "sm_schedule_masters"              => "two_way",
+    "sm_schedule_master_document_types"=> "two_way",
+    "sm_schedule_master_related_pos"   => "one_way",
+    "sm_hold_reasons"                  => "two_way",
+    "sm_resources"                     => "two_way",
+    "po_template_packs"                => "one_way",
+    "po_template_items"                => "one_way",
+    "po_template_line_items"           => "one_way",
+    "quote_templates"                  => "one_way",
+    "custom_quote_templates"           => "one_way",
+    "tender_headers"                   => "one_way",
+    "tenders"                          => "one_way",
+    "claim_stage_templates"            => "one_way",
+    "claim_stage_template_lines"       => "two_way",
+    "foundation_views"                 => "one_way",
+  }.freeze
+
   # Group display names for UI
   GROUP_LABELS = {
     "jobs" => "Jobs",
