@@ -1331,8 +1331,15 @@ class TenantConfigSyncService
 
     attrs = build_sync_attrs(source_record, config)
 
+    # Clean partial remap markers — skip fields on update, keep partial on create
+    partial_markers = attrs.keys.select { |k| k.to_s.start_with?("_partial_remap_") }
+    partial_fields = partial_markers.map { |m| m.to_s.sub("_partial_remap_", "") }
+    partial_markers.each { |m| attrs.delete(m) }
+
     ActsAsTenant.with_tenant(tenant) do
       if existing
+        # For existing records, skip partially remapped fields to preserve current values
+        partial_fields.each { |f| attrs.delete(f.to_sym); attrs.delete(f.to_s) }
         existing.update!(attrs) if source_newer?(source_record, existing)
       else
         new_record = model.new
@@ -1643,6 +1650,21 @@ class TenantConfigSyncService
             break
           end
           next if orphaned
+        end
+
+        # FRC (Mar 2026): Same partial remap protection as import_single_record.
+        # build_sync_attrs sets _partial_remap_ markers for array FK fields where
+        # some elements failed remap. Remove markers and skip those fields so the
+        # target record keeps its existing values instead of getting overwritten
+        # with incomplete data. Without this, TEEEM's empty arrays overwrite
+        # customer PO links that were set locally.
+        partial_markers = attrs.keys.select { |k| k.to_s.start_with?("_partial_remap_") }
+        partial_markers.each do |marker|
+          field = marker.to_s.sub("_partial_remap_", "")
+          info = attrs.delete(marker)
+          attrs.delete(field.to_sym)
+          attrs.delete(field.to_s)
+          Rails.logger.warn "[ConfigSync] pull_from_master skipped #{field}: partial remap (#{info[:remapped]}/#{info[:original]} IDs remapped) for #{config[:model]}##{master_record.id} → tenant #{tenant.name}"
         end
 
         deferred = {}
@@ -2349,6 +2371,12 @@ class TenantConfigSyncService
     ActsAsTenant.with_tenant(tenant) do
       new_record = model.new
       attrs = build_sync_attrs(source_record, config)
+      # Clean partial remap markers — new records get whatever successfully remapped
+      attrs.keys.select { |k| k.to_s.start_with?("_partial_remap_") }.each do |marker|
+        info = attrs.delete(marker)
+        # For new records, keep the partial array rather than skipping —
+        # having some PO links is better than none when creating fresh
+      end
       attrs.each do |field, value|
         new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
       end
@@ -2368,6 +2396,14 @@ class TenantConfigSyncService
   def update_existing_record(existing, source_record, config)
     ActsAsTenant.with_tenant(tenant) do
       attrs = build_sync_attrs(source_record, config)
+      # Clean partial remap markers (see import_single_record for details)
+      attrs.keys.select { |k| k.to_s.start_with?("_partial_remap_") }.each do |marker|
+        field = marker.to_s.sub("_partial_remap_", "")
+        info = attrs.delete(marker)
+        attrs.delete(field.to_sym)
+        attrs.delete(field.to_s)
+        Rails.logger.warn "[ConfigSync] update_existing skipped #{field}: partial remap (#{info[:remapped]}/#{info[:original]}) for #{config[:model]}##{source_record.id}"
+      end
       existing.update!(attrs)
       { updated: true, record: existing }
     end
@@ -2569,6 +2605,8 @@ class TenantConfigSyncService
     ActsAsTenant.with_tenant(tenant) do
       new_record = model.new
       attrs = build_sync_attrs(source_record, config)
+      # Clean partial remap markers — for new records, keep partial data
+      attrs.keys.select { |k| k.to_s.start_with?("_partial_remap_") }.each { |m| attrs.delete(m) }
       attrs.each do |field, value|
         new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
       end
