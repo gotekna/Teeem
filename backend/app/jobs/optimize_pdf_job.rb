@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "open3"
+
 # Automatically optimizes large PDFs after upload using Ghostscript.
 #
 # Scanned PDFs (print→stamp→scan) can be 100+ MB when the digital original
@@ -15,12 +17,6 @@
 #
 class OptimizePdfJob < ApplicationJob
   queue_as :low
-
-  # Don't retry GS failures — if it fails once, manual intervention needed
-  discard_on StandardError do |job, error|
-    Rails.logger.error "[OptimizePdf] Discarded job for blob #{job.arguments.first}: #{error.message}"
-    mark_failed(job.arguments.first, job.arguments.second, error.message)
-  end
 
   MINIMUM_SIZE = 10.megabytes
   MINIMUM_REDUCTION_PERCENT = 30
@@ -238,21 +234,5 @@ class OptimizePdfJob < ApplicationJob
     else
       "#{bytes} B"
     end
-  end
-
-  # Class method for discard_on callback
-  def self.mark_failed(blob_id, _wd_id, error_message)
-    blob = StorageBlob.find_by(id: blob_id)
-    return unless blob
-
-    blob.warehouse_documents.find_each do |doc|
-      doc.set_metadata(
-        "pdf_optimization_status" => "failed",
-        "pdf_optimization_error" => error_message&.first(200)
-      )
-      doc.save
-    end
-  rescue StandardError => e
-    Rails.logger.error "[OptimizePdf] Failed to mark_failed: #{e.message}"
   end
 end
