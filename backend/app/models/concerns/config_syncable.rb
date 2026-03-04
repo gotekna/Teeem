@@ -26,6 +26,16 @@ module ConfigSyncable
 
   # Generate a stable, slugified key from source field(s).
   # Called automatically on create, or manually when backfilling.
+  #
+  # ⚠️ DO NOT SIMPLIFY - Collision detection is critical (Mar 2026)
+  # ════════════════════════════════════════════════════════════════════════
+  # Why: When duplicating a record (.dup), initialize_dup clears sync_key.
+  #      generate_sync_key then recreates it from the name field. But if the
+  #      dup hasn't been renamed yet, it gets the SAME sync_key as the original.
+  #      Cascade sync then creates duplicate records across all tenants.
+  # ❌ WRONG: Just build_sync_key(*parts) — collides with original on .dup
+  # ✅ CORRECT: Check for existing key, append "-N" suffix if collision
+  # ════════════════════════════════════════════════════════════════════════
   def generate_sync_key
     return unless respond_to?(:sync_key=)
     return if sync_key.present? # Never overwrite
@@ -33,7 +43,19 @@ module ConfigSyncable
     sources = Array(self.class.sync_key_source)
     parts = sources.map { |field| send(field).to_s.strip }
 
-    self.sync_key = self.class.build_sync_key(*parts)
+    base_key = self.class.build_sync_key(*parts)
+    candidate = base_key
+
+    # Check for collision within same tenant+model and append suffix if needed
+    if self.class.column_names.include?("sync_key")
+      suffix = 1
+      while self.class.exists?(sync_key: candidate)
+        suffix += 1
+        candidate = "#{base_key}-#{suffix}"
+      end
+    end
+
+    self.sync_key = candidate
   end
 
   private
