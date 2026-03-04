@@ -2268,6 +2268,22 @@ class TenantConfigSyncService
       end
     end
 
+    # FRC (Mar 2026): Prevent silent data loss on array/hash FK fields.
+    # filter_map in build_sync_attrs silently drops elements that fail remap,
+    # returning [] or a partial array — never nil — so the scalar check above
+    # doesn't catch it. Without this, PO links (charge_*_sm_ids) get wiped
+    # when SM IDs can't be remapped, and two-way sync amplifies the damage.
+    # Fix: skip the field entirely so the target keeps its existing value.
+    partial_markers = attrs.keys.select { |k| k.to_s.start_with?("_partial_remap_") }
+    partial_markers.each do |marker|
+      field = marker.to_s.sub("_partial_remap_", "")
+      info = attrs.delete(marker)
+      attrs.delete(field.to_sym)
+      attrs.delete(field.to_s)
+      model_name = config[:model] || source_record.class.name
+      Rails.logger.warn "[ConfigSync] Skipped #{field}: partial remap (#{info[:remapped]}/#{info[:original]} IDs remapped) for #{model_name}##{source_record.id}"
+    end
+
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
     # defer those fields to a second pass. First pass sets all other fields (including
     # warehouse_type_id) so the parent validation can pass in the second pass.
@@ -2372,13 +2388,19 @@ class TenantConfigSyncService
         remap_config = config[:remap_fks][field]
         if remap_config[:format] == :po_allocations && value.is_a?(Hash)
           # Nested hash: { charge_type: { local_sm_id: pct } } — remap each task ID via sync_key
+          original_task_count = value.values.select { |v| v.is_a?(Hash) }.sum { |v| v.size }
           value = remap_po_allocations(value, remap_config)
+          remapped_task_count = value.values.select { |v| v.is_a?(Hash) }.sum { |v| v.size }
+          if remapped_task_count < original_task_count
+            attrs["_partial_remap_#{field}"] = { original: original_task_count, remapped: remapped_task_count }
+          end
         elsif remap_config[:array] && value.is_a?(Array)
           # JSONB array of FKs — remap each element.
           # Elements may be plain integer IDs OR Hashes with an "id" key plus metadata
           # (e.g. predecessor_ids: [{"id"=>123,"lag"=>0}]). For Hash elements, extract
           # the integer id, remap it, then reconstruct the Hash with the remapped id so
           # metadata like lag/offset is preserved across tenants.
+          original_count = value.length
           value = value.filter_map do |element|
             if element.is_a?(Hash)
               raw_id = (element["id"] || element[:id])&.to_i
@@ -2388,6 +2410,9 @@ class TenantConfigSyncService
             else
               remap_foreign_key(field, element, remap_config)
             end
+          end
+          if value.length < original_count
+            attrs["_partial_remap_#{field}"] = { original: original_count, remapped: value.length }
           end
         else
           value = remap_foreign_key(field, value, remap_config)

@@ -1195,43 +1195,46 @@ export function ViewManagerSheet({
                 </div>
 
                 <ScrollArea className="flex-1 p-3">
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleViewDragEnd}
-                  >
-                    <SortableContext
-                      items={views.map(v => v.id)}
-                      strategy={verticalListSortingStrategy}
+                  {/* overflow-hidden prevents Radix ScrollArea's display:table from expanding content beyond panel width */}
+                  <div className="overflow-hidden">
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleViewDragEnd}
                     >
-                      <div className="space-y-2">
-                        {views.map((view, idx) => (
-                          <SortableViewItem
-                            key={view.id}
-                            view={view}
-                            isActive={activeViewId === view.id}
-                            index={idx + 1}
-                            onSelect={() => handleSelectView(view)}
-                            onEdit={() => handleEditView(view)}
-                            onDelete={() => {
-                              setViewToDelete(view);
-                              setActiveModal('deleteColumn'); // Open delete modal
-                            }}
-                            onApply={onApplyView ? () => {
-                              onApplyView(view);
-                              onOpenChange(false);
-                            } : undefined}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
+                      <SortableContext
+                        items={views.map(v => v.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-2">
+                          {views.map((view, idx) => (
+                            <SortableViewItem
+                              key={view.id}
+                              view={view}
+                              isActive={activeViewId === view.id}
+                              index={idx + 1}
+                              onSelect={() => handleSelectView(view)}
+                              onEdit={() => handleEditView(view)}
+                              onDelete={() => {
+                                setViewToDelete(view);
+                                setActiveModal('deleteColumn'); // Open delete modal
+                              }}
+                              onApply={onApplyView ? () => {
+                                onApplyView(view);
+                                onOpenChange(false);
+                              } : undefined}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
 
-                  {views.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      No saved views yet
-                    </div>
-                  )}
+                    {views.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        No saved views yet
+                      </div>
+                    )}
+                  </div>
                 </ScrollArea>
               </div>
 

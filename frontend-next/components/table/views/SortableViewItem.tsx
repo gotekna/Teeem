@@ -68,7 +68,7 @@ export function SortableViewItem({
       style={style}
       onClick={onSelect}
       className={cn(
-        "flex items-center gap-1.5 p-2 rounded border cursor-pointer transition-all relative",
+        "p-2 rounded border cursor-pointer transition-all relative",
         isActive
           ? "bg-primary/10 border-primary"
           : "bg-background border-border hover:border-primary/50",
@@ -77,47 +77,37 @@ export function SortableViewItem({
         isUnsaved && "border-dashed border-orange-400 bg-orange-50 dark:bg-orange-950/20"
       )}
     >
-      {/* DnD Primitive: DragHandle */}
-      <DragHandle
-        {...attributes}
-        {...listeners}
-        size="md"
-        onClick={(e) => e.stopPropagation()}
-      />
+      {/* Top row: drag handle, badge, name, action buttons */}
+      <div className="flex items-center gap-1.5">
+        {/* DnD Primitive: DragHandle */}
+        <DragHandle
+          {...attributes}
+          {...listeners}
+          size="md"
+          onClick={(e) => e.stopPropagation()}
+        />
 
-      {/* DnD Primitive: ItemBadge */}
-      <ItemBadge position={index} size="md" />
+        {/* DnD Primitive: ItemBadge */}
+        <ItemBadge position={index} size="md" />
 
-      <div className="flex-1 min-w-0 overflow-hidden">
-        <div className="flex items-center gap-1.5">
-          {view.is_global ? (
-            <Globe className="h-3 w-3 text-blue-500 dark:text-blue-400 shrink-0" />
-          ) : (
-            <User className="h-3 w-3 text-muted-foreground shrink-0" />
-          )}
-          <span className="text-sm font-medium truncate">{view.name}</span>
-          {isUnsaved && (
-            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 text-orange-600 dark:text-orange-400 border-orange-400 shrink-0">
-              unsaved
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-1 mt-0.5">
-          <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
-            {view.filters?.length || 0}f
+        {view.is_global ? (
+          <Globe className="h-3 w-3 text-blue-500 dark:text-blue-400 shrink-0" />
+        ) : (
+          <User className="h-3 w-3 text-muted-foreground shrink-0" />
+        )}
+        <span className="text-sm font-medium truncate flex-1 min-w-0">{view.name}</span>
+        {isUnsaved && (
+          <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 text-orange-600 dark:text-orange-400 border-orange-400 shrink-0">
+            unsaved
           </Badge>
-          <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
-            {view.sortColumns?.length || 0}s
-          </Badge>
-        </div>
-      </div>
+        )}
 
-      <div className="flex items-center shrink-0">
+        {/* Action buttons - always visible */}
         {onApply && !isUnsaved && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-primary hover:text-primary"
+            className="h-6 w-6 shrink-0 text-primary hover:text-primary"
             onClick={(e) => {
               e.stopPropagation();
               onApply();
@@ -130,25 +120,37 @@ export function SortableViewItem({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
+          className="h-6 w-6 shrink-0"
           onClick={(e) => {
             e.stopPropagation();
             onEdit();
           }}
+          title="Edit view"
         >
           <Pencil className="h-3 w-3" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-destructive hover:text-destructive"
+          className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
           onClick={(e) => {
             e.stopPropagation();
             onDelete();
           }}
+          title="Delete view"
         >
           <Trash2 className="h-3 w-3" />
         </Button>
+      </div>
+
+      {/* Bottom row: filter/sort badges */}
+      <div className="flex items-center gap-1 mt-1 ml-[52px]">
+        <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
+          {view.filters?.length || 0}f
+        </Badge>
+        <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
+          {view.sortColumns?.length || 0}s
+        </Badge>
       </div>
     </div>
   );
