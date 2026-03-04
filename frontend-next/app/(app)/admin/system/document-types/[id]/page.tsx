@@ -1198,17 +1198,25 @@ export default function DocumentTypeDetailPage() {
         newTokens.splice(dropIndex, 0, { type: "text", value: "text" });
         // Auto-focus the new text input
         setFocusTextToken({ field, index: dropIndex });
+      } else if (placeholder.startsWith("__SEPARATOR__:")) {
+        const sepValue = placeholder.slice("__SEPARATOR__:".length);
+        newTokens.splice(dropIndex, 0, { type: "text", value: sepValue });
       } else {
         newTokens.splice(dropIndex, 0, { type: "placeholder", value: placeholder });
       }
       updateField(field, rebuildFromTokens(newTokens));
     }
-    // If dragging custom text without going through source state
+    // If dragging custom text or separator without going through source state
     else if (placeholder === "__CUSTOM_TEXT__") {
       const newTokens = [...tokens];
       newTokens.splice(dropIndex, 0, { type: "text", value: "text" });
       // Auto-focus the new text input
       setFocusTextToken({ field, index: dropIndex });
+      updateField(field, rebuildFromTokens(newTokens));
+    } else if (placeholder.startsWith("__SEPARATOR__:")) {
+      const sepValue = placeholder.slice("__SEPARATOR__:".length);
+      const newTokens = [...tokens];
+      newTokens.splice(dropIndex, 0, { type: "text", value: sepValue });
       updateField(field, rebuildFromTokens(newTokens));
     }
 
@@ -1240,7 +1248,7 @@ export default function DocumentTypeDetailPage() {
     if (!placeholder) return;
 
     // Only handle drops from source (not reordering)
-    if (draggedFromField === "source" || placeholder === "__CUSTOM_TEXT__") {
+    if (draggedFromField === "source" || placeholder === "__CUSTOM_TEXT__" || placeholder.startsWith("__SEPARATOR__:")) {
       const currentValue = documentType[field] || "";
       const tokens = parseTokens(currentValue);
       // Handle custom text - insert plain text token
@@ -1249,6 +1257,10 @@ export default function DocumentTypeDetailPage() {
         updateField(field, newValue);
         // Auto-focus the new text input (it will be at the end)
         setFocusTextToken({ field, index: tokens.length });
+      } else if (placeholder.startsWith("__SEPARATOR__:")) {
+        const sepValue = placeholder.slice("__SEPARATOR__:".length);
+        const newValue = currentValue + sepValue;
+        updateField(field, newValue);
       } else {
         const newValue = currentValue + (currentValue ? " " : "") + placeholder;
         updateField(field, newValue);
@@ -2593,6 +2605,37 @@ export default function DocumentTypeDetailPage() {
                     <span className="text-[10px] font-medium text-foreground dark:text-muted-foreground">Custom Text</span>
                   </div>
                   <div className="text-[8px] text-muted-foreground">Drag to add editable text</div>
+                </div>
+                {/* Separator / Special Character draggable items */}
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {[
+                    { label: "—", value: " - ", hint: "dash" },
+                    { label: "␣", value: " ", hint: "space" },
+                    { label: "-", value: "-", hint: "hyphen" },
+                    { label: "/", value: "/", hint: "slash" },
+                    { label: ":", value: ":", hint: "colon" },
+                    { label: "_", value: "_", hint: "underscore" },
+                    { label: ".", value: ".", hint: "dot" },
+                    { label: "()", value: "()", hint: "parens" },
+                    { label: "#", value: "#", hint: "hash" },
+                    { label: ",", value: ",", hint: "comma" },
+                  ].map((sep) => (
+                    <div
+                      key={sep.value}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", `__SEPARATOR__:${sep.value}`);
+                        e.dataTransfer.effectAllowed = "copy";
+                        setDraggedPlaceholder(`__SEPARATOR__:${sep.value}`);
+                        setDraggedFromField("source");
+                      }}
+                      onDragEnd={handleDragEnd}
+                      title={sep.hint}
+                      className="cursor-grab active:cursor-grabbing px-2 py-1 rounded border bg-white border-border dark:bg-card dark:border-border text-center min-w-[28px] hover:bg-muted/50 transition-colors"
+                    >
+                      <span className="text-[11px] font-mono font-semibold text-foreground dark:text-muted-foreground">{sep.label}</span>
+                    </div>
+                  ))}
                 </div>
                 {/* Category Filter Buttons - SSoT (Feb 2026) */}
                 <div className="flex flex-wrap gap-1 mb-2">

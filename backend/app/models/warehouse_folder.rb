@@ -633,8 +633,18 @@ class WarehouseFolder < ApplicationRecord
     self.is_mailbox = (tab_type == 'mailbox')
     self.is_photo_category = (tab_type == 'photo')
     self.is_cad_category = (tab_type == 'revit')
-    # SSoT: Auto-derive tab_group from tab_type (system → 'data', everything else → 'documents')
-    self.tab_group = (tab_type == 'system') ? 'data' : 'documents'
+    # SSoT: Auto-derive tab_group from tab_type
+    # - Root-level system tabs (no parent) → 'main' (they appear as main navigation tabs)
+    # - Child system tabs (has parent) → 'overview' (they appear as sub-tabs under parent)
+    # - Document/photo/revit tabs → 'documents'
+    # - Preserve 'main' if already set (don't clobber existing main tabs on re-save)
+    if tab_group == 'main' && tab_type == 'system'
+      # Keep 'main' — don't overwrite
+    elsif tab_type == 'system'
+      self.tab_group = parent_id.present? ? 'overview' : 'main'
+    else
+      self.tab_group = 'documents'
+    end
   end
 
   # Rule 1: Parents with children MUST be tab_type='system'

@@ -8,7 +8,8 @@ import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { WarehouseTablesTab } from "./WarehouseTablesTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncSection } from "./ConfigSyncSection";
-import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database, BookOpen, Minimize2 } from "lucide-react";
+import { TabRulesTab } from "./TabRulesTab";
+import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database, BookOpen, Minimize2, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useSidebar } from "@/contexts/SidebarContext";
@@ -126,6 +127,16 @@ const scopes = [
     isEntityTab: false,
     isConfigSync: true,
   },
+  {
+    id: "tab_rules",
+    label: "Tab Rules",
+    icon: ShieldCheck,
+    showEntityFilters: false,
+    showSharePointPaths: false,
+    showDocumentTypes: false,
+    isEntityTab: false,
+    isTabRules: true,
+  },
 ] as const;
 
 // Scope label mapping
@@ -139,6 +150,7 @@ const SCOPE_LABELS: Record<string, string> = {
   library: "Library",
   email_config: "Email Config",
   sync: "Sync",
+  tab_rules: "Tab Rules",
 };
 
 // Sub-tab label mapping for warehouse_tables scope
@@ -276,6 +288,8 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
                 <EmailConfigTab />
               ) : "isConfigSync" in scope && scope.isConfigSync ? (
                 <ConfigSyncSection />
+              ) : "isTabRules" in scope && scope.isTabRules ? (
+                <TabRulesTab />
               ) : (
                 <DocumentTypesTab basePath={`${basePath}/document_types`} />
               )}
