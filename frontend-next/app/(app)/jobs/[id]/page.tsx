@@ -2094,7 +2094,7 @@ export default function JobDetailPage() {
             return (
               <TabsContent key={tabValue} value={tabValue} className="mt-4">
                 <React.Suspense fallback={<TabLoadingSkeleton />}>
-                  <JobDocumentListTab jobId={job.id} warehouseFolder={tab} />
+                  <JobDocumentListTab jobId={job.id} warehouseFolder={tab} jobName={job.name} jobCode={(job as unknown as { job_code?: string }).job_code} />
                 </React.Suspense>
               </TabsContent>
             );

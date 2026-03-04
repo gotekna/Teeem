@@ -7,8 +7,10 @@ import {
   FileText,
   ExternalLink,
   RefreshCw,
+  ChevronsLeft,
   ChevronLeft,
   ChevronRight,
+  ChevronsRight,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -113,6 +115,7 @@ export function PDFViewerImpl({
   // Right-click area zoom (works without markup mode)
   const [zoomRect, setZoomRect] = React.useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const zoomDragRef = React.useRef<{ startX: number; startY: number } | null>(null);
+  const pageWrapperRef = React.useRef<HTMLDivElement>(null);
 
   // =============================================================================
   // Step 1: Fetch PDF bytes (with caching + progress)
@@ -366,55 +369,53 @@ export function PDFViewerImpl({
     e.preventDefault();
   }, [markupActive]);
 
+  // Convert mouse event to page coordinates (unzoomed), using the centered page wrapper
+  const mouseToPageCoords = React.useCallback((e: React.MouseEvent) => {
+    const wrapper = pageWrapperRef.current;
+    if (!wrapper) return null;
+    const rect = wrapper.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / zoom,
+      y: (e.clientY - rect.top) / zoom,
+    };
+  }, [zoom]);
+
   const handleZoomMouseDown = React.useCallback((e: React.MouseEvent) => {
     if (markupActive || e.button !== 2) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    // Position in page coordinates (unzoomed)
-    const pageX = (e.clientX - rect.left + container.scrollLeft) / zoom;
-    const pageY = (e.clientY - rect.top + container.scrollTop) / zoom;
-    zoomDragRef.current = { startX: pageX, startY: pageY };
+    const coords = mouseToPageCoords(e);
+    if (!coords) return;
+    zoomDragRef.current = { startX: coords.x, startY: coords.y };
     setZoomRect(null);
-  }, [markupActive, zoom, containerRef]);
+  }, [markupActive, mouseToPageCoords]);
 
   const handleZoomMouseMove = React.useCallback((e: React.MouseEvent) => {
     if (!zoomDragRef.current || markupActive) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    const pageX = (e.clientX - rect.left + container.scrollLeft) / zoom;
-    const pageY = (e.clientY - rect.top + container.scrollTop) / zoom;
+    const coords = mouseToPageCoords(e);
+    if (!coords) return;
 
     const { startX, startY } = zoomDragRef.current;
-    const x = Math.min(startX, pageX);
-    const y = Math.min(startY, pageY);
-    const w = Math.abs(pageX - startX);
-    const h = Math.abs(pageY - startY);
+    const x = Math.min(startX, coords.x);
+    const y = Math.min(startY, coords.y);
+    const w = Math.abs(coords.x - startX);
+    const h = Math.abs(coords.y - startY);
 
     setZoomRect({ x, y, w, h });
-  }, [markupActive, zoom, containerRef]);
+  }, [markupActive, mouseToPageCoords]);
 
   const handleZoomMouseUp = React.useCallback((e: React.MouseEvent) => {
     if (!zoomDragRef.current || markupActive || e.button !== 2) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    const pageX = (e.clientX - rect.left + container.scrollLeft) / zoom;
-    const pageY = (e.clientY - rect.top + container.scrollTop) / zoom;
+    const coords = mouseToPageCoords(e);
+    if (!coords) return;
 
     const { startX, startY } = zoomDragRef.current;
-    const w = Math.abs(pageX - startX);
-    const h = Math.abs(pageY - startY);
+    const w = Math.abs(coords.x - startX);
+    const h = Math.abs(coords.y - startY);
 
     // Only zoom if drag was significant (>10px in page coords)
     if (w > 10 && h > 10) {
       zoomToRect({
-        x: Math.min(startX, pageX),
-        y: Math.min(startY, pageY),
+        x: Math.min(startX, coords.x),
+        y: Math.min(startY, coords.y),
         width: w,
         height: h,
       });
@@ -422,7 +423,7 @@ export function PDFViewerImpl({
 
     zoomDragRef.current = null;
     setZoomRect(null);
-  }, [markupActive, zoom, containerRef, zoomToRect]);
+  }, [markupActive, mouseToPageCoords, zoomToRect]);
 
   // Zoom display label
   const zoomPercent = Math.round(zoom * 100);
@@ -492,15 +493,35 @@ export function PDFViewerImpl({
       <div className={cn("absolute top-3 left-3 z-10 flex items-center gap-2", markupActive && "hidden")}>
         {/* Page navigation */}
         {pageCount > 1 && (
-          <div className="flex items-center gap-1 bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-1 py-0.5">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={prevPage} disabled={currentPageNumber <= 1}>
+          <div className="flex items-center gap-0.5 bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-1 py-0.5">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToPage(1)} disabled={currentPageNumber <= 1} title="First page">
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={prevPage} disabled={currentPageNumber <= 1} title="Previous page">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium min-w-[80px] text-center">
-              {currentPageNumber} / {pageCount}
+            <span className="text-sm font-medium min-w-[80px] text-center inline-flex items-center justify-center">
+              <input
+                type="text"
+                inputMode="numeric"
+                className="w-8 text-center bg-transparent outline-none border-b border-transparent hover:border-muted-foreground/40 focus:border-primary text-sm font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                value={currentPageNumber}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val)) goToPage(val);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+                onFocus={(e) => e.target.select()}
+              />
+              <span className="text-muted-foreground ml-0.5">/ {pageCount}</span>
             </span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={nextPage} disabled={currentPageNumber >= pageCount}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={nextPage} disabled={currentPageNumber >= pageCount} title="Next page">
               <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => goToPage(pageCount)} disabled={currentPageNumber >= pageCount} title="Last page">
+              <ChevronsRight className="h-4 w-4" />
             </Button>
           </div>
         )}
@@ -586,6 +607,7 @@ export function PDFViewerImpl({
         onMouseUp={handleZoomMouseUp}
       >
         <div
+          ref={pageWrapperRef}
           className="relative mx-auto"
           style={{
             width: currentPage.width * zoom,
