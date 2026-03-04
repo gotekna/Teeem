@@ -67,6 +67,15 @@ module ConfigSyncable
     self.record_updated_at = Time.current unless record_updated_at_changed? && record_updated_at.present?
   end
 
+  # Clear sync_key on .dup so the copy gets its own unique key on save.
+  # Without this, duplicated records share the original's sync_key,
+  # which causes cascade sync to confuse them as the same record.
+  def initialize_dup(other)
+    super
+    self.sync_key = nil
+    self.record_updated_at = nil if respond_to?(:record_updated_at=)
+  end
+
   public
 
   class_methods do
