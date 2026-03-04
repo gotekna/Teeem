@@ -21,12 +21,11 @@ class BackfillPlanBlobsJob < ApplicationJob
   BATCH_SIZE = 20
 
   def perform(offset = 0)
-    setup_default_provider!
-
-    revisions = JobPlanRevision
+    # Unscoped: background jobs don't have tenant context
+    revisions = JobPlanRevision.unscoped
       .where(storage_blob_id: nil)
       .where.not(storage_file_id: [nil, ""])
-      .includes(job_plan: :job)
+      .includes(job_plan: { job: :tenant })
       .order(:id)
       .offset(offset)
       .limit(BATCH_SIZE)
@@ -40,7 +39,14 @@ class BackfillPlanBlobsJob < ApplicationJob
     failed = 0
 
     revisions.each do |revision|
-      backfill_revision!(revision)
+      tenant = revision.job_plan&.job&.tenant
+      next unless tenant
+
+      # Each revision needs tenant context for provider + WarehouseDocument
+      ActsAsTenant.with_tenant(tenant) do
+        setup_default_provider!
+        backfill_revision!(revision)
+      end
       processed += 1
     rescue => e
       failed += 1
