@@ -1698,19 +1698,25 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   }, [activeEditTemplateId, handleEditRowRefresh]);
 
   // SSoT: Duplicate row handler for EditRowDialog
+  // Opens the new duplicate in the edit dialog instead of closing
   const handleDuplicateRow = React.useCallback(async (rowId: number) => {
     if (!activeEditTemplateId || activeEditTemplateId === -1) return;
     try {
-      await api.post(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows`, {
+      const response = await api.post<{ success: boolean; row: SmScheduleMaster }>(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows`, {
         row: { copy_from_id: rowId },
       });
-      setShowEditSheet(false);
+      const newRow = response?.row;
+      if (newRow) {
+        // Switch the edit dialog to show the new duplicate
+        setEditingRow(newRow);
+        setSelectedRowForEdit(convertToEditRowData(newRow));
+      }
       handleEditRowRefresh();
-      toast({ title: "Row duplicated", description: "New row created with copied fields" });
+      toast({ title: "Row duplicated", description: `Now editing "${newRow?.name || 'new row'}"` });
     } catch {
       toast({ title: "Failed to duplicate row", variant: "destructive" });
     }
-  }, [activeEditTemplateId, handleEditRowRefresh, toast]);
+  }, [activeEditTemplateId, handleEditRowRefresh, toast, convertToEditRowData]);
 
   // Handle row double-click - open edit sheet
   // SSoT: Use row directly from TeeemTableView callback (Foundation API data)
