@@ -163,7 +163,9 @@ export default function LibraryPage() {
     currentUser.role_names.some((r: string) => ["admin", "super_admin"].includes(r?.toLowerCase()));
 
   // Fetch documents for active tab
-  const fetchDocuments = useCallback(async (folderName?: string) => {
+  // SSoT: Use folder_path (full path e.g. "Library/STD Build Contract") not folder_segment
+  // ("STD Build Contract") — folder_path matches what's stored in warehouse_documents.folder_path.
+  const fetchDocuments = useCallback(async (folderPath?: string) => {
     setDocsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -171,8 +173,8 @@ export default function LibraryPage() {
         limit: "200",
         offset: "0",
       });
-      if (folderName) {
-        params.set("folder", folderName);
+      if (folderPath) {
+        params.set("folder", folderPath);
       }
 
       const response = await api.get<{
@@ -195,7 +197,7 @@ export default function LibraryPage() {
   // Refetch when active tab changes (selections persist across tabs)
   useEffect(() => {
     if (resolvedTab) {
-      fetchDocuments(resolvedTab.folder_segment || resolvedTab.display_name);
+      fetchDocuments(resolvedTab.folder_path || resolvedTab.folder_segment || resolvedTab.display_name);
     }
   }, [resolvedTab, fetchDocuments]);
 
@@ -227,12 +229,14 @@ export default function LibraryPage() {
     setUploading(true);
     try {
       let successCount = 0;
-      const folderName = resolvedTab.folder_segment || resolvedTab.display_name;
+      const folderPath = resolvedTab.folder_path || resolvedTab.folder_segment || resolvedTab.display_name;
 
       for (const file of pendingFiles) {
         const result = await uploadFile(file, "library_documents", {
           metadata: {
-            folder_path: folderName,
+            // SSoT: folder_path is ignored by backend when warehouse_folder_id is set
+            // (materialize_folder_path computes it via FK chain). Kept for fallback only.
+            folder_path: resolvedTab.folder_segment || resolvedTab.display_name,
             warehouse_folder_id: resolvedTab.id,
             document_type: selectedDocType || undefined,
             expiry_date: expiryDate ? expiryDate.toISOString().split("T")[0] : undefined,
@@ -252,7 +256,7 @@ export default function LibraryPage() {
 
       if (successCount > 0) {
         toast({ title: "Upload Complete", description: `${successCount} file(s) uploaded` });
-        fetchDocuments(folderName);
+        fetchDocuments(folderPath);
       }
     } catch (error) {
       toast({
@@ -488,7 +492,7 @@ export default function LibraryPage() {
       if (res?.success) {
         toast({ title: "Deleted", description: "Document removed" });
         if (resolvedTab) {
-          fetchDocuments(resolvedTab.folder_segment || resolvedTab.display_name);
+          fetchDocuments(resolvedTab.folder_path || resolvedTab.folder_segment || resolvedTab.display_name);
         }
       }
     } catch (error) {

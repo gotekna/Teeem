@@ -293,6 +293,13 @@ module Api
         raw_expiry = metadata[:expiry_date] || metadata["expiry_date"]
         parsed_expiry = raw_expiry.present? ? Date.parse(raw_expiry.to_s) : nil rescue nil
 
+        # SSoT: When warehouse_folder_id is set, let WarehousePathComputer compute the correct
+        # path via FK chain: WarehouseFolder → full_folder_path → "Library/STD Build Contract".
+        # Passing folder_path explicitly (e.g. "STD Build Contract") would bypass the callback
+        # and store the path WITHOUT the "Library/" prefix, breaking Doc Tree browsing.
+        # Only use folder_path as fallback when there's no warehouse_folder_id.
+        computed_folder_path = wf_id.present? ? nil : f_path
+
         doc = WarehouseDocumentCreator.create_or_version!(
           filename: filename,
           source_type: "library",
@@ -300,7 +307,7 @@ module Api
           file_size: file_size,
           content_type: content_type,
           warehouse_folder_id: wf_id,
-          folder_path: f_path,
+          folder_path: computed_folder_path,
           expiry_date: parsed_expiry,
           metadata: {
             "document_type" => metadata[:document_type] || metadata["document_type"] || "library",

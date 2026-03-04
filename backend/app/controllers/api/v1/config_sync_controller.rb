@@ -66,6 +66,8 @@ module Api
         # Other tenants only see their own + master for comparison
         if current_tenant&.is_master_tenant?
           all_counts = service.all_tenant_counts
+          # SM tables: only count Teeem-prefixed records (convention for synced templates)
+          recount_teeem_prefixed!(all_counts)
           response[:all_tenant_counts] = all_counts[:counts]
           response[:all_tenants] = all_counts[:tenants]
 
@@ -1235,6 +1237,28 @@ module Api
           end
         end
         count
+      end
+
+      # SM Sync page convention: only Teeem-prefixed templates/tasks are synced.
+      # Recount these tables so the UI shows accurate syncable counts, not total counts.
+      def recount_teeem_prefixed!(all_counts)
+        tenants = Tenant.order(:id)
+        %w[sm_schedule_master_templates sm_schedule_masters].each do |table_key|
+          next unless all_counts[:counts][table_key]
+          tenants.each do |t|
+            slug = t.slug || t.id.to_s
+            count = ActsAsTenant.with_tenant(t) do
+              case table_key
+              when "sm_schedule_master_templates"
+                SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").count
+              when "sm_schedule_masters"
+                teeem_ids = SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
+                teeem_ids.any? ? SmScheduleMaster.where(sm_schedule_master_template_id: teeem_ids).count : 0
+              end
+            end
+            all_counts[:counts][table_key][slug] = count
+          end
+        end
       end
 
       def require_teeem_staff!
