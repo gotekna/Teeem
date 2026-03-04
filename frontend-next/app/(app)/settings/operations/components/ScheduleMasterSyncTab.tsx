@@ -1197,7 +1197,8 @@ export function ScheduleMasterSyncTab() {
                                 : (syncCoverage[table.key] as CoverageEntry | undefined);
                               const teeemTemplates = cov && "templates" in cov && cov.templates ? cov.templates.filter((t) => t.name.toLowerCase().startsWith("teeem")) : [];
                               const hasTemplates = teeemTemplates.length > 1;
-                              const hasRecords = cov && "records" in cov && cov.records && cov.records.length > 0;
+                              const teeemRecords = cov && "records" in cov && cov.records ? cov.records.filter((r) => r.name.toLowerCase().startsWith("teeem")) : [];
+                              const hasRecords = teeemRecords.length > 0;
                               if (hasTemplates || hasRecords) {
                                 const isExpanded = expandedTables.has(table.key);
                                 return (
@@ -1513,7 +1514,9 @@ export function ScheduleMasterSyncTab() {
                               return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
                             })()
                           : (syncCoverage[table.key] as CoverageEntry | undefined);
-                        const records = cov && "records" in cov ? cov.records : undefined;
+                        const allRecords = cov && "records" in cov ? cov.records : undefined;
+                        // Only show Teeem-prefixed records (others are tenant-specific/independent)
+                        const records = allRecords?.filter((r) => r.name.toLowerCase().startsWith("teeem"));
                         if (!records || records.length === 0) return null;
 
                         return records.map((rec) => {

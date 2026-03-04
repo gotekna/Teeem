@@ -765,7 +765,15 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       recordId?: number,
       isScoped?: boolean,
     ): TreeNode => {
-      const rawPath = folder.fullPath || folder.folderPath;
+      // SSoT: children[] from warehouse_types/tree API returns WarehouseFolderTreeNode2 objects
+      // (with fullFolderPath/folderPathTemplate) even though typed as WarehouseFolderChildNode.
+      // Must check both field name conventions.
+      const rawPath = (
+        folder.fullPath || folder.folderPath ||
+        (folder as unknown as { fullFolderPath?: string }).fullFolderPath ||
+        (folder as unknown as { folderPathTemplate?: string }).folderPathTemplate ||
+        null
+      );
       const folderPath = tokenValues ? resolvePathTokens(rawPath, tokenValues) : rawPath;
       const isVirtual = folderPath?.includes("{{") || false;
       const nodeId = recordId ? `${folder.id}-rec-${recordId}` : folder.id;
