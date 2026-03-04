@@ -1,0 +1,101 @@
+# frozen_string_literal: true
+
+# Runs cascade_push_table in background to avoid Heroku 30s web timeout.
+# Enqueued by ConfigSyncController#cascade_push_table.
+class CascadePushTableJob < ApplicationJob
+  queue_as :default
+
+  def perform(table:, tenant_id:, mode: "replace_existing")
+    tenant = Tenant.find(tenant_id)
+    return unless tenant.is_master_tenant?
+
+    table = table.to_sym
+    table_config = TenantConfigSyncService::CONFIG_TABLES[table]
+    return unless table_config
+
+    model = table_config[:model].constantize
+    mode = mode.to_sym
+    customer_tenants = Tenant.where(is_master_tenant: false).to_a
+    has_sync_key = model.column_names.include?("sync_key")
+
+    # ── Phase 0: Pull from ALL customer tenants → TEEEM ──────────────────
+    master_svc = TenantConfigSyncService.new(tenant)
+    customer_tenants.each do |source_t|
+      ActsAsTenant.with_tenant(source_t) do
+        source_ids = scoped_model(model, table_config).pluck(:id)
+        next if source_ids.empty?
+        master_svc.import_from_tenant(source_tenant: source_t, table: table.to_s, record_ids: source_ids)
+      end
+    end
+
+    # ── Step 1: Apply tombstones ──────────────────────────────────────────
+    pending_tombstones = has_sync_key ? ConfigSyncDeletion.where(
+      tenant_id: customer_tenants.map(&:id),
+      model_type: table_config[:model],
+      propagated_at: nil
+    ).to_a : []
+
+    if pending_tombstones.any?
+      sync_keys_to_delete = pending_tombstones.map(&:sync_key).uniq
+
+      cb_safe_destroy = lambda do |tenant_ctx, keys|
+        ActsAsTenant.with_tenant(tenant_ctx) do
+          model.where(sync_key: keys).find_each do |rec|
+            rec.destroy
+          rescue => e
+            Rails.logger.warn "[ConfigSync] Tombstone destroy failed for #{model}##{rec.id}: #{e.message[0..100]}"
+          end
+        end
+      end
+
+      cb_safe_destroy.call(tenant, sync_keys_to_delete)
+      customer_tenants.each { |t| cb_safe_destroy.call(t, sync_keys_to_delete) }
+      ConfigSyncDeletion.where(id: pending_tombstones.map(&:id)).update_all(propagated_at: Time.current)
+    end
+
+    # ── Step 2 + 3: Push + orphan cleanup per customer ────────────────────
+    master_record_ids = ActsAsTenant.with_tenant(tenant) { scoped_model(model, table_config).pluck(:id) }
+
+    master_sync_keys = if has_sync_key
+      ActsAsTenant.with_tenant(tenant) do
+        base = table_config[:scope] ? model.instance_exec(&table_config[:scope]) : model.all
+        base.where.not(sync_key: [nil, ""]).pluck(:sync_key)
+      end
+    else
+      []
+    end
+
+    customer_tenants.each do |t|
+      t_mode = table_mode(table, t)
+      next if t_mode == "independent"
+
+      svc = TenantConfigSyncService.new(t)
+
+      unless master_record_ids.empty?
+        svc.pull_from_master(table: table.to_s, record_ids: master_record_ids, mode: mode)
+      end
+
+      if master_sync_keys.any? && t_mode == "one_way"
+        orphan_result = svc.delete_orphaned_from_master(table: table)
+        if orphan_result[:skipped_orphans]&.any?
+          promote_ids = orphan_result[:skipped_orphans].map { |o| o[:id] }.compact
+          master_svc.import_from_tenant(source_tenant: t, table: table.to_s, record_ids: promote_ids) if promote_ids.any?
+        end
+      end
+    end
+
+    Rails.logger.info "[ConfigSync] CascadePushTableJob completed for #{table}"
+  end
+
+  private
+
+  def scoped_model(model, config)
+    config[:scope] ? model.instance_exec(&config[:scope]) : model.all
+  end
+
+  def table_mode(table, tenant)
+    modes = tenant.tenant_setting&.config_sync_table_modes || {}
+    table_default_modes = TenantConfigSyncService::TABLE_DEFAULT_MODES rescue {}
+    modes[table.to_s] || table_default_modes[table.to_s] || "two_way"
+  end
+end

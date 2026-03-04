@@ -709,10 +709,17 @@ export function ScheduleMasterSyncTab() {
       const res = await api.post<{
         success: boolean;
         table: string;
+        queued?: boolean;
         phase0?: Record<string, Phase0TenantResult>;
         results?: Record<string, CascadeTableResult>;
         error?: string;
       }>("/api/v1/config_sync/cascade_push_table", { table: table.key }, { timeout: API_TIMEOUT_HEAVY_SYNC });
+
+      if (res?.queued) {
+        // Background job queued — mark as done and continue to next table
+        setTableStatus((prev) => ({ ...prev, [table.key]: "done" }));
+        continue;
+      }
 
       if (res?.phase0) {
         setPhase0Results((prev) => ({ ...prev, [table.key]: res.phase0! }));

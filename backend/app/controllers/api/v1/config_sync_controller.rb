@@ -974,155 +974,25 @@ module Api
       def cascade_push_table
         return render json: { error: "Master tenant only" }, status: :forbidden unless current_tenant&.is_master_tenant?
 
-        table     = params[:table].to_sym
+        table = params[:table].to_sym
         table_config = TenantConfigSyncService::CONFIG_TABLES[table]
         return render json: { error: "Unknown table: #{params[:table]}" }, status: :bad_request unless table_config
 
-        model     = table_config[:model].constantize
-        mode      = (params[:mode] || "replace_existing").to_sym
-        customer_tenants = Tenant.where(is_master_tenant: false).to_a
+        mode = params[:mode] || "replace_existing"
 
-        # ── Phase 0: Pull from ALL customer tenants → TEEEM ────────────────────────────
-        # All tenants are peers. We aggregate everyone into TEEEM first so TEEEM has the
-        # union of all tenants' records before pushing back out. source_newer? ensures
-        # the most-recently-edited version of any record wins across tenants.
-        master_svc = TenantConfigSyncService.new(current_tenant)
-        phase0_results = {}
-        customer_tenants.each do |source_t|
-          source_ids = ActsAsTenant.with_tenant(source_t) { scoped_model(model, table_config).pluck(:id) }
-          next if source_ids.empty?
-          result = master_svc.import_from_tenant(source_tenant: source_t, table: table.to_s, record_ids: source_ids)
-          phase0_results[source_t.slug] = {
-            pulled: source_ids.length,
-            imported: result[:imported]&.length || 0,
-            unchanged: result[:unchanged] || 0,
-            failed: result[:skipped] || [],
-            errors: result[:errors] || []
-          }
-          if result[:skipped]&.any?
-            Rails.logger.warn "[ConfigSync] Phase 0: #{result[:skipped].length} records FAILED pulling #{table} from #{source_t.name}: #{result[:skipped].map { |s| "#{s[:name]} (#{s[:reason]})" }.join(', ')}"
-          end
-        end
-
-        # ── Step 1: Apply tombstones from ALL tenants ──────────────────────────────────
-        # Collect all pending deletions for this model type across all customer tenants.
-        # Delete from TEEEM first, then from every other tenant, then mark propagated.
-        # Skip entirely for tables without sync_key — tombstones are keyed by sync_key.
-        tombstone_results = {}
-        has_sync_key = model.column_names.include?("sync_key")
-        pending_tombstones = has_sync_key ? ConfigSyncDeletion.where(
-          tenant_id: customer_tenants.map(&:id),
-          model_type: table_config[:model],
-          propagated_at: nil
-        ).to_a : []
-
-        if pending_tombstones.any?
-          sync_keys_to_delete = pending_tombstones.map(&:sync_key).uniq
-
-          # Use destroy (not delete_all) to trigger dependent: :nullify/:destroy callbacks.
-          # delete_all bypasses callbacks — models like SmScheduleMaster have
-          # `has_many :sm_tasks, dependent: :nullify` which MUST run before the parent
-          # is removed, otherwise the DB FK constraint fires.
-          cb_safe_destroy = lambda do |tenant_ctx, keys|
-            deleted = 0
-            ActsAsTenant.with_tenant(tenant_ctx) do
-              model.where(sync_key: keys).find_each do |rec|
-                rec.destroy
-                deleted += 1
-              rescue => e
-                Rails.logger.warn "[ConfigSync] Tombstone destroy failed for #{model}##{rec.id}: #{e.message[0..100]}"
-              end
-            end
-            deleted
-          end
-
-          # Delete from TEEEM master
-          tombstone_results[:deleted_from_master] = cb_safe_destroy.call(current_tenant, sync_keys_to_delete)
-
-          # Delete from each customer tenant
-          customer_tenants.each do |t|
-            deleted = cb_safe_destroy.call(t, sync_keys_to_delete)
-            tombstone_results[t.slug] ||= {}
-            tombstone_results[t.slug][:tombstone_deleted] = deleted
-          end
-
-          # Mark propagated
-          ConfigSyncDeletion.where(id: pending_tombstones.map(&:id))
-                            .update_all(propagated_at: Time.current)
-        end
-
-        # ── Step 2 + 3: Push + orphan cleanup per customer tenant ─────────────────────
-        # Get current TEEEM record IDs and sync_keys (after tombstone cleanup above).
-        master_record_ids = ActsAsTenant.with_tenant(current_tenant) do
-          scoped_model(model, table_config).pluck(:id)
-        end
-
-        master_sync_keys = if has_sync_key
-          ActsAsTenant.with_tenant(current_tenant) do
-            base = table_config[:scope] ? model.instance_exec(&table_config[:scope]) : model.all
-            base.where.not(sync_key: [nil, ""]).pluck(:sync_key)
-          end
-        else
-          []
-        end
-
-        results = {}
-        customer_tenants.each do |t|
-          # Skip if this customer has the table set to independent
-          t_mode = table_mode(table, t)
-          if t_mode == "independent"
-            results[t.slug] = { skipped: true, reason: "independent mode" }
-            next
-          end
-
-          svc = TenantConfigSyncService.new(t)
-
-          # Push: import/update TEEEM records into customer.
-          # Always use :replace_existing so field changes (e.g. "PO Required" toggled on a
-          # Document Type, a new sync field added to a Cost Centre) propagate to all tenants.
-          # source_newer? inside pull_from_master guards against overwriting records the
-          # tenant edited more recently than TEEEM — two_way tables are safe.
-          pull_mode = mode
-          push_result = master_record_ids.empty? ? { imported: [], updated: [], skipped: [] } :
-            svc.pull_from_master(table: table.to_s, record_ids: master_record_ids, mode: pull_mode)
-
-          # Orphan cleanup: delete customer records with sync_key not in TEEEM.
-          # FRC: Only runs for one_way tables. two_way tables co-own records — orphan
-          # cleanup would destroy legitimate tenant-specific records (e.g. Tekna's
-          # sm_schedule_master predecessor tasks). For two_way tables, tombstones handle
-          # intentional deletions only. one_way = TEEEM is master, tenant has no ownership.
-          orphan_result = { deleted: 0, skipped_orphans: [] }
-          promoted_count = 0
-          if master_sync_keys.any? && t_mode == "one_way"
-            orphan_result = svc.delete_orphaned_from_master(table: table)
-
-            # Promote can't-delete orphans to TEEEM so they become canonical.
-            if orphan_result[:skipped_orphans]&.any?
-              promote_ids = orphan_result[:skipped_orphans].map { |o| o[:id] }.compact
-              if promote_ids.any?
-                master_svc.import_from_tenant(source_tenant: t, table: table.to_s, record_ids: promote_ids)
-                promoted_count = promote_ids.length
-              end
-            end
-          end
-
-          results[t.slug] = {
-            imported:         push_result[:imported]&.length || 0,
-            updated:          push_result[:updated]&.length  || 0,
-            skipped:          push_result[:skipped]&.length  || 0,
-            deleted_orphans:  orphan_result[:deleted],
-            skipped_orphans:  orphan_result[:skipped_orphans]&.presence,
-            promoted_to_master: promoted_count > 0 ? promoted_count : nil
-          }.compact
-          results[t.slug].merge!(tombstone_results[t.slug] || {})
-        end
+        # Run in background job to avoid Heroku 30s web timeout.
+        # Large tables (PO Line Items: 1,489 records) exceed 30s when processed inline.
+        CascadePushTableJob.perform_later(
+          table: table.to_s,
+          tenant_id: current_tenant.id,
+          mode: mode
+        )
 
         render json: {
           success: true,
           table: table.to_s,
-          phase0: phase0_results,
-          tombstones: tombstone_results,
-          results: results
+          queued: true,
+          message: "Sync queued for background processing"
         }
       rescue => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
