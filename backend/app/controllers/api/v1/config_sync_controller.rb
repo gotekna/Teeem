@@ -1252,6 +1252,7 @@ module Api
       TEEEM_PREFIX_TABLES = %w[
         sm_schedule_master_templates sm_schedule_masters
         po_template_packs po_template_items po_template_line_items
+        claim_stage_templates claim_stage_template_lines
       ].freeze
 
       def recount_teeem_prefixed!(all_counts)
@@ -1261,7 +1262,6 @@ module Api
           tenants.each do |t|
             slug = t.slug || t.id.to_s
             count = ActsAsTenant.with_tenant(t) do
-              teeem_pack_ids = PoTemplatePack.where("name ILIKE ?", "Teeem%").pluck(:id) if table_key.start_with?("po_template")
               case table_key
               when "sm_schedule_master_templates"
                 SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").count
@@ -1271,16 +1271,23 @@ module Api
                 teeem_tmpl_ids = SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
                 teeem_tmpl_ids.sum { |id| SmScheduleMaster.where("sm_template_ids @> ?", [id].to_json).count }
               when "po_template_packs"
-                teeem_pack_ids.size
+                PoTemplatePack.where("name ILIKE ?", "Teeem%").count
               when "po_template_items"
+                teeem_pack_ids = PoTemplatePack.where("name ILIKE ?", "Teeem%").pluck(:id)
                 teeem_pack_ids.any? ? PoTemplateItem.where(po_template_pack_id: teeem_pack_ids).count : 0
               when "po_template_line_items"
+                teeem_pack_ids = PoTemplatePack.where("name ILIKE ?", "Teeem%").pluck(:id)
                 if teeem_pack_ids.any?
                   teeem_item_ids = PoTemplateItem.where(po_template_pack_id: teeem_pack_ids).pluck(:id)
                   teeem_item_ids.any? ? PoTemplateLineItem.where(po_template_item_id: teeem_item_ids).count : 0
                 else
                   0
                 end
+              when "claim_stage_templates"
+                ClaimStageTemplate.where("name ILIKE ?", "Teeem%").count
+              when "claim_stage_template_lines"
+                teeem_claim_ids = ClaimStageTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
+                teeem_claim_ids.any? ? ClaimStageTemplateLine.where(claim_stage_template_id: teeem_claim_ids).count : 0
               end
             end
             all_counts[:counts][table_key][slug] = count
