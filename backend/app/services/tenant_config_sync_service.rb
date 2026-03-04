@@ -746,18 +746,8 @@ class TenantConfigSyncService
                     :is_global, :foundation_id],
       # Foundation is shared (no tenant_id) — foundation_id is the same across tenants.
       # Columns/filters/sort_order use column NAMES (not IDs) so they're portable.
-      # Only sync global views for tables shown on the SM Sync page (not all CONFIG_TABLES).
-      scope: -> {
-        sm_sync_keys = %w[sm_trades sm_stages cost_centres supervisor_checklist_templates
-          document_types sm_schedule_master_templates sm_task_groups bpmn_processes
-          sm_schedule_masters sm_schedule_master_document_types sm_schedule_master_related_pos
-          sm_hold_reasons sm_resources po_template_packs po_template_items po_template_line_items
-          quote_templates custom_quote_templates tender_headers tenders
-          claim_stage_templates claim_stage_template_lines]
-        sm_models = sm_sync_keys.filter_map { |k| TenantConfigSyncService::CONFIG_TABLES[k.to_sym]&.dig(:model) }.uniq
-        sm_foundation_ids = Foundation.where(model_class: sm_models).pluck(:id)
-        where(is_global: true, foundation_id: sm_foundation_ids)
-      },
+      # Sync ALL global views across all foundations.
+      scope: -> { where(is_global: true) },
       description: "Global table views (column visibility, filters, sort, grouping)",
       group: "views"
     }
