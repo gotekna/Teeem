@@ -801,7 +801,11 @@ module Api
               last_modified: doc.updated_at&.iso8601,
               url: url,
               id: doc.id,
-              warehouse_document_id: doc.id
+              warehouse_document_id: doc.id,
+              version_letter: doc.version_letter,
+              verified_at: doc.metadata&.dig("verified_at"),
+              expiry_date: doc.expiry_date&.iso8601,
+              is_latest_version: doc.is_latest_version
             }
           end.sort_by { |f| f[:name].to_s.downcase }
         end

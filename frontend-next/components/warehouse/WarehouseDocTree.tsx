@@ -10,6 +10,8 @@ import {
   Image as ImageIcon,
   Loader2,
   Mail,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
@@ -251,11 +253,24 @@ export function WarehouseDocTree({
           <File className="h-4 w-4 text-muted-foreground shrink-0" />
         )}
         <span className="flex-1 truncate text-sm">{file.name}</span>
-        {file.size > 0 && (
-          <span className="text-xs text-muted-foreground shrink-0">
-            {formatFileSize(file.size)}
-          </span>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {file.version_letter && (
+            <Badge variant="secondary" className="text-xs font-normal px-1.5">
+              Rev {file.version_letter}
+            </Badge>
+          )}
+          {file.verified_at && (
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
+          )}
+          {file.expiry_date && new Date(file.expiry_date) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+          )}
+          {file.size > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {formatFileSize(file.size)}
+            </span>
+          )}
+        </div>
       </div>
     );
   };

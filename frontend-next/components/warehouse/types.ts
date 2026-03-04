@@ -194,6 +194,10 @@ export interface S3FileEntry {
   id?: number;
   type?: string;
   warehouse_document_id?: number;
+  version_letter?: string | null;
+  verified_at?: string | null;
+  expiry_date?: string | null;
+  is_latest_version?: boolean;
 }
 
 export interface SmTaskRequiredDocType {

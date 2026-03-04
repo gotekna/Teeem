@@ -1266,13 +1266,10 @@ module Api
               when "sm_schedule_master_templates"
                 SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").count
               when "sm_schedule_masters"
+                # Sum per-template so parent count = sum of expanded template rows.
+                # A record in both templates counts in each (matches expanded view UX).
                 teeem_tmpl_ids = SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
-                if teeem_tmpl_ids.any?
-                  conditions = teeem_tmpl_ids.map { |id| "sm_template_ids @> '[#{id.to_i}]'::jsonb" }
-                  SmScheduleMaster.where(conditions.join(" OR ")).count
-                else
-                  0
-                end
+                teeem_tmpl_ids.sum { |id| SmScheduleMaster.where("sm_template_ids @> ?", [id].to_json).count }
               when "po_template_packs"
                 teeem_pack_ids.size
               when "po_template_items"
