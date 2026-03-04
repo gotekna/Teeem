@@ -1340,6 +1340,26 @@ class TenantConfigSyncService
       if existing
         # For existing records, skip partially remapped fields to preserve current values
         partial_fields.each { |f| attrs.delete(f.to_sym); attrs.delete(f.to_s) }
+        # Prevent empty arrays from overwriting populated target values (see import_single_record)
+        if config[:remap_fks].present?
+          config[:remap_fks].each do |field, remap_config|
+            next unless remap_config[:array] || remap_config[:format] == :po_allocations
+            next unless config[:sync_fields].include?(field)
+            next unless attrs.key?(field)
+            source_val = attrs[field]
+            existing_val = existing.send(field)
+            source_empty = source_val.blank? || source_val == [] || source_val == {}
+            target_has_data = case existing_val
+                              when Array then existing_val.any?
+                              when Hash then existing_val.values.any? { |v| v.is_a?(Hash) ? v.any? : v.present? }
+                              else false
+                              end
+            if source_empty && target_has_data
+              attrs.delete(field)
+              Rails.logger.info "[ConfigSync] upsert preserved #{field}: source empty but target has data for #{config[:model]}##{existing.id}"
+            end
+          end
+        end
         existing.update!(attrs) if source_newer?(source_record, existing)
       else
         new_record = model.new
@@ -1665,6 +1685,32 @@ class TenantConfigSyncService
           attrs.delete(field.to_sym)
           attrs.delete(field.to_s)
           Rails.logger.warn "[ConfigSync] pull_from_master skipped #{field}: partial remap (#{info[:remapped]}/#{info[:original]} IDs remapped) for #{config[:model]}##{master_record.id} → tenant #{tenant.name}"
+        end
+
+        # FRC (Mar 2026): Prevent empty source arrays from overwriting populated target values.
+        # Same protection as import_single_record — when TEEEM has empty PO link arrays
+        # and a customer has populated ones, keep the customer's values rather than wiping them.
+        if existing && config[:remap_fks].present?
+          config[:remap_fks].each do |field, remap_config|
+            next unless remap_config[:array] || remap_config[:format] == :po_allocations
+            next unless config[:sync_fields].include?(field)
+            next unless attrs.key?(field)
+
+            source_val = attrs[field]
+            existing_val = existing.send(field)
+
+            source_empty = source_val.blank? || source_val == [] || source_val == {}
+            target_has_data = case existing_val
+                              when Array then existing_val.any?
+                              when Hash then existing_val.values.any? { |v| v.is_a?(Hash) ? v.any? : v.present? }
+                              else false
+                              end
+
+            if source_empty && target_has_data
+              attrs.delete(field)
+              Rails.logger.info "[ConfigSync] pull_from_master preserved #{field}: source empty but target has data for #{config[:model]}##{existing.id} in #{tenant.name}"
+            end
+          end
         end
 
         deferred = {}
@@ -2306,6 +2352,35 @@ class TenantConfigSyncService
       Rails.logger.warn "[ConfigSync] Skipped #{field}: partial remap (#{info[:remapped]}/#{info[:original]} IDs remapped) for #{model_name}##{source_record.id}"
     end
 
+    # FRC (Mar 2026): Prevent empty source arrays from overwriting populated target values.
+    # In build_sync_attrs, [].present? is false so empty arrays bypass remap entirely.
+    # When Phase 0 pulls a customer with empty PO links to TEEEM (or vice versa),
+    # the empty [] overwrites the target's existing populated array, causing data loss.
+    # Fix: for array/hash FK fields, if source is empty but target has data, skip the field.
+    if existing && config[:remap_fks].present?
+      config[:remap_fks].each do |field, remap_config|
+        next unless remap_config[:array] || remap_config[:format] == :po_allocations
+        next unless config[:sync_fields].include?(field)
+        next unless attrs.key?(field)
+
+        source_val = attrs[field]
+        existing_val = existing.send(field)
+
+        source_empty = source_val.blank? || source_val == [] || source_val == {}
+        target_has_data = case existing_val
+                          when Array then existing_val.any?
+                          when Hash then existing_val.values.any? { |v| v.is_a?(Hash) ? v.any? : v.present? }
+                          else false
+                          end
+
+        if source_empty && target_has_data
+          attrs.delete(field)
+          model_name = config[:model] || source_record.class.name
+          Rails.logger.info "[ConfigSync] Preserved #{field}: source empty but target has data for #{model_name}##{existing.id}"
+        end
+      end
+    end
+
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
     # defer those fields to a second pass. First pass sets all other fields (including
     # warehouse_type_id) so the parent validation can pass in the second pass.
@@ -2403,6 +2478,26 @@ class TenantConfigSyncService
         attrs.delete(field.to_sym)
         attrs.delete(field.to_s)
         Rails.logger.warn "[ConfigSync] update_existing skipped #{field}: partial remap (#{info[:remapped]}/#{info[:original]}) for #{config[:model]}##{source_record.id}"
+      end
+      # Prevent empty arrays from overwriting populated target values (see import_single_record)
+      if config[:remap_fks].present?
+        config[:remap_fks].each do |field, remap_config|
+          next unless remap_config[:array] || remap_config[:format] == :po_allocations
+          next unless config[:sync_fields].include?(field)
+          next unless attrs.key?(field)
+          source_val = attrs[field]
+          existing_val = existing.send(field)
+          source_empty = source_val.blank? || source_val == [] || source_val == {}
+          target_has_data = case existing_val
+                            when Array then existing_val.any?
+                            when Hash then existing_val.values.any? { |v| v.is_a?(Hash) ? v.any? : v.present? }
+                            else false
+                            end
+          if source_empty && target_has_data
+            attrs.delete(field)
+            Rails.logger.info "[ConfigSync] update_existing preserved #{field}: source empty but target has data for #{config[:model]}##{existing.id}"
+          end
+        end
       end
       existing.update!(attrs)
       { updated: true, record: existing }

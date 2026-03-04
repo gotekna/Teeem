@@ -53,7 +53,8 @@ class CascadePushTableJob < ApplicationJob
         }
         next if customer_record_ids.empty?
 
-        master_svc.import_from_tenant(source_tenant: t, table: table.to_s, record_ids: customer_record_ids)
+        result = master_svc.import_from_tenant(source_tenant: t, table: table.to_s, record_ids: customer_record_ids)
+        Rails.logger.info "[ConfigSync] Phase 0 #{table} from #{t.name}: #{result.except(:errors).inspect}"
       end
     end
 
