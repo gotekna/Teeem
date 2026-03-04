@@ -979,12 +979,14 @@ module Api
         return render json: { error: "Unknown table: #{params[:table]}" }, status: :bad_request unless table_config
 
         mode = params[:mode] || "replace_existing"
+        job_key = "#{table}_#{SecureRandom.hex(8)}"
 
         # Run in background job to avoid Heroku 30s web timeout.
         # Large tables (PO Line Items: 1,489 records) exceed 30s when processed inline.
         CascadePushTableJob.perform_later(
           table: table.to_s,
           tenant_id: current_tenant.id,
+          job_key: job_key,
           mode: mode
         )
 
@@ -992,10 +994,25 @@ module Api
           success: true,
           table: table.to_s,
           queued: true,
-          message: "Sync queued for background processing"
+          job_key: job_key
         }
       rescue => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # GET /api/v1/config_sync/cascade_push_status?job_key=xxx
+      # Poll for background job completion. Frontend calls this every 2s.
+      def cascade_push_status
+        job_key = params[:job_key]
+        return render json: { error: "job_key required" }, status: :bad_request unless job_key.present?
+
+        result = Rails.cache.read("cascade_push:#{job_key}")
+
+        if result
+          render json: { done: true, **result }
+        else
+          render json: { done: false }
+        end
       end
 
       # POST /api/v1/config_sync/reconcile

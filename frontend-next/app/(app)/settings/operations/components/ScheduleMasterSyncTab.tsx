@@ -710,32 +710,48 @@ export function ScheduleMasterSyncTab() {
         success: boolean;
         table: string;
         queued?: boolean;
-        phase0?: Record<string, Phase0TenantResult>;
-        results?: Record<string, CascadeTableResult>;
+        job_key?: string;
         error?: string;
       }>("/api/v1/config_sync/cascade_push_table", { table: table.key }, { timeout: API_TIMEOUT_HEAVY_SYNC });
 
-      if (res?.queued) {
-        // Background job queued — mark as done and continue to next table
-        setTableStatus((prev) => ({ ...prev, [table.key]: "done" }));
+      if (res?.queued && res?.job_key) {
+        // Background job queued — poll until it finishes
+        const jobKey = res.job_key;
+        let done = false;
+        const maxAttempts = 150; // 5 min max (150 × 2s)
+        let attempts = 0;
+
+        while (!done && attempts < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 2000));
+          attempts++;
+          try {
+            const status = await api.get<{ done: boolean; status?: string; error?: string }>(
+              `/api/v1/config_sync/cascade_push_status?job_key=${jobKey}`
+            );
+            if (status?.done) {
+              done = true;
+              if (status.status === "completed") {
+                setTableStatus((prev) => ({ ...prev, [table.key]: "done" }));
+              } else {
+                setTableStatus((prev) => ({ ...prev, [table.key]: "error" }));
+              }
+            }
+          } catch {
+            // Network blip — keep polling
+          }
+        }
+
+        if (!done) {
+          // Timed out waiting for job
+          setTableStatus((prev) => ({ ...prev, [table.key]: "error" }));
+        }
         continue;
       }
 
-      if (res?.phase0) {
-        setPhase0Results((prev) => ({ ...prev, [table.key]: res.phase0! }));
-      }
-
-      if (res?.results) {
-        setCascadeResults((prev) => ({ ...prev, [table.key]: res.results! }));
-        // Aggregate across all tenants for the status row display
-        const totals = Object.values(res.results).reduce(
-          (acc, r) => ({ imported: acc.imported + (r.imported || 0), updated: acc.updated + (r.updated || 0), skipped: acc.skipped + (r.skipped || 0) }),
-          { imported: 0, updated: 0, skipped: 0 }
-        );
-        setTableResults((prev) => ({ ...prev, [table.key]: { ...totals, total: totals.imported + totals.updated, has_more: false } }));
-        setTableStatus((prev) => ({ ...prev, [table.key]: totals.imported > 0 || totals.updated > 0 ? "done" : "skipped" }));
+      if (!res?.success) {
+        setTableStatus((prev) => ({ ...prev, [table.key]: "error" }));
       } else {
-        setTableStatus((prev) => ({ ...prev, [table.key]: res?.success === false ? "error" : "skipped" }));
+        setTableStatus((prev) => ({ ...prev, [table.key]: "done" }));
       }
     }
 

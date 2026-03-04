@@ -2,16 +2,25 @@
 
 # Runs cascade_push_table in background to avoid Heroku 30s web timeout.
 # Enqueued by ConfigSyncController#cascade_push_table.
+#
+# Stores result in Rails.cache so the frontend can poll for completion.
+# Cache key: "cascade_push:#{job_key}" — expires after 10 minutes.
 class CascadePushTableJob < ApplicationJob
   queue_as :default
 
-  def perform(table:, tenant_id:, mode: "replace_existing")
+  def perform(table:, tenant_id:, job_key:, mode: "replace_existing")
     tenant = Tenant.find(tenant_id)
-    return unless tenant.is_master_tenant?
+    unless tenant.is_master_tenant?
+      store_result(job_key, { status: "failed", error: "Not master tenant" })
+      return
+    end
 
     table = table.to_sym
     table_config = TenantConfigSyncService::CONFIG_TABLES[table]
-    return unless table_config
+    unless table_config
+      store_result(job_key, { status: "failed", error: "Unknown table: #{table}" })
+      return
+    end
 
     model = table_config[:model].constantize
     mode = mode.to_sym
@@ -85,6 +94,11 @@ class CascadePushTableJob < ApplicationJob
     end
 
     Rails.logger.info "[ConfigSync] CascadePushTableJob completed for #{table}"
+    store_result(job_key, { status: "completed", table: table.to_s })
+  rescue => e
+    Rails.logger.error "[ConfigSync] CascadePushTableJob FAILED for #{table}: #{e.message}"
+    store_result(job_key, { status: "failed", error: e.message }) if job_key
+    raise
   end
 
   private
@@ -97,5 +111,10 @@ class CascadePushTableJob < ApplicationJob
     modes = tenant.tenant_setting&.config_sync_table_modes || {}
     table_default_modes = TenantConfigSyncService::TABLE_DEFAULT_MODES rescue {}
     modes[table.to_s] || table_default_modes[table.to_s] || "two_way"
+  end
+
+  def store_result(job_key, result)
+    return unless job_key.present?
+    Rails.cache.write("cascade_push:#{job_key}", result, expires_in: 10.minutes)
   end
 end

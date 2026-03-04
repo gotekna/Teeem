@@ -165,7 +165,7 @@ export default function AllDocumentsPage() {
   const router = useRouter();
   const params = useParams();
   const tabSegments = (params?.tab as string[] | undefined) || [];
-  const initialViewMode = tabSegments[0] ? (VIEW_SLUG_TO_MODE[tabSegments[0]] || "tree") : "tree";
+  const initialViewMode = tabSegments[0] ? (VIEW_SLUG_TO_MODE[tabSegments[0]] || "warehouse-tree") : "warehouse-tree";
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
   const [searchQuery, setSearchQuery] = useState("");

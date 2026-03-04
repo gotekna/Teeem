@@ -492,6 +492,7 @@ Rails.application.routes.draw do
           post :pull_all  # Fresh pull of ALL records from ALL tables
           post :pull_one_table     # Pull a single table (for live progress)
           post :cascade_push_table # TEEEM only — push one table to all customer tenants + orphan cleanup
+          get :cascade_push_status  # Poll for background job completion
           post :record_sync  # Record that a full sync was performed
           get "diff_all/:table", action: :diff_all  # Compare table across ALL tenants
           post :apply_winners  # Push winner selections to all tenants
