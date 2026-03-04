@@ -818,6 +818,12 @@ export default function DocumentTypeDetailPage() {
           setDocumentType(response.data);
         }
 
+        // Auto-rematerialize document names when templates change
+        // This updates ui_name/download_name on all linked warehouse documents
+        const remat = await api.post<{ success: boolean; message: string; documents_count: number }>(
+          `/api/v1/document_types/${documentTypeId}/rematerialize_names`
+        );
+
         // SSoT: Check if naming format changed and prompt for document rename
         if (response?.naming_format_change && response.naming_format_change.affected_documents_count > 0) {
           setRenameConfirmDialog({
@@ -831,9 +837,11 @@ export default function DocumentTypeDetailPage() {
             description: response.naming_format_change.message,
           });
         } else {
+          const rematCount = remat?.documents_count ?? 0;
+          const rematMsg = rematCount > 0 ? ` Refreshing names for ${rematCount} document(s).` : "";
           toast({
             title: "Success",
-            description: "Document type saved successfully",
+            description: `Document type saved successfully.${rematMsg}`,
           });
         }
       }

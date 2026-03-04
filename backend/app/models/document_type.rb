@@ -144,6 +144,10 @@ class DocumentType < ApplicationRecord
   after_create :sync_pending_warehouse_folder_ids
   # Track naming format changes for standardization prompts
   after_save :track_naming_format_change, if: :saved_change_to_download_name?
+  # SSoT: When ui_name changes, re-materialize warehouse documents that use this as fallback
+  # FRC (Mar 2026): effective_ui_name_template falls back to document_type.ui_name,
+  # but only WFDT had the callback — editing DocumentType.ui_name left documents stale.
+  after_save :propagate_template_change_to_documents, if: :naming_template_changed?
 
   # Attribute to track naming format change details (used by API response)
   attr_accessor :naming_format_change_info
@@ -444,6 +448,32 @@ class DocumentType < ApplicationRecord
   end
 
   private
+
+  # Did ui_name or download_name change? (template fallback sources)
+  def naming_template_changed?
+    saved_change_to_ui_name? || saved_change_to_download_name?
+  end
+
+  # Re-materialize warehouse documents whose WFDT falls back to this document type's ui_name/download_name.
+  # Only affects WFDTs where ui_name_template IS NULL (meaning they use this fallback).
+  def propagate_template_change_to_documents
+    # Find WFDTs that use this document type AND have no override template
+    # (i.e., they fall back to document_type.ui_name / document_type.download_name)
+    fallback_wfdts = warehouse_folder_document_types
+    if saved_change_to_ui_name? && !saved_change_to_download_name?
+      fallback_wfdts = fallback_wfdts.where(ui_name_template: [nil, ""])
+    elsif saved_change_to_download_name? && !saved_change_to_ui_name?
+      fallback_wfdts = fallback_wfdts.where(download_name_template: [nil, ""])
+    else
+      # Both changed — find WFDTs where either template is nil
+      fallback_wfdts = fallback_wfdts.where("ui_name_template IS NULL OR ui_name_template = '' OR download_name_template IS NULL OR download_name_template = ''")
+    end
+
+    fallback_wfdts.find_each do |wfdt|
+      next unless wfdt.warehouse_documents.exists?
+      UpdateWarehouseDocumentNamesJob.perform_later(wfdt.id)
+    end
+  end
 
   # Sync pending warehouse_folder_ids that were deferred during create
   def sync_pending_warehouse_folder_ids

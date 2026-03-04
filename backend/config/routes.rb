@@ -3552,6 +3552,7 @@ Rails.application.routes.draw do
         member do
           post :duplicate
           post :detect_signature_fields  # AI detection of signature positions in PDF
+          post :rematerialize_names      # Re-expand ui_name/download_name templates for all linked docs
         end
       end
 

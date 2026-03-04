@@ -78,7 +78,7 @@ export function DocumentPreviewSheet({ doc, onClose, onOpenInNewWindow }: Docume
 
   return (
     <Sheet open={!!doc} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-[700px] sm:max-w-[700px] flex flex-col p-0" side="right">
+      <SheetContent className="flex flex-col p-0" side="right-wide">
         <SheetHeader className="px-4 py-3 border-b shrink-0">
           <div className="flex items-center gap-2">
             <SheetTitle className="flex-1 truncate text-sm font-medium">

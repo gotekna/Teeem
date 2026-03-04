@@ -178,6 +178,18 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       setDocumentTypes(prev => prev.map(dt =>
         dt.id === rowId ? { ...dt, [columnKey]: value } : dt
       ));
+      // Auto-rematerialize document names when templates change
+      if (columnKey === "ui_name" || columnKey === "download_name") {
+        const res = await api.post<{ success: boolean; message: string; documents_count: number }>(
+          `/api/v1/document_types/${rowId}/rematerialize_names`
+        );
+        if (res?.success && res.documents_count > 0) {
+          toast({
+            title: "Refreshing document names",
+            description: res.message,
+          });
+        }
+      }
     } catch (error) {
       console.error("Failed to update document type:", error);
       throw error; // Re-throw so TeeemTableView can show error

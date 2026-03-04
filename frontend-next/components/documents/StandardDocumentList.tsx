@@ -911,7 +911,7 @@ export function StandardDocumentList({
 
       {/* Document preview sheet */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent side="right" className="w-[600px] sm:max-w-[600px] p-0 flex flex-col">
+        <SheetContent side="right-wide" className="p-0 flex flex-col">
           {previewDoc && (
             <>
               {/* Sheet header */}

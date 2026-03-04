@@ -3,7 +3,7 @@ module Api
     class DocumentTypesController < ApplicationController
       include WarehouseFolderPathLookup
 
-      before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields ]
+      before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields, :rematerialize_names ]
 
       # GET /api/v1/document_types
       # PERFORMANCE: Eager load warehouse_folders to prevent N+1 queries in serialize_document_type
@@ -312,6 +312,32 @@ module Api
           Rails.logger.error("Signature detection failed: #{e.message}")
           render_error("Failed to detect signature fields: #{e.message}", status: :internal_server_error)
         end
+      end
+
+      # POST /api/v1/document_types/:id/rematerialize_names
+      # Re-materializes ui_name and download_name for all warehouse documents
+      # linked to this document type via WFDTs.
+      # Use after changing ui_name/download_name templates.
+      def rematerialize_names
+        wfdts = @document_type.warehouse_folder_document_types
+        total_docs = 0
+        queued_wfdts = 0
+
+        wfdts.find_each do |wfdt|
+          count = wfdt.warehouse_documents.count
+          next if count == 0
+
+          total_docs += count
+          queued_wfdts += 1
+          UpdateWarehouseDocumentNamesJob.perform_later(wfdt.id)
+        end
+
+        render json: {
+          success: true,
+          message: "Queued name refresh for #{total_docs} documents across #{queued_wfdts} folder(s)",
+          documents_count: total_docs,
+          folders_count: queued_wfdts
+        }
       end
 
       # GET /api/v1/document_types/suggest
