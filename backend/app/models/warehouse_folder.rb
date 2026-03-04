@@ -213,18 +213,24 @@ class WarehouseFolder < ApplicationRecord
   def document_types_with_templates
     warehouse_folder_document_types.includes(:document_type).map do |join|
       dt = join.document_type
+      effective_ui = join.effective_ui_name_template
+      effective_dl = join.effective_download_name_template
       {
         id: dt.id,
+        wfdt_id: join.id,
         name: dt.name,
         abbreviation: dt.abbreviation,
+        tracks_signing_status: dt.tracks_signing_status || false,
         is_primary: join.is_primary,
         is_system: join.is_system,
         can_delete: join.can_delete?,
         ui_name_template: join.ui_name_template,
         download_name_template: join.download_name_template,
-        effective_ui_name_template: join.effective_ui_name_template,
-        effective_download_name_template: join.effective_download_name_template,
-        has_template_overrides: join.has_template_overrides?
+        effective_ui_name_template: effective_ui,
+        effective_download_name_template: effective_dl,
+        has_template_overrides: join.has_template_overrides?,
+        ui_name: effective_ui,
+        download_name: effective_dl
       }
     end
   end
