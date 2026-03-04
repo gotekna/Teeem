@@ -38,6 +38,11 @@ export interface DocumentItem {
   // Metadata
   documentTypeName?: string;
   isImage: boolean;
+  // Version tracking
+  versionLetter?: string | null;
+  verifiedAt?: string | null;
+  expiryDate?: string | null;
+  isLatestVersion?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -371,6 +371,10 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
             createdAt?: string;
             receivedAt?: string;
             fileUrl?: string | null;
+            versionLetter?: string | null;
+            verifiedAt?: string | null;
+            expiryDate?: string | null;
+            isLatestVersion?: boolean;
             [key: string]: unknown;
           }>;
           count: { folders: number; files: number; total: number };
@@ -393,6 +397,10 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
                 url: f.fileUrl ?? undefined,
                 id: f.id,
                 type: f.type,
+                version_letter: f.versionLetter ?? null,
+                verified_at: f.verifiedAt ?? null,
+                expiry_date: f.expiryDate ?? null,
+                is_latest_version: f.isLatestVersion,
               })),
             },
           }));
@@ -475,6 +483,9 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           createdAt: string;
           fileUrl?: string;
           storagePath?: string;
+          versionLetter?: string | null;
+          verifiedAt?: string | null;
+          expiryDate?: string | null;
         }>;
         folders: Array<{ name: string; count: number }>;
         pagination: { total: number; limit: number; offset: number; has_more: boolean };
@@ -489,6 +500,9 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           url: doc.fileUrl,
           id: doc.id,
           warehouse_document_id: doc.id,
+          version_letter: doc.versionLetter ?? null,
+          verified_at: doc.verifiedAt ?? null,
+          expiry_date: doc.expiryDate ?? null,
         }));
         const folders = (response.folders || []).map(f => ({
           name: f.name,
@@ -720,6 +734,10 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           storageProvider: "s3_compatible",
           createdAt: new Date().toISOString(),
           isImage: /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name),
+          versionLetter: file.version_letter ?? null,
+          verifiedAt: file.verified_at ?? null,
+          expiryDate: file.expiry_date ?? null,
+          isLatestVersion: file.is_latest_version,
         },
       }));
     };
