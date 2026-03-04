@@ -668,6 +668,14 @@ module Api
         base_scope = WarehouseDocument.where.not(source_type: [nil, ""])
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
+        # Entity scoping: filter to documents linked to a specific entity
+        if params[:linkable_type].present? && params[:linkable_id].present?
+          base_scope = base_scope.where(
+            linkable_type: params[:linkable_type],
+            linkable_id: params[:linkable_id]
+          )
+        end
+
         if path.blank?
           # SSoT (Feb 2026): Root folders built purely from folder_path column
           # No config dependency - shows exactly what exists in the data

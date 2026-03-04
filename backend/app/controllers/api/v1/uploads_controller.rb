@@ -194,6 +194,8 @@ module Api
       end
 
       # SSoT: Uses WarehouseDocumentCreator.create_or_version! for auto-versioning
+      # Supports full upload features: doc type selection, signing status, expiry/executed dates
+      # (Feature parity with create_job_document — Mar 2026)
       def create_corporate_document(key, filename, content_type, file_size, metadata, provider)
         # Get company from metadata or current user's default
         company_id = metadata[:company_id] || metadata["company_id"]
@@ -203,6 +205,18 @@ module Api
         # Move to permanent location with content-hash deduplication
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
+        # Parse dates from metadata (ISO date strings "YYYY-MM-DD")
+        raw_expiry = metadata[:expiry_date] || metadata["expiry_date"]
+        parsed_expiry = raw_expiry.present? ? Date.parse(raw_expiry.to_s) : nil rescue nil
+
+        raw_executed = metadata[:executed_date] || metadata["executed_date"]
+        parsed_executed = raw_executed.present? ? Date.parse(raw_executed.to_s) : nil rescue nil
+
+        version_status = metadata[:version_status] || metadata["version_status"]
+
+        # User's explicit doc type selection takes precedence over folder's primary WFDT
+        wfdt_id = metadata[:warehouse_folder_document_type_id] || metadata["warehouse_folder_document_type_id"]
+
         doc = WarehouseDocumentCreator.create_or_version!(
           filename: filename,
           source_type: "corporate",
@@ -211,10 +225,14 @@ module Api
           file_size: file_size,
           content_type: content_type,
           warehouse_folder_id: metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"],
+          warehouse_folder_document_type_id: wfdt_id.presence&.to_i,
+          expiry_date: parsed_expiry,
           metadata: {
-            "document_type" => metadata[:document_type] || metadata["document_type"] || "other",
+            "document_type" => metadata[:document_type] || metadata["document_type"],
+            "version_status" => version_status.presence,
+            "executed_date" => parsed_executed&.iso8601,
             "source" => "manual"
-          },
+          }.compact,
           user: current_user
         )
 

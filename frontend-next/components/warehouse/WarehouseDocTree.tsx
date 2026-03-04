@@ -34,6 +34,10 @@ interface WarehouseDocTreeProps {
   onMailboxClick: (mailboxEmail: string) => void;
   onMailboxDoubleClick: (externalLink: string) => void;
   selectedDocument?: DocumentItem | null;
+  /** Scope to a specific entity (e.g. "Job", "CorporateCompany") */
+  linkableType?: string;
+  /** ID of the entity to scope to */
+  linkableId?: number;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -78,6 +82,8 @@ export function WarehouseDocTree({
   onMailboxClick,
   onMailboxDoubleClick,
   selectedDocument,
+  linkableType,
+  linkableId,
 }: WarehouseDocTreeProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [folderCache, setFolderCache] = useState<Map<string, FolderData>>(new Map());
@@ -89,8 +95,13 @@ export function WarehouseDocTree({
 
     setLoadingPaths((prev) => new Set(prev).add(path));
     try {
+      const params = new URLSearchParams({ path });
+      if (linkableType && linkableId) {
+        params.set("linkable_type", linkableType);
+        params.set("linkable_id", String(linkableId));
+      }
       const res = await api.get<{ success: boolean; folders: S3FolderEntry[]; files: S3FileEntry[] }>(
-        `/api/v1/documents/browse_folders?path=${encodeURIComponent(path)}`
+        `/api/v1/documents/browse_folders?${params.toString()}`
       );
       if (res?.success) {
         setFolderCache((prev) => {
@@ -108,7 +119,7 @@ export function WarehouseDocTree({
         return next;
       });
     }
-  }, [folderCache]);
+  }, [folderCache, linkableType, linkableId]);
 
   // Load root on mount
   useEffect(() => {

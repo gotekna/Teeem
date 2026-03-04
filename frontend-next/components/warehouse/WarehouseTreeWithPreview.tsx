@@ -19,6 +19,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
+import { WarehouseDocTree } from "@/components/warehouse/WarehouseDocTree";
 import { DocumentPreviewSheet } from "@/components/warehouse/DocumentPreviewSheet";
 import type { DocumentItem, WarehouseTreeMode } from "@/components/warehouse/types";
 
@@ -55,16 +56,30 @@ export function WarehouseTreeWithPreview({ mode }: WarehouseTreeWithPreviewProps
     window.open(link, "_blank");
   }, []);
 
+  const tree = mode.type === "context" ? (
+    <WarehouseDocTree
+      linkableType={mode.entityType}
+      linkableId={mode.entityId}
+      onFileClick={handleFileClick}
+      onFileDoubleClick={handleFileDoubleClick}
+      onMailboxClick={handleMailboxClick}
+      onMailboxDoubleClick={handleMailboxDoubleClick}
+      selectedDocument={previewDoc}
+    />
+  ) : (
+    <WarehouseTree
+      mode={mode}
+      onFileClick={handleFileClick}
+      onFileDoubleClick={handleFileDoubleClick}
+      onMailboxClick={handleMailboxClick}
+      onMailboxDoubleClick={handleMailboxDoubleClick}
+      selectedDocument={previewDoc}
+    />
+  );
+
   return (
     <>
-      <WarehouseTree
-        mode={mode}
-        onFileClick={handleFileClick}
-        onFileDoubleClick={handleFileDoubleClick}
-        onMailboxClick={handleMailboxClick}
-        onMailboxDoubleClick={handleMailboxDoubleClick}
-        selectedDocument={previewDoc}
-      />
+      {tree}
       <DocumentPreviewSheet
         doc={previewDoc}
         onClose={() => setPreviewDoc(null)}

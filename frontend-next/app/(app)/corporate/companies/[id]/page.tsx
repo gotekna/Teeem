@@ -47,8 +47,10 @@ import { api } from "@/lib/api";
 import { clearCachedRecords } from "@/lib/records-cache";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 // Extracted components (Phase 4 migration)
-import { CompanyDocumentsTab } from "@/components/corporate/CompanyDocumentsTab";
 import { ATOSetupCard } from "@/components/corporate/ATOSetupCard";
+// Gold standard document tab (entity-agnostic) - replaces CompanyDocumentsTab
+import EntityDocumentListTab from "@/components/documents/EntityDocumentListTab";
+import { CompanyDocumentsTab } from "@/components/corporate/CompanyDocumentsTab";
 
 // Dynamic tab rendering (SSoT: lib/tab-component-registry.ts)
 // Individual components are lazy-loaded via OverviewTabRenderer and XeroTabRenderer
@@ -94,7 +96,8 @@ export default function CompanyDetailPage() {
   const router = useRouter();
   const pathname = usePathname();
   const companyId = params.id as string;
-  const [expanded, toggleExpanded] = useExpandedState("corporate-company");
+  const [mainExpanded, toggleMainExpanded] = useExpandedState("corporate-company");
+  const [overviewExpanded, toggleOverviewExpanded] = useExpandedState("corporate-company-overview");
 
   const [loading, setLoading] = React.useState(true);
   const [company, setCompany] = React.useState<Company | null>(null);
@@ -212,6 +215,7 @@ export default function CompanyDetailPage() {
           id: needsDocsSuffix ? `${t.tab_key}-docs` : t.tab_key,
           name: t.display_name,
           icon: t.icon_name,
+          warehouseFolder: t, // Keep full WarehouseFolder for EntityDocumentListTab
         };
       });
   }, [entityTabs]);
@@ -454,138 +458,160 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
-        {/* Main Tabs - inside sticky header */}
-        {/* SSoT: Standard Tabs component matching settings page pattern */}
-        <div className="px-3 pb-2 shrink-0">
-          <Tabs value={activeTab || ""} onValueChange={handleTabChange}>
-            <div className="flex items-start gap-2">
-              <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
-                {/* Main tabs from API (Overview, etc.) - SSoT: tab_group='main' */}
-                {entityMainTabs.map((tab) => {
-                  const Icon = tab.icon ? getIcon(tab.icon) : Building2;
-                  return (
-                    <TabsTrigger key={tab.id} value={tab.id}>
-                      <Icon className="h-4 w-4 mr-1.5" />
-                      {tab.name}
-                    </TabsTrigger>
-                  );
-                })}
-                {/* Fallback Overview tab if API hasn't loaded main tabs yet */}
-                {entityMainTabs.length === 0 && (
-                  <TabsTrigger value="overview">
-                    <Building2 className="h-4 w-4 mr-1.5" />
-                    Overview
-                  </TabsTrigger>
-                )}
-                {computedDocumentTabs.map((tab) => {
-                  const Icon = tab.icon;
-                  const countKey = tab.id === "assets-docs" ? "assets-docs" :
-                                  tab.id === "dividends-docs" ? "dividends-docs" :
-                                  tab.id === "loans-docs" ? "loans-docs" :
-                                  tab.id === "minutes-docs" ? "minutes-docs" :
-                                  tab.id;
-                  const count = documentCounts[countKey] || 0;
-                  const showCount = !["documents-main", "data-main", "activity-main"].includes(tab.id);
-                  return (
-                    <TabsTrigger key={tab.id} value={tab.id}>
-                      <Icon className="h-4 w-4 mr-1.5" />
-                      {tab.name}
-                      {showCount && count > 0 && (
-                        <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-background/50">
-                          {count}
-                        </span>
-                      )}
-                    </TabsTrigger>
-                  );
-                })}
-                {/* Warehouse tab - only shows if warehouse tab exists in API */}
-                {entityTabs.some(t => t.tab_key === 'warehouse' && t.enabled) && (() => {
-                  const WarehouseIcon = getIcon('Warehouse');
-                  return (
-                    <TabsTrigger value="warehouse">
-                      <WarehouseIcon className="h-4 w-4 mr-1.5" />
-                      Warehouse
-                    </TabsTrigger>
-                  );
-                })()}
-              </TabsList>
-              <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
-            </div>
-          </Tabs>
-        </div>
+      </div>
 
-        {/* Overview Sub-tabs - inside sticky header so they don't scroll away */}
-        {activeTab === "overview" && computedOverviewTabs.length > 0 && (
-          <div className="px-3 pb-2 shrink-0">
-            <Tabs value={overviewSubTab} onValueChange={handleSubTabChange}>
-              <TabsList className="flex-wrap h-auto gap-1">
-                {computedOverviewTabs.map((subTab) => (
-                  <TabsTrigger key={subTab.id} value={subTab.id}>
-                    {subTab.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+      {/* Level 1: Main Tabs - own ExpandableSection */}
+      <ExpandableSection expanded={mainExpanded} onToggle={toggleMainExpanded}>
+        <div className={mainExpanded ? "flex flex-col h-full" : "flex flex-col flex-1 min-h-0"}>
+          <div className={cn("px-3 pb-2 shrink-0", mainExpanded && "pt-3")}>
+            <Tabs value={activeTab || ""} onValueChange={handleTabChange}>
+              <div className="flex items-start gap-2">
+                <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
+                  {entityMainTabs.map((tab) => {
+                    const Icon = tab.icon ? getIcon(tab.icon) : Building2;
+                    return (
+                      <TabsTrigger key={tab.id} value={tab.id}>
+                        <Icon className="h-4 w-4 mr-1.5" />
+                        {tab.name}
+                      </TabsTrigger>
+                    );
+                  })}
+                  {entityMainTabs.length === 0 && (
+                    <TabsTrigger value="overview">
+                      <Building2 className="h-4 w-4 mr-1.5" />
+                      Overview
+                    </TabsTrigger>
+                  )}
+                  {computedDocumentTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const countKey = tab.id === "assets-docs" ? "assets-docs" :
+                                    tab.id === "dividends-docs" ? "dividends-docs" :
+                                    tab.id === "loans-docs" ? "loans-docs" :
+                                    tab.id === "minutes-docs" ? "minutes-docs" :
+                                    tab.id;
+                    const count = documentCounts[countKey] || 0;
+                    const showCount = !["documents-main", "data-main", "activity-main"].includes(tab.id);
+                    return (
+                      <TabsTrigger key={tab.id} value={tab.id}>
+                        <Icon className="h-4 w-4 mr-1.5" />
+                        {tab.name}
+                        {showCount && count > 0 && (
+                          <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-background/50">
+                            {count}
+                          </span>
+                        )}
+                      </TabsTrigger>
+                    );
+                  })}
+                  {entityTabs.some(t => t.tab_key === 'warehouse' && t.enabled) && (() => {
+                    const WarehouseIcon = getIcon('Warehouse');
+                    return (
+                      <TabsTrigger value="warehouse">
+                        <WarehouseIcon className="h-4 w-4 mr-1.5" />
+                        Warehouse
+                      </TabsTrigger>
+                    );
+                  })()}
+                </TabsList>
+                {!mainExpanded && <ExpandButton expanded={mainExpanded} onToggle={toggleMainExpanded} />}
+              </div>
             </Tabs>
           </div>
-        )}
-      </div>
 
-      {/* Tab Content - scrollable area below sticky header */}
-      <div className="flex-1 min-h-0 px-3 pb-3 overflow-auto">
-          {activeTab === "overview" && (
-            <div className="pt-4">
-              {/* Overview Sub-tab Content - Dynamic rendering from registry */}
-              <OverviewTabRenderer
-                tabKey={overviewSubTab}
-                company={company}
-                companyId={companyId}
-                onUpdate={handleCompanyUpdated}
-                renderInfoPrefix={<ATOSetupCard company={company} />}
-              />
+          {/* Level 2: Overview Sub-tabs - own nested ExpandableSection */}
+          {activeTab === "overview" && computedOverviewTabs.length > 0 ? (
+            <ExpandableSection expanded={overviewExpanded} onToggle={toggleOverviewExpanded}>
+              <div className={overviewExpanded ? "flex flex-col h-full" : "flex flex-col flex-1 min-h-0"}>
+                <div className={cn("px-3 pb-2 shrink-0", overviewExpanded && "pt-3")}>
+                  <Tabs value={overviewSubTab} onValueChange={handleSubTabChange}>
+                    <div className="flex items-start gap-2">
+                      <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
+                        {computedOverviewTabs.map((subTab) => (
+                          <TabsTrigger key={subTab.id} value={subTab.id}>
+                            {subTab.name}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                      {!overviewExpanded && <ExpandButton expanded={overviewExpanded} onToggle={toggleOverviewExpanded} />}
+                    </div>
+                  </Tabs>
+                </div>
+
+                {/* Overview content - scrollable */}
+                <div className={cn("flex-1 min-h-0 px-3 pb-3 overflow-auto", overviewExpanded && "p-4")}>
+                  <div className="pt-4">
+                    <OverviewTabRenderer
+                      tabKey={overviewSubTab}
+                      company={company}
+                      companyId={companyId}
+                      onUpdate={handleCompanyUpdated}
+                      renderInfoPrefix={<ATOSetupCard company={company} />}
+                    />
+                  </div>
+                </div>
+              </div>
+            </ExpandableSection>
+          ) : (
+            /* Non-overview tab content - scrollable */
+            <div className={cn("flex-1 min-h-0 px-3 pb-3 overflow-auto", mainExpanded && "p-4")}>
+              {activeTab === "overview" && (
+                <div className="pt-4">
+                  <OverviewTabRenderer
+                    tabKey={overviewSubTab}
+                    company={company}
+                    companyId={companyId}
+                    onUpdate={handleCompanyUpdated}
+                    renderInfoPrefix={<ATOSetupCard company={company} />}
+                  />
+                </div>
+              )}
+
+              {activeTab === "xero" && company && (
+                <div className="h-full -mx-3 -mb-3">
+                  <XeroTabRenderer
+                    companyId={companyId}
+                    companyName={company?.name}
+                    company={company}
+                    onRefresh={handleCompanyUpdated}
+                    DocumentsTabComponent={CompanyDocumentsTab}
+                  />
+                </div>
+              )}
+
+              {activeTab === "warehouse" && (
+                <WarehouseTreeWithPreview
+                  mode={{
+                    type: "context",
+                    entityType: "CorporateCompany",
+                    entityId: Number(companyId),
+                  }}
+                />
+              )}
+
+              {(() => {
+                const docTab = documentFolderTabs.find(t => t.id === activeTab);
+                if (docTab && activeTab !== "activity-main" && activeTab !== "documents-main" && activeTab !== "data-main" && activeTab !== "xero" && activeTab !== "warehouse") {
+                  return (
+                    <EntityDocumentListTab
+                      entityId={companyId}
+                      entityType="Corporate"
+                      sourceType="corporate"
+                      uploadScope="documents"
+                      warehouseFolder={docTab.warehouseFolder}
+                    />
+                  );
+                }
+                return null;
+              })()}
+
+              {activeTab === "documents-main" && (
+                <CompanyDocumentsTab companyId={companyId} company={company} category="all" />
+              )}
+              {activeTab === "activity-main" && <ActivityTab companyId={companyId} />}
             </div>
           )}
-
-          {/* XERO Tab - Dynamic rendering via XeroTabRenderer (SSoT) */}
-          {activeTab === "xero" && company && (
-            <div className="h-full -mx-3 -mb-3">
-              <XeroTabRenderer
-                companyId={companyId}
-                companyName={company?.name}
-                company={company}
-                onRefresh={handleCompanyUpdated}
-                DocumentsTabComponent={CompanyDocumentsTab}
-              />
-            </div>
-          )}
-
-          {/* Warehouse Tab - Contextual view showing all related records */}
-          {activeTab === "warehouse" && (
-            <WarehouseTreeWithPreview
-              mode={{
-                type: "context",
-                entityType: "CorporateCompany",
-                entityId: Number(companyId),
-              }}
-            />
-          )}
-
-          {/* Document Category Tabs */}
-          {computedDocumentTabs.find(t => t.id === activeTab)?.name && activeTab !== "activity-main" && activeTab !== "documents-main" && activeTab !== "data-main" && activeTab !== "xero" && activeTab !== "warehouse" && (
-            <>
-              <CompanyDocumentsTab
-                companyId={companyId}
-                company={company}
-                category={computedDocumentTabs.find(t => t.id === activeTab)?.name}
-              />
-            </>
-          )}
-
-          {activeTab === "documents-main" && (
-            <CompanyDocumentsTab companyId={companyId} company={company} category="all" />
-          )}
-          {/* Data tab redirects to /admin/system?tab=data-warehouse&company_id={id} */}
-          {activeTab === "activity-main" && <ActivityTab companyId={companyId} />}
-      </div>
+        </div>
+      </ExpandableSection>
 
       {/* Company Edit Sheet */}
       <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
