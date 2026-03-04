@@ -1194,48 +1194,47 @@ export function ViewManagerSheet({
                   </Button>
                 </div>
 
-                <ScrollArea className="flex-1 p-3">
-                  {/* overflow-hidden prevents Radix ScrollArea's display:table from expanding content beyond panel width */}
-                  <div className="overflow-hidden">
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleViewDragEnd}
+                {/* Plain scroll div instead of Radix ScrollArea - ScrollArea's display:table
+                    inner wrapper prevents width constraints, hiding action buttons */}
+                <div className="flex-1 overflow-y-auto overflow-x-hidden p-3">
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleViewDragEnd}
+                  >
+                    <SortableContext
+                      items={views.map(v => v.id)}
+                      strategy={verticalListSortingStrategy}
                     >
-                      <SortableContext
-                        items={views.map(v => v.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div className="space-y-2">
-                          {views.map((view, idx) => (
-                            <SortableViewItem
-                              key={view.id}
-                              view={view}
-                              isActive={activeViewId === view.id}
-                              index={idx + 1}
-                              onSelect={() => handleSelectView(view)}
-                              onEdit={() => handleEditView(view)}
-                              onDelete={() => {
-                                setViewToDelete(view);
-                                setActiveModal('deleteColumn'); // Open delete modal
-                              }}
-                              onApply={onApplyView ? () => {
-                                onApplyView(view);
-                                onOpenChange(false);
-                              } : undefined}
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-
-                    {views.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground text-sm">
-                        No saved views yet
+                      <div className="space-y-2">
+                        {views.map((view, idx) => (
+                          <SortableViewItem
+                            key={view.id}
+                            view={view}
+                            isActive={activeViewId === view.id}
+                            index={idx + 1}
+                            onSelect={() => handleSelectView(view)}
+                            onEdit={() => handleEditView(view)}
+                            onDelete={() => {
+                              setViewToDelete(view);
+                              setActiveModal('deleteColumn'); // Open delete modal
+                            }}
+                            onApply={onApplyView ? () => {
+                              onApplyView(view);
+                              onOpenChange(false);
+                            } : undefined}
+                          />
+                        ))}
                       </div>
-                    )}
-                  </div>
-                </ScrollArea>
+                    </SortableContext>
+                  </DndContext>
+
+                  {views.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      No saved views yet
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Right Panel - View Editor */}
