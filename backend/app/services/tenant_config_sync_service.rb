@@ -1674,19 +1674,41 @@ class TenantConfigSyncService
           end
         else
           begin
-            ActsAsTenant.with_tenant(tenant) do
-              new_record = model.new
-              attrs.each do |field, value|
-                new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
+            # ⚠️ FRC (Mar 2026): Before creating, check for name-based duplicate.
+            # .dup copies generate new sync_keys, so find_match misses them.
+            name_field = config[:name_field]
+            name_dup = nil
+            if name_field && master_record.respond_to?(name_field)
+              name_dup = ActsAsTenant.with_tenant(tenant) do
+                model.find_by(name_field => master_record.send(name_field))
               end
-              if master_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
-                new_record.sync_key = master_record.sync_key.presence || master_record.class.build_sync_key(
-                  *Array(master_record.class&.sync_key_source || :name).map { |f| master_record.send(f).to_s }
-                )
+            end
+
+            if name_dup
+              # Found by name — update and align sync_key
+              ActsAsTenant.with_tenant(tenant) do
+                name_dup.update!(attrs)
+                if master_record.respond_to?(:sync_key) && name_dup.respond_to?(:sync_key=) && master_record.sync_key.present?
+                  name_dup.update_column(:sync_key, master_record.sync_key)
+                end
               end
-              new_record.save!
-              imported << new_record
-              deferred_parents[new_record.id] = deferred if deferred.any?
+              updated << name_dup
+              deferred_parents[name_dup.id] = deferred if deferred.any?
+            else
+              ActsAsTenant.with_tenant(tenant) do
+                new_record = model.new
+                attrs.each do |field, value|
+                  new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
+                end
+                if master_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
+                  new_record.sync_key = master_record.sync_key.presence || master_record.class.build_sync_key(
+                    *Array(master_record.class&.sync_key_source || :name).map { |f| master_record.send(f).to_s }
+                  )
+                end
+                new_record.save!
+                imported << new_record
+                deferred_parents[new_record.id] = deferred if deferred.any?
+              end
             end
           rescue ActiveRecord::RecordInvalid => e
             # FRC (Feb 2026): Uniqueness collision — find_match didn't find the record
@@ -2293,6 +2315,28 @@ class TenantConfigSyncService
       end
     else
       # Create new - copy sync_key to establish link
+      # ⚠️ FRC (Mar 2026): Before creating, check for name-based duplicate.
+      # .dup copies generate new sync_keys, so find_match (sync_key-based) misses them.
+      # Without this check, each sync run creates another copy of the same record.
+      name_field = config[:name_field]
+      if name_field && source_record.respond_to?(name_field)
+        name_dup = ActsAsTenant.with_tenant(tenant) do
+          model.find_by(name_field => source_record.send(name_field))
+        end
+        if name_dup
+          # Found by name — update it and align sync_key
+          ActsAsTenant.with_tenant(tenant) do
+            name_dup.update!(attrs)
+            if source_record.respond_to?(:sync_key) && name_dup.respond_to?(:sync_key=) && source_record.sync_key.present?
+              name_dup.update_column(:sync_key, source_record.sync_key)
+            end
+          end
+          result = { imported: true, record: name_dup }
+          result[:deferred] = deferred if deferred.any?
+          return result
+        end
+      end
+
       ActsAsTenant.with_tenant(tenant) do
         new_record = model.new
         attrs.each do |field, value|
