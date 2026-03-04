@@ -39,6 +39,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { DocumentViewer } from "@/components/ui/document-viewer";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { Upload, FileText, FolderOpen, CalendarDays, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -60,6 +61,10 @@ export interface EntityDocumentListTabProps {
   sourceType: string;      // "job" | "corporate" | "contact" etc.
   uploadScope: UploadScope; // "job_documents" | "documents" | "library_documents" etc.
   warehouseFolder: WarehouseFolder;
+  /** Entity name for template preview (e.g. company name, job name) */
+  entityName?: string;
+  /** Entity code for template preview (e.g. company code, job code) */
+  entityCode?: string;
 }
 
 export default function EntityDocumentListTab({
@@ -68,6 +73,8 @@ export default function EntityDocumentListTab({
   sourceType,
   uploadScope,
   warehouseFolder,
+  entityName,
+  entityCode,
 }: EntityDocumentListTabProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,14 +111,20 @@ export default function EntityDocumentListTab({
     return () => URL.revokeObjectURL(url);
   }, [uploadDialogOpen, pendingFiles, previewFileIndex]);
 
-  // File type detection for preview — DocumentViewer handles pdf, image, excel, word
-  const hasPreview = useMemo(() => {
-    if (pendingFiles.length === 0 || !previewUrl) return false;
+  // File type detection for preview — PDFViewer for PDFs, DocumentViewer for images/excel/word
+  const previewFileExt = useMemo(() => {
+    if (pendingFiles.length === 0) return "";
     const file = pendingFiles[previewFileIndex] || pendingFiles[0];
-    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    return file.name.split(".").pop()?.toLowerCase() || "";
+  }, [pendingFiles, previewFileIndex]);
+
+  const isPdfPreview = previewFileExt === "pdf";
+
+  const hasPreview = useMemo(() => {
+    if (!previewUrl || !previewFileExt) return false;
     const previewableExts = ["pdf", "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "xlsx", "xls", "docx", "doc"];
-    return previewableExts.includes(ext);
-  }, [pendingFiles, previewFileIndex, previewUrl]);
+    return previewableExts.includes(previewFileExt);
+  }, [previewFileExt, previewUrl]);
 
   // Detect if selected doc type needs signing status or special date fields
   const selectedDocTypeObj = React.useMemo(
@@ -119,18 +132,71 @@ export default function EntityDocumentListTab({
     [warehouseFolder.document_types, selectedDocTypeId]
   );
 
-  // Computed name previews from selected document type templates
+  // Resolve name templates client-side for live preview
   const namePreview = useMemo(() => {
     if (!selectedDocTypeObj) return null;
     const uiTemplate = selectedDocTypeObj.ui_name;
     const dlTemplate = selectedDocTypeObj.download_name;
-    return { uiName: uiTemplate || null, dlName: dlTemplate || null };
-  }, [selectedDocTypeObj]);
+    if (!uiTemplate && !dlTemplate) return null;
+
+    // Build token map matching backend SendNameResolver conventions
+    const now = new Date();
+    const tokens: Record<string, string> = {
+      DocTypeName: selectedDocTypeObj.name || "",
+      Date: now.toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"),
+      DDMMYYYY: now.toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"),
+      YYYYMMDD: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
+    };
+
+    // Entity tokens based on type
+    if (entityName) {
+      if (sourceType === "corporate") {
+        tokens.CompanyName = entityName;
+      } else if (sourceType === "job") {
+        tokens.JobName = entityName;
+      } else if (sourceType === "contact") {
+        tokens.ContactName = entityName;
+      }
+    }
+    if (entityCode) {
+      if (sourceType === "corporate") {
+        tokens.CompanyCode = entityCode;
+      } else if (sourceType === "job") {
+        tokens.JobCode = entityCode;
+      }
+    }
+
+    // Date tokens from user input
+    if (executedDate) {
+      const d = executedDate;
+      tokens.EXC = `EXC ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(-2)}`;
+      tokens.Executed = `Executed ${d.getDate()} ${d.toLocaleDateString("en-AU", { month: "long", year: "numeric" })}`;
+    }
+    if (expiryDate) {
+      const d = expiryDate;
+      tokens.EX = `EX ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(-2)}`;
+      tokens.Expiry = `Expiry ${d.getDate()} ${d.toLocaleDateString("en-AU", { month: "long", year: "numeric" })}`;
+    }
+
+    const resolve = (template: string) =>
+      template.replace(/\{\{?(\w+)\}?\}/g, (match, token) => tokens[token] ?? match);
+
+    return {
+      uiName: uiTemplate ? resolve(uiTemplate) : null,
+      dlName: dlTemplate ? resolve(dlTemplate) : null,
+    };
+  }, [selectedDocTypeObj, entityName, entityCode, sourceType, executedDate, expiryDate]);
 
   const needsSigningStatus = selectedDocTypeObj?.tracks_signing_status || false;
 
-  // Show executed date picker when user selects "Signed"
-  const needsExecutedDate = needsSigningStatus && signingStatus === "signed";
+  // Show executed date picker when user selects "Signed" OR when template contains {Executed}/{EXC}
+  const templateHasExecuted = React.useMemo(() => {
+    if (!selectedDocTypeObj) return false;
+    const templates = [selectedDocTypeObj.ui_name, selectedDocTypeObj.download_name].filter(Boolean).join(" ");
+    return /\{EXC\}|\{Executed\}/i.test(templates);
+  }, [selectedDocTypeObj]);
+
+  const needsExecutedDate = templateHasExecuted || (needsSigningStatus && signingStatus === "signed");
 
   const needsExpiry = React.useMemo(() => {
     if (!selectedDocTypeObj) return false;
@@ -463,20 +529,20 @@ export default function EntityDocumentListTab({
         <SheetContent
           side={hasPreview ? "right-95" : "right-wide"}
           title={`Upload to ${warehouseFolder.display_name}`}
-          className="flex flex-col overflow-hidden"
+          className="flex flex-row overflow-hidden p-0"
         >
-          {/* Header */}
-          <SheetHeader className="flex flex-row items-center justify-between shrink-0 pb-4 border-b">
-            <h2 className="text-lg font-semibold">Upload to {warehouseFolder.display_name}</h2>
-            <Button variant="ghost" size="icon" onClick={resetUploadDialog} className="shrink-0">
-              <X className="h-4 w-4" />
-            </Button>
-          </SheetHeader>
+          {/* Left panel: header + form + footer */}
+          <div className={`${hasPreview ? "w-[380px] shrink-0 border-r" : "flex-1 max-w-md mx-auto w-full"} flex flex-col h-full p-6`}>
+            {/* Header */}
+            <SheetHeader className="flex flex-row items-center justify-between shrink-0 pb-4 border-b">
+              <h2 className="text-lg font-semibold">Upload to {warehouseFolder.display_name}</h2>
+              <Button variant="ghost" size="icon" onClick={resetUploadDialog} className="shrink-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </SheetHeader>
 
-          {/* Body — form on left, preview on right */}
-          <div className={`flex-1 overflow-hidden flex ${hasPreview ? "flex-row gap-4" : "flex-col"} mt-4`}>
-            {/* Left panel: File list + form fields */}
-            <div className={`${hasPreview ? "w-[380px] shrink-0" : "flex-1 max-w-md mx-auto w-full"} overflow-y-auto space-y-4 pr-1`}>
+            {/* Form fields */}
+            <div className="flex-1 overflow-y-auto space-y-4 mt-4 pr-1">
               {/* Clickable file list */}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">
@@ -616,36 +682,43 @@ export default function EntityDocumentListTab({
               )}
             </div>
 
-            {/* Right panel: Document preview */}
-            {hasPreview && previewUrl && (
-              <div className="flex-1 min-w-0 overflow-hidden">
+            {/* Footer */}
+            <div className="flex justify-end gap-2 pt-4 border-t mt-4 shrink-0">
+              <Button variant="outline" onClick={resetUploadDialog}>
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmUpload} disabled={uploading}>
+                {uploading ? (
+                  <Spinner className="h-4 w-4 mr-2" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                Upload
+              </Button>
+            </div>
+          </div>
+
+          {/* Right panel: Document preview — full height, edge to edge */}
+          {hasPreview && previewUrl && (
+            <div className="flex-1 min-w-0 h-full overflow-hidden bg-muted/30">
+              {isPdfPreview ? (
+                <PDFViewer
+                  url={previewUrl}
+                  className="h-full w-full"
+                />
+              ) : (
                 <DocumentViewer
                   url={previewUrl}
                   fileName={pendingFiles[previewFileIndex]?.name || "document"}
-                  showHeader={true}
+                  showHeader={false}
                   showFooter={false}
                   showSidebar={false}
                   theme="light"
                   className="h-full w-full"
                 />
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="flex justify-end gap-2 pt-4 border-t mt-4 shrink-0">
-            <Button variant="outline" onClick={resetUploadDialog}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirmUpload} disabled={uploading}>
-              {uploading ? (
-                <Spinner className="h-4 w-4 mr-2" />
-              ) : (
-                <Upload className="h-4 w-4 mr-2" />
               )}
-              Upload
-            </Button>
-          </div>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
     </div>

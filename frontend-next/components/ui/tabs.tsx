@@ -20,7 +20,7 @@ const TabsExpandContext = React.createContext<{ expanded: boolean; toggle: () =>
  * Behaviour:
  *  - Collapsed: renders normally; TabsList shows ↗ button at right edge
  *  - Expanded:  entire Tabs fills viewport (ExpandableSection fixed overlay);
- *               TabsList hides; ↙ button visible at top-right of overlay
+ *               TabsList stays visible (no inline expand button); ↙ button at top-right of overlay
  *  - Escape exits fullscreen
  */
 function TabsWithExpand({
@@ -97,8 +97,17 @@ function TabsListInner({
 
   const { expanded, toggle } = expandContext;
 
-  // Hidden when expanded — ↙ button in ExpandableSection overlay handles exit
-  if (expanded) return null;
+  // When expanded: show tabs without inline expand button (ExpandableSection has its own minimize button)
+  if (expanded) {
+    return (
+      <TabsPrimitive.List
+        className={cn("inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 flex-1 min-w-0", className)}
+        {...props}
+      >
+        {children}
+      </TabsPrimitive.List>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2">
@@ -128,11 +137,15 @@ function TabsListWithExpand({
 }: React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & { expandKey: string }) {
   const [expanded, toggle] = useExpandedState(expandKey);
 
+  // When expanded: show tabs without inline expand button (ExpandableSection has its own minimize button)
   if (expanded) {
     return (
-      <div className="flex justify-end pb-1">
-        <ExpandButton expanded={true} onToggle={toggle} />
-      </div>
+      <TabsPrimitive.List
+        className={cn("inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 flex-1 min-w-0", className)}
+        {...props}
+      >
+        {children}
+      </TabsPrimitive.List>
     );
   }
 

@@ -175,7 +175,7 @@ export function ExpandButton({ expanded, onToggle, className }: ExpandButtonProp
  *     </ExpandableTabs.Section>
  *   </ExpandableTabs>
  *
- * When expanded: tab bar hides, content fills the viewport (matches Settings pattern).
+ * When expanded: tab bar stays visible, content fills the viewport.
  * Press Escape to exit fullscreen.
  */
 interface ExpandableTabsContextValue {
@@ -209,13 +209,12 @@ function ExpandableTabsListComponent({
   ...props
 }: React.ComponentProps<typeof TabsList>) {
   const { expanded, toggle } = React.useContext(ExpandableTabsContext);
-  // Hide tab bar when expanded — matches Settings pattern (content fills screen)
-  // Press Escape or click the minimize button in the expanded content to exit
+  // When expanded: show tabs without inline expand button (ExpandableSection has its own minimize button)
   if (expanded) {
     return (
-      <div className="flex justify-end pb-1">
-        <ExpandButton expanded={expanded} onToggle={toggle} />
-      </div>
+      <TabsList className={cn("flex-1 min-w-0", className)} {...props}>
+        {children}
+      </TabsList>
     );
   }
   return (

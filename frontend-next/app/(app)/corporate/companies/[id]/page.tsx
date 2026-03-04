@@ -598,6 +598,8 @@ export default function CompanyDetailPage() {
                       sourceType="corporate"
                       uploadScope="documents"
                       warehouseFolder={docTab.warehouseFolder}
+                      entityName={company?.name}
+                      entityCode={company?.code}
                     />
                   );
                 }
