@@ -23,6 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BackButton } from "@/components/ui/back-button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import {
@@ -622,6 +629,9 @@ export default function CompanyDetailPage() {
                       warehouseFolder={docTab.warehouseFolder}
                       entityName={company?.name}
                       entityCode={company?.code}
+                      selectedDocs={selectedDocs}
+                      onSelectionChange={setSelectedDocs}
+                      hideFloatingBar={true}
                     />
                   );
                 }
@@ -769,6 +779,78 @@ export default function CompanyDetailPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Cross-tab document selection floating bar */}
+      {selectedDocs.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2 bg-background border rounded-lg shadow-lg">
+          <span className="text-sm font-medium">
+            {selectedDocs.size} selected
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setComposeOpen(true);
+            }}
+          >
+            <Mail className="h-4 w-4 mr-1.5" />
+            Email
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-muted-foreground"
+            onClick={() => setSelectedDocs(new Map())}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Tab switch confirmation — keep selections across tabs? */}
+      <Dialog open={!!pendingTabId} onOpenChange={(open) => { if (!open) setPendingTabId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Keep selected documents?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            You have {selectedDocs.size} document{selectedDocs.size !== 1 ? "s" : ""} selected.
+            Keep them to combine with documents from the next tab?
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => confirmTabChange(false)}>
+              Clear &amp; Switch
+            </Button>
+            <Button onClick={() => confirmTabChange(true)}>
+              Keep &amp; Switch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email compose modal (SSoT: ComposeEmailModal) */}
+      {selectedDocs.size > 0 && (
+        <ComposeEmailModal
+          open={composeOpen}
+          onOpenChange={(open) => {
+            setComposeOpen(open);
+            if (!open) setSelectedDocs(new Map());
+          }}
+          defaultSubject={
+            selectedDocs.size === 1
+              ? Array.from(selectedDocs.values())[0]?.displayName || "Document"
+              : `${selectedDocs.size} Documents - ${company?.name || "Corporate"}`
+          }
+          skipSignature={true}
+          initialPreUploadedAttachments={Array.from(selectedDocs.values())
+            .filter(d => d.storagePath)
+            .map(d => ({
+              filename: d.originalFilename || d.displayName || "document",
+              storageKey: d.storagePath!,
+              fileSize: d.fileSize,
+            }))}
+        />
+      )}
     </div>
   );
 }
