@@ -22,6 +22,8 @@ interface HierarchicalTabsListProps {
   className?: string;
   /** Optional badge counts for child tabs, keyed by tab_key */
   badgeCounts?: Record<string, number | undefined>;
+  /** Optional badge counts for parent tabs (e.g., total photos). Shown instead of sub-tab count. */
+  parentBadgeCounts?: Record<string, number | undefined>;
   /** Expand button support — pass expanded + onToggle to show ↗ button at the right edge */
   expanded?: boolean;
   onToggle?: () => void;
@@ -54,6 +56,7 @@ export function HierarchicalTabsList({
   onTabChange,
   className,
   badgeCounts,
+  parentBadgeCounts,
   expanded,
   onToggle,
 }: HierarchicalTabsListProps) {
@@ -136,9 +139,9 @@ export function HierarchicalTabsList({
             >
               {showIcon && <IconComponent className="h-4 w-4" />}
               {showText && tab.display_name}
-              {showText && hasChildren && (
+              {showText && hasChildren && parentBadgeCounts?.[tab.tab_key] != null && (
                 <span className="text-xs text-muted-foreground ml-0.5">
-                  ({tab.children!.filter((c) => c.enabled).length})
+                  ({parentBadgeCounts[tab.tab_key]})
                 </span>
               )}
             </TabsPrimitive.Trigger>
@@ -154,9 +157,9 @@ export function HierarchicalTabsList({
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>{tab.display_name}</p>
-                    {hasChildren && (
+                    {hasChildren && parentBadgeCounts?.[tab.tab_key] != null && (
                       <p className="text-xs text-muted-foreground">
-                        {tab.children!.filter((c) => c.enabled).length} sub-tabs
+                        {parentBadgeCounts[tab.tab_key]} items
                       </p>
                     )}
                   </TooltipContent>

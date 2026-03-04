@@ -585,7 +585,26 @@ module Api
           end
         end
 
-        render json: { success: true, counts: counts }
+        # Parent-level badge counts (e.g., total photos across all photo sub-tabs)
+        parent_counts = {}
+        parent_tabs.each do |parent_tab|
+          photo_children = parent_tab.children.where(enabled: true, tab_type: "photo")
+          next unless photo_children.any?
+
+          photo_folder_ids = photo_children.pluck(:id)
+          # Include grandchildren (sub-sub folders) if any
+          grandchild_ids = WarehouseFolder.where(parent_id: photo_folder_ids).pluck(:id)
+          all_folder_ids = photo_folder_ids + grandchild_ids
+
+          count = WarehouseDocument.where(
+            warehouse_folder_id: all_folder_ids,
+            linkable_type: "Job",
+            linkable_id: @job.id
+          ).count
+          parent_counts[parent_tab.tab_key] = count if count > 0
+        end
+
+        render json: { success: true, counts: counts, parentCounts: parent_counts }
       end
 
       #   to_date: end date (default: today)

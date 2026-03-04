@@ -2768,6 +2768,8 @@ module Api
           source: wd.source_type,
           documentableType: wd.documentable_type,
           documentableId: wd.documentable_id,
+          # Document type (for admin navigation)
+          documentTypeId: wd.warehouse_folder_document_type&.document_type_id,
           # Names (SSoT from WarehouseDocument)
           displayName: wd.ui_name,
           sendName: wd.download_filename,  # Resolved via SendNameResolver

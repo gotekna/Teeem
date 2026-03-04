@@ -98,6 +98,7 @@ export interface LibraryDocument {
   isExpiringSoon: boolean;
   expiryStatus: string | null;
   daysUntilExpiry: number | null;
+  documentTypeId?: number | null;
 }
 
 // SSoT: SmTaskInfo type defined in warehouse/types.ts, re-exported here
@@ -876,6 +877,19 @@ export function StandardDocumentList({
                 By validating, you confirm you have reviewed this document and it is correct.
               </p>
               <div className="flex items-center gap-2 shrink-0">
+                {validationGateDoc.documentTypeId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      window.open(`/admin/system/document-types/${validationGateDoc.documentTypeId}`, "_blank");
+                    }}
+                    title="Edit document type naming & settings"
+                  >
+                    <FileText className="h-4 w-4 mr-1.5" />
+                    Edit Document Type
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => setValidationGateDoc(null)}
@@ -958,7 +972,15 @@ export function StandardDocumentList({
                       </Badge>
                     )}
                     {showVerifiedBadge && previewDoc.verified ? (
-                      <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+                      <Badge
+                        className={`text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 ${previewDoc.documentTypeId ? "cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors" : ""}`}
+                        onClick={() => {
+                          if (previewDoc.documentTypeId) {
+                            window.open(`/admin/system/document-types/${previewDoc.documentTypeId}`, "_blank");
+                          }
+                        }}
+                        title={previewDoc.documentTypeId ? "Click to edit document type settings" : undefined}
+                      >
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Verified{previewDoc.verifiedBy ? ` by ${previewDoc.verifiedBy}` : ""}{previewDoc.verifiedAt ? ` on ${new Date(previewDoc.verifiedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}
                       </Badge>
