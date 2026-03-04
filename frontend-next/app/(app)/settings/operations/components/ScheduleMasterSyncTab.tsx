@@ -170,6 +170,35 @@ export function ScheduleMasterSyncTab() {
   const [applyResult, setApplyResult] = useState<{ applied: number; errors: string[] } | null>(null);
   const [showIdentical, setShowIdentical] = useState(false);
 
+  // Reconcile state
+  type ReconcileMode = "verify" | "report" | "fix";
+  type ReconcileTableResult = {
+    status: string;
+    counts?: Record<string, number>;
+    issues?: string[];
+    master_count?: number;
+    master_no_sync_key?: number;
+    tenants?: Record<string, {
+      count: number;
+      missing?: { sync_key: string; name: string }[];
+      extra?: { sync_key: string; name: string }[];
+      diffs?: { sync_key: string; name: string; fields: { field: string; master: string; customer: string }[] }[];
+      no_sync_key?: number;
+      duplicates?: { sync_key: string; count: number; ids: number[] }[];
+    }>;
+  };
+  type ReconcileResult = {
+    pass?: boolean;
+    tables: Record<string, ReconcileTableResult>;
+    phases?: Record<string, Record<string, Record<string, unknown>>>;
+    verification?: { pass: boolean; tables: Record<string, ReconcileTableResult> };
+  };
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileMode, setReconcileMode] = useState<ReconcileMode | null>(null);
+  const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
+  const [reconcileError, setReconcileError] = useState<string | null>(null);
+  const [expandedReconcileTables, setExpandedReconcileTables] = useState<Set<string>>(new Set());
+
   // Fetch counts on mount
   const fetchCounts = useCallback(async () => {
     try {
@@ -233,6 +262,37 @@ export function ScheduleMasterSyncTab() {
 
   useEffect(() => {
     fetchCounts();
+  }, [fetchCounts]);
+
+  const handleReconcile = useCallback(async (mode: ReconcileMode) => {
+    try {
+      setReconciling(true);
+      setReconcileMode(mode);
+      setReconcileError(null);
+      setReconcileResult(null);
+      setExpandedReconcileTables(new Set());
+
+      const response = await api.post<{
+        success: boolean;
+        mode: string;
+        pass?: boolean;
+        tables?: Record<string, ReconcileTableResult>;
+        phases?: Record<string, Record<string, Record<string, unknown>>>;
+        verification?: { pass: boolean; tables: Record<string, ReconcileTableResult> };
+        error?: string;
+      }>("/api/v1/config_sync/reconcile", { mode }, { timeout: API_TIMEOUT_HEAVY_SYNC });
+
+      if (response?.success) {
+        setReconcileResult(response as ReconcileResult);
+        if (mode === "fix") fetchCounts();
+      } else {
+        setReconcileError(response?.error || "Unknown error");
+      }
+    } catch (err) {
+      setReconcileError(err instanceof Error ? err.message : "Failed to reconcile");
+    } finally {
+      setReconciling(false);
+    }
   }, [fetchCounts]);
 
   // Derived: selected source tenant info
@@ -856,10 +916,10 @@ export function ScheduleMasterSyncTab() {
 
           {/* Master tenant: single Sync All button — backend handles all tenants automatically */}
           {isMasterTenant && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Button
                 onClick={handleCascadeSync}
-                disabled={cascading || syncing}
+                disabled={cascading || syncing || reconciling}
                 variant="default"
               >
                 {cascading ? (
@@ -868,7 +928,198 @@ export function ScheduleMasterSyncTab() {
                   <><RefreshCw className="h-4 w-4 mr-2" />Sync All</>
                 )}
               </Button>
+              <Button
+                onClick={() => handleReconcile("verify")}
+                disabled={cascading || syncing || reconciling}
+                variant="outline"
+              >
+                {reconciling && reconcileMode === "verify" ? (
+                  <><Spinner className="h-4 w-4 mr-2" />Verifying...</>
+                ) : (
+                  <><GitCompare className="h-4 w-4 mr-2" />Verify</>
+                )}
+              </Button>
+              <Button
+                onClick={() => handleReconcile("report")}
+                disabled={cascading || syncing || reconciling}
+                variant="outline"
+              >
+                {reconciling && reconcileMode === "report" ? (
+                  <><Spinner className="h-4 w-4 mr-2" />Reporting...</>
+                ) : (
+                  <><GitCompare className="h-4 w-4 mr-2" />Report</>
+                )}
+              </Button>
+              <Button
+                onClick={() => handleReconcile("fix")}
+                disabled={cascading || syncing || reconciling}
+                variant="destructive"
+              >
+                {reconciling && reconcileMode === "fix" ? (
+                  <><Spinner className="h-4 w-4 mr-2" />Fixing...</>
+                ) : (
+                  <><GitCompare className="h-4 w-4 mr-2" />Fix All</>
+                )}
+              </Button>
               <span className="text-sm text-muted-foreground">Syncs all tenants ↔ TEEEM</span>
+            </div>
+          )}
+
+          {/* Reconcile results panel */}
+          {reconcileError && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
+              <div className="flex items-center gap-2 text-destructive text-sm">
+                <AlertCircle className="h-4 w-4" />
+                <span>Reconcile error: {reconcileError}</span>
+                <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => setReconcileError(null)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          )}
+          {reconcileResult && (
+            <div className="rounded-md border p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm">
+                    {reconcileMode === "fix" ? "Fix" : reconcileMode === "report" ? "Report" : "Verify"} Results
+                  </span>
+                  {(() => {
+                    const passResult = reconcileMode === "fix" ? reconcileResult.verification?.pass : reconcileResult.pass;
+                    return passResult !== undefined ? (
+                      <Badge variant={passResult ? "default" : "destructive"} className={passResult ? "bg-green-600" : ""}>
+                        {passResult ? "PASS" : "FAIL"}
+                      </Badge>
+                    ) : null;
+                  })()}
+                </div>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setReconcileResult(null)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+
+              {/* Fix mode: show phase summary */}
+              {reconcileMode === "fix" && reconcileResult.phases && Object.keys(reconcileResult.phases).length > 0 && (
+                <div className="text-xs text-muted-foreground space-y-1">
+                  {Object.entries(reconcileResult.phases).map(([tableKey, phases]) => (
+                    <div key={tableKey}>
+                      <span className="font-medium">{tableKey}:</span>{" "}
+                      {Object.entries(phases).map(([phaseName, data]) => {
+                        const summary = Object.entries(data as Record<string, unknown>)
+                          .map(([tenant, val]) => `${tenant}: ${typeof val === "object" ? JSON.stringify(val) : val}`)
+                          .join(", ");
+                        return <span key={phaseName} className="mr-2">{phaseName}({summary})</span>;
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Table-level results */}
+              {(() => {
+                const tables = reconcileMode === "fix"
+                  ? reconcileResult.verification?.tables
+                  : reconcileResult.tables;
+                if (!tables) return null;
+
+                return (
+                  <div className="space-y-1">
+                    {Object.entries(tables).map(([tableKey, data]) => {
+                      const isExpanded = expandedReconcileTables.has(tableKey);
+                      const hasTenantDetails = data.tenants && Object.values(data.tenants).some(
+                        (td) => td.missing || td.extra || td.diffs || td.duplicates || td.no_sync_key
+                      );
+                      const isExpandable = data.status === "fail" && (hasTenantDetails || data.issues);
+
+                      return (
+                        <div key={tableKey}>
+                          <div
+                            className={cn(
+                              "flex items-center gap-2 text-sm py-0.5",
+                              isExpandable && "cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1"
+                            )}
+                            onClick={() => {
+                              if (!isExpandable) return;
+                              setExpandedReconcileTables(prev => {
+                                const next = new Set(prev);
+                                if (next.has(tableKey)) next.delete(tableKey);
+                                else next.add(tableKey);
+                                return next;
+                              });
+                            }}
+                          >
+                            {isExpandable && (
+                              isExpanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />
+                            )}
+                            <Badge
+                              variant={data.status === "pass" ? "default" : "destructive"}
+                              className={cn("text-[10px] px-1 py-0", data.status === "pass" && "bg-green-600")}
+                            >
+                              {data.status === "pass" ? "OK" : "FAIL"}
+                            </Badge>
+                            <span className="font-mono">{tableKey}</span>
+                            {data.counts && (
+                              <span className="text-muted-foreground text-xs">
+                                ({Object.entries(data.counts).map(([t, c]) => `${t}: ${c}`).join(", ")})
+                              </span>
+                            )}
+                            {data.issues && !isExpanded && (
+                              <span className="text-destructive text-xs ml-auto">{data.issues.length} issue{data.issues.length !== 1 ? "s" : ""}</span>
+                            )}
+                          </div>
+
+                          {/* Expanded details */}
+                          {isExpanded && (
+                            <div className="ml-6 text-xs space-y-1 pb-1">
+                              {/* Verify mode: issues list */}
+                              {data.issues?.map((issue, i) => (
+                                <div key={i} className="text-amber-600 dark:text-amber-400">! {issue}</div>
+                              ))}
+
+                              {/* Report mode: per-tenant details */}
+                              {data.tenants && Object.entries(data.tenants).map(([tenantName, td]) => (
+                                <div key={tenantName} className="space-y-0.5">
+                                  <div className="font-medium">{tenantName} ({td.count} records)</div>
+                                  {td.missing && (
+                                    <div className="text-destructive ml-2">
+                                      Missing {td.missing.length}: {td.missing.slice(0, 5).map(m => m.name).join(", ")}
+                                      {td.missing.length > 5 && ` +${td.missing.length - 5} more`}
+                                    </div>
+                                  )}
+                                  {td.extra && (
+                                    <div className="text-amber-600 dark:text-amber-400 ml-2">
+                                      Extra {td.extra.length}: {td.extra.slice(0, 5).map(e => e.name).join(", ")}
+                                      {td.extra.length > 5 && ` +${td.extra.length - 5} more`}
+                                    </div>
+                                  )}
+                                  {td.diffs && (
+                                    <div className="text-blue-600 dark:text-blue-400 ml-2">
+                                      Diffs {td.diffs.length}: {td.diffs.slice(0, 3).map(d =>
+                                        `${d.name} (${d.fields.map(f => f.field).join(", ")})`
+                                      ).join("; ")}
+                                      {td.diffs.length > 3 && ` +${td.diffs.length - 3} more`}
+                                    </div>
+                                  )}
+                                  {td.duplicates && (
+                                    <div className="text-destructive ml-2">
+                                      Duplicate sync_keys: {td.duplicates.map(d => `${d.sync_key} (${d.count}x)`).join(", ")}
+                                    </div>
+                                  )}
+                                  {td.no_sync_key && (
+                                    <div className="text-amber-600 dark:text-amber-400 ml-2">
+                                      {td.no_sync_key} records without sync_key
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

@@ -499,6 +499,7 @@ Rails.application.routes.draw do
           put :update_table_mode  # Set sync direction for a single table
           post :toggle_template_sync  # Toggle SM template between synced/independent
           post :toggle_record_sync    # Toggle any ConfigSyncable record between synced/independent
+          post :reconcile             # Verify/report/fix sync discrepancies across all tenants
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"

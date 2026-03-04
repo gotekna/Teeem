@@ -1128,6 +1128,31 @@ module Api
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
+      # POST /api/v1/config_sync/reconcile
+      # TEEEM master only — verify, report, or fix sync discrepancies across all tenants.
+      #
+      # Params:
+      #   mode: "verify" (default) | "report" | "fix"
+      #   table: table key (default: "all")
+      def reconcile
+        return render json: { error: "Master tenant only" }, status: :forbidden unless current_tenant&.is_master_tenant?
+
+        table = params[:table].presence || "all"
+        mode = params[:mode].presence || "verify"
+
+        unless %w[verify report fix].include?(mode)
+          return render json: { error: "Invalid mode: #{mode}. Must be verify, report, or fix" }, status: :bad_request
+        end
+
+        reconciler = ConfigSyncReconciler.new
+        result = reconciler.send(mode.to_sym, table)
+        render json: { success: true, mode: mode, table: table, **result }
+      rescue ArgumentError => e
+        render json: { success: false, error: e.message }, status: :bad_request
+      rescue => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
       private
 
       # Filter out master record IDs that correspond to tenant records set to "independent"

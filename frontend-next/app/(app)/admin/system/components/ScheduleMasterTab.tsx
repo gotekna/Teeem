@@ -2661,6 +2661,23 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
   }, [showAllPOTasks, showClaims, ganttTemplateId]);
 
+  // Memoize initialFilters for Data View TeeemTableView to prevent
+  // unnecessary re-fetches when parent re-renders (e.g., sidebar expand/collapse)
+  const dataViewInitialFilters = React.useMemo(() => {
+    if (!dataViewTemplateId) return [];
+    if (dataViewTemplateId === -1) {
+      return [
+        { id: "template", column: "sm_template_ids", operator: "is_empty" as const, value: "", label: "No Template" },
+        ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
+      ];
+    }
+    const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
+    return [
+      { id: "template", column: "sm_template_ids", operator: "array_contains" as const, value: String(dataViewTemplateId), label: `Template: ${currentTemplate?.name || 'Selected'}` },
+      ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
+    ];
+  }, [dataViewTemplateId, selectedTagFilter, templates]);
+
   if (loading) {
     return <LoadingOverlay />;
   }
@@ -3059,22 +3076,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                   : "PO Schedule Master"
               }
               autoFetchRecords={!!dataViewTemplateId || !!effectiveViewSlug}
-              initialFilters={dataViewTemplateId ? (() => {
-                // SSoT: Template filter is ALWAYS applied, even when a saved view is active
-                // Views add additional filters on TOP of the template filter
-                // Special case: -1 means "no template selected" - filter for empty sm_template_ids
-                if (dataViewTemplateId === -1) {
-                  return [
-                    { id: "template", column: "sm_template_ids", operator: "is_empty" as const, value: "", label: "No Template" },
-                    ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
-                  ];
-                }
-                const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
-                return [
-                  { id: "template", column: "sm_template_ids", operator: "array_contains" as const, value: String(dataViewTemplateId), label: `Template: ${currentTemplate?.name || 'Selected'}` },
-                  ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
-                ];
-              })() : []}
+              initialFilters={dataViewInitialFilters}
               onRefresh={() => {
                 setDataViewRefreshKey(prev => prev + 1);
               }}
