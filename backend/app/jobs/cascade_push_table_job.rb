@@ -27,15 +27,12 @@ class CascadePushTableJob < ApplicationJob
     customer_tenants = Tenant.where(is_master_tenant: false).to_a
     has_sync_key = model.column_names.include?("sync_key")
 
-    # ── Phase 0: Pull from ALL customer tenants → TEEEM ──────────────────
+    # ⚠️ FRC (Mar 2026): Phase 0 (pull customers → TEEEM) REMOVED.
+    # Root cause: import_from_tenant creates duplicates when customer has
+    # same-named record with a different sync_key. find_match returns nil
+    # (both have sync_keys that differ) → creates second "Build - Escalation".
+    # TEEEM is SSoT — cascade push should only push, never pull.
     master_svc = TenantConfigSyncService.new(tenant)
-    customer_tenants.each do |source_t|
-      ActsAsTenant.with_tenant(source_t) do
-        source_ids = scoped_model(model, table_config).pluck(:id)
-        next if source_ids.empty?
-        master_svc.import_from_tenant(source_tenant: source_t, table: table.to_s, record_ids: source_ids)
-      end
-    end
 
     # ── Step 1: Apply tombstones ──────────────────────────────────────────
     pending_tombstones = has_sync_key ? ConfigSyncDeletion.where(

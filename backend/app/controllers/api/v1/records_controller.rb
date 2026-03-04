@@ -626,7 +626,7 @@ module Api
           # Cursor-based pagination (for infinite scroll)
           # Format: cursor is the ID of the last record from previous page
           cursor_id = params[:cursor]&.to_i || 0
-          limit = [params[:limit]&.to_i || 50, 100].min # Default 50, max 100 per request
+          limit = [params[:limit]&.to_i || 50, 500].min # Default 50, max 500 per request
 
           # CRITICAL: When using cursor pagination, we MUST sort by the cursor field (id)
           # to ensure consistent pagination. Sorting by created_at with id cursor causes

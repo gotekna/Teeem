@@ -100,23 +100,31 @@ export function ExpandableSection({
     };
   }, [expanded]);
 
-  if (!expanded) {
-    // No wrapper when collapsed — must be transparent to preserve parent flex/height chains
-    return <>{children}</>;
-  }
-
+  // ⚠️ DO NOT SIMPLIFY - Same div wrapper in both states prevents React remount (Mar 2026)
+  // ════════════════════════════════════════════════════════════════════════════
+  // Why: Switching between <Fragment> (collapsed) and <div> (expanded) changes
+  //      the element type at the same tree position. React unmounts the entire
+  //      subtree and remounts from scratch, causing TeeemTableView to re-fetch
+  //      all records (frustrating "400 of 407" restart for end users).
+  // ❌ WRONG: if (!expanded) return <>{children}</>  (Fragment vs div = remount)
+  // ✅ CORRECT: Always render <div>, toggle classes (same element = no remount)
+  // ════════════════════════════════════════════════════════════════════════════
   return (
     <div
       className={cn(
-        "fixed top-24 left-0 md:left-[var(--sidebar-width)] right-0 bottom-0 bg-background flex flex-col z-50 transition-[left] duration-300",
-        className
+        expanded
+          ? "fixed top-24 left-0 md:left-[var(--sidebar-width)] right-0 bottom-0 bg-background flex flex-col z-50 transition-[left] duration-300"
+          : "contents",
+        expanded && className
       )}
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+      style={expanded ? { "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties : undefined}
     >
-      {/* Minimize button - always visible inside the overlay so users can exit regardless of layout */}
-      <div className="absolute top-2 right-2 z-[51]">
-        <ExpandButton expanded={true} onToggle={onToggle} />
-      </div>
+      {/* Minimize button - only visible when expanded */}
+      {expanded && (
+        <div className="absolute top-2 right-2 z-[51]">
+          <ExpandButton expanded={true} onToggle={onToggle} />
+        </div>
+      )}
       {children}
     </div>
   );
