@@ -55,6 +55,7 @@ const SM_SYNC_TABLES = [
   { key: "tenders", label: "Tender Sections", defaultMode: "one_way" as const },
   { key: "claim_stage_templates", label: "Claim Templates", defaultMode: "one_way" as const },
   { key: "claim_stage_template_lines", label: "Claim Template Lines", defaultMode: "two_way" as const },
+  { key: "foundation_views", label: "Global Views", defaultMode: "one_way" as const },
 ] as const;
 
 // Parent → child table links: changing parent mode also changes children

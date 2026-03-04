@@ -38,7 +38,8 @@ import {
   Mail,
   Map,
   Tag,
-  Package
+  Package,
+  Eye
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -81,6 +82,7 @@ const GROUP_ICONS: Record<string, React.ReactNode> = {
   whs: <ShieldCheck className="h-4 w-4" />,
   email: <Mail className="h-4 w-4" />,
   plans: <Map className="h-4 w-4" />,
+  views: <Eye className="h-4 w-4" />,
 };
 
 interface TenantInfo {
