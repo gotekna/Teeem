@@ -333,8 +333,14 @@ class ConfigSyncReconciler
     when "sm_schedule_master_templates"
       base.where("name ILIKE ?", "Teeem%")
     when "sm_schedule_masters"
+      # sm_schedule_masters uses sm_template_ids JSONB array, NOT a FK column
       teeem_tmpl_ids = SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
-      base.where(sm_schedule_master_template_id: teeem_tmpl_ids)
+      if teeem_tmpl_ids.any?
+        conditions = teeem_tmpl_ids.map { |id| "sm_template_ids @> '[#{id.to_i}]'::jsonb" }
+        base.where(conditions.join(" OR "))
+      else
+        base.none
+      end
     else
       base
     end

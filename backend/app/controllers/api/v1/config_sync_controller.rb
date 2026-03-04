@@ -1122,7 +1122,13 @@ module Api
           tmpl_names += master_only_names
           excluded_master_ids = ActsAsTenant.with_tenant(master_tenant) do
             master_tmpl_ids = SmScheduleMasterTemplate.where("LOWER(name) IN (?)", tmpl_names).pluck(:id)
-            SmScheduleMaster.where(sm_schedule_master_template_id: master_tmpl_ids).pluck(:id)
+            # sm_schedule_masters uses sm_template_ids JSONB array, NOT a FK column
+            if master_tmpl_ids.any?
+              conditions = master_tmpl_ids.map { |id| "sm_template_ids @> '[#{id.to_i}]'::jsonb" }
+              SmScheduleMaster.where(conditions.join(" OR ")).pluck(:id)
+            else
+              []
+            end
           end if tmpl_names.any?
 
         when "sm_schedule_master_templates"
@@ -1168,12 +1174,13 @@ module Api
           count += Tender.where(tender_header_id: record.id).where.not(sync_key: nil).update_all(sync_key: nil)
         when "sm_schedule_master_templates"
           # Template → clear sync_keys on all SM tasks belonging to this template
-          count += SmScheduleMaster.where(sm_schedule_master_template_id: record.id)
+          # sm_schedule_masters uses sm_template_ids JSONB array, NOT a FK column
+          count += SmScheduleMaster.where("sm_template_ids @> ?", [record.id].to_json)
                                    .where.not(sync_key: nil).update_all(sync_key: nil)
         when "sm_schedule_masters"
-          # Task → clear sync_key on the parent template (bidirectional)
-          tmpl = record.sm_schedule_master_template
-          if tmpl&.sync_key.present?
+          # Task → clear sync_key on parent templates (bidirectional)
+          # sm_schedule_masters uses sm_template_ids JSONB array (can belong to multiple templates)
+          record.sm_schedule_master_templates.where.not(sync_key: nil).find_each do |tmpl|
             tmpl.update_column(:sync_key, nil)
             count += 1
           end
@@ -1218,7 +1225,8 @@ module Api
           end
         when "sm_schedule_master_templates"
           # Template → regenerate sync_keys on all SM tasks belonging to this template
-          SmScheduleMaster.where(sm_schedule_master_template_id: record.id, sync_key: [nil, ""]).find_each do |task|
+          # sm_schedule_masters uses sm_template_ids JSONB array, NOT a FK column
+          SmScheduleMaster.where("sm_template_ids @> ?", [record.id].to_json).where(sync_key: [nil, ""]).find_each do |task|
             task.generate_sync_key if task.respond_to?(:generate_sync_key)
             if task.sync_key_changed?
               task.save!
@@ -1226,10 +1234,10 @@ module Api
             end
           end
         when "sm_schedule_masters"
-          # Task → regenerate sync_key on the parent template (bidirectional)
-          tmpl = record.sm_schedule_master_template
-          if tmpl && tmpl.sync_key.blank? && tmpl.respond_to?(:generate_sync_key)
-            tmpl.generate_sync_key
+          # Task → regenerate sync_key on parent templates (bidirectional)
+          # sm_schedule_masters uses sm_template_ids JSONB array (can belong to multiple templates)
+          record.sm_schedule_master_templates.where(sync_key: [nil, ""]).find_each do |tmpl|
+            tmpl.generate_sync_key if tmpl.respond_to?(:generate_sync_key)
             if tmpl.sync_key_changed?
               tmpl.save!
               count += 1
@@ -1258,8 +1266,13 @@ module Api
               when "sm_schedule_master_templates"
                 SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").count
               when "sm_schedule_masters"
-                teeem_ids = SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
-                teeem_ids.any? ? SmScheduleMaster.where(sm_schedule_master_template_id: teeem_ids).count : 0
+                teeem_tmpl_ids = SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
+                if teeem_tmpl_ids.any?
+                  conditions = teeem_tmpl_ids.map { |id| "sm_template_ids @> '[#{id.to_i}]'::jsonb" }
+                  SmScheduleMaster.where(conditions.join(" OR ")).count
+                else
+                  0
+                end
               when "po_template_packs"
                 teeem_pack_ids.size
               when "po_template_items"
