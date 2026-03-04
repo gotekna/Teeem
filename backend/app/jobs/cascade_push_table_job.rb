@@ -30,18 +30,26 @@ class CascadePushTableJob < ApplicationJob
     master_svc = TenantConfigSyncService.new(tenant)
 
     # ── Phase 0: Pull customer edits → TEEEM (two-way tables only) ──────
-    # For two-way tables, pull ALL customer records back to TEEEM.
-    # import_from_tenant matches by sync_key — existing records get updated,
-    # new records (unique sync_keys) get created in TEEEM.
-    # Safe because: .dup clears sync_key (no false matches), collision
-    # detection in generate_sync_key prevents name-based duplicates.
+    # For two-way tables, pull customer edits back to TEEEM so name changes
+    # etc. flow back. source_newer? ensures only genuinely newer edits win.
+    #
+    # ⚠️ ONLY pull records whose sync_key already exists in TEEEM.
+    # This prevents importing customer records that were just pushed by a
+    # previous sync (which would create duplicates in a feedback loop).
+    # Customer-created records (with unique sync_keys) won't be pulled —
+    # they stay local until manually promoted.
     if has_sync_key
+      master_sync_key_set = ActsAsTenant.with_tenant(tenant) {
+        scoped_model(model, table_config).where.not(sync_key: [nil, ""]).pluck(:sync_key)
+      }
+
       customer_tenants.each do |t|
         t_mode = table_mode(table, t)
         next unless t_mode == "two_way"
+        next if master_sync_key_set.empty?
 
         customer_record_ids = ActsAsTenant.with_tenant(t) {
-          scoped_model(model, table_config).where.not(sync_key: [nil, ""]).pluck(:id)
+          scoped_model(model, table_config).where(sync_key: master_sync_key_set).pluck(:id)
         }
         next if customer_record_ids.empty?
 
