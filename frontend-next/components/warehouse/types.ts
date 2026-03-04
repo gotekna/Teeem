@@ -77,6 +77,8 @@ export interface TreeNode {
   onLoadMore?: () => void;
   // Email folder type for live_folder_tree drill-down ("mailbox" | "body" | "attachments")
   emailFolderType?: string;
+  // Configured warehouse folder child - always expandable even before S3 fetch
+  isConfiguredFolder?: boolean;
 }
 
 export type TreeDisplayMode = "list" | "gallery";

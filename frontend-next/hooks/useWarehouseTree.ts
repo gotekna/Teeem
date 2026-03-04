@@ -783,6 +783,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         fileCount: folder.fileCount,
         sourceType,
         isVirtual,
+        isConfiguredFolder: true,
         children: [...children, ...excludeConfiguredS3Folders(s3SubFolders, children), ...s3Files],
       };
     };

@@ -41,7 +41,7 @@ const SM_SYNC_TABLES = [
   { key: "sm_schedule_master_templates", label: "SM Templates", defaultMode: "two_way" as const },
   { key: "sm_task_groups", label: "Task Groups", defaultMode: "two_way" as const },
   { key: "bpmn_processes", label: "Workflows", defaultMode: "two_way" as const },
-  { key: "sm_schedule_masters", label: "SM Tasks", defaultMode: "two_way" as const },
+  { key: "sm_schedule_masters", label: "Schedule Master", defaultMode: "two_way" as const },
   { key: "sm_schedule_master_document_types", label: "SM Document Types", defaultMode: "two_way" as const },
   { key: "sm_schedule_master_related_pos", label: "Related PO Links", defaultMode: "one_way" as const },
   { key: "sm_hold_reasons", label: "Hold Reasons", defaultMode: "two_way" as const },

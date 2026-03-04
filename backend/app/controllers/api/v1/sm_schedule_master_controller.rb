@@ -570,6 +570,7 @@ module Api
           document_ref_type_ids: row.document_ref_type_ids || [],
           document_ref_type_names: document_ref_type_names_for(row),
           is_active: row.is_active,
+          exclude_from_gantt: row.exclude_from_gantt,
           # Task group for PO/non-PO grouping
           sm_task_group_id: row.sm_task_group_id,
           sm_task_group_name: row.sm_task_group&.name,

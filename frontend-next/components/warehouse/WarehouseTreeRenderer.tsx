@@ -333,7 +333,7 @@ export function WarehouseTreeRenderer({
           }}
           title={node.fullPath || undefined}
         >
-          {!node.externalLink && !(node.isMailbox && node.mailboxEmail) && (hasChildren || fileCount > 0 || node.isVirtual || node.emailFolderType || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
+          {!node.externalLink && !(node.isMailbox && node.mailboxEmail) && (hasChildren || fileCount > 0 || node.isVirtual || node.emailFolderType || node.isConfiguredFolder || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
             isLoading ? (
               <Loader2 className="h-4 w-4 text-muted-foreground animate-spin shrink-0" />
             ) : (
