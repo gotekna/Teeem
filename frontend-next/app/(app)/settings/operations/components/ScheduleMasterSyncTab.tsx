@@ -284,7 +284,7 @@ export function ScheduleMasterSyncTab() {
 
       if (response?.success) {
         setReconcileResult(response as ReconcileResult);
-        if (mode === "fix") fetchCounts();
+        if (mode === "fix") await fetchCounts();
       } else {
         setReconcileError(response?.error || "Unknown error");
       }
