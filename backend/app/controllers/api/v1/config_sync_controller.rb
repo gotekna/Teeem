@@ -115,9 +115,9 @@ module Api
 
         result = service.pull_from_master(
           table: pull_params[:table],
-          record_ids: pull_params[:record_ids].map(&:to_i),
+          record_ids: extract_record_ids(pull_params[:record_ids]),
           mode: (pull_params[:mode] || "add_new").to_sym,
-          price_markup_percent: pull_params[:price_markup_percent].to_f
+          price_markup_percent: pull_params[:price_markup_percent]&.to_f || 0
         )
 
         if result[:success]
@@ -787,7 +787,7 @@ module Api
         result = service.import_from_tenant(
           source_tenant: current_tenant,
           table: push_params[:table],
-          record_ids: push_params[:record_ids].map(&:to_i)
+          record_ids: extract_record_ids(push_params[:record_ids])
         )
 
         if result[:success]
@@ -1044,6 +1044,19 @@ module Api
 
       private
 
+      # FRC: Frontend may send record_ids as plain integers OR as objects [{id:1},{id:2}]
+      # depending on middleware/serialization. Handle both without crashing.
+      def extract_record_ids(raw_ids)
+        Array(raw_ids).filter_map do |element|
+          case element
+          when Integer then element
+          when String then element.to_i
+          when Hash then (element["id"] || element[:id])&.to_i
+          when ActionController::Parameters then (element["id"] || element[:id])&.to_i
+          end
+        end.select(&:positive?)
+      end
+
       # Filter out master record IDs that correspond to tenant records set to "independent"
       # Per-record modes are stored as:
       #   "table_key:record_id" → "independent" for locally-existing records
@@ -1266,10 +1279,15 @@ module Api
               when "sm_schedule_master_templates"
                 SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").count
               when "sm_schedule_masters"
-                # Sum per-template so parent count = sum of expanded template rows.
-                # A record in both templates counts in each (matches expanded view UX).
+                # Distinct count: a task in multiple templates counts once in the parent row.
+                # Expanded children show per-template counts; parent shows unique tasks.
                 teeem_tmpl_ids = SmScheduleMasterTemplate.where("name ILIKE ?", "Teeem%").pluck(:id)
-                teeem_tmpl_ids.sum { |id| SmScheduleMaster.where("sm_template_ids @> ?", [id].to_json).count }
+                if teeem_tmpl_ids.any?
+                  conditions = teeem_tmpl_ids.map { |id| "sm_template_ids @> '[#{id.to_i}]'::jsonb" }
+                  SmScheduleMaster.where(conditions.join(" OR ")).distinct.count
+                else
+                  0
+                end
               when "po_template_packs"
                 PoTemplatePack.where("name ILIKE ?", "Teeem%").count
               when "po_template_items"
