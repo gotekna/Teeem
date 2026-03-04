@@ -37,6 +37,7 @@ const TAB_KEY_TO_COMPONENT: Record<string, string> = {
   "trusts": "TrustsTab",
   // Activity tab
   "activity": "ActivityTab",
+  "activity-main": "ActivityTab",
 };
 
 interface OverviewTabRendererProps {

@@ -23,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BackButton } from "@/components/ui/back-button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import {
   Building2,
   Users,
@@ -92,6 +94,7 @@ export default function CompanyDetailPage() {
   const router = useRouter();
   const pathname = usePathname();
   const companyId = params.id as string;
+  const [expanded, toggleExpanded] = useExpandedState("corporate-company");
 
   const [loading, setLoading] = React.useState(true);
   const [company, setCompany] = React.useState<Company | null>(null);
@@ -190,7 +193,7 @@ export default function CompanyDetailPage() {
     if (!overviewTab?.children) return [];
     // Filter to overview tabs that have renderable components
     // Exclude system/redirect tabs like "data-main" that have no overview component
-    const SYSTEM_TAB_KEYS = ["data-main", "activity-main"];
+    const SYSTEM_TAB_KEYS = ["data-main"];
     return overviewTab.children
       .filter((child) => child.tab_group === "overview" && !SYSTEM_TAB_KEYS.includes(child.tab_key))
       .map((child) => ({
@@ -452,120 +455,85 @@ export default function CompanyDetailPage() {
         </div>
 
         {/* Main Tabs - inside sticky header */}
-        {/* SSoT: Main tabs (Overview) from API, document tabs from API */}
-        <div className="border-b px-3 shrink-0">
-        <div className="flex flex-wrap gap-1 pb-2">
-          {/* Main tabs from API (Overview, etc.) - SSoT: tab_group='main' */}
-          {entityMainTabs.map((tab) => {
-            const Icon = tab.icon ? getIcon(tab.icon) : Building2;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={cn(
-                  "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                  activeTab === tab.id
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+        {/* SSoT: Standard Tabs component matching settings page pattern */}
+        <div className="px-3 pb-2 shrink-0">
+          <Tabs value={activeTab || ""} onValueChange={handleTabChange}>
+            <div className="flex items-start gap-2">
+              <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
+                {/* Main tabs from API (Overview, etc.) - SSoT: tab_group='main' */}
+                {entityMainTabs.map((tab) => {
+                  const Icon = tab.icon ? getIcon(tab.icon) : Building2;
+                  return (
+                    <TabsTrigger key={tab.id} value={tab.id}>
+                      <Icon className="h-4 w-4 mr-1.5" />
+                      {tab.name}
+                    </TabsTrigger>
+                  );
+                })}
+                {/* Fallback Overview tab if API hasn't loaded main tabs yet */}
+                {entityMainTabs.length === 0 && (
+                  <TabsTrigger value="overview">
+                    <Building2 className="h-4 w-4 mr-1.5" />
+                    Overview
+                  </TabsTrigger>
                 )}
-              >
-                <Icon className="h-4 w-4 mr-2" />
-                {tab.name}
-              </button>
-            );
-          })}
-          {/* Fallback Overview button if API hasn't loaded main tabs yet */}
-          {entityMainTabs.length === 0 && (
-            <button
-              onClick={() => handleTabChange("overview")}
-              className={cn(
-                "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                activeTab === "overview"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-              )}
-            >
-              <Building2 className="h-4 w-4 mr-2" />
-              Overview
-            </button>
-          )}
-          {computedDocumentTabs.map((tab) => {
-            const Icon = tab.icon;
-            // Map tab id to count key (handle naming differences)
-            const countKey = tab.id === "assets-docs" ? "assets-docs" :
-                            tab.id === "dividends-docs" ? "dividends-docs" :
-                            tab.id === "loans-docs" ? "loans-docs" :
-                            tab.id === "minutes-docs" ? "minutes-docs" :
-                            tab.id;
-            const count = documentCounts[countKey] || 0;
-            const showCount = !["documents-main", "data-main", "activity-main"].includes(tab.id);
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={cn(
-                  "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                  activeTab === tab.id
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                )}
-              >
-                <Icon className="h-4 w-4 mr-2" />
-                {tab.name}
-                {showCount && count > 0 && (
-                  <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          {/* Warehouse tab - only shows if warehouse tab exists in API */}
-          {entityTabs.some(t => t.tab_key === 'warehouse' && t.enabled) && (() => {
-            const WarehouseIcon = getIcon('Warehouse');
-            return (
-              <button
-                onClick={() => handleTabChange("warehouse")}
-                className={cn(
-                  "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                  activeTab === "warehouse"
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                )}
-              >
-                <WarehouseIcon className="h-4 w-4 mr-2" />
-                Warehouse
-              </button>
-            );
-          })()}
+                {computedDocumentTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const countKey = tab.id === "assets-docs" ? "assets-docs" :
+                                  tab.id === "dividends-docs" ? "dividends-docs" :
+                                  tab.id === "loans-docs" ? "loans-docs" :
+                                  tab.id === "minutes-docs" ? "minutes-docs" :
+                                  tab.id;
+                  const count = documentCounts[countKey] || 0;
+                  const showCount = !["documents-main", "data-main", "activity-main"].includes(tab.id);
+                  return (
+                    <TabsTrigger key={tab.id} value={tab.id}>
+                      <Icon className="h-4 w-4 mr-1.5" />
+                      {tab.name}
+                      {showCount && count > 0 && (
+                        <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-background/50">
+                          {count}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+                {/* Warehouse tab - only shows if warehouse tab exists in API */}
+                {entityTabs.some(t => t.tab_key === 'warehouse' && t.enabled) && (() => {
+                  const WarehouseIcon = getIcon('Warehouse');
+                  return (
+                    <TabsTrigger value="warehouse">
+                      <WarehouseIcon className="h-4 w-4 mr-1.5" />
+                      Warehouse
+                    </TabsTrigger>
+                  );
+                })()}
+              </TabsList>
+              <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+            </div>
+          </Tabs>
         </div>
-        </div>
+
+        {/* Overview Sub-tabs - inside sticky header so they don't scroll away */}
+        {activeTab === "overview" && computedOverviewTabs.length > 0 && (
+          <div className="px-3 pb-2 shrink-0">
+            <Tabs value={overviewSubTab} onValueChange={handleSubTabChange}>
+              <TabsList className="flex-wrap h-auto gap-1">
+                {computedOverviewTabs.map((subTab) => (
+                  <TabsTrigger key={subTab.id} value={subTab.id}>
+                    {subTab.name}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
       </div>
 
       {/* Tab Content - scrollable area below sticky header */}
       <div className="flex-1 min-h-0 px-3 pb-3 overflow-auto">
           {activeTab === "overview" && (
-            <div className="space-y-6">
-              {/* Overview Sub-tabs - SSoT: From CorporateEntityTab API based on entity type */}
-              <div className="border-b">
-                <nav className="-mb-px flex gap-6">
-                  {computedOverviewTabs.map((subTab) => (
-                    <button
-                      key={subTab.id}
-                      onClick={() => handleSubTabChange(subTab.id)}
-                      className={cn(
-                        "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
-                        overviewSubTab === subTab.id
-                          ? "border-primary text-primary"
-                          : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                      )}
-                    >
-                      {subTab.name}
-                    </button>
-                  ))}
-                </nav>
-              </div>
-
+            <div className="pt-4">
               {/* Overview Sub-tab Content - Dynamic rendering from registry */}
               <OverviewTabRenderer
                 tabKey={overviewSubTab}
@@ -616,7 +584,7 @@ export default function CompanyDetailPage() {
             <CompanyDocumentsTab companyId={companyId} company={company} category="all" />
           )}
           {/* Data tab redirects to /admin/system?tab=data-warehouse&company_id={id} */}
-          {activeTab === "activity-main" && <ActivityTab />}
+          {activeTab === "activity-main" && <ActivityTab companyId={companyId} />}
       </div>
 
       {/* Company Edit Sheet */}

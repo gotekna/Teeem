@@ -289,16 +289,26 @@ module Api
 
       # GET /api/v1/companies/:id/activities
       def activities
-        activities = @company.corporate_activities
+        per_page = (params[:per_page] || 25).to_i
+        current_page = (params[:page] || 1).to_i
+        all_activities = @company.corporate_activities
           .includes(:user)
           .order(created_at: :desc)
-          .limit(params[:limit]&.to_i || 50)
+        total_count = all_activities.count
+        total_pages = (total_count.to_f / per_page).ceil
+        paginated = all_activities.offset((current_page - 1) * per_page).limit(per_page)
 
         render json: {
           success: true,
-          activities: activities.as_json(
-            methods: [ :formatted_activity_type, :performed_by_name, :time_ago ]
-          )
+          activities: paginated.as_json(
+            methods: [ :formatted_activity_type, :performed_by_name, :time_ago, :icon_name, :icon_color ]
+          ),
+          meta: {
+            total_pages: total_pages,
+            total_count: total_count,
+            current_page: current_page,
+            per_page: per_page
+          }
         }
       end
 

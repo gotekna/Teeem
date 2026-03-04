@@ -49,4 +49,33 @@ class CorporateActivity < ApplicationRecord
       created_at.strftime("%d %b %Y %l:%M %p")
     end
   end
+
+  def icon_name
+    case activity_type
+    when "company_created" then "plus-circle"
+    when "company_updated" then "pencil"
+    when "director_appointed" then "user-plus"
+    when "director_resigned" then "user-minus"
+    when /bank_account_added/ then "landmark"
+    when /bank_account_closed/ then "landmark"
+    when "minute_created" then "document-text"
+    when /xero/ then "arrow-path-rounded-square"
+    when /asset/ then "package"
+    else "information-circle"
+    end
+  end
+
+  def icon_color
+    case activity_type
+    when "company_created", "xero_connected" then "green"
+    when "company_updated" then "blue"
+    when "director_appointed" then "indigo"
+    when "director_resigned", "bank_account_closed", "xero_disconnected" then "red"
+    when "bank_account_added" then "purple"
+    when "minute_created" then "cyan"
+    when /bank_accounts_synced/, /xero.*synced/ then "sky"
+    when /asset/ then "orange"
+    else "gray"
+    end
+  end
 end
