@@ -41,10 +41,11 @@ import {
 import { DocumentViewer } from "@/components/ui/document-viewer";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { Input } from "@/components/ui/input";
-import { Upload, FileText, FolderOpen, CalendarDays, X } from "lucide-react";
+import { Upload, FileText, FolderOpen, CalendarDays, X, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
+import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import type { UploadScope } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { formatFileSize } from "@/utils/formatters";
@@ -54,7 +55,7 @@ import {
   type SmTaskRequiredDocType,
 } from "@/components/documents/StandardDocumentList";
 import type { SmTaskInfo } from "@/components/warehouse/types";
-import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
+import type { WarehouseFolder, WarehouseFolderDocumentType } from "@/lib/types/warehouse-folders";
 
 export interface EntityDocumentListTabProps {
   entityId: number | string;
@@ -66,6 +67,12 @@ export interface EntityDocumentListTabProps {
   entityName?: string;
   /** Entity code for template preview (e.g. company code, job code) */
   entityCode?: string;
+  /** Controlled selection - parent manages the Map (for cross-tab persistence) */
+  selectedDocs?: Map<number, LibraryDocument>;
+  /** Controlled selection change handler */
+  onSelectionChange?: (docs: Map<number, LibraryDocument>) => void;
+  /** Hide the built-in floating action bar (parent renders its own cross-tab bar) */
+  hideFloatingBar?: boolean;
 }
 
 /** Inline date picker with manual text input + calendar with year dropdown */
@@ -170,6 +177,9 @@ export default function EntityDocumentListTab({
   warehouseFolder,
   entityName,
   entityCode,
+  selectedDocs: controlledSelectedDocs,
+  onSelectionChange,
+  hideFloatingBar,
 }: EntityDocumentListTabProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -182,10 +192,16 @@ export default function EntityDocumentListTab({
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
 
+  // Email compose state
+  const [emailDocs, setEmailDocs] = useState<LibraryDocument[]>([]);
+  const [composeOpen, setComposeOpen] = useState(false);
+
   // Upload dialog state
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [selectedDocTypeId, setSelectedDocTypeId] = useState<string>("");
+  // Fresh document types — re-fetched each time upload dialog opens
+  const [freshDocTypes, setFreshDocTypes] = useState<WarehouseFolderDocumentType[] | null>(null);
   const [signingStatus, setSigningStatus] = useState<"draft" | "signed">("draft");
   const [executedDate, setExecutedDate] = useState<Date | undefined>(undefined);
   const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
@@ -193,6 +209,23 @@ export default function EntityDocumentListTab({
   // Preview state
   const [previewFileIndex, setPreviewFileIndex] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Fetch fresh document types when upload dialog opens
+  useEffect(() => {
+    if (!uploadDialogOpen) return;
+    let cancelled = false;
+    api.get<{ success: boolean; data: WarehouseFolder }>(
+      `/api/v1/warehouse_folders/${warehouseFolder.id}`
+    ).then((res) => {
+      if (!cancelled && res?.success && res.data?.document_types) {
+        setFreshDocTypes(res.data.document_types);
+      }
+    }).catch(() => { /* keep using prop data as fallback */ });
+    return () => { cancelled = true; };
+  }, [uploadDialogOpen, warehouseFolder.id]);
+
+  // Use fresh doc types if available, fallback to prop
+  const activeDocTypes = freshDocTypes ?? warehouseFolder.document_types ?? [];
 
   // Create/revoke blob URL for preview
   useEffect(() => {
@@ -223,8 +256,8 @@ export default function EntityDocumentListTab({
 
   // Detect if selected doc type needs signing status or special date fields
   const selectedDocTypeObj = React.useMemo(
-    () => warehouseFolder.document_types?.find(d => String(d.id) === selectedDocTypeId),
-    [warehouseFolder.document_types, selectedDocTypeId]
+    () => activeDocTypes.find(d => String(d.id) === selectedDocTypeId),
+    [activeDocTypes, selectedDocTypeId]
   );
 
   // Resolve name templates client-side for live preview
@@ -357,16 +390,16 @@ export default function EntityDocumentListTab({
       setSelectedDocTypeId(preSelectedDocTypeRef.current);
       preSelectedDocTypeRef.current = null;
     } else {
-      const docTypes = warehouseFolder.document_types || [];
-      const primary = docTypes.find(dt => dt.is_primary) || docTypes[0];
+      const primary = activeDocTypes.find(dt => dt.is_primary) || activeDocTypes[0];
       setSelectedDocTypeId(primary ? String(primary.id) : "");
     }
+    setFreshDocTypes(null); // Clear so effect re-fetches on dialog open
     setUploadDialogOpen(true);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [warehouseFolder.document_types]);
+  }, [activeDocTypes]);
 
   // Upload for a specific required doc type (from placeholder row)
   const preSelectedDocTypeRef = useRef<string | null>(null);
@@ -485,6 +518,12 @@ export default function EntityDocumentListTab({
     }
   }, [toast]);
 
+  // Email selected documents
+  const handleEmail = useCallback((docs: LibraryDocument[]) => {
+    setEmailDocs(docs);
+    setComposeOpen(true);
+  }, []);
+
   // Drag-and-drop handlers
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -520,11 +559,11 @@ export default function EntityDocumentListTab({
 
     setPendingFiles(Array.from(files));
     setPreviewFileIndex(0);
-    const docTypes = warehouseFolder.document_types || [];
-    const primary = docTypes.find(dt => dt.is_primary) || docTypes[0];
+    const primary = activeDocTypes.find(dt => dt.is_primary) || activeDocTypes[0];
     setSelectedDocTypeId(primary ? String(primary.id) : "");
+    setFreshDocTypes(null); // Clear so effect re-fetches on dialog open
     setUploadDialogOpen(true);
-  }, [warehouseFolder.document_types]);
+  }, [activeDocTypes]);
 
   // Reset upload dialog state
   const resetUploadDialog = useCallback(() => {
@@ -534,6 +573,7 @@ export default function EntityDocumentListTab({
     setSigningStatus("draft");
     setExecutedDate(undefined);
     setExpiryDate(undefined);
+    setFreshDocTypes(null);
   }, []);
 
   return (
@@ -598,6 +638,10 @@ export default function EntityDocumentListTab({
           onDelete={handleDelete}
           onVerify={handleVerify}
           onSetExpiry={handleSetExpiry}
+          onEmail={handleEmail}
+          selectedDocs={controlledSelectedDocs}
+          onSelectionChange={onSelectionChange}
+          hideFloatingBar={hideFloatingBar}
           showVerifiedBadge={true}
           showExpiryBadge={true}
           showVerifyActions={true}
@@ -664,7 +708,7 @@ export default function EntityDocumentListTab({
               </div>
 
               {/* Document type */}
-              {(warehouseFolder.document_types?.length ?? 0) > 0 && (
+              {activeDocTypes.length > 0 && (
                 <div className="space-y-1.5">
                   <Label htmlFor="entity-doc-type-select">Document Type</Label>
                   <Select value={selectedDocTypeId} onValueChange={setSelectedDocTypeId}>
@@ -672,7 +716,7 @@ export default function EntityDocumentListTab({
                       <SelectValue placeholder="Select document type..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {warehouseFolder.document_types?.map((dt) => (
+                      {activeDocTypes.map((dt) => (
                         <SelectItem key={dt.id} value={String(dt.id)}>
                           {dt.name}
                         </SelectItem>
@@ -780,6 +824,30 @@ export default function EntityDocumentListTab({
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Email compose modal — same ComposeEmailModal used by Library (SSoT) */}
+      {emailDocs.length > 0 && (
+        <ComposeEmailModal
+          open={composeOpen}
+          onOpenChange={(open) => {
+            setComposeOpen(open);
+            if (!open) setEmailDocs([]);
+          }}
+          defaultSubject={
+            emailDocs.length === 1
+              ? emailDocs[0].originalFilename || emailDocs[0].displayName || "Document"
+              : `${emailDocs.length} Documents`
+          }
+          skipSignature={true}
+          initialPreUploadedAttachments={emailDocs
+            .filter(d => d.storagePath)
+            .map(d => ({
+              filename: d.originalFilename || d.displayName || "document",
+              storageKey: d.storagePath!,
+              fileSize: d.fileSize,
+            }))}
+        />
+      )}
     </div>
   );
 }

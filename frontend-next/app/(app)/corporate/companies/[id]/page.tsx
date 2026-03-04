@@ -41,6 +41,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Pencil,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -50,6 +51,8 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { ATOSetupCard } from "@/components/corporate/ATOSetupCard";
 // Gold standard document tab (entity-agnostic) - replaces CompanyDocumentsTab
 import EntityDocumentListTab from "@/components/documents/EntityDocumentListTab";
+import type { LibraryDocument } from "@/components/documents/StandardDocumentList";
+import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { CompanyDocumentsTab } from "@/components/corporate/CompanyDocumentsTab";
 
 // Dynamic tab rendering (SSoT: lib/tab-component-registry.ts)
@@ -135,6 +138,11 @@ export default function CompanyDetailPage() {
     principal_place_of_business: "",
     purpose: "",
   });
+
+  // Cross-tab document selection (persists across folder tabs like Library)
+  const [selectedDocs, setSelectedDocs] = React.useState<Map<number, LibraryDocument>>(new Map());
+  const [composeOpen, setComposeOpen] = React.useState(false);
+  const [pendingTabId, setPendingTabId] = React.useState<string | null>(null);
 
   // Company edit handlers
   const openEditSheet = () => {
@@ -331,19 +339,33 @@ export default function CompanyDetailPage() {
     // SSoT: Xero tabs now rendered via XeroTabRenderer (Phase 5)
   }, [loadCompany, loadDocumentCounts, loadHealthScore]);
 
-  // Tab change handlers - URL is SSoT (path-based navigation)
-  const handleTabChange = React.useCallback((tabId: string) => {
-    // Redirect Data tab to data warehouse page with company filter
+  // Navigate to a tab (URL is SSoT)
+  const navigateToTab = React.useCallback((tabId: string) => {
     if (tabId === "data-main") {
       router.push(`/data-warehouse/company/${companyId}`);
       return;
     }
-    // For overview, default to info subtab
     const url = tabId === "overview"
       ? `/corporate/companies/${companyId}/overview/info`
       : `/corporate/companies/${companyId}/${tabId}`;
     router.push(url, { scroll: false });
   }, [router, companyId]);
+
+  // Tab change - if docs selected, ask to keep or clear
+  const handleTabChange = React.useCallback((tabId: string) => {
+    if (selectedDocs.size > 0 && tabId !== activeTab) {
+      setPendingTabId(tabId);
+      return;
+    }
+    navigateToTab(tabId);
+  }, [selectedDocs.size, activeTab, navigateToTab]);
+
+  // Confirm keep selections and navigate
+  const confirmTabChange = React.useCallback((keep: boolean) => {
+    if (!keep) setSelectedDocs(new Map());
+    if (pendingTabId) navigateToTab(pendingTabId);
+    setPendingTabId(null);
+  }, [pendingTabId, navigateToTab]);
 
   const handleSubTabChange = React.useCallback((subTabId: string) => {
     router.push(`/corporate/companies/${companyId}/overview/${subTabId}`, { scroll: false });
