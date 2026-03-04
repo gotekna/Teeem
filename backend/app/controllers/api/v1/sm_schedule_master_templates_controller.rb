@@ -161,6 +161,7 @@ module Api
           # Copy all rows
           @template.sm_schedule_master_rows.in_sequence.each do |row|
             new_row = row.dup
+            new_row.sync_key = nil  # Clear so ConfigSyncable generates a fresh key from the name
             new_row.sm_template_ids = [new_template.id]
             new_row.save!
           end
