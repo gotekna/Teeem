@@ -476,6 +476,7 @@ class ConfigSyncReconciler
     ActsAsTenant.with_tenant(tenant) do
       dupes = syncable_records(model, config, table_key)
         .where.not(sync_key: [nil, ""])
+        .reorder(nil)  # Strip default ORDER BY (e.g. position) that conflicts with GROUP BY
         .group(:sync_key)
         .having("COUNT(*) > 1")
         .pluck(:sync_key)
