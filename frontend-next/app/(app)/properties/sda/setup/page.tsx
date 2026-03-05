@@ -17,9 +17,6 @@ import {
   Shield,
   ArrowRight,
   Info,
-  Eye,
-  User,
-  Users,
 } from "lucide-react";
 
 // ─── Copy helper ─────────────────────────────────────────────────────────────

@@ -870,12 +870,6 @@
       "tips": ["Green indicators mean healthy", "Yellow indicates warnings", "Red requires immediate attention", "The Sentry tab shows live production errors from Sentry"],
       "tasks": ["Check overall system status", "View background job queue", "Monitor API performance", "Check storage usage", "Review and resolve Sentry errors"]
     },
-    "/system-performance": {
-      "title": "System Performance",
-      "description": "Monitor system performance metrics.",
-      "tips": ["View response times", "Track resource usage", "Identify bottlenecks"],
-      "tasks": ["View performance metrics", "Check response times", "Monitor resources", "View trends"]
-    },
     "/brand-guidelines": {
       "title": "Brand Guidelines",
       "description": "Company brand guidelines and design standards.",
