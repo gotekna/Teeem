@@ -34,6 +34,12 @@ class WarehouseFolder < ApplicationRecord
   private def prevent_non_master_edit_of_global_record; end
   private def prevent_non_master_destroy_of_global_record; end
 
+  # Override: ALL warehouse folders should be global (tenant_id=NULL) regardless of which
+  # tenant creates them. The write protection overrides above already allow any tenant to edit.
+  private def auto_globalize_master_record
+    self.tenant_id = nil
+  end
+
   # Dynamic tokens that generate virtual folder structure from database
   DYNAMIC_TOKENS = {
     '{{Mailbox}}' => :mailbox

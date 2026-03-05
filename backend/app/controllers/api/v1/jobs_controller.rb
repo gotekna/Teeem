@@ -542,14 +542,10 @@ module Api
       def finance_counts
         invoices = @job.external_invoices.where.not(status: [ "draft", "voided" ])
 
-        # Look up actual finance tab_keys from WarehouseFolder for this tenant
+        # Look up actual finance tab_keys from WarehouseFolder
+        # FRC: Folders may be global (tenant_id=nil) or tenant-specific — check both
         job_type_ids = WarehouseType.where(code: "job").pluck(:id)
-        finance_tab = WarehouseFolder.find_by(
-          warehouse_type_id: job_type_ids,
-          tab_key: "finance",
-          parent_id: nil,
-          tenant_id: @job.tenant_id
-        )
+        tenant_scope = [ @job.tenant_id, nil ]
 
         # Map component_name OR tab_key to the correct count query
         # Uses JOB_TAB_COMPONENTS mapping (same as frontend) to identify tab purpose
@@ -573,10 +569,11 @@ module Api
         counts = {}
 
         # Resolve counts for all parent tabs with children (Finance, Estimating/Jobs, etc.)
+        # FRC: Folders may be global (tenant_id=nil) or tenant-specific — check both
         parent_tabs = WarehouseFolder.where(
           warehouse_type_id: job_type_ids,
           parent_id: nil,
-          tenant_id: @job.tenant_id
+          tenant_id: tenant_scope
         ).includes(:children)
 
         parent_tabs.each do |parent_tab|
@@ -588,56 +585,58 @@ module Api
 
         # Parent-level badge counts (e.g., total photos across all photo sub-tabs)
         # Also computes per-child counts for sub-tab badges
+        #
+        # FRC (Mar 2026): All job documents are 100% migrated to warehouse_folder_id FK.
+        # Legacy folder_path LIKE fallback removed — single batched COUNT query instead of N+1.
         parent_counts = {}
+
+        # Collect all child folder IDs across all parent tabs (photo + document children)
+        all_child_folders = []
         parent_tabs.each do |parent_tab|
-          # SSoT: Match frontend logic — check tab_type OR legacy is_photo_category boolean
-          photo_children = parent_tab.children.where(enabled: true).where("tab_type = 'photo' OR is_photo_category = TRUE")
+          photo_children = parent_tab.children.where(enabled: true, tab_type: "photo")
           doc_children = parent_tab.children.where(enabled: true, tab_type: "document")
+          all_child_folders.concat(photo_children.to_a)
+          all_child_folders.concat(doc_children.to_a)
+        end
 
-          # Photo sub-tab counts (e.g., Photo → Site (5), Slab (3))
-          # Counts by warehouse_folder_id (new uploads) AND folder_path matching
-          # (synced/older photos that only have folder_path set)
-          if photo_children.any?
-            base_scope = WarehouseDocument.where(linkable_type: "Job", linkable_id: @job.id)
-            photo_total = 0
+        if all_child_folders.any?
+          # Batch: collect all folder IDs (children + their sub-folders) in one query
+          child_ids = all_child_folders.map(&:id)
+          sub_folder_ids = WarehouseFolder.where(parent_id: child_ids).pluck(:id)
+          all_folder_ids = child_ids + sub_folder_ids
 
-            photo_children.each do |child|
-              child_folder_ids = [child.id] + WarehouseFolder.where(parent_id: child.id).pluck(:id)
-              name_pattern = "%#{WarehouseDocument.sanitize_sql_like(child.name.downcase)}%"
+          # Single batched COUNT query for all folders at once
+          folder_counts = WarehouseDocument
+            .where(linkable_type: "Job", linkable_id: @job.id)
+            .where(warehouse_folder_id: all_folder_ids)
+            .group(:warehouse_folder_id)
+            .count
 
-              count = base_scope.where(
-                "warehouse_folder_id IN (?) OR (warehouse_folder_id IS NULL AND LOWER(folder_path) LIKE ?)",
-                child_folder_ids,
-                name_pattern
-              ).count
+          # Map folder counts back to tab_keys
+          # Build lookup: sub_folder_id → parent child folder (single query, no N+1)
+          sub_to_parent = WarehouseFolder.where(parent_id: child_ids)
+            .pluck(:id, :parent_id)
+            .to_h
 
-              counts[child.tab_key] = count if count > 0
-              photo_total += count
+          # Aggregate counts per child folder (including sub-folder counts)
+          child_totals = Hash.new(0)
+          folder_counts.each do |folder_id, count|
+            parent_id = sub_to_parent[folder_id] || folder_id
+            child_totals[parent_id] += count
+          end
+
+          # Assign to tab_keys and compute parent totals
+          parent_tabs.each do |parent_tab|
+            photo_children = parent_tab.children.where(enabled: true, tab_type: "photo")
+            doc_children = parent_tab.children.where(enabled: true, tab_type: "document")
+
+            tab_total = 0
+            (photo_children.to_a + doc_children.to_a).each do |child|
+              count = child_totals[child.id]
+              counts[child.tab_key] = count  # Always include (even 0) so UI shows it's working
+              tab_total += count
             end
-
-            parent_counts[parent_tab.tab_key] = photo_total if photo_total > 0
-
-          # Document sub-tab counts (e.g., Documents → Plans (12), Contracts (3))
-          # Same dual-matching strategy: warehouse_folder_id OR folder_path fallback
-          elsif doc_children.any?
-            base_scope = WarehouseDocument.where(linkable_type: "Job", linkable_id: @job.id)
-            doc_total = 0
-
-            doc_children.each do |child|
-              child_folder_ids = [child.id] + WarehouseFolder.where(parent_id: child.id).pluck(:id)
-              name_pattern = "%#{WarehouseDocument.sanitize_sql_like(child.name.downcase)}%"
-
-              count = base_scope.where(
-                "warehouse_folder_id IN (?) OR (warehouse_folder_id IS NULL AND LOWER(folder_path) LIKE ?)",
-                child_folder_ids,
-                name_pattern
-              ).count
-
-              counts[child.tab_key] = count if count > 0
-              doc_total += count
-            end
-
-            parent_counts[parent_tab.tab_key] = doc_total if doc_total > 0
+            parent_counts[parent_tab.tab_key] = tab_total
           end
         end
 

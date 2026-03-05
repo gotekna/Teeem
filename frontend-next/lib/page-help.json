@@ -1023,8 +1023,14 @@
     "/settings/roles": {
       "title": "Access Control",
       "description": "Configure roles, permissions, and access groups.",
-      "tips": ["Roles define what users can see and do", "Groups allow bulk permission assignment", "Test permissions with the preview feature"],
-      "tasks": ["Create custom role", "Assign permissions", "Add users to groups", "Test role access"]
+      "tips": ["Click a role card to configure its permissions", "Roles define what users can see and do", "Groups allow bulk permission assignment", "Use Copy From to quickly set up a new role"],
+      "tasks": ["Create custom role", "Configure role permissions", "Add users to groups", "Copy permissions between roles"]
+    },
+    "/settings/roles/roles/[id]": {
+      "title": "Role Permissions",
+      "description": "Configure what this role can access and do across the application.",
+      "tips": ["Use the permission matrix to set access levels per feature", "Special permissions like God View and Approve Payments are separate toggles", "Copy From lets you start with another role's permissions", "Changes are not saved until you click Save"],
+      "tasks": ["Set feature access levels", "Configure special permissions", "Copy permissions from another role", "Save changes"]
     },
     "/settings/company": {
       "title": "Company Settings",

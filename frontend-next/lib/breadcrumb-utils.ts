@@ -140,6 +140,7 @@ const ENTITY_LABELS: Record<string, string> = {
   estimates: "Estimate",
   bills: "Bill",
   invoices: "Invoice",
+  roles: "Role",
   // Warehouse views - document ID shown as "Document #123"
   tree: "Document",
   "doc-tree": "Document",

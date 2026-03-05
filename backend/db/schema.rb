@@ -7616,15 +7616,20 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["user_id"], name: "index_performance_vitals_on_user_id"
   end
 
-  create_table "permissions", force: :cascade do |t|
-    t.string "name", null: false
+  create_table "permission_sections", force: :cascade do |t|
+    t.string "key", null: false
+    t.string "section", null: false
+    t.string "sub_feature"
+    t.string "display_name", null: false
     t.text "description"
-    t.string "category"
-    t.boolean "enabled", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "is_section_header", default: false, null: false
+    t.integer "available_levels", default: [], null: false, array: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["category"], name: "index_permissions_on_category"
-    t.index ["name"], name: "index_permissions_on_name", unique: true
+    t.index ["key"], name: "index_permission_sections_on_key", unique: true
+    t.index ["section", "position"], name: "index_permission_sections_on_section_and_position"
+    t.index ["section"], name: "index_permission_sections_on_section"
   end
 
   create_table "po_statuses", force: :cascade do |t|
@@ -8648,13 +8653,14 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
   end
 
-  create_table "role_permissions", force: :cascade do |t|
-    t.string "role", null: false
-    t.bigint "permission_id", null: false
+  create_table "role_section_permissions", force: :cascade do |t|
+    t.bigint "role_id", null: false
+    t.string "permission_key", null: false
+    t.integer "level", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["permission_id"], name: "index_role_permissions_on_permission_id"
-    t.index ["role", "permission_id"], name: "index_role_permissions_on_role_and_permission_id", unique: true
+    t.index ["role_id", "permission_key"], name: "idx_role_section_perms_unique", unique: true
+    t.index ["role_id"], name: "index_role_section_permissions_on_role_id"
   end
 
   create_table "roles", force: :cascade do |t|
@@ -8668,6 +8674,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "god_view_access", default: false, null: false
     t.boolean "can_approve_payments", default: false, null: false
     t.jsonb "settings", default: {}, null: false
+    t.boolean "can_view_confidential_fields", default: false, null: false
     t.index ["name"], name: "index_roles_on_name", unique: true
     t.index ["position"], name: "index_roles_on_position"
   end
@@ -11124,17 +11131,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["user_id", "navigation_item_id"], name: "idx_user_nav_config_unique", unique: true
   end
 
-  create_table "user_permissions", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.bigint "permission_id", null: false
-    t.boolean "granted", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["permission_id"], name: "index_user_permissions_on_permission_id"
-    t.index ["user_id", "permission_id"], name: "index_user_permissions_on_user_id_and_permission_id", unique: true
-    t.index ["user_id"], name: "index_user_permissions_on_user_id"
-  end
-
   create_table "user_roles", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "role_id", null: false
@@ -12870,7 +12866,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "referral_commissions", "contacts", column: "customer_contact_id"
   add_foreign_key "referral_commissions", "contacts", column: "referrer_contact_id"
   add_foreign_key "referral_commissions", "saas_billing_records"
-  add_foreign_key "role_permissions", "permissions"
+  add_foreign_key "role_section_permissions", "roles"
   add_foreign_key "s3_compatible_credentials", "organizations"
   add_foreign_key "s3_compatible_credentials", "tenants", on_delete: :cascade
   add_foreign_key "saas_billing_records", "contacts"
@@ -13115,8 +13111,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "user_folders", "users"
   add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
   add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
-  add_foreign_key "user_permissions", "permissions"
-  add_foreign_key "user_permissions", "users"
   add_foreign_key "user_roles", "roles"
   add_foreign_key "user_roles", "users"
   add_foreign_key "user_warehouse_folder_preferences", "users"
