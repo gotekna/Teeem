@@ -88,44 +88,76 @@ module Api
         end
 
         # POST /api/v1/sda/enrolments/quick_enrol
-        # Creates a property and marks it as SDA-eligible in one step.
+        # Links an existing property or creates a new one and marks it as SDA-eligible.
         # Accepts flat params from the QuickEnrolDialog frontend.
         def quick_enrol
-          attrs = {
-            street_address: params[:address],
-            suburb: params[:suburb],
-            state: params[:state],
-            postcode: params[:postcode],
-            sda_category: map_sda_category(params[:sda_design_category]),
-            bedrooms: params[:bedrooms]
-          }
+          if params[:existing_property_id].present?
+            property = Property.find_by(id: params[:existing_property_id])
+            return render json: { success: false, error: "Property not found" }, status: :not_found unless property
 
-          # Map new SDA fields if migration has run
-          if column_exists?(:properties, :sda_building_type)
-            attrs[:sda_building_type] = params[:building_type]
-            attrs[:sda_max_residents] = params[:max_residents]
-            attrs[:sda_assessor_name] = params[:assessor_name]
-            attrs[:sda_assessor_number] = params[:assessor_organisation]
-            attrs[:sda_assessment_date] = params[:assessment_date]
-            attrs[:sda_enrolment_status] = "not_started"
-          end
+            sda_attrs = { sda_category: map_sda_category(params[:sda_design_category]) }
+            sda_attrs[:bedrooms] = params[:bedrooms] if params[:bedrooms].present?
 
-          property = Property.new(attrs)
+            if column_exists?(:properties, :sda_building_type)
+              sda_attrs[:sda_building_type] = params[:building_type]
+              sda_attrs[:sda_max_residents] = params[:max_residents]
+              sda_attrs[:sda_assessor_name] = params[:assessor_name]
+              sda_attrs[:sda_assessor_number] = params[:assessor_organisation]
+              sda_attrs[:sda_assessment_date] = params[:assessment_date]
+              sda_attrs[:sda_enrolment_status] = "not_started"
+            end
 
-          if property.save
-            render json: {
-              success: true,
-              data: {
-                id: property.id,
-                propertyCode: property.property_code,
-                address: property.street_address,
-                suburb: property.suburb,
-                sdaCategory: params[:sda_design_category],
-                enrolled: false
+            if property.update(sda_attrs)
+              render json: {
+                success: true,
+                data: {
+                  id: property.id,
+                  propertyCode: property.property_code,
+                  address: property.street_address,
+                  suburb: property.suburb,
+                  sdaCategory: params[:sda_design_category],
+                  enrolled: false
+                }
               }
-            }, status: :created
+            else
+              render json: { success: false, error: property.errors.full_messages.join(", ") }, status: :unprocessable_entity
+            end
           else
-            render json: { success: false, error: property.errors.full_messages.join(", ") }, status: :unprocessable_entity
+            attrs = {
+              street_address: params[:address],
+              suburb: params[:suburb],
+              state: params[:state],
+              postcode: params[:postcode],
+              sda_category: map_sda_category(params[:sda_design_category]),
+              bedrooms: params[:bedrooms]
+            }
+
+            if column_exists?(:properties, :sda_building_type)
+              attrs[:sda_building_type] = params[:building_type]
+              attrs[:sda_max_residents] = params[:max_residents]
+              attrs[:sda_assessor_name] = params[:assessor_name]
+              attrs[:sda_assessor_number] = params[:assessor_organisation]
+              attrs[:sda_assessment_date] = params[:assessment_date]
+              attrs[:sda_enrolment_status] = "not_started"
+            end
+
+            property = Property.new(attrs)
+
+            if property.save
+              render json: {
+                success: true,
+                data: {
+                  id: property.id,
+                  propertyCode: property.property_code,
+                  address: property.street_address,
+                  suburb: property.suburb,
+                  sdaCategory: params[:sda_design_category],
+                  enrolled: false
+                }
+              }, status: :created
+            else
+              render json: { success: false, error: property.errors.full_messages.join(", ") }, status: :unprocessable_entity
+            end
           end
         end
 

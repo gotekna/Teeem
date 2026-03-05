@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,9 @@ import {
   ChevronRight,
   ChevronLeft,
   AlertCircle,
+  Search,
+  Plus,
+  Home,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -29,9 +32,26 @@ interface QuickEnrolDialogProps {
   onSuccess?: () => void;
 }
 
+interface ExistingProperty {
+  id: number;
+  property_code: string;
+  name: string;
+  street_address: string;
+  suburb: string;
+  state: string;
+  postcode: string;
+  bedrooms: number | null;
+  sda_category: string | null;
+  sda_enrolled: boolean;
+  property_type?: { id: number; name: string } | null;
+  property_status?: { id: number; name: string; color: string } | null;
+}
+
 interface EnrolmentFormData {
   // Step 1: Property
+  mode: "existing" | "new";
   existingPropertyId?: number;
+  existingProperty?: ExistingProperty;
   newAddress: string;
   suburb: string;
   state: string;
@@ -53,6 +73,7 @@ interface EnrolmentFormData {
 }
 
 const INITIAL_FORM: EnrolmentFormData = {
+  mode: "existing",
   newAddress: "",
   suburb: "",
   state: "",
@@ -188,59 +209,206 @@ function Step1Property({
   form: EnrolmentFormData;
   onChange: (updates: Partial<EnrolmentFormData>) => void;
 }) {
+  const [properties, setProperties] = useState<ExistingProperty[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (form.mode === "existing") {
+      setLoading(true);
+      api
+        .get<{ success: boolean; data: ExistingProperty[] }>("/api/v1/properties?limit=200")
+        .then((res) => {
+          const list = res?.data ?? (Array.isArray(res) ? (res as ExistingProperty[]) : []);
+          setProperties(list);
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+  }, [form.mode]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return properties;
+    const q = search.toLowerCase();
+    return properties.filter(
+      (p) =>
+        p.street_address?.toLowerCase().includes(q) ||
+        p.suburb?.toLowerCase().includes(q) ||
+        p.property_code?.toLowerCase().includes(q) ||
+        p.name?.toLowerCase().includes(q)
+    );
+  }, [properties, search]);
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Enter the address for the SDA property to enrol.
-      </p>
-
-      <FormField label="Street Address" required>
-        <div className="relative">
-          <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            className={`${inputCls} pl-9`}
-            placeholder="123 Main Street"
-            value={form.newAddress}
-            onChange={(e) => onChange({ newAddress: e.target.value })}
-          />
-        </div>
-      </FormField>
-
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Suburb" required>
-          <input
-            type="text"
-            className={inputCls}
-            placeholder="Suburb"
-            value={form.suburb}
-            onChange={(e) => onChange({ suburb: e.target.value })}
-          />
-        </FormField>
-        <FormField label="State" required>
-          <select
-            className={selectCls}
-            value={form.state}
-            onChange={(e) => onChange({ state: e.target.value })}
-          >
-            <option value="">Select state</option>
-            {["NSW", "VIC", "QLD", "SA", "WA", "TAS", "ACT", "NT"].map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </FormField>
+      {/* Mode toggle */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onChange({ mode: "existing", existingPropertyId: undefined, existingProperty: undefined })}
+          className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-md border text-sm transition-colors ${
+            form.mode === "existing"
+              ? "border-primary bg-primary/5 text-primary font-medium"
+              : "border-border hover:bg-secondary/50 text-muted-foreground"
+          }`}
+        >
+          <Home className="h-4 w-4" />
+          Existing Property
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ mode: "new", existingPropertyId: undefined, existingProperty: undefined })}
+          className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-md border text-sm transition-colors ${
+            form.mode === "new"
+              ? "border-primary bg-primary/5 text-primary font-medium"
+              : "border-border hover:bg-secondary/50 text-muted-foreground"
+          }`}
+        >
+          <Plus className="h-4 w-4" />
+          New Property
+        </button>
       </div>
 
-      <FormField label="Postcode">
-        <input
-          type="text"
-          className={inputCls}
-          placeholder="0000"
-          maxLength={4}
-          value={form.postcode}
-          onChange={(e) => onChange({ postcode: e.target.value.replace(/\D/g, "") })}
-        />
-      </FormField>
+      {form.mode === "existing" ? (
+        <div className="space-y-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              className={`${inputCls} pl-9`}
+              placeholder="Search by address, suburb, or property code..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Property list */}
+          <div className="max-h-[240px] overflow-y-auto border rounded-md divide-y divide-border">
+            {loading ? (
+              <div className="p-6 text-center text-sm text-muted-foreground">Loading properties...</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-6 text-center">
+                <Home className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {search ? "No matching properties" : "No properties found"}
+                </p>
+              </div>
+            ) : (
+              filtered.map((p) => {
+                const isSelected = form.existingPropertyId === p.id;
+                const alreadySda = !!p.sda_category;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        existingPropertyId: p.id,
+                        existingProperty: p,
+                        newAddress: p.street_address || "",
+                        suburb: p.suburb || "",
+                        state: p.state || "",
+                        postcode: p.postcode || "",
+                        bedrooms: p.bedrooms ? String(p.bedrooms) : "",
+                      })
+                    }
+                    className={`w-full text-left px-3 py-2.5 hover:bg-secondary/50 transition-colors ${
+                      isSelected ? "bg-primary/5 border-l-2 border-l-primary" : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {p.property_code && (
+                            <span className="text-xs font-mono text-muted-foreground shrink-0">
+                              {p.property_code}
+                            </span>
+                          )}
+                          <span className="text-sm font-medium truncate">
+                            {p.street_address || p.name || "Unnamed"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {p.suburb && (
+                            <span className="text-xs text-muted-foreground">{p.suburb}</span>
+                          )}
+                          {p.property_type && (
+                            <span className="text-xs text-muted-foreground">{p.property_type.name}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {alreadySda && (
+                          <Badge variant="secondary" className="text-[10px]">SDA</Badge>
+                        )}
+                        {isSelected && (
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        /* New property form */
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Enter the address for the new SDA property.
+          </p>
+
+          <FormField label="Street Address" required>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                className={`${inputCls} pl-9`}
+                placeholder="123 Main Street"
+                value={form.newAddress}
+                onChange={(e) => onChange({ newAddress: e.target.value })}
+              />
+            </div>
+          </FormField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Suburb" required>
+              <input
+                type="text"
+                className={inputCls}
+                placeholder="Suburb"
+                value={form.suburb}
+                onChange={(e) => onChange({ suburb: e.target.value })}
+              />
+            </FormField>
+            <FormField label="State" required>
+              <select
+                className={selectCls}
+                value={form.state}
+                onChange={(e) => onChange({ state: e.target.value })}
+              >
+                <option value="">Select state</option>
+                {["NSW", "VIC", "QLD", "SA", "WA", "TAS", "ACT", "NT"].map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+
+          <FormField label="Postcode">
+            <input
+              type="text"
+              className={inputCls}
+              placeholder="0000"
+              maxLength={4}
+              value={form.postcode}
+              onChange={(e) => onChange({ postcode: e.target.value.replace(/\D/g, "") })}
+            />
+          </FormField>
+        </div>
+      )}
     </div>
   );
 }
@@ -414,6 +582,10 @@ function Step3Assessor({
 function Step4Review({ form }: { form: EnrolmentFormData }) {
   const categoryStyle = SDA_CATEGORY_STYLES[form.sdaDesignCategory] ?? "";
 
+  const address = form.mode === "existing" && form.existingProperty
+    ? `${form.existingProperty.street_address || form.existingProperty.name}${form.existingProperty.suburb ? `, ${form.existingProperty.suburb}` : ""}${form.existingProperty.state ? ` ${form.existingProperty.state}` : ""}`
+    : `${form.newAddress}${form.suburb ? `, ${form.suburb}` : ""}${form.state ? ` ${form.state}` : ""}${form.postcode ? ` ${form.postcode}` : ""}`;
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
@@ -427,12 +599,17 @@ function Step4Review({ form }: { form: EnrolmentFormData }) {
             <MapPin className="h-3 w-3" />
             Property
           </h3>
-          <p className="text-sm font-medium">
-            {form.newAddress}
-            {form.suburb && `, ${form.suburb}`}
-            {form.state && ` ${form.state}`}
-            {form.postcode && ` ${form.postcode}`}
-          </p>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[10px]">
+              {form.mode === "existing" ? "Existing" : "New"}
+            </Badge>
+            <p className="text-sm font-medium">{address}</p>
+          </div>
+          {form.mode === "existing" && form.existingProperty?.property_code && (
+            <p className="text-xs text-muted-foreground mt-1 font-mono">
+              {form.existingProperty.property_code}
+            </p>
+          )}
         </div>
 
         {/* SDA Details */}
@@ -491,7 +668,16 @@ function Step4Review({ form }: { form: EnrolmentFormData }) {
       <div className="p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
         <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">What happens next?</p>
         <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-0.5 list-disc list-inside">
-          <li>Property is created and linked to SDA programme</li>
+          {form.mode === "existing" ? (
+            <>
+              <li>Property is linked to the SDA programme</li>
+              <li>SDA category and details are saved to the property</li>
+            </>
+          ) : (
+            <>
+              <li>Property is created and linked to SDA programme</li>
+            </>
+          )}
           <li>Enrolment status set to &ldquo;Not Started&rdquo;</li>
           <li>Completeness checklist generated for missing items</li>
           <li>Appears in Enrolments pipeline for tracking</li>
@@ -514,7 +700,10 @@ export default function QuickEnrolDialog({ open, onOpenChange, onSuccess }: Quic
   };
 
   // Validation per step
-  const isStep1Valid = form.newAddress.trim().length > 0 && form.suburb.trim().length > 0 && form.state.length > 0;
+  const isStep1Valid =
+    form.mode === "existing"
+      ? !!form.existingPropertyId
+      : form.newAddress.trim().length > 0 && form.suburb.trim().length > 0 && form.state.length > 0;
   const isStep2Valid = form.sdaDesignCategory.length > 0 && form.buildingType.length > 0 && form.bedrooms.length > 0 && form.maxResidents.length > 0;
   const isCurrentStepValid = step === 1 ? isStep1Valid : step === 2 ? isStep2Valid : true;
 
@@ -531,11 +720,7 @@ export default function QuickEnrolDialog({ open, onOpenChange, onSuccess }: Quic
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const payload = {
-        address: form.newAddress.trim(),
-        suburb: form.suburb.trim(),
-        state: form.state,
-        postcode: form.postcode.trim(),
+      const payload: Record<string, unknown> = {
         sda_design_category: form.sdaDesignCategory,
         building_type: form.buildingType,
         bedrooms: parseInt(form.bedrooms, 10),
@@ -544,6 +729,15 @@ export default function QuickEnrolDialog({ open, onOpenChange, onSuccess }: Quic
         assessor_organisation: form.skipAssessor ? null : form.assessorOrganisation.trim() || null,
         assessment_date: form.skipAssessor ? null : form.assessmentDate || null,
       };
+
+      if (form.mode === "existing" && form.existingPropertyId) {
+        payload.existing_property_id = form.existingPropertyId;
+      } else {
+        payload.address = form.newAddress.trim();
+        payload.suburb = form.suburb.trim();
+        payload.state = form.state;
+        payload.postcode = form.postcode.trim();
+      }
 
       const res = await api.post<{ success: boolean; data: unknown }>(
         "/api/v1/sda/enrolments/quick_enrol",
@@ -633,7 +827,7 @@ export default function QuickEnrolDialog({ open, onOpenChange, onSuccess }: Quic
                 onClick={handleSubmit}
                 disabled={submitting}
               >
-                {submitting ? "Starting…" : "Start Enrolment"}
+                {submitting ? "Starting..." : "Start Enrolment"}
                 {!submitting && <CheckCircle2 className="h-3.5 w-3.5 ml-1.5" />}
               </Button>
             )}
