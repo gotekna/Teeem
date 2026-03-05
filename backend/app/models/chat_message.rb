@@ -1,5 +1,5 @@
 class ChatMessage < ApplicationRecord
-  include StorageUploadable
+  include DocumentProviderAware
   include WarehouseDocumentable
   warehouse_type :warehouse
 
@@ -189,7 +189,9 @@ class ChatMessage < ApplicationRecord
     file_ref = storage_item_id.presence || storage_file_id
     return nil unless file_ref.present?
 
-    result = download_from_storage(file_ref)
+    service = DocumentStorageService.new
+    doc = OpenStruct.new(storage_path: file_ref.start_with?("/") ? file_ref : nil, storage_file_id: file_ref.start_with?("/") ? nil : file_ref)
+    result = service.download(doc)
     result[:success] ? result[:content] : nil
   rescue StandardError => e
     Rails.logger.error("[ChatMessage] Storage download failed for #{id}: #{e.message}")

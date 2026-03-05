@@ -1,7 +1,6 @@
-# Service to upload director ID documents to storage
-# SSoT: Uses StorageUploadable for provider-agnostic storage operations
+# Service to manage director ID documents in storage
 class DirectorDocumentUploadService
-  include StorageUploadable
+  include DocumentProviderAware
 
   DIRECTOR_IDS_FOLDER = "Director IDs".freeze
 
@@ -115,6 +114,13 @@ class DirectorDocumentUploadService
   rescue StandardError => e
     Rails.logger.error "Failed to scan existing documents: #{e.message}"
     {}
+  end
+
+  def storage_connected?
+    setup_default_provider!
+    true
+  rescue DocumentProviders::NotConnectedError
+    false
   end
 
   private

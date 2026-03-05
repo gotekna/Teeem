@@ -1,6 +1,6 @@
 # Service to email plans with attachments from storage
 class PlanEmailService
-  include StorageUploadable
+  include DocumentProviderAware
 
   def initialize(plans:, recipients:, subject:, body:, sender: nil)
     @plans = plans
@@ -60,9 +60,12 @@ class PlanEmailService
       next unless revision&.has_file?
 
       begin
-        result = download_from_storage(revision.storage_reference)
-        next unless result[:success]
-        content = result[:content]
+        service = DocumentStorageService.new
+        ref = revision.storage_reference
+        doc = OpenStruct.new(storage_path: ref.to_s.start_with?("/") ? ref : nil, storage_file_id: ref.to_s.start_with?("/") ? nil : ref)
+        dl_result = service.download(doc)
+        next unless dl_result[:success]
+        content = dl_result[:content]
 
         attachments << {
           filename: revision.file_name || "#{plan.display_name}.pdf",

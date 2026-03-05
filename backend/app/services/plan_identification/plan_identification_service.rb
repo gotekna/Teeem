@@ -26,7 +26,7 @@ module PlanIdentification
   #   - Any future plan identification → MUST use this service
   #
   class PlanIdentificationService
-    include StorageUploadable
+    include DocumentProviderAware
 
     # Confidence thresholds (defaults - can be overridden by AiServiceConfig)
     AUTO_ASSIGN_THRESHOLD = 95       # Auto-assign without review
@@ -200,7 +200,9 @@ module PlanIdentification
       return nil unless file_ref.present?
 
       # Download the file from storage
-      result = download_from_storage(file_ref)
+      service = DocumentStorageService.new
+      doc = OpenStruct.new(storage_path: file_ref.start_with?("/") ? file_ref : nil, storage_file_id: file_ref.start_with?("/") ? nil : file_ref)
+      result = service.download(doc)
       return nil unless result[:success]
 
       identify_from_pdf(result[:content], 1)

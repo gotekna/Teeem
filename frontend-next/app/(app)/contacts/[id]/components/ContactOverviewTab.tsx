@@ -465,7 +465,7 @@ export function ContactOverviewTab({
     }
   }, [contact.id, personSearchQuery, onContactUpdate, toast]);
 
-  // Create a new ContactPerson (employee record)
+  // Create a new Contact (full record) and link as employee
   const createContactPerson = useCallback(async () => {
     if (!newContactPerson.first_name.trim()) {
       toast({
@@ -478,17 +478,46 @@ export function ContactOverviewTab({
 
     setSavingContactPerson(true);
     try {
-      await api.post(`/api/v1/contacts/${contact.id}/contact_persons`, {
-        contact_person: {
-          first_name: newContactPerson.first_name.trim(),
-          last_name: newContactPerson.last_name.trim(),
+      const firstName = newContactPerson.first_name.trim();
+      const lastName = newContactPerson.last_name.trim();
+      const displayName = lastName ? `${firstName} ${lastName}` : firstName;
+
+      // 1. Create full Contact record (SSoT - not a lightweight ContactPerson)
+      const response = await api.post<{ contact: { id: number; display_name: string } }>("/api/v1/contacts", {
+        contact: {
+          first_name: firstName,
+          last_name: lastName,
+          display_name: displayName,
+          entity_type: "person",
           email: newContactPerson.email.trim() || null,
-          role: newContactPerson.role || null,
-          is_primary: newContactPerson.is_primary,
         },
       });
 
-      // Refresh contact to get updated contact_persons list
+      if (response?.contact) {
+        // 2. Create employee_of relationship to link person to this company
+        await api.post(`/api/v1/contacts/${response.contact.id}/relationships`, {
+          contact_relationship: {
+            related_contact_id: contact.id,
+            relationship_type: "employee_of",
+            is_active: true,
+          },
+        });
+
+        // 3. Also create ContactPerson record for role/primary tracking
+        if (newContactPerson.role || newContactPerson.is_primary) {
+          await api.post(`/api/v1/contacts/${contact.id}/contact_persons`, {
+            contact_person: {
+              first_name: firstName,
+              last_name: lastName,
+              email: newContactPerson.email.trim() || null,
+              role: newContactPerson.role || null,
+              is_primary: newContactPerson.is_primary,
+            },
+          });
+        }
+      }
+
+      // Refresh contact to get updated lists
       const contactRes = await api.get<{ contact: Contact }>(`/api/v1/contacts/${contact.id}`);
       onContactUpdate(contactRes.contact);
 
@@ -504,7 +533,7 @@ export function ContactOverviewTab({
 
       toast({
         title: "Contact person added",
-        description: `Added ${newContactPerson.first_name} ${newContactPerson.last_name}`,
+        description: `Created "${displayName}" as a contact and linked to ${contact.display_name}`,
       });
     } catch (err) {
       toast({
@@ -515,7 +544,7 @@ export function ContactOverviewTab({
     } finally {
       setSavingContactPerson(false);
     }
-  }, [contact.id, newContactPerson, onContactUpdate, toast]);
+  }, [contact.id, contact.display_name, newContactPerson, onContactUpdate, toast]);
 
   // Reorder company relationships (for DnD)
   const reorderCompanyLinks = useCallback(async (newOrder: ContactRelationship[]) => {

@@ -7,7 +7,7 @@ module Api
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
                                          :investments, :trust_roles, :data_stats, :warehouse_health, :health,
-                                         :director_changes,
+                                         :director_changes, :reveal_sensitive,
                                          :asic_credentials_index, :asic_credentials_create,
                                          :asic_credentials_update, :asic_credentials_destroy,
                                          :asic_credentials_reveal ]

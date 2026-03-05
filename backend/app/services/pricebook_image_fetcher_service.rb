@@ -2,7 +2,7 @@
 # Uses Google Images + Claude AI for image search and selection
 # Uploads to "Warehousing/Photo Test" folder for review
 #
-# SSoT: Uses StorageUploadable for provider-agnostic storage (Wasabi/S3/SharePoint)
+# SSoT: Uses StorageBlob for blob storage, DocumentProviderAware for folder ops
 
 require "mini_magick"
 require "httparty"
@@ -13,6 +13,7 @@ require "tempfile"
 
 class PricebookImageFetcherService
   include HTTParty
+  include DocumentProviderAware
 
   GOOGLE_SEARCH_API_KEY = ENV["GOOGLE_SEARCH_API_KEY"]
   GOOGLE_CX = ENV["GOOGLE_CX"]
@@ -29,7 +30,7 @@ class PricebookImageFetcherService
   class FetchError < StandardError; end
 
   def initialize
-    # SSoT: Uses StorageUploadable - no direct client initialization needed
+    # SSoT: Uses DocumentProviderAware for storage connectivity checks
   end
 
   # Fetch images for multiple items
@@ -394,6 +395,13 @@ class PricebookImageFetcherService
     true
   rescue URI::InvalidURIError, Resolv::ResolvError, IPAddr::InvalidAddressError => e
     Rails.logger.error "[ImageFetcher] URL validation failed: #{e.message}"
+    false
+  end
+
+  def storage_connected?
+    setup_default_provider!
+    true
+  rescue DocumentProviders::NotConnectedError
     false
   end
 

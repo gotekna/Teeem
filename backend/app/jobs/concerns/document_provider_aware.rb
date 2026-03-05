@@ -12,20 +12,20 @@
 # The active provider is determined by WarehouseProvider.provider_type.
 #
 # Usage in a job:
-#   class UploadDocumentJob < ApplicationJob
+#   class MyJob < ApplicationJob
 #     include DocumentProviderAware
 #
 #     def perform(document_id)
-#       # Single-tenant: auto-detects provider from WarehouseProvider
 #       setup_default_provider!
-#
-#       # Get or create nested folders
+#       content = download_from_provider(file_id)
 #       folder = get_or_create_folder_path("/Contacts/ACME Corp/BILLS")
-#
-#       # Upload file
-#       result = upload_to_provider("/Contacts/ACME Corp/BILLS", content, "invoice.pdf")
 #     end
 #   end
+#
+# ⚠️ upload_to_provider REMOVED (Mar 2026)
+# All uploads now use StorageBlob + WarehouseDocumentCreator:
+#   blob = StorageBlob.find_or_create_for_content!(content, filename: f, content_type: ct)
+#   WarehouseDocumentCreator.create!(filename: f, source_type: "job", linkable: record, storage_blob: blob)
 #
 module DocumentProviderAware
   extend ActiveSupport::Concern
@@ -157,15 +157,10 @@ module DocumentProviderAware
   # FILE OPERATIONS
   # ========================================
 
-  # Upload a file to the configured provider
-  # @param folder_path [String] The folder path to upload to
-  # @param content [String, IO] The file content
-  # @param filename [String] The filename
-  # @param options [Hash] Additional options (content_type, etc.)
-  # @return [Hash] The result from the provider (includes :id, :path, etc.)
-  def upload_to_provider(folder_path, content, filename, options = {})
-    ensure_provider_configured!
-    @document_provider.upload_file(folder_path, content, filename, options)
+  # ⚠️ REMOVED (Mar 2026): upload_to_provider deleted — use StorageBlob + WarehouseDocumentCreator
+  # All uploads now go through blob storage. See CLAUDE.md for pattern.
+  def upload_to_provider(*)
+    raise NoMethodError, "upload_to_provider has been removed. Use StorageBlob.find_or_create_for_content! + WarehouseDocumentCreator.create! instead."
   end
 
   # Download a file from the configured provider

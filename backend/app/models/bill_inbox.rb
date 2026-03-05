@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class BillInbox < ApplicationRecord
-  include StorageUploadable
+  include DocumentProviderAware
   include MimeTypes
   include WarehouseDocumentable
   warehouse_type :financial
@@ -238,7 +238,9 @@ class BillInbox < ApplicationRecord
     return nil unless file_ref.present?
 
     Rails.logger.warn("[BillInbox] #{id} using legacy storage_file_id - needs migration to storage_blob")
-    result = download_from_storage(file_ref)
+    service = DocumentStorageService.new
+    doc = OpenStruct.new(storage_path: file_ref.start_with?("/") ? file_ref : nil, storage_file_id: file_ref.start_with?("/") ? nil : file_ref)
+    result = service.download(doc)
     result[:success] ? result[:content] : nil
   rescue StandardError => e
     Rails.logger.error("[BillInbox] Storage download failed for #{id}: #{e.message}")
