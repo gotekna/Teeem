@@ -16,7 +16,7 @@
  */
 
 import * as React from "react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -543,6 +543,16 @@ export function StandardDocumentList({
   const [previewDoc, setPreviewDoc] = useState<LibraryDocument | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [validationGateDoc, setValidationGateDoc] = useState<LibraryDocument | null>(null);
+
+  // Keep previewDoc in sync with documents prop (e.g., after verify updates displayName)
+  useEffect(() => {
+    if (previewDoc) {
+      const updated = documents.find(d => d.id === previewDoc.id);
+      if (updated && updated !== previewDoc) {
+        setPreviewDoc(updated);
+      }
+    }
+  }, [documents]);
 
   // Version history
   const [versionHistory, setVersionHistory] = useState<LibraryDocument[]>([]);
