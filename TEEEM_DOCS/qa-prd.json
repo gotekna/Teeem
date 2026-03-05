@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260305",
     "started_at": "2026-03-05T12:10:35.189Z",
     "completed_at": null,
-    "last_updated": "2026-03-06T10:30:00.000Z",
-    "iteration": 2,
+    "last_updated": "2026-03-05T21:01:42.898Z",
+    "iteration": 3,
     "ship_ready": false,
     "total_pages": 199,
     "total_stories": 19
@@ -329,7 +329,7 @@
       "title": "Pricebook, Recipes & Estimates",
       "icon": "database",
       "description": "Pricebook items, colour swatches, health, recipes, estimates, price histories",
-      "status": "in_progress",
+      "status": "completed",
       "page_manifest": [
         "/pricebook",
         "/pricebook/colour-swatches",
@@ -417,9 +417,9 @@
           }
         },
         "/price_histories": {
-          "status": "failed",
-          "tested_at": "2026-03-06T10:00:00Z",
-          "iteration": 1,
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
           "js_check": {
             "hasContent": true,
             "breadcrumb": "Price HistoriesSetup",
@@ -427,13 +427,8 @@
             "title": "Price Histories | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": {
-              "rowCount": 30,
-              "scrollHeight": 574,
-              "clientHeight": 574
-            }
-          },
-          "finding_id": "finding-001"
+            "tableScrollBroken": false
+          }
         }
       }
     },
@@ -546,8 +541,8 @@
         },
         "/financial/transactions": {
           "status": "failed",
-          "tested_at": "2026-03-06T10:20:00Z",
-          "iteration": 2,
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
           "js_check": {
             "hasContent": true,
             "breadcrumb": "FinancialTransactionsXero",
@@ -622,7 +617,7 @@
       "title": "Corporate Module",
       "icon": "layout-list",
       "description": "All 17 corporate sub-pages",
-      "status": "in_progress",
+      "status": "completed",
       "page_manifest": [
         "/corporate",
         "/corporate/structure",
@@ -771,6 +766,160 @@
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)"
           }
+        },
+        "/corporate/groups": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateGroups",
+            "url": "/corporate/groups",
+            "title": "Groups | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/people": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporatePeople",
+            "url": "/corporate/people",
+            "title": "People | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/compliance-calendar": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateCompliance Calendar",
+            "url": "/corporate/compliance-calendar",
+            "title": "Compliance Calendar | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/assets": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateAssetsSetup",
+            "url": "/corporate/assets/view/setup",
+            "title": "Assets | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/assets/new": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateAssetsNew",
+            "url": "/corporate/assets/new",
+            "title": "New | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/assets/reports": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateAssetsReportsSummary",
+            "url": "/corporate/assets/reports/summary",
+            "title": "Summary | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/asic-logins": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateASIC Logins",
+            "url": "/corporate/asic-logins",
+            "title": "ASIC Logins | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/minute-templates": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateMinute Templates",
+            "url": "/corporate/minute-templates",
+            "title": "Minute Templates | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/document-types": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateDocument TypesNo Primary",
+            "url": "/corporate/document-types/view/no-primary",
+            "title": "Document Types | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/consolidation": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateConsolidation",
+            "url": "/corporate/consolidation",
+            "title": "Consolidation | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/corporate/health": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateHealth",
+            "url": "/corporate/health",
+            "title": "Health | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
         }
       }
     },
@@ -779,7 +928,7 @@
       "title": "WHS Module",
       "icon": "clipboard-check",
       "description": "Work Health & Safety pages",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/whs",
         "/whs/dashboard",
@@ -796,7 +945,106 @@
         "Dashboard shows safety metrics",
         "Each sub-page renders"
       ],
-      "page_results": {}
+      "page_results": {
+        "/whs": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "WHS",
+            "url": "/whs",
+            "title": "WHS | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/whs/dashboard": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "WHSDashboard",
+            "url": "/whs/dashboard",
+            "title": "Dashboard | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/whs/incidents": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "WHSIncidentsSetup",
+            "url": "/whs/incidents/view/setup",
+            "title": "Incidents | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/whs/inspections": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "WHSInspectionsSetup",
+            "url": "/whs/inspections/view/setup",
+            "title": "Inspections | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/whs/inductions": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "WHSInductionsSetup",
+            "url": "/whs/inductions/view/setup",
+            "title": "Inductions | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/whs/swms": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "WHSSWMS",
+            "url": "/whs/swms",
+            "title": "SWMS | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        },
+        "/whs/action-items": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:01:42.898Z",
+          "iteration": 3,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "WHSAction Items",
+            "url": "/whs/action-items",
+            "title": "Action Items | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": null
+          }
+        }
+      }
     },
     {
       "id": "US-SETTINGS-PERSONAL",
@@ -1191,14 +1439,14 @@
       "console_errors": [],
       "probable_file": "frontend-next/app/(app)/financial/transactions/page.tsx",
       "fix_hint": "Missing min-h-0 on flex parent of TeeemTableView. CSS default min-height:auto on flex items prevents the scroll container from being bounded.",
-      "status": "fixed",
+      "status": "open",
       "found_at": "2026-03-06T10:20:00Z",
       "found_iteration": 2,
       "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002-snapshot.txt",
       "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002.png",
       "fixed_at": "2026-03-05T20:40:15.863Z",
-      "root_cause": "TabsContent base component lacked min-h-0 in default className. Flex items with flex-1 need min-h-0 to allow shrinking below content size for scroll containment. 4 instances in codebase had flex-1 without min-h-0.",
-      "fix_approach": "Ultra: Added min-h-0 to TabsContent base className in components/ui/tabs.tsx - fixes ALL current and future instances of this bug class. Also fixed QA scroll check false positive.",
+      "root_cause": "Two-layer bug: (1) TabsContent lacked min-h-0 [FIXED in base component]. (2) TabsContent has display:block so children overflow despite bounded height. XeroStatementView Card chain needs flex-col+overflow-hidden on TabsContent AND height constraints on the Card/content chain inside XeroStatementView.",
+      "fix_approach": "Partial fix deployed (min-h-0 on base TabsContent). Still needs: add flex flex-col overflow-hidden to Xero TabsContent className, and fix XeroStatementView to pass height constraints to its TeeemTableView.",
       "files_changed": [
         "frontend-next/components/ui/tabs.tsx",
         "TEEEM_DOCS/QA_RALPH_PROMPT.md"

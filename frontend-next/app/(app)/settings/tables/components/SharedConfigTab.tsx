@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ChevronDown, ChevronRight, Database } from "lucide-react";
+import { RefreshCw, ChevronDown, ChevronRight, Database, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 
 interface TableCounts {
   total: number;
@@ -54,7 +54,7 @@ export function SharedConfigTab() {
   const [data, setData] = useState<SharedConfigData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string> | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -63,6 +63,8 @@ export function SharedConfigTab() {
       const response = await api.get<{ success: boolean; data: SharedConfigData; error?: string }>("/api/v1/shared_config/tables");
       if (response?.success) {
         setData(response.data);
+        // Default: all groups collapsed
+        setCollapsedGroups((prev) => prev ?? new Set(response.data.groups.map((g) => g.key)));
       } else {
         setError(response?.error || "Failed to load shared config data");
       }
@@ -79,7 +81,7 @@ export function SharedConfigTab() {
 
   const toggleGroup = useCallback((groupKey: string) => {
     setCollapsedGroups((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev ?? []);
       if (next.has(groupKey)) {
         next.delete(groupKey);
       } else {
@@ -139,14 +141,32 @@ export function SharedConfigTab() {
             )}
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCollapsedGroups(new Set())}
+            disabled={collapsedGroups?.size === 0}
+          >
+            <ChevronsUpDown className="h-4 w-4 mr-1" /> Expand All
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCollapsedGroups(new Set(groups.map((g) => g.key)))}
+            disabled={collapsedGroups?.size === groups.length}
+          >
+            <ChevronsDownUp className="h-4 w-4 mr-1" /> Collapse All
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchData}>
+            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Groups */}
       {groups.map((group) => {
-        const isCollapsed = collapsedGroups.has(group.key);
+        const isCollapsed = collapsedGroups?.has(group.key) ?? true;
         const groupTotal = group.tables.reduce((sum, t) => sum + t.counts.total, 0);
         const groupGlobal = group.tables.reduce((sum, t) => sum + t.counts.global, 0);
 

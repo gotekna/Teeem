@@ -139,7 +139,7 @@ export function HierarchicalTabsList({
             >
               {showIcon && <IconComponent className="h-4 w-4" />}
               {showText && tab.display_name}
-              {showText && hasChildren && parentBadgeCounts?.[tab.tab_key] != null && (
+              {hasChildren && parentBadgeCounts?.[tab.tab_key] != null && (
                 <span className="text-xs text-muted-foreground ml-0.5">
                   ({parentBadgeCounts[tab.tab_key]})
                 </span>
