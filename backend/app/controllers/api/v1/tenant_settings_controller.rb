@@ -6,7 +6,7 @@ module Api
     #
     # Handles: company info, email config, brand colors, storage config
     class TenantSettingsController < ApplicationController
-      before_action :require_admin, only: %i[update update_sharepoint test_sharepoint update_brand apply_brand update_email_config update_po_template update_modules]
+      before_action :require_admin, only: %i[update update_sharepoint test_sharepoint update_brand apply_brand update_email_config update_po_template update_modules update_sda_config]
 
       # GET /api/v1/tenant_settings
       def show
@@ -246,6 +246,51 @@ module Api
         end
 
         render json: { success: true, modules: module_state }
+      end
+
+      # GET /api/v1/tenant_settings/sda_config
+      def sda_config
+        settings = TenantSetting.instance
+        config = settings.sda_config || {}
+
+        # Resolve contact names for the assigned NDIS roles
+        contacts_data = {}
+        (config["contacts"] || {}).each do |role, contact_id|
+          next if contact_id.blank?
+          contact = Contact.find_by(id: contact_id)
+          contacts_data[role] = contact ? { id: contact.id, display_name: contact.display_name, email: contact.email } : nil
+        end
+
+        render json: {
+          success: true,
+          data: {
+            ndis_registration_number: config["ndis_registration_number"],
+            proda_ra_number: config["proda_ra_number"],
+            contacts: contacts_data
+          }
+        }
+      end
+
+      # PATCH /api/v1/tenant_settings/sda_config
+      def update_sda_config
+        settings = TenantSetting.instance
+        current = settings.sda_config || {}
+
+        current["ndis_registration_number"] = params[:ndis_registration_number] if params.key?(:ndis_registration_number)
+        current["proda_ra_number"] = params[:proda_ra_number] if params.key?(:proda_ra_number)
+
+        if params[:contacts].present?
+          current["contacts"] ||= {}
+          params[:contacts].to_unsafe_h.each do |role, contact_id|
+            current["contacts"][role.to_s] = contact_id.present? ? contact_id.to_i : nil
+          end
+        end
+
+        if settings.update(sda_config: current)
+          render json: { success: true, data: current }
+        else
+          render_validation_errors(settings)
+        end
       end
 
       # PATCH /api/v1/tenant_settings/modules

@@ -590,61 +590,22 @@ function PortalEmbedTab({
     }
   }, [hasPortal, iframeUrl, loading, error, loadPortal]);
 
-  // No contact at all — show helpful message
-  if (!contact) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-muted p-3 mb-4">
-          {portalType === "owner" ? <User className="h-6 w-6 text-muted-foreground" /> : <Users className="h-6 w-6 text-muted-foreground" />}
-        </div>
-        <h3 className="text-lg font-semibold mb-1">No {label} Contact</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          {portalType === "owner"
-            ? "Assign an owner contact to this property to preview their portal."
-            : "Add a tenant contact to this property to preview their portal."}
-        </p>
-        <Button size="sm" variant="outline" onClick={onSwitchToSetup}>
-          <Shield className="h-3.5 w-3.5 mr-1.5" />
-          Go to Setup
-        </Button>
-      </div>
-    );
-  }
+  // ── Demo preview mode (no contact or no portal account) ──────────────
+  // Show the portal pages directly so the user can see the portal design
+  const showDemoPreview = !contact || !hasPortal;
 
-  // Contact exists but no portal account — offer Enable & Preview
-  if (!hasPortal) {
-    if (enabling) {
-      return (
-        <div className="flex flex-col items-center justify-center py-12">
-          <Spinner className="mb-4" />
-          <p className="text-sm text-muted-foreground">Enabling portal and loading preview...</p>
-        </div>
-      );
-    }
-
+  if (showDemoPreview) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-muted p-3 mb-4">
-          <ShieldOff className="h-6 w-6 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-semibold mb-1">{label} Portal Not Enabled</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          {contact.display_name} doesn&apos;t have an active portal account yet.
-        </p>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={enableAndPreview}>
-            <Eye className="h-3.5 w-3.5 mr-1.5" />
-            Enable &amp; Preview
-          </Button>
-          <Button size="sm" variant="outline" onClick={onSwitchToSetup}>
-            <Shield className="h-3.5 w-3.5 mr-1.5" />
-            Setup Manually
-          </Button>
-        </div>
-        {error && (
-          <p className="text-sm text-destructive mt-4">{error}</p>
-        )}
-      </div>
+      <DemoPortalPreview
+        portalType={portalType}
+        label={label}
+        contact={contact}
+        hasPortal={!!hasPortal}
+        enabling={enabling}
+        error={error}
+        onEnableAndPreview={contact ? enableAndPreview : undefined}
+        onSwitchToSetup={onSwitchToSetup}
+      />
     );
   }
 
@@ -710,4 +671,158 @@ function PortalEmbedTab({
   }
 
   return null;
+}
+
+// ─────────────────────────────────────────────
+// Demo Portal Preview (no contact or no portal)
+// ─────────────────────────────────────────────
+
+const PORTAL_PAGES = {
+  owner: [
+    { label: "Dashboard", path: "/portal/dashboard" },
+    { label: "Property", path: "/portal/property" },
+    { label: "Documents", path: "/portal/property/documents" },
+    { label: "Inspections", path: "/portal/property/inspections" },
+    { label: "Maintenance", path: "/portal/property/maintenance" },
+    { label: "Invoices", path: "/portal/invoices" },
+  ],
+  tenant: [
+    { label: "Dashboard", path: "/portal/dashboard" },
+    { label: "Property", path: "/portal/property" },
+    { label: "Maintenance", path: "/portal/property/maintenance" },
+    { label: "Documents", path: "/portal/property/documents" },
+    { label: "Inspections", path: "/portal/property/inspections" },
+  ],
+};
+
+function DemoPortalPreview({
+  portalType,
+  label,
+  contact,
+  hasPortal,
+  enabling,
+  error,
+  onEnableAndPreview,
+  onSwitchToSetup,
+}: {
+  portalType: "owner" | "tenant";
+  label: string;
+  contact: PortalContact | null;
+  hasPortal: boolean;
+  enabling: boolean;
+  error: string | null;
+  onEnableAndPreview?: () => void;
+  onSwitchToSetup: () => void;
+}) {
+  const [showPreview, setShowPreview] = useState(false);
+  const [activePage, setActivePage] = useState(PORTAL_PAGES[portalType][0].path);
+  const pages = PORTAL_PAGES[portalType];
+
+  if (enabling) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Spinner className="mb-4" />
+        <p className="text-sm text-muted-foreground">Enabling portal and loading preview...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Status banner */}
+      <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+        <ShieldOff className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+            {!contact
+              ? `No ${label.toLowerCase()} contact assigned`
+              : `${contact.display_name} — portal not enabled`}
+          </p>
+          <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+            {!contact
+              ? `Assign a ${label.toLowerCase()} contact in the Overview tab, or preview the portal layout below.`
+              : "Enable portal access in the Setup tab, or preview the portal layout below."}
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          {onEnableAndPreview && (
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onEnableAndPreview}>
+              <Eye className="h-3 w-3 mr-1" />
+              Enable &amp; Preview
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onSwitchToSetup}>
+            <Shield className="h-3 w-3 mr-1" />
+            Setup
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-sm text-destructive">{error}</p>
+      )}
+
+      {/* Portal preview */}
+      {!showPreview ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <div className="rounded-full bg-muted p-3 mb-4">
+            {portalType === "owner" ? <User className="h-6 w-6 text-muted-foreground" /> : <Users className="h-6 w-6 text-muted-foreground" />}
+          </div>
+          <h3 className="text-base font-semibold mb-1">{label} Portal Preview</h3>
+          <p className="text-sm text-muted-foreground mb-4 max-w-md">
+            Preview what the {label.toLowerCase()} portal looks like. This loads the portal pages
+            in preview mode so you can see the layout and design.
+          </p>
+          <Button size="sm" onClick={() => setShowPreview(true)}>
+            <Eye className="h-3.5 w-3.5 mr-1.5" />
+            Load Preview
+          </Button>
+        </div>
+      ) : (
+        <>
+          {/* Page tabs */}
+          <div className="flex items-center justify-between">
+            <div className="flex flex-wrap gap-1">
+              {pages.map((page) => (
+                <button
+                  key={page.path}
+                  type="button"
+                  onClick={() => setActivePage(page.path)}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                    activePage === page.path
+                      ? "bg-primary text-primary-foreground font-medium"
+                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                  }`}
+                >
+                  {page.label}
+                </button>
+              ))}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => window.open(activePage, "_blank")}
+            >
+              <ExternalLink className="h-3 w-3 mr-1" />
+              Open in New Tab
+            </Button>
+          </div>
+
+          {/* Iframe */}
+          <div
+            className="border rounded-lg overflow-hidden bg-white dark:bg-card"
+            style={{ height: "calc(100vh - 380px)", minHeight: "400px" }}
+          >
+            <iframe
+              src={activePage}
+              className="w-full h-full border-0"
+              title={`${label} Portal Preview`}
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
 }

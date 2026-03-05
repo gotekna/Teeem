@@ -2061,6 +2061,8 @@ Rails.application.routes.draw do
           put :po_template, action: :update_po_template
           get :modules
           patch :modules, action: :update_modules
+          get :sda_config
+          patch :sda_config, action: :update_sda_config
         end
       end
 

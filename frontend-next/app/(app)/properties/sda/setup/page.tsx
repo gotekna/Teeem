@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/components/ui/use-toast";
+import { api } from "@/lib/api";
+import { useContacts } from "@/lib/hooks/useContacts";
+import type { ContactSelect } from "@/lib/hooks/useContacts";
 import {
   Mail,
   Copy,
@@ -17,7 +24,58 @@ import {
   Shield,
   ArrowRight,
   Info,
+  Users,
+  Save,
+  UserCircle,
+  Hash,
+  X,
 } from "lucide-react";
+
+// ─── NDIS Role Definitions ──────────────────────────────────────────────────
+
+const NDIS_ROLES = [
+  {
+    key: "registration_holder",
+    label: "Registration Holder",
+    description: "Person who holds the NDIS provider registration",
+  },
+  {
+    key: "sda_manager",
+    label: "SDA Manager",
+    description: "Day-to-day SDA portfolio and enrolment manager",
+  },
+  {
+    key: "compliance_officer",
+    label: "Compliance Officer",
+    description: "Ensures SDA properties meet NDIS standards and requirements",
+  },
+  {
+    key: "primary_ndis_contact",
+    label: "Primary NDIS Contact",
+    description: "Main point of contact with the NDIA for SDA matters",
+  },
+  {
+    key: "claims_officer",
+    label: "Claims / Finance Officer",
+    description: "Handles SDA claim submissions, billing, and payment tracking",
+  },
+] as const;
+
+type NdisRoleKey = (typeof NDIS_ROLES)[number]["key"];
+
+interface SdaConfig {
+  ndis_registration_number?: string;
+  proda_ra_number?: string;
+  contacts?: Record<string, { id: number; display_name: string; email?: string | null } | null>;
+}
+
+interface TenantSettings {
+  company_name?: string;
+  abn?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+}
 
 // ─── Copy helper ─────────────────────────────────────────────────────────────
 
@@ -178,166 +236,110 @@ function ApiReferenceCard({
   );
 }
 
-// ─── Portal Preview Section ──────────────────────────────────────────────────
+// ─── NDIS Contact Picker ─────────────────────────────────────────────────────
 
-function PortalPreviewSection() {
-  const [portalType, setPortalType] = useState<"owner" | "tenant">("owner");
-  const [showPreview, setShowPreview] = useState(false);
+function NdisContactPicker({
+  roleKey,
+  label,
+  description,
+  assignedContact,
+  allContacts,
+  onAssign,
+  onRemove,
+}: {
+  roleKey: string;
+  label: string;
+  description: string;
+  assignedContact: { id: number; display_name: string; email?: string | null } | null;
+  allContacts: ContactSelect[];
+  onAssign: (roleKey: string, contactId: number) => void;
+  onRemove: (roleKey: string) => void;
+}) {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
-  // Portal pages to preview — these show the portal experience directly
-  const portalPages = {
-    owner: [
-      { label: "Dashboard", path: "/portal/dashboard" },
-      { label: "Property", path: "/portal/property" },
-      { label: "Documents", path: "/portal/property/documents" },
-      { label: "Inspections", path: "/portal/property/inspections" },
-      { label: "Maintenance", path: "/portal/property/maintenance" },
-      { label: "Invoices", path: "/portal/invoices" },
-    ],
-    tenant: [
-      { label: "Dashboard", path: "/portal/dashboard" },
-      { label: "Property", path: "/portal/property" },
-      { label: "Maintenance", path: "/portal/property/maintenance" },
-      { label: "Documents", path: "/portal/property/documents" },
-      { label: "Inspections", path: "/portal/property/inspections" },
-    ],
-  };
-
-  const [activePage, setActivePage] = useState(portalPages.owner[0].path);
-  const pages = portalPages[portalType];
+  const filtered = search
+    ? allContacts.filter((c) =>
+        c.display_name.toLowerCase().includes(search.toLowerCase()) ||
+        (c.email && c.email.toLowerCase().includes(search.toLowerCase()))
+      )
+    : allContacts;
 
   return (
-    <div>
-      <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
-        <Eye className="h-4 w-4" />
-        Preview Portal
-      </h2>
-      <p className="text-sm text-muted-foreground mb-4">
-        Preview what the owner and tenant portals look like. These portals give property owners and SDA tenants
-        self-service access to documents, maintenance requests, inspections, and invoices.
-      </p>
+    <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card">
+      <div className="p-2 rounded-md bg-secondary shrink-0 mt-0.5">
+        <UserCircle className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
 
-      <Card>
-        <CardContent className="pt-5 space-y-4">
-          {/* Controls */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Portal type toggle */}
-            <div className="flex rounded-md border border-input overflow-hidden">
-              <button
-                type="button"
-                onClick={() => {
-                  setPortalType("owner");
-                  setActivePage(portalPages.owner[0].path);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${
-                  portalType === "owner"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background hover:bg-secondary/50"
-                }`}
-              >
-                <User className="h-3.5 w-3.5" />
-                Owner Portal
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPortalType("tenant");
-                  setActivePage(portalPages.tenant[0].path);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm border-l border-input transition-colors ${
-                  portalType === "tenant"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background hover:bg-secondary/50"
-                }`}
-              >
-                <Users className="h-3.5 w-3.5" />
-                Tenant Portal
-              </button>
-            </div>
-
-            {!showPreview ? (
-              <Button size="sm" onClick={() => setShowPreview(true)}>
-                <Eye className="h-3.5 w-3.5 mr-1.5" />
-                Load Preview
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={() => window.open(activePage, "_blank")}
-              >
-                <ExternalLink className="h-3 w-3 mr-1" />
-                Open in New Tab
-              </Button>
-            )}
+        {assignedContact ? (
+          <div className="mt-2 flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs gap-1">
+              {assignedContact.display_name}
+              {assignedContact.email && (
+                <span className="text-muted-foreground ml-1">{assignedContact.email}</span>
+              )}
+            </Badge>
+            <button
+              type="button"
+              onClick={() => onRemove(roleKey)}
+              className="text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
-
-          {/* Description of what each portal provides */}
-          <div className="p-3 rounded-md bg-secondary/50 border border-border">
-            {portalType === "owner" ? (
-              <div className="space-y-1">
-                <p className="text-sm font-medium flex items-center gap-2">
-                  <User className="h-3.5 w-3.5" />
-                  Owner Portal
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Property owners can view their SDA property details, download documents (certificates,
-                  insurance, compliance), track maintenance requests, view inspection reports, and access
-                  invoices and payment history.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-sm font-medium flex items-center gap-2">
-                  <Users className="h-3.5 w-3.5" />
-                  Tenant Portal
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  SDA tenants/participants can view their accommodation details, submit and track
-                  maintenance requests, access shared documents, view upcoming inspections, and
-                  communicate with the property manager.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {showPreview && (
-            <>
-              {/* Page tabs */}
-              <div className="flex flex-wrap gap-1 border-b border-border pb-2">
-                {pages.map((page) => (
+        ) : searchOpen ? (
+          <div className="mt-2 space-y-2">
+            <Input
+              autoFocus
+              placeholder="Search contacts..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 text-sm"
+            />
+            <div className="max-h-40 overflow-y-auto border rounded-md divide-y divide-border">
+              {filtered.length === 0 ? (
+                <p className="text-xs text-muted-foreground p-2">No contacts found</p>
+              ) : (
+                filtered.slice(0, 20).map((c) => (
                   <button
-                    key={page.path}
+                    key={c.id}
                     type="button"
-                    onClick={() => setActivePage(page.path)}
-                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                      activePage === page.path
-                        ? "bg-primary text-primary-foreground font-medium"
-                        : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                    }`}
+                    className="w-full text-left px-3 py-2 hover:bg-secondary/50 transition-colors"
+                    onClick={() => {
+                      onAssign(roleKey, c.id);
+                      setSearchOpen(false);
+                      setSearch("");
+                    }}
                   >
-                    {page.label}
+                    <p className="text-sm">{c.display_name}</p>
+                    {c.email && <p className="text-xs text-muted-foreground">{c.email}</p>}
                   </button>
-                ))}
-              </div>
-
-              {/* Iframe */}
-              <div
-                className="border rounded-lg overflow-hidden bg-white dark:bg-card"
-                style={{ height: "60vh", minHeight: "400px" }}
-              >
-                <iframe
-                  src={activePage}
-                  className="w-full h-full border-0"
-                  title={`${portalType} Portal Preview - ${activePage}`}
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-                />
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                ))
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={() => { setSearchOpen(false); setSearch(""); }}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-2 h-7 text-xs"
+            onClick={() => setSearchOpen(true)}
+          >
+            Assign Contact
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -346,6 +348,112 @@ function PortalPreviewSection() {
 
 export default function SdaSetupPage() {
   const { copied, copy } = useCopy();
+  const { toast } = useToast();
+
+  // Load tenant settings for company data (auto-populate templates)
+  const [tenantSettings, setTenantSettings] = useState<TenantSettings | null>(null);
+  const [sdaConfig, setSdaConfig] = useState<SdaConfig>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // NDIS registration fields (local state for editing)
+  const [ndisRegNumber, setNdisRegNumber] = useState("");
+  const [prodaRaNumber, setProdaRaNumber] = useState("");
+
+  // Load contacts for picker
+  const { contacts: allContacts, loading: contactsLoading } = useContacts({ mode: "select" });
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [tsRes, sdaRes] = await Promise.all([
+        api.get<TenantSettings>("/api/v1/tenant_settings"),
+        api.get<{ success: boolean; data: SdaConfig }>("/api/v1/tenant_settings/sda_config"),
+      ]);
+      if (tsRes) setTenantSettings(tsRes);
+      if (sdaRes?.data) {
+        setSdaConfig(sdaRes.data);
+        setNdisRegNumber(sdaRes.data.ndis_registration_number || "");
+        setProdaRaNumber(sdaRes.data.proda_ra_number || "");
+      }
+    } catch {
+      // Silently fail - fields will show placeholders
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Save NDIS registration details
+  const saveRegistration = async () => {
+    setSaving(true);
+    try {
+      const res = await api.patch<{ success: boolean }>("/api/v1/tenant_settings/sda_config", {
+        ndis_registration_number: ndisRegNumber,
+        proda_ra_number: prodaRaNumber,
+      });
+      if (res?.success) {
+        toast({ title: "Saved", description: "NDIS registration details updated." });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to save registration details.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Assign/remove contact for an NDIS role
+  const assignContact = async (roleKey: string, contactId: number) => {
+    const res = await api.patch<{ success: boolean; data: Record<string, unknown> }>("/api/v1/tenant_settings/sda_config", {
+      contacts: { [roleKey]: contactId },
+    });
+    if (res?.success) {
+      // Update local state with the assigned contact
+      const contact = allContacts.find((c) => c.id === contactId);
+      setSdaConfig((prev) => ({
+        ...prev,
+        contacts: {
+          ...(prev.contacts || {}),
+          [roleKey]: contact ? { id: contact.id, display_name: contact.display_name, email: contact.email } : null,
+        },
+      }));
+      toast({ title: "Contact assigned" });
+    }
+  };
+
+  const removeContact = async (roleKey: string) => {
+    const res = await api.patch<{ success: boolean }>("/api/v1/tenant_settings/sda_config", {
+      contacts: { [roleKey]: null },
+    });
+    if (res?.success) {
+      setSdaConfig((prev) => ({
+        ...prev,
+        contacts: { ...(prev.contacts || {}), [roleKey]: null },
+      }));
+      toast({ title: "Contact removed" });
+    }
+  };
+
+  // Company data for email templates (from tenant settings SSoT)
+  const org = tenantSettings?.company_name || "[Your Organisation Name]";
+  const abn = tenantSettings?.abn || "[Your ABN]";
+  const orgEmail = tenantSettings?.email || "[Your Email]";
+  const orgPhone = tenantSettings?.phone || "[Your Phone]";
+  const regNum = ndisRegNumber || "[Your Registration Number]";
+
+  // Find the primary NDIS contact for email signatures
+  const primaryContact = sdaConfig.contacts?.primary_ndis_contact;
+  const contactName = primaryContact?.display_name || "[Your Name]";
+  const contactEmail = primaryContact?.email || orgEmail;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -355,24 +463,127 @@ export default function SdaSetupPage() {
         <div>
           <p className="text-sm font-medium text-blue-900 dark:text-blue-100">NDIS SDA Integration Setup</p>
           <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-            Use the email templates below to request API access from the NDIA. Once approved, configure
-            the API credentials in the integration settings. The NDIA Provider Portal is the primary
-            interface for managing SDA enrolments and claims.
+            Configure your NDIS registration details, assign team contacts for SDA roles, and use
+            pre-filled email templates to request API access from the NDIA.
           </p>
         </div>
       </div>
 
-      {/* ── Section: Portal Preview ─────────────────────────────────────── */}
-      <PortalPreviewSection />
+      {/* ── Section: NDIS Registration ─────────────────────────────────────── */}
+      <div>
+        <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+          <Hash className="h-4 w-4" />
+          NDIS Registration
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Your organisation details from Settings, plus NDIS-specific registration numbers.
+        </p>
 
-      {/* ── Section: NDIA Contacts & Access ─────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Company info (read-only, from tenant settings SSoT) */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Organisation Details
+              </CardTitle>
+              <CardDescription>From company settings (SSoT)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-[100px_1fr] gap-y-2 gap-x-3 text-sm">
+                <span className="text-muted-foreground">Trading Name</span>
+                <span className="font-medium">{tenantSettings?.company_name || <span className="text-amber-600 dark:text-amber-400">Not set</span>}</span>
+                <span className="text-muted-foreground">ABN</span>
+                <span className="font-medium">{tenantSettings?.abn || <span className="text-amber-600 dark:text-amber-400">Not set</span>}</span>
+                <span className="text-muted-foreground">Address</span>
+                <span className="font-medium">{tenantSettings?.address || <span className="text-amber-600 dark:text-amber-400">Not set</span>}</span>
+                <span className="text-muted-foreground">Phone</span>
+                <span className="font-medium">{tenantSettings?.phone || <span className="text-amber-600 dark:text-amber-400">Not set</span>}</span>
+                <span className="text-muted-foreground">Email</span>
+                <span className="font-medium">{tenantSettings?.email || <span className="text-amber-600 dark:text-amber-400">Not set</span>}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* NDIS-specific registration */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                NDIS Registration
+              </CardTitle>
+              <CardDescription>NDIS-specific registration numbers</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="ndis-reg" className="text-xs">NDIS Provider Registration Number</Label>
+                <Input
+                  id="ndis-reg"
+                  placeholder="e.g. 4-123456789"
+                  value={ndisRegNumber}
+                  onChange={(e) => setNdisRegNumber(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="proda-ra" className="text-xs">PRODA RA Number</Label>
+                <Input
+                  id="proda-ra"
+                  placeholder="e.g. RA-123456"
+                  value={prodaRaNumber}
+                  onChange={(e) => setProdaRaNumber(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <Button size="sm" onClick={saveRegistration} disabled={saving}>
+                <Save className="h-3.5 w-3.5 mr-1.5" />
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* ── Section: NDIS Team Contacts ────────────────────────────────────── */}
+      <div>
+        <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          NDIS Team Contacts
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Assign existing contacts to NDIS roles. These are used in email templates and NDIS correspondence.
+        </p>
+
+        {contactsLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+            <Spinner className="h-4 w-4" /> Loading contacts...
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {NDIS_ROLES.map((role) => (
+              <NdisContactPicker
+                key={role.key}
+                roleKey={role.key}
+                label={role.label}
+                description={role.description}
+                assignedContact={sdaConfig.contacts?.[role.key] ?? null}
+                allContacts={allContacts}
+                onAssign={assignContact}
+                onRemove={removeContact}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Section: Email Templates ───────────────────────────────────────── */}
       <div>
         <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
           <Key className="h-4 w-4" />
           Request API Access
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Email templates to request NDIS system access and API credentials.
+          Pre-filled email templates using your organisation details. Update any missing fields above first.
         </p>
 
         <div className="grid gap-4">
@@ -381,25 +592,25 @@ export default function SdaSetupPage() {
             title="NDIS Provider API Access Request"
             description="Request API credentials for bulk claim submission and enrolment management."
             to="provider.support@ndis.gov.au"
-            subject="SDA Provider API Access Request - [Your Organisation Name]"
+            subject={`SDA Provider API Access Request - ${org}`}
             body={`Dear NDIA Provider Support,
 
 I am writing to request API access for our organisation to integrate with the NDIS Provider Portal for SDA (Specialist Disability Accommodation) management.
 
 Organisation Details:
-- Organisation Name: [Your Organisation Name]
-- NDIS Provider Registration Number: [Your Registration Number]
-- ABN: [Your ABN]
-- Primary Contact: [Your Name]
-- Contact Email: [Your Email]
-- Contact Phone: [Your Phone]
+- Organisation Name: ${org}
+- NDIS Provider Registration Number: ${regNum}
+- ABN: ${abn}
+- Primary Contact: ${contactName}
+- Contact Email: ${contactEmail}
+- Contact Phone: ${orgPhone}
 
 We are seeking API access for the following services:
 1. SDA Dwelling Enrolment API - To programmatically manage dwelling enrolments
 2. SDA Claims Submission API - For bulk claim submission and tracking
 3. Participant Plan Verification API - To verify participant SDA funding
 
-Our property management system (TEEEM) requires these integrations to streamline our SDA portfolio management across [X] dwellings.
+Our property management system (TEEEM) requires these integrations to streamline our SDA portfolio management.
 
 Please advise on:
 - The application process for API credentials
@@ -410,9 +621,8 @@ Please advise on:
 Thank you for your assistance.
 
 Kind regards,
-[Your Name]
-[Your Position]
-[Your Organisation]`}
+${contactName}
+${org}`}
             copied={copied}
             onCopy={copy}
           />
@@ -422,19 +632,19 @@ Kind regards,
             title="Provider Portal Access Request"
             description="Request login credentials for the NDIS Provider Portal (myplace)."
             to="provider.support@ndis.gov.au"
-            subject="Provider Portal Access Request - [Your Organisation Name]"
+            subject={`Provider Portal Access Request - ${org}`}
             body={`Dear NDIA Provider Support,
 
 I am requesting access to the NDIS Provider Portal (myplace) for our SDA provider organisation.
 
 Organisation Details:
-- Organisation Name: [Your Organisation Name]
-- NDIS Provider Registration Number: [Your Registration Number]
-- ABN: [Your ABN]
+- Organisation Name: ${org}
+- NDIS Provider Registration Number: ${regNum}
+- ABN: ${abn}
 
 User requiring access:
-- Full Name: [User Name]
-- Email: [User Email]
+- Full Name: ${contactName}
+- Email: ${contactEmail}
 - Role: SDA Manager / Administrator
 
 We require access to:
@@ -446,8 +656,8 @@ We require access to:
 Please provide instructions for portal registration and any required authorisation forms.
 
 Kind regards,
-[Your Name]
-[Your Organisation]`}
+${contactName}
+${org}`}
             copied={copied}
             onCopy={copy}
           />
@@ -463,8 +673,8 @@ Kind regards,
 I am submitting a new dwelling for SDA enrolment on behalf of our registered SDA provider.
 
 Provider Details:
-- Organisation Name: [Your Organisation Name]
-- NDIS Provider Registration Number: [Your Registration Number]
+- Organisation Name: ${org}
+- NDIS Provider Registration Number: ${regNum}
 
 Dwelling Details:
 - Address: [Full Property Address]
@@ -491,8 +701,8 @@ Required Documentation:
 Please advise on the enrolment timeline and any additional requirements.
 
 Kind regards,
-[Your Name]
-[Your Organisation]`}
+${contactName}
+${org}`}
             copied={copied}
             onCopy={copy}
           />
