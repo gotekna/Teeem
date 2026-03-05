@@ -52,6 +52,7 @@ class CostCentre < ApplicationRecord
   scope :inactive, -> { where(active: false) }
   scope :roots, -> { where(parent_id: nil) }
   scope :by_type, ->(type) { where(centre_type: type) }
+  scope :by_template, ->(template_id) { where("sm_schedule_master_template_ids @> ?", "[#{template_id.to_i}]") }
   scope :ordered, -> { order(:code) }
 
   # Instance methods

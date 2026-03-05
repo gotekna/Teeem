@@ -2241,9 +2241,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
+    t.jsonb "sm_schedule_master_template_ids", default: [], null: false
     t.index ["active"], name: "index_cost_centres_on_active"
     t.index ["centre_type"], name: "index_cost_centres_on_centre_type"
     t.index ["parent_id"], name: "index_cost_centres_on_parent_id"
+    t.index ["sm_schedule_master_template_ids"], name: "index_cost_centres_on_sm_schedule_master_template_ids", using: :gin
     t.index ["tenant_id", "code"], name: "index_cost_centres_on_tenant_id_and_code", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_cost_centres_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_cost_centres_on_tenant_id"
@@ -7988,6 +7990,24 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "job_id"
+    t.decimal "purchase_price", precision: 12, scale: 2
+    t.date "purchase_date"
+    t.decimal "current_valuation", precision: 12, scale: 2
+    t.date "valuation_date"
+    t.decimal "land_value", precision: 12, scale: 2
+    t.decimal "building_replacement_cost", precision: 12, scale: 2
+    t.string "construction_type"
+    t.decimal "management_fee_pct", precision: 5, scale: 2, default: "0.0"
+    t.decimal "vacancy_rate_pct", precision: 5, scale: 2, default: "0.0"
+    t.decimal "annual_insurance", precision: 10, scale: 2, default: "0.0"
+    t.decimal "annual_council_rates", precision: 10, scale: 2, default: "0.0"
+    t.decimal "annual_water_rates", precision: 10, scale: 2, default: "0.0"
+    t.decimal "annual_body_corporate", precision: 10, scale: 2, default: "0.0"
+    t.decimal "annual_other_expenses", precision: 10, scale: 2, default: "0.0"
+    t.decimal "cost_base_stamp_duty", precision: 10, scale: 2, default: "0.0"
+    t.decimal "cost_base_legal_fees", precision: 10, scale: 2, default: "0.0"
+    t.decimal "cost_base_other", precision: 10, scale: 2, default: "0.0"
+    t.decimal "capital_improvements_total", precision: 12, scale: 2, default: "0.0"
     t.index ["job_id"], name: "index_properties_on_job_id"
     t.index ["managing_agent_contact_id"], name: "index_properties_on_managing_agent_contact_id"
     t.index ["owner_contact_id"], name: "index_properties_on_owner_contact_id"
