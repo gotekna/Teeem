@@ -206,27 +206,11 @@ function PermissionsSubTab() {
   ) => {
     if (!selectedUser) return;
 
-    try {
-      setUpdatingPermission(permissionName);
-
-      const response = await api.post<{ success: boolean }>(
-        "/api/v1/permissions/grant",
-        {
-          user_id: selectedUser.id,
-          permission_name: permissionName,
-          granted: !currentlyGranted,
-        }
-      );
-
-      if (response?.success) {
-        await loadUserPermissions(selectedUser.id);
-      }
-    } catch (err) {
-      console.error("Failed to update permission:", err);
-      toast({ title: "Error", description: "Failed to update permission", variant: "destructive" });
-    } finally {
-      setUpdatingPermission(null);
-    }
+    // Permissions are currently role-based only — individual overrides not yet implemented
+    toast({
+      title: "Role-Based Permissions",
+      description: "Permissions are managed through roles. Change the user's role to update their permissions.",
+    });
   };
 
   const hasPermission = (permissionName: string): boolean => {
