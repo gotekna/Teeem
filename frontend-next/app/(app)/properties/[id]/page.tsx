@@ -49,6 +49,7 @@ import { AddPropertyContactDialog } from "@/components/properties/AddPropertyCon
 import { PropertyInspectionsTab } from "@/components/properties/PropertyInspectionsTab";
 import { PropertyPortalTab } from "@/components/properties/PropertyPortalTab";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
+import { useDocumentCounts } from "@/lib/hooks/useDocumentCounts";
 import EntityDocumentListTab from "@/components/documents/EntityDocumentListTab";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { useExpandedState, ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
@@ -205,6 +206,13 @@ export default function PropertyDetailPage() {
 
   // SSoT: Load warehouse folder tabs for property scope
   const { tabs: propertyTabs } = useWarehouseFolders({ scope: "property" });
+
+  // SSoT: Document counts per folder tab
+  const { counts: docCounts } = useDocumentCounts({
+    linkableType: "Property",
+    linkableId: id,
+    scope: "property",
+  });
 
   // Get enabled document folder tabs (children of root "properties" parent)
   const documentFolderTabs = useMemo(() => {
@@ -490,6 +498,11 @@ export default function PropertyDetailPage() {
               {documentFolderTabs.map(tab => (
                 <TabsTrigger key={tab.id} value={tab.id}>
                   {tab.name}
+                  {docCounts[tab.id] != null && (
+                    <span className="text-xs text-muted-foreground ml-0.5">
+                      ({docCounts[tab.id]})
+                    </span>
+                  )}
                 </TabsTrigger>
               ))}
               <TabsTrigger value="portal" className="gap-1.5">

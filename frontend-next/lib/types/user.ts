@@ -9,6 +9,7 @@ export interface User {
   role_id?: number;
   role_names?: string[];
   permissions?: string[];
+  section_permissions?: Record<string, number>;
   avatar_url?: string;
   is_active?: boolean;
   job_title?: string;

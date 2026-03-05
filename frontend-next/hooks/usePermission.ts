@@ -24,8 +24,7 @@ export function usePermission() {
       }
 
       // Check section_permissions on user object (populated by auth)
-      const sectionPerms = (currentUser as Record<string, unknown>)
-        ?.section_permissions as Record<string, number> | undefined;
+      const sectionPerms = currentUser?.section_permissions;
 
       if (!sectionPerms) return PERMISSION_LEVELS.NO_ACCESS;
 

@@ -11,6 +11,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import { Plus } from "lucide-react";
+import { PermissionGate } from "@/components/ui/permission-gate";
+import { PERMISSION_LEVELS } from "@/lib/constants/permission-levels";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import type { ViewData } from "@/lib/server/foundation-api";
 import type { Contact } from "@/lib/types";

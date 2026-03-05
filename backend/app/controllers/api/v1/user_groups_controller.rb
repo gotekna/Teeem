@@ -48,6 +48,49 @@ class Api::V1::UserGroupsController < ApplicationController
     end
   end
 
+  # GET /api/v1/groups/:id/members
+  def members
+    @user_group = UserGroup.find(params[:id])
+    users = User.where(user_group_id: @user_group.id).order(:name)
+
+    render json: {
+      success: true,
+      members: users.map { |u| { id: u.id, name: u.name, email: u.email } }
+    }
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "Group not found" }, status: :not_found
+  end
+
+  # POST /api/v1/groups/:id/add_member
+  def add_member
+    @user_group = UserGroup.find(params[:id])
+    user = User.find(params[:user_id])
+
+    if user.user_group_id == @user_group.id
+      return render json: { success: false, error: "User is already in this group" }, status: :unprocessable_entity
+    end
+
+    user.update!(user_group_id: @user_group.id)
+    render json: { success: true }
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "Group or user not found" }, status: :not_found
+  end
+
+  # DELETE /api/v1/groups/:id/remove_member
+  def remove_member
+    @user_group = UserGroup.find(params[:id])
+    user = User.find(params[:user_id])
+
+    unless user.user_group_id == @user_group.id
+      return render json: { success: false, error: "User is not in this group" }, status: :unprocessable_entity
+    end
+
+    user.update!(user_group_id: nil)
+    render json: { success: true }
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "Group or user not found" }, status: :not_found
+  end
+
   # DELETE /api/v1/groups/:id or /api/v1/user_groups/:id
   # Accepts either ID or name
   def destroy

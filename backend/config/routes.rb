@@ -2090,7 +2090,13 @@ Rails.application.routes.draw do
       resources :user_roles, only: [ :index, :create, :destroy ]
 
       # User groups
-      resources :groups, only: [ :index, :create, :update, :destroy ], controller: 'user_groups'
+      resources :groups, only: [ :index, :create, :update, :destroy ], controller: 'user_groups' do
+        member do
+          get :members
+          post :add_member
+          delete :remove_member
+        end
+      end
 
       # Permissions management
       get "permissions", to: "permissions#index"
@@ -3604,6 +3610,7 @@ Rails.application.routes.draw do
           get :scoped_tree          # FK-driven: folder counts for Job/Contact/Corporate tabs
           get :scoped_folder_files  # FK-driven: files + sub-folders for a specific folder
           get :context_records      # Returns related record IDs across warehouse types for an entity
+          get :document_counts     # Generic document counts per folder tab_key for any entity
         end
         member do
           patch :update_warehouse_folders  # Batch update warehouse folder assignments

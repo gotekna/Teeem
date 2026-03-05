@@ -9,6 +9,8 @@ import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { Plus } from "lucide-react";
+import { PermissionGate } from "@/components/ui/permission-gate";
+import { PERMISSION_LEVELS } from "@/lib/constants/permission-levels";
 import type { ViewData } from "@/lib/server/foundation-api";
 
 interface JobsPageClientProps {
@@ -77,12 +79,14 @@ export default function JobsPageClient({
         enableImport
         enableSchemaEditor
         leftActions={
-          <Button variant="default" size="sm" asChild data-tour="jobs-add">
-            <Link href="/jobs/new">
-              <Plus className="h-4 w-4 mr-2" />
-              New Job
-            </Link>
-          </Button>
+          <PermissionGate permission="jobs" level={PERMISSION_LEVELS.EDIT}>
+            <Button variant="default" size="sm" asChild data-tour="jobs-add">
+              <Link href="/jobs/new">
+                <Plus className="h-4 w-4 mr-2" />
+                New Job
+              </Link>
+            </Button>
+          </PermissionGate>
         }
         // SSR Props - data pre-fetched on server for fast LCP
         initialColumns={initialColumns}

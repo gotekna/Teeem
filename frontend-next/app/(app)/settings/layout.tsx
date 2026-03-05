@@ -56,7 +56,7 @@ export default function SettingsLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAdmin } = useSettingsAccess();
+  const { isAdmin, canAccessOrgSettings } = useSettingsAccess();
   const [personalExpanded, togglePersonal] = useExpandedState("settings-personal");
   const [orgExpanded, toggleOrg] = useExpandedState("settings-org");
   const { mode } = useLayoutMode();
@@ -133,7 +133,7 @@ export default function SettingsLayout({
         </div>
 
         {/* Organization section (admin only) + Content */}
-        {isAdmin ? (
+        {canAccessOrgSettings ? (
           <ExpandableSection expanded={orgExpanded} onToggle={toggleOrg} className="p-4 pt-2 gap-4">
             <div className="shrink-0">
               <h3 className="text-xs font-medium uppercase text-muted-foreground mb-2 tracking-wider">

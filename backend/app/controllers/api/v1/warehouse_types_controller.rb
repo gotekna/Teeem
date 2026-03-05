@@ -320,6 +320,111 @@ module Api
         }
       end
 
+      # GET /api/v1/warehouse_types/document_counts?linkable_type=Property&linkable_id=1&scope=property
+      # Generic document count endpoint for badge counts on any entity's tabs.
+      # Returns per-folder tab_key counts and parent tab totals.
+      #
+      # Used by: Properties, Contacts, Corporate (and any future entity with warehouse tabs)
+      # Jobs use their own finance_counts endpoint (has additional financial tab logic).
+      #
+      # Params:
+      #   linkable_type: The entity type (Property, Contact, CorporateCompany, etc.)
+      #   linkable_id: The entity ID
+      #   scope: The warehouse folder scope (property, contact, corporate)
+      #   entity_type: Optional - for corporate entity type filtering (Company, Trust, etc.)
+      #
+      # Response:
+      #   { success: true, counts: { "contracts": 5, "insurance": 2 }, parentCounts: { "properties": 7 } }
+      def document_counts
+        linkable_type = params[:linkable_type]
+        linkable_id = params[:linkable_id]
+        wf_scope = params[:scope]
+
+        unless linkable_type.present? && linkable_id.present? && wf_scope.present?
+          return render json: { success: false, error: "linkable_type, linkable_id, and scope are required" }, status: :bad_request
+        end
+
+        # Get all documents for this entity (reuses existing scoped_document_ids helper)
+        combined_ids = scoped_document_ids(linkable_type, linkable_id)
+
+        # Get warehouse folders for this scope
+        tenant_scope = [current_tenant&.id, nil]
+        warehouse_type_ids = WarehouseType.where(code: wf_scope).pluck(:id)
+
+        parent_folders = WarehouseFolder.where(
+          warehouse_type_id: warehouse_type_ids,
+          parent_id: nil,
+          tenant_id: tenant_scope
+        ).includes(:children)
+
+        # Apply entity_type filter for corporate
+        if params[:entity_type].present?
+          parent_folders = parent_folders.where(
+            "entity_types IS NULL OR entity_types = '[]' OR entity_types @> ?",
+            [params[:entity_type]].to_json
+          )
+        end
+
+        counts = {}
+        parent_counts = {}
+
+        # Collect all child folder IDs for a single batched query
+        all_child_folders = []
+        parent_folders.each do |parent|
+          enabled_children = parent.children.select(&:enabled)
+          all_child_folders.concat(enabled_children)
+        end
+
+        if all_child_folders.any? && combined_ids.any?
+          child_ids = all_child_folders.map(&:id)
+
+          # Also include sub-folders (grandchildren)
+          sub_folder_ids = WarehouseFolder.where(parent_id: child_ids).pluck(:id)
+          all_folder_ids = child_ids + sub_folder_ids
+
+          # Single batched COUNT query
+          folder_counts = WarehouseDocument
+            .where(id: combined_ids)
+            .where(warehouse_folder_id: all_folder_ids)
+            .group(:warehouse_folder_id)
+            .count
+
+          # Map sub-folders back to their parent (child) folder
+          sub_to_parent = WarehouseFolder.where(parent_id: child_ids)
+            .pluck(:id, :parent_id)
+            .to_h
+
+          child_totals = Hash.new(0)
+          folder_counts.each do |folder_id, count|
+            parent_id = sub_to_parent[folder_id] || folder_id
+            child_totals[parent_id] += count
+          end
+
+          # Build counts keyed by tab_key, and parent totals
+          parent_folders.each do |parent|
+            enabled_children = parent.children.select(&:enabled)
+            tab_total = 0
+            enabled_children.each do |child|
+              count = child_totals[child.id]
+              counts[child.tab_key] = count  # Always include (even 0)
+              tab_total += count
+            end
+            parent_counts[parent.tab_key] = tab_total
+          end
+        else
+          # No documents or no folders - still return 0s
+          parent_folders.each do |parent|
+            enabled_children = parent.children.select(&:enabled)
+            enabled_children.each do |child|
+              counts[child.tab_key] = 0
+            end
+            parent_counts[parent.tab_key] = 0
+          end
+        end
+
+        render json: { success: true, counts: counts, parentCounts: parent_counts }
+      end
+
       # GET /api/v1/warehouse_types/:id
       def show
         render json: {

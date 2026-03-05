@@ -59,6 +59,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { User } from "@/lib/types";
+import {
+  PERMISSION_LEVEL_LABELS,
+  type PermissionLevel,
+  type PermissionSectionData,
+} from "@/lib/constants/permission-levels";
 
 /**
  * Roles & Permissions Page - Organization Settings
@@ -87,20 +92,6 @@ const DEFAULT_TAB = "permissions";
 // Types
 // ============================================
 
-interface Permission {
-  id: number;
-  name: string;
-  description: string;
-}
-
-interface PermissionsMap {
-  [category: string]: Permission[];
-}
-
-interface CategoriesMap {
-  [key: string]: string;
-}
-
 interface Role {
   id: number;
   name: string;
@@ -108,7 +99,6 @@ interface Role {
   description: string;
   users_count: number;
   tasks_count?: number;
-  // Role settings (Jan 2026) - Task view only, theme is user-based
   settings?: {
     default_task_view?: "list" | "board" | "gantt";
   };
@@ -122,22 +112,34 @@ interface Group {
   members_count: number;
 }
 
+// Level badge color helper
+function levelBadgeClass(level: number): string {
+  switch (level) {
+    case 0: return "bg-muted text-muted-foreground";
+    case 1: return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300";
+    case 2: return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+    case 3: return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+    case 4: return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
+    default: return "bg-muted text-muted-foreground";
+  }
+}
+
 // ============================================
 // Permissions Sub-Tab
 // ============================================
 
 function PermissionsSubTab() {
-  const { toast } = useToast();
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
-  const [permissions, setPermissions] = useState<PermissionsMap>({});
-  const [categories, setCategories] = useState<CategoriesMap>({});
+  const [sections, setSections] = useState<PermissionSectionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [userPermissions, setUserPermissions] = useState<string[]>([]);
-  const [rolePermissions, setRolePermissions] = useState<string[]>([]);
-  const [updatingPermission, setUpdatingPermission] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // Per-user section permissions + role breakdown
+  const [userSectionPerms, setUserSectionPerms] = useState<Record<string, number>>({});
+  const [roleSectionPerms, setRoleSectionPerms] = useState<Record<string, Record<string, number>>>({});
+  const [loadingUser, setLoadingUser] = useState(false);
 
   const selectedUser = selectedUserId
     ? users.find((u) => u.id === selectedUserId) || null
@@ -152,20 +154,14 @@ function PermissionsSubTab() {
       setLoading(true);
       setError(null);
 
-      const [usersRes, permissionsRes] = await Promise.all([
+      const [usersRes, sectionsRes] = await Promise.all([
         api.get<{ users: User[] }>(API.users.list),
-        api.get<{
-          success: boolean;
-          permissions: PermissionsMap;
-          categories: CategoriesMap;
-        }>("/api/v1/permissions"),
+        api.get<{ success: boolean; sections: PermissionSectionData[] }>("/api/v1/permissions"),
       ]);
 
       setUsers(usersRes?.users || []);
-
-      if (permissionsRes.success) {
-        setPermissions(permissionsRes.permissions || {});
-        setCategories(permissionsRes.categories || {});
+      if (sectionsRes?.success) {
+        setSections(sectionsRes.sections || []);
       }
     } catch (err) {
       console.error("Failed to load permissions data:", err);
@@ -177,18 +173,20 @@ function PermissionsSubTab() {
 
   const loadUserPermissions = useCallback(async (userId: number) => {
     try {
+      setLoadingUser(true);
       const response = await api.get<{
         success: boolean;
-        user: User;
-        permissions: string[];
-        role_permissions: string[];
+        section_permissions: Record<string, number>;
+        role_section_permissions: Record<string, Record<string, number>>;
       }>(`/api/v1/permissions/user/${userId}`);
       if (response?.success) {
-        setUserPermissions(response.permissions || []);
-        setRolePermissions(response.role_permissions || []);
+        setUserSectionPerms(response.section_permissions || {});
+        setRoleSectionPerms(response.role_section_permissions || {});
       }
     } catch (err) {
       console.error("Failed to load user permissions:", err);
+    } finally {
+      setLoadingUser(false);
     }
   }, []);
 
@@ -196,38 +194,47 @@ function PermissionsSubTab() {
     if (selectedUser) {
       loadUserPermissions(selectedUser.id);
     } else {
-      setUserPermissions([]);
-      setRolePermissions([]);
+      setUserSectionPerms({});
+      setRoleSectionPerms({});
     }
   }, [selectedUser, loadUserPermissions]);
 
-  const togglePermission = async (
-    permissionName: string,
-    currentlyGranted: boolean
-  ) => {
-    if (!selectedUser) return;
-
-    // Permissions are currently role-based only — individual overrides not yet implemented
-    toast({
-      title: "Role-Based Permissions",
-      description: "Permissions are managed through roles. Change the user's role to update their permissions.",
-    });
+  // Find which role gave the highest level for a key
+  const sourceRoleForKey = (key: string): string | null => {
+    let maxLevel = -1;
+    let maxRole: string | null = null;
+    for (const [roleName, perms] of Object.entries(roleSectionPerms)) {
+      const level = perms[key] ?? 0;
+      if (level > maxLevel) {
+        maxLevel = level;
+        maxRole = roleName;
+      }
+    }
+    return maxRole;
   };
 
-  const hasPermission = (permissionName: string): boolean => {
-    return userPermissions.includes(permissionName);
-  };
-
-  const isFromRole = (permissionName: string): boolean => {
-    return rolePermissions.includes(permissionName);
-  };
+  // Group sections by section name for display
+  const groupedSections = sections.reduce<
+    Record<string, { header: PermissionSectionData | null; items: PermissionSectionData[] }>
+  >((acc, s) => {
+    if (!acc[s.section]) {
+      acc[s.section] = { header: null, items: [] };
+    }
+    if (s.isSectionHeader) {
+      acc[s.section].header = s;
+    } else {
+      acc[s.section].items.push(s);
+    }
+    return acc;
+  }, {});
 
   const filteredUsers = users.filter(
     (user) =>
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.role?.toLowerCase().includes(searchQuery.toLowerCase())
+      user.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const isAdmin = selectedUser?.role_names?.includes("admin");
 
   if (loading) {
     return <LoadingOverlay height="py-12" />;
@@ -249,13 +256,13 @@ function PermissionsSubTab() {
       <div className="col-span-4 bg-card rounded-lg border border-border">
         <div className="p-4 border-b border-border">
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search users..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
         </div>
@@ -265,25 +272,20 @@ function PermissionsSubTab() {
             <button
               key={user.id}
               onClick={() => setSelectedUserId(user.id)}
-              className={`w-full p-4 text-left hover:bg-muted transition-colors ${
+              className={`w-full p-3 text-left hover:bg-muted transition-colors ${
                 selectedUser?.id === user.id
                   ? "bg-primary/10 border-l-4 border-primary"
                   : ""
               }`}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground">
-                    {user.name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
-                  <span className="inline-block mt-2 px-2 py-1 text-xs font-medium bg-muted text-foreground rounded">
-                    {user.role}
-                  </span>
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary shrink-0">
+                  {user.name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                 </div>
-                {selectedUser?.id === user.id && (
-                  <CheckIcon className="h-5 w-5 text-primary flex-shrink-0 ml-2" />
-                )}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate">{user.name}</div>
+                  <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                </div>
               </div>
             </button>
           ))}
@@ -295,121 +297,116 @@ function PermissionsSubTab() {
         {!selectedUser ? (
           <div className="p-12">
             <EmptyState
-              title="Select a user to manage their permissions"
-              icon={<UserGroupIcon className="h-16 w-16" />}
+              title="Select a user to view their permissions"
+              icon={<Shield className="h-12 w-12" />}
             />
           </div>
         ) : (
           <div>
-            <div className="p-6 border-b border-border bg-muted/50">
-              <h2 className="text-xl font-bold text-foreground">
-                {selectedUser.name}
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                {selectedUser.email}
-              </p>
-              <div className="mt-3">
-                <span className="inline-block px-3 py-1 text-sm font-medium bg-primary/20 text-primary rounded">
-                  Role: {selectedUser.role}
-                </span>
-              </div>
-            </div>
-
-            <div className="p-6 max-h-[600px] overflow-y-auto">
-              <div className="mb-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                <h4 className="font-semibold text-foreground mb-2">
-                  Permission Legend
-                </h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-500 rounded"></div>
-                    <span className="text-foreground">
-                      Permission granted (from role or user override)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-muted rounded"></div>
-                    <span className="text-foreground">
-                      Permission not granted
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                    <span className="text-foreground">
-                      User override (custom permission)
-                    </span>
-                  </div>
+            <div className="p-4 border-b border-border bg-muted/50 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {selectedUser.name}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {selectedUser.email}
+                </p>
+                <div className="mt-2 flex gap-2 flex-wrap">
+                  {(selectedUser.role_names || [selectedUser.role]).filter(Boolean).map((r) => (
+                    <Badge key={r} variant="secondary" className="text-xs">{r}</Badge>
+                  ))}
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground max-w-[200px] text-right">
+                Permissions are managed via roles.{" "}
+                <button
+                  className="text-primary underline"
+                  onClick={() => router.push("/settings/roles/roles")}
+                >
+                  Edit roles
+                </button>
+              </p>
+            </div>
 
-              {Object.entries(permissions).map(([category, perms]) => (
-                <div key={category} className="mb-6">
-                  <h3 className="text-lg font-semibold text-foreground mb-3 pb-2 border-b border-border">
-                    {categories[category] || category}
-                  </h3>
-                  <div className="space-y-2">
-                    {perms.map((perm) => {
-                      const granted = hasPermission(perm.name);
-                      const fromRole = isFromRole(perm.name);
-                      const isOverride = granted !== fromRole;
+            <div className="p-4 max-h-[550px] overflow-y-auto">
+              {isAdmin && (
+                <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <p className="text-sm text-purple-800 dark:text-purple-200 font-medium">
+                    Admin users have full access to all permissions.
+                  </p>
+                </div>
+              )}
 
-                      return (
-                        <div
-                          key={perm.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg border ${
-                            granted
-                              ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
-                              : "bg-muted border-border"
-                          } ${isOverride ? "ring-2 ring-blue-400" : ""}`}
-                        >
-                          <button
-                            onClick={() =>
-                              togglePermission(perm.name, granted)
-                            }
-                            disabled={updatingPermission === perm.name}
-                            className={`flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-                              granted
-                                ? isOverride
-                                  ? "bg-blue-600 border-blue-600"
-                                  : "bg-green-600 border-green-600"
-                                : "bg-background border-border hover:border-primary"
-                            } ${
-                              updatingPermission === perm.name
-                                ? "opacity-50 cursor-wait"
-                                : "cursor-pointer"
-                            }`}
-                          >
-                            {granted && (
-                              <CheckIcon className="h-4 w-4 text-white" />
-                            )}
-                          </button>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium text-foreground">
-                                {perm.name}
-                              </h4>
-                              {fromRole && !isOverride && (
-                                <span className="text-xs px-2 py-0.5 bg-muted text-foreground rounded">
-                                  from role
-                                </span>
+              {loadingUser ? (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner size={24} className="text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedSections).map(([sectionName, { header, items }]) => {
+                    const headerLevel = header ? (userSectionPerms[header.key] ?? 0) : 0;
+                    return (
+                      <div key={sectionName}>
+                        {/* Section header row */}
+                        {header && (
+                          <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
+                            <div>
+                              <h3 className="font-semibold text-foreground text-sm">
+                                {header.displayName}
+                              </h3>
+                              {header.description && (
+                                <p className="text-xs text-muted-foreground">{header.description}</p>
                               )}
-                              {isOverride && (
-                                <span className="text-xs px-2 py-0.5 bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded">
-                                  override
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${levelBadgeClass(headerLevel)}`}>
+                                {PERMISSION_LEVEL_LABELS[headerLevel as PermissionLevel] || "No Access"}
+                              </span>
+                              {!isAdmin && sourceRoleForKey(header.key) && (
+                                <span className="text-xs text-muted-foreground">
+                                  via {sourceRoleForKey(header.key)}
                                 </span>
                               )}
                             </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {perm.description}
-                            </p>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        )}
+
+                        {/* Sub-feature rows */}
+                        {items.length > 0 && (
+                          <div className="space-y-1 ml-4">
+                            {items.map((item) => {
+                              const level = userSectionPerms[item.key] ?? 0;
+                              return (
+                                <div
+                                  key={item.key}
+                                  className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-sm text-foreground">{item.displayName}</span>
+                                    {item.description && (
+                                      <span className="text-xs text-muted-foreground ml-2">{item.description}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${levelBadgeClass(level)}`}>
+                                      {PERMISSION_LEVEL_LABELS[level as PermissionLevel] || "No Access"}
+                                    </span>
+                                    {!isAdmin && sourceRoleForKey(item.key) && (
+                                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                        via {sourceRoleForKey(item.key)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
@@ -835,12 +832,24 @@ function UserRolesSubTab() {
 
 function GroupsSubTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showMembersDialog, setShowMembersDialog] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDescription, setNewGroupDescription] = useState("");
+  const [editGroupName, setEditGroupName] = useState("");
+  const [editGroupDescription, setEditGroupDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  // Members management
+  const [selectedGroupForMembers, setSelectedGroupForMembers] = useState<Group | null>(null);
+  const [members, setMembers] = useState<Array<{ id: number; name: string; email: string }>>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
 
   useEffect(() => {
     loadGroups();
@@ -848,15 +857,13 @@ function GroupsSubTab() {
 
   const loadGroups = async () => {
     try {
-      const data = await api.get<Group[]>("/api/v1/groups");
-      setGroups(data);
+      const data = await api.get<Group[] | { groups: Group[] }>("/api/v1/groups");
+      // Backend returns flat array, handle both formats
+      const groupsArray = Array.isArray(data) ? data : (data?.groups || []);
+      setGroups(groupsArray);
     } catch (error) {
       console.error("Failed to load groups:", error);
-      // Mock data for development
-      setGroups([
-        { id: 1, name: "Supervisors", description: "Site supervisors", members_count: 5 },
-        { id: 2, name: "Office Staff", description: "Office administration", members_count: 8 },
-      ]);
+      toast({ title: "Error", description: "Failed to load groups", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -882,6 +889,105 @@ function GroupsSubTab() {
     }
   };
 
+  const handleEditGroup = (group: Group) => {
+    setEditingGroup(group);
+    setEditGroupName(group.name);
+    setEditGroupDescription(group.description || "");
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingGroup || !editGroupName) return;
+    setSaving(true);
+    try {
+      await api.patch(`/api/v1/groups/${editingGroup.id}`, {
+        name: editGroupName,
+        description: editGroupDescription,
+      });
+      toast({ title: "Success", description: "Group updated successfully" });
+      setShowEditDialog(false);
+      setEditingGroup(null);
+      loadGroups();
+    } catch (error) {
+      console.error("Failed to update group:", error);
+      toast({ title: "Error", description: "Failed to update group", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteGroup = async (group: Group) => {
+    if (!(await confirm(`Delete group "${group.name}"? Users in this group will be unassigned.`))) return;
+    try {
+      const response = await api.delete<{ success: boolean; error?: string }>(`/api/v1/groups/${group.id}`);
+      if (response?.success === false && response?.error) {
+        toast({ title: "Error", description: response.error, variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: "Group deleted" });
+        loadGroups();
+      }
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error || "Failed to delete group";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    }
+  };
+
+  const handleManageMembers = async (group: Group) => {
+    setSelectedGroupForMembers(group);
+    setShowMembersDialog(true);
+    setLoadingMembers(true);
+    try {
+      const [membersRes, usersRes] = await Promise.all([
+        api.get<{ success: boolean; members: Array<{ id: number; name: string; email: string }> }>(
+          `/api/v1/groups/${group.id}/members`
+        ),
+        api.get<{ users: User[] }>(API.users.list),
+      ]);
+      setMembers(membersRes?.members || []);
+      setAllUsers(usersRes?.users || []);
+    } catch (err) {
+      console.error("Failed to load members:", err);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const handleAddMember = async (userId: number) => {
+    if (!selectedGroupForMembers) return;
+    setAddingMember(true);
+    try {
+      await api.post(`/api/v1/groups/${selectedGroupForMembers.id}/add_member`, { user_id: userId });
+      // Refresh members
+      const res = await api.get<{ success: boolean; members: Array<{ id: number; name: string; email: string }> }>(
+        `/api/v1/groups/${selectedGroupForMembers.id}/members`
+      );
+      setMembers(res?.members || []);
+      loadGroups(); // Refresh counts
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || "Failed to add member";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (userId: number) => {
+    if (!selectedGroupForMembers) return;
+    try {
+      await api.delete(`/api/v1/groups/${selectedGroupForMembers.id}/remove_member?user_id=${userId}`);
+      setMembers((prev) => prev.filter((m) => m.id !== userId));
+      loadGroups();
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || "Failed to remove member";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  };
+
+  // Users not already in this group
+  const availableUsers = allUsers.filter(
+    (u) => !members.some((m) => m.id === u.id)
+  );
+
   if (loading) {
     return <LoadingOverlay />;
   }
@@ -895,89 +1001,165 @@ function GroupsSubTab() {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {groups.map((group) => (
-          <Card key={group.id}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{group.name}</CardTitle>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Users className="h-4 w-4 mr-2" />
-                      Manage Members
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-2">
-                {group.description || "No description"}
-              </p>
-              <Badge variant="secondary">
-                {group.members_count || 0} members
-              </Badge>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {groups.length === 0 ? (
+        <EmptyState title="No groups created yet" icon={<UsersRound className="h-12 w-12" />} />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {groups.map((group) => (
+            <Card key={group.id}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{group.name}</CardTitle>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleManageMembers(group)}>
+                        <Users className="h-4 w-4 mr-2" />
+                        Manage Members
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleEditGroup(group)}>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGroup(group)}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-2">
+                  {group.description || "No description"}
+                </p>
+                <Badge variant="secondary">
+                  {group.members_count || 0} members
+                </Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
+      {/* Add Group Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Group</DialogTitle>
-            <DialogDescription>
-              Create a new group to organize users.
-            </DialogDescription>
+            <DialogDescription>Create a new group to organize users.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="groupName">Group Name</Label>
-              <Input
-                id="groupName"
-                placeholder="e.g., Site Team A"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-              />
+              <Input id="groupName" placeholder="e.g., Site Team A" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="groupDescription">Description</Label>
-              <Input
-                id="groupDescription"
-                placeholder="Brief description of this group"
-                value={newGroupDescription}
-                onChange={(e) => setNewGroupDescription(e.target.value)}
-              />
+              <Input id="groupDescription" placeholder="Brief description" value={newGroupDescription} onChange={(e) => setNewGroupDescription(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
             <Button onClick={handleAddGroup} disabled={saving || !newGroupName}>
-              {saving ? (
-                <>
-                  <Spinner size={16} className="mr-2" />
-                  Creating...
-                </>
-              ) : (
-                "Create Group"
-              )}
+              {saving ? <><Spinner size={16} className="mr-2" />Creating...</> : "Create Group"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Group Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Group</DialogTitle>
+            <DialogDescription>Update group details.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Group Name</Label>
+              <Input value={editGroupName} onChange={(e) => setEditGroupName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input value={editGroupDescription} onChange={(e) => setEditGroupDescription(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={saving || !editGroupName}>
+              {saving ? <><Spinner size={16} className="mr-2" />Saving...</> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Members Dialog */}
+      <Dialog open={showMembersDialog} onOpenChange={setShowMembersDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {selectedGroupForMembers?.name} — Members
+            </DialogTitle>
+            <DialogDescription>Add or remove users from this group.</DialogDescription>
+          </DialogHeader>
+
+          {loadingMembers ? (
+            <div className="flex justify-center py-8"><Spinner size={24} /></div>
+          ) : (
+            <div className="space-y-4">
+              {/* Current members */}
+              <div>
+                <h4 className="text-sm font-medium mb-2">Current Members ({members.length})</h4>
+                {members.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No members yet.</p>
+                ) : (
+                  <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                    {members.map((m) => (
+                      <div key={m.id} className="flex items-center justify-between p-2 rounded border bg-card">
+                        <div>
+                          <div className="text-sm font-medium">{m.name}</div>
+                          <div className="text-xs text-muted-foreground">{m.email}</div>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveMember(m.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Add member */}
+              {availableUsers.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Add Member</h4>
+                  <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                    {availableUsers.map((u) => (
+                      <div key={u.id} className="flex items-center justify-between p-2 rounded border bg-card hover:bg-muted/50">
+                        <div>
+                          <div className="text-sm font-medium">{u.name}</div>
+                          <div className="text-xs text-muted-foreground">{u.email}</div>
+                        </div>
+                        <Button variant="outline" size="sm" disabled={addingMember} onClick={() => handleAddMember(u.id)}>
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMembersDialog(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
