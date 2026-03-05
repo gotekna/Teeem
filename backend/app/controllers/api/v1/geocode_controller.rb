@@ -85,6 +85,73 @@ class Api::V1::GeocodeController < ApplicationController
     render json: { error: "Geocoding request failed" }, status: :internal_server_error
   end
 
+  # GET /api/v1/geocode/reverse?lat=...&lng=...
+  # Reverse geocode coordinates to an address
+  def reverse
+    lat = params[:lat]
+    lng = params[:lng]
+
+    if lat.blank? || lng.blank?
+      return render json: { error: "lat and lng are required" }, status: :bad_request
+    end
+
+    mapbox_token = ENV["MAPBOX_ACCESS_TOKEN"]
+    if mapbox_token.blank?
+      return render json: { error: "Geocoding not configured" }, status: :service_unavailable
+    end
+
+    url = "https://api.mapbox.com/geocoding/v5/mapbox.places/#{lng},#{lat}.json?access_token=#{mapbox_token}&country=au&types=address,place,locality&limit=1"
+    response = HTTParty.get(url, timeout: 10)
+
+    unless response.success?
+      return render json: { error: "Reverse geocoding failed" }, status: :bad_gateway
+    end
+
+    data = response.parsed_response
+    data = JSON.parse(data) if data.is_a?(String)
+
+    feature = Array(data["features"]).first
+    unless feature
+      return render json: { success: true, address: nil }
+    end
+
+    context = feature["context"] || []
+    feature_id = feature["id"].to_s
+    feature_text = feature["text"] || ""
+    is_place_or_locality = feature_id.start_with?("place", "locality")
+
+    if is_place_or_locality
+      suburb = feature_text
+      street_name = nil
+      street_type = nil
+      house_number = nil
+    else
+      suburb = context.find { |c| c["id"].to_s.start_with?("place", "locality") }&.dig("text")
+      street_name, street_type = parse_street_name_and_type(feature_text)
+      house_number = feature["address"]
+    end
+
+    state = context.find { |c| c["id"].to_s.start_with?("region") }&.dig("text")
+    postcode = context.find { |c| c["id"].to_s.start_with?("postcode") }&.dig("text")
+
+    render json: {
+      success: true,
+      address: {
+        houseNumber: house_number || "",
+        streetName: street_name || "",
+        streetType: street_type || "",
+        suburb: suburb || "",
+        state: abbreviate_state(state) || "",
+        postcode: postcode || "",
+        placeName: feature["place_name"],
+        resultType: is_place_or_locality ? "place" : "address"
+      }
+    }
+  rescue StandardError => e
+    Rails.logger.error "Reverse geocoding error: #{e.message}"
+    render json: { error: "Reverse geocoding failed" }, status: :internal_server_error
+  end
+
   private
 
   def parse_street_name_and_type(street_full)

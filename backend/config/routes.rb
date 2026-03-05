@@ -423,6 +423,7 @@ Rails.application.routes.draw do
 
       # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
       get "geocode/search", to: "geocode#search"
+      get "geocode/reverse", to: "geocode#reverse"
 
       # Job setup (types, statuses, and stages)
       resources :job_types do
