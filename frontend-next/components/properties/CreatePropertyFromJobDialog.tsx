@@ -25,8 +25,7 @@ interface CreatePropertyFromJobDialogProps {
 
 interface JobForSelect {
   id: number;
-  label: string;
-  job_code: string;
+  name: string;
   client_name?: string;
 }
 
@@ -53,7 +52,7 @@ export function CreatePropertyFromJobDialog({
           setJobs(
             res.jobs.map((j) => ({
               id: String(j.id),
-              label: `${j.label}`,
+              label: j.name,
               searchText: j.client_name || "",
             }))
           );
