@@ -4761,6 +4761,28 @@ Rails.application.routes.draw do
             get :eligible_purchase_orders
           end
         end
+
+        # Property Management Portal (tenant/owner access)
+        scope :property do
+          get "dashboard", to: "property_dashboard#show"
+
+          resources :inspections, controller: "property_inspections", only: [:index, :show] do
+            member do
+              post :sign
+              post :comment
+              get :download_report
+            end
+          end
+
+          resources :maintenance, controller: "maintenance_requests", only: [:index, :create]
+
+          # Owner-only: Property valuations
+          resources :valuations, controller: "property_valuations", only: [:index, :show] do
+            member do
+              post :calculate
+            end
+          end
+        end
       end
 
       # Quote Requests (internal builder interface)

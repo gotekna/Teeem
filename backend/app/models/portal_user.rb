@@ -8,7 +8,7 @@ class PortalUser < ApplicationRecord
   has_many :quote_responses, foreign_key: :responded_by_portal_user_id, dependent: :nullify
 
   # Constants
-  PORTAL_TYPES = %w[supplier customer].freeze
+  PORTAL_TYPES = %w[supplier customer tenant owner].freeze
   MAX_FAILED_ATTEMPTS = 5
   LOCKOUT_DURATION = 30.minutes
 
@@ -31,6 +31,9 @@ class PortalUser < ApplicationRecord
   scope :locked, -> { where("locked_until > ?", Time.current) }
   scope :suppliers, -> { where(portal_type: "supplier") }
   scope :customers, -> { where(portal_type: "customer") }
+  scope :tenants, -> { where(portal_type: "tenant") }
+  scope :owners, -> { where(portal_type: "owner") }
+  scope :property_portal, -> { where(portal_type: %w[tenant owner]) }
   scope :recent_login, -> { order(last_login_at: :desc) }
 
   # Instance methods
@@ -117,6 +120,58 @@ class PortalUser < ApplicationRecord
       invited_by_contact: invited_by,
       account_tier: "free"
     )
+  end
+
+  # Property portal methods
+  def tenant?
+    portal_type == "tenant"
+  end
+
+  def owner?
+    portal_type == "owner"
+  end
+
+  def property_portal?
+    tenant? || owner?
+  end
+
+  # Properties accessible to this portal user
+  def accessible_properties
+    return Property.none unless property_portal?
+
+    if owner?
+      # Owners see properties where they are listed as owner contact
+      Property.where(owner_contact_id: contact_id)
+        .or(Property.joins(:property_contacts).where(property_contacts: { contact_id: contact_id, role: "owner" }))
+        .distinct
+    else
+      # Tenants see properties where they are a tenant contact
+      Property.joins(:property_contacts)
+        .where(property_contacts: { contact_id: contact_id, role: %w[tenant co_tenant] })
+        .distinct
+    end
+  end
+
+  # Tenancies accessible to this portal user
+  def accessible_tenancies
+    property_ids = accessible_properties.pluck(:id)
+    Tenancy.where(property_id: property_ids)
+  end
+
+  # Inspections accessible to this portal user
+  def accessible_inspections
+    property_ids = accessible_properties.pluck(:id)
+    PropertyInspection.where(property_id: property_ids)
+  end
+
+  # Bills relevant to this portal user
+  def accessible_bills
+    property_ids = accessible_properties.pluck(:id)
+    if owner?
+      PropertyBill.where(property_id: property_ids)
+    else
+      PropertyBill.where(property_id: property_ids, charge_to: "tenant")
+    end
   end
 
   # Display name for logs/admin

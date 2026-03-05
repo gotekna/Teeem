@@ -46,6 +46,150 @@ class Property < ApplicationRecord
     sda_enrolled?
   end
 
+  # ── Valuation Methods ──
+
+  CONSTRUCTION_TYPES = %w[brick_veneer timber_frame concrete steel_frame double_brick weatherboard other].freeze
+  validates :construction_type, inclusion: { in: CONSTRUCTION_TYPES, allow_nil: true }
+
+  # Annual gross rental income from active tenancy
+  def annual_gross_rent
+    tenancy = active_tenancy
+    return 0 unless tenancy
+
+    case tenancy.rent_frequency
+    when "weekly" then tenancy.weekly_rent * 52
+    when "fortnightly" then tenancy.weekly_rent * 26
+    when "monthly" then tenancy.weekly_rent * 12
+    else tenancy.weekly_rent * 52
+    end
+  end
+
+  # Total annual expenses (for net yield)
+  def annual_expenses
+    mgmt_fee = (annual_gross_rent * (management_fee_pct || 0) / 100.0)
+    vacancy = (annual_gross_rent * (vacancy_rate_pct || 0) / 100.0)
+    fixed = (annual_insurance || 0) + (annual_council_rates || 0) +
+            (annual_water_rates || 0) + (annual_body_corporate || 0) +
+            (annual_other_expenses || 0)
+    # Add maintenance from property bills
+    maintenance = property_bills.where(bill_type: "maintenance", charge_to: "owner")
+                                .where("bill_date >= ?", 1.year.ago).sum(:amount)
+    mgmt_fee + vacancy + fixed + maintenance
+  end
+
+  # Net annual income
+  def annual_net_income
+    annual_gross_rent - annual_expenses
+  end
+
+  # Property value (current valuation or purchase price as fallback)
+  def effective_value
+    current_valuation.presence || purchase_price || 0
+  end
+
+  # 1. Gross Rental Yield = (Annual Rent / Property Value) × 100
+  def gross_rental_yield
+    return nil if effective_value.zero?
+    (annual_gross_rent / effective_value * 100).round(2)
+  end
+
+  # 2. Net Rental Yield = (Annual Rent - Expenses) / Property Value × 100
+  def net_rental_yield
+    return nil if effective_value.zero?
+    (annual_net_income / effective_value * 100).round(2)
+  end
+
+  # 3. Cap Rate = Net Operating Income / Property Value × 100
+  def cap_rate
+    net_rental_yield # Same calculation for single property
+  end
+
+  # 4. Gross Rent Multiplier = Property Value / Annual Gross Rent
+  def gross_rent_multiplier
+    return nil if annual_gross_rent.zero?
+    (effective_value / annual_gross_rent).round(1)
+  end
+
+  # 5. Cost Approach = Land Value + (Building Replacement - Depreciation)
+  def cost_approach_value
+    return nil unless land_value.present? && building_replacement_cost.present?
+    age = year_built ? (Date.current.year - year_built) : 0
+    depreciation_rate = 0.015 # 1.5% per year (50-year lifespan)
+    depreciation = [building_replacement_cost * depreciation_rate * age, building_replacement_cost * 0.8].min
+    (land_value + building_replacement_cost - depreciation).round(0)
+  end
+
+  # 6. DCF (Discounted Cash Flow) - 10 year projection
+  def dcf_value(discount_rate: 0.08, rental_growth: 0.03, expense_growth: 0.025, hold_years: 10, exit_cap_rate: 0.06)
+    return nil if annual_gross_rent.zero?
+
+    pv = 0
+    rent = annual_gross_rent.to_f
+    expenses = annual_expenses.to_f
+
+    hold_years.times do |year|
+      rent *= (1 + rental_growth) if year > 0
+      expenses *= (1 + expense_growth) if year > 0
+      net_cf = rent - expenses
+      pv += net_cf / ((1 + discount_rate) ** (year + 1))
+    end
+
+    # Residual value at exit
+    final_year_noi = (rent * (1 + rental_growth)) - (expenses * (1 + expense_growth))
+    residual = final_year_noi / exit_cap_rate
+    pv += residual / ((1 + discount_rate) ** hold_years)
+
+    pv.round(0)
+  end
+
+  # Capital gain (unrealised)
+  def unrealised_capital_gain
+    return nil unless purchase_price.present? && effective_value > 0
+    effective_value - total_cost_base
+  end
+
+  # Total cost base for CGT
+  def total_cost_base
+    (purchase_price || 0) + (cost_base_stamp_duty || 0) +
+    (cost_base_legal_fees || 0) + (cost_base_other || 0) +
+    (capital_improvements_total || 0)
+  end
+
+  # CGT estimate (50% discount for 12+ months)
+  def estimated_cgt(marginal_tax_rate: 0.37, selling_costs: 0)
+    gain = unrealised_capital_gain
+    return nil unless gain
+
+    adjusted_gain = gain - selling_costs
+    return 0 if adjusted_gain <= 0
+
+    # Apply 50% CGT discount if held 12+ months
+    held_over_12_months = purchase_date.present? && purchase_date < 12.months.ago
+    taxable_gain = held_over_12_months ? adjusted_gain * 0.5 : adjusted_gain
+    (taxable_gain * marginal_tax_rate).round(0)
+  end
+
+  # All valuations summary
+  def valuation_summary
+    {
+      effective_value: effective_value,
+      purchase_price: purchase_price,
+      current_valuation: current_valuation,
+      annual_gross_rent: annual_gross_rent,
+      annual_expenses: annual_expenses,
+      annual_net_income: annual_net_income,
+      gross_rental_yield: gross_rental_yield,
+      net_rental_yield: net_rental_yield,
+      cap_rate: cap_rate,
+      gross_rent_multiplier: gross_rent_multiplier,
+      cost_approach_value: cost_approach_value,
+      dcf_value: dcf_value,
+      unrealised_capital_gain: unrealised_capital_gain,
+      total_cost_base: total_cost_base,
+      estimated_cgt: estimated_cgt,
+    }
+  end
+
   private
 
   def generate_property_code

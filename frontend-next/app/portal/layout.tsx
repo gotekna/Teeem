@@ -15,6 +15,11 @@ import {
   Bars3Icon,
   XMarkIcon,
   CalendarDaysIcon,
+  BuildingOfficeIcon,
+  WrenchScrewdriverIcon,
+  ClipboardDocumentCheckIcon,
+  ChartBarIcon,
+  CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
 import { getStorageItem, removeStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { ROUTES } from "@/lib/constants/route-paths";
@@ -24,6 +29,7 @@ import { ConfirmationProvider } from "@/contexts/ConfirmationContext";
 interface PortalUser {
   contact_name?: string;
   company_name?: string;
+  portal_type?: string;
 }
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -45,7 +51,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     }
   }, [pathname, router]);
 
-  const navigation = [
+  const isPropertyPortal = portalUser?.portal_type === "tenant" || portalUser?.portal_type === "owner";
+  const isOwner = portalUser?.portal_type === "owner";
+
+  const supplierNavigation = [
     { name: "Dashboard", href: ROUTES.PORTAL.DASHBOARD, icon: HomeIcon },
     { name: "Quotes", href: ROUTES.PORTAL.QUOTES, icon: DocumentTextIcon },
     { name: "Jobs", href: ROUTES.PORTAL.JOBS, icon: BriefcaseIcon },
@@ -54,6 +63,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     { name: "Kudos", href: ROUTES.PORTAL.KUDOS, icon: TrophyIcon },
     { name: "Settings", href: "/portal/settings", icon: Cog6ToothIcon },
   ];
+
+  const propertyNavigation = [
+    { name: "Dashboard", href: ROUTES.PORTAL.PROPERTY_DASHBOARD, icon: HomeIcon },
+    { name: "Inspections", href: ROUTES.PORTAL.PROPERTY_INSPECTIONS, icon: ClipboardDocumentCheckIcon },
+    { name: "Maintenance", href: ROUTES.PORTAL.PROPERTY_MAINTENANCE, icon: WrenchScrewdriverIcon },
+    { name: "Documents", href: ROUTES.PORTAL.PROPERTY_DOCUMENTS, icon: DocumentTextIcon },
+    ...(isOwner ? [
+      { name: "Valuations", href: ROUTES.PORTAL.PROPERTY_VALUATIONS, icon: ChartBarIcon },
+    ] : []),
+  ];
+
+  const navigation = isPropertyPortal ? propertyNavigation : supplierNavigation;
 
   const handleLogout = () => {
     removeStorageItem(STORAGE_KEYS.PORTAL_TOKEN);
