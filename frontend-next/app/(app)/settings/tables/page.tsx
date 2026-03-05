@@ -9,6 +9,7 @@ import { usePathTabs } from "@/hooks/usePathTabs";
 import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { GstCodesTab } from "./components/GstCodesTab";
+import { SharedConfigTab } from "./components/SharedConfigTab";
 import TeeemTableView from "@/components/table/TeeemTableView";
 
 /**
@@ -27,12 +28,14 @@ import TeeemTableView from "@/components/table/TeeemTableView";
  *   - statuses (default): PO Statuses (TeeemTableView)
  * - accounts: Accounting tables
  *   - gst (default): GST Codes (custom table)
+ * - shared: Shared Config dashboard (no sub-tabs)
  */
 
 const TOP_TABS = [
   { id: "pricebook", label: "Pricebook" },
   { id: "purchase-orders", label: "Purchase Orders" },
   { id: "accounts", label: "Accounts" },
+  { id: "shared", label: "Shared Config" },
 ];
 
 const PRICEBOOK_SUB_TABS = [
@@ -73,8 +76,12 @@ export default function TablesSettingsPage() {
 
   // Override top-level tab setter to navigate directly to default sub-tab
   const setActiveTab = useCallback((tab: string) => {
-    const defaultSub = DEFAULT_SUB_TABS[tab] || "";
-    router.push(`/settings/tables/${tab}/${defaultSub}`, { scroll: false });
+    const defaultSub = DEFAULT_SUB_TABS[tab];
+    if (defaultSub) {
+      router.push(`/settings/tables/${tab}/${defaultSub}`, { scroll: false });
+    } else {
+      router.push(`/settings/tables/${tab}`, { scroll: false });
+    }
   }, [router, DEFAULT_SUB_TABS]);
 
   // Determine active sub-tab based on parent tab
@@ -227,6 +234,11 @@ export default function TablesSettingsPage() {
                 </div>
               </Tabs>
             </div>
+          </TabsContent>
+
+          {/* Shared Config Tab (no sub-tabs) */}
+          <TabsContent value="shared" className="absolute inset-0 overflow-auto">
+            <SharedConfigTab />
           </TabsContent>
         </div>
       </Tabs>

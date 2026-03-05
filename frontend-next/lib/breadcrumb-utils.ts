@@ -219,6 +219,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   // Settings > Tables tabs (top-level)
   "pricebook": "Pricebook",
   "accounts": "Accounts",
+  "shared": "Shared Config",
 
   // Settings > Tables > Pricebook sub-tabs
   "brands": "Brands",
@@ -505,7 +506,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "data-health": ["overview", "contacts"],
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
   "corporate": ["groups", "companies", "company-tabs"],
-  "tables": ["pricebook", "purchase-orders", "accounts"],
+  "tables": ["pricebook", "purchase-orders", "accounts", "shared"],
   "properties": ["types", "statuses"],
 };
 

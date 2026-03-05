@@ -692,7 +692,8 @@ export function LocationMap({
     try {
       const newTitle = getPreviewTitle();
 
-      await api.patch(`/api/v1/jobs/${jobId}`, {
+      // Capture response — backend auto-generates job name from address components
+      const response = await api.patch<{ success: boolean; data: Record<string, unknown> }>(`/api/v1/jobs/${jobId}`, {
         job: {
           latitude: tempPosition[0],
           longitude: tempPosition[1],
@@ -719,7 +720,10 @@ export function LocationMap({
       resetForm();
 
       if (onLocationUpdate) {
+        // Use backend response (includes auto-generated name) instead of local fields
+        const jobData = response?.data || {};
         onLocationUpdate({
+          ...jobData,
           latitude: savedPosition[0],
           longitude: savedPosition[1],
           location: originalLocation || newTitle,

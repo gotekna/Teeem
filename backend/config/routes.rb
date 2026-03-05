@@ -504,6 +504,14 @@ Rails.application.routes.draw do
           post :promote_to_global     # TEEEM only — set tenant_id=NULL on a record to share globally
         end
       end
+      # Shared Config Dashboard
+      # GET /api/v1/shared_config/tables -> List all shared config tables with counts
+      resource :shared_config, only: [], controller: "shared_config" do
+        collection do
+          get :tables
+        end
+      end
+
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
 
       # User files from S3 (must be before resources :documents to avoid :id match)
