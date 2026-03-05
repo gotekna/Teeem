@@ -215,6 +215,7 @@ interface DocumentType {
   generates_certificate?: boolean; // Auto-generate certificate on task completion
   certificate_template?: string; // Template to use (e.g., "form_43")
   updates_corporate_key?: boolean; // Prompt to update corporate key when scanning
+  updates_tax_file_number?: boolean; // Prompt to update tax file number when scanning
 }
 
 // Type definitions for tab/folder hierarchy
@@ -2106,6 +2107,24 @@ export default function DocumentTypeDetailPage() {
               </div>
               <p className="text-[10px] text-muted-foreground">
                 When scanning this document type, prompt to view and update the company&apos;s corporate key
+              </p>
+            </div>
+
+            {/* Update Tax File Number */}
+            <div className="space-y-2">
+              <Label>Tax File Number</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="updates_tax_file_number"
+                  checked={documentType.updates_tax_file_number || false}
+                  onCheckedChange={(checked) => updateField("updates_tax_file_number", checked)}
+                />
+                <Label htmlFor="updates_tax_file_number" className="text-xs cursor-pointer">
+                  Update Tax File Number
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                When scanning this document type, prompt to view and update the company&apos;s tax file number
               </p>
             </div>
 

@@ -22,13 +22,15 @@
 namespace :shared_config do
   desc "Analyze config tables for shared record migration (dry run, no changes)"
   task analyze: :environment do
-    analyzer = SharedConfigAnalyzer.new
+    source_slug = ENV["SOURCE"] || "teeem"
+    analyzer = SharedConfigAnalyzer.new(source_slug: source_slug)
     analyzer.analyze_all
   end
 
-  desc "Migrate TEEEM config records to global (tenant_id = NULL)"
+  desc "Migrate config records to global (tenant_id = NULL). SOURCE=tekna for Tekna as SSoT"
   task migrate: :environment do
-    migrator = SharedConfigMigrator.new
+    source_slug = ENV["SOURCE"] || "teeem"
+    migrator = SharedConfigMigrator.new(source_slug: source_slug)
     migrator.migrate_all
   end
 
@@ -40,13 +42,15 @@ namespace :shared_config do
       exit 1
     end
 
-    migrator = SharedConfigMigrator.new
+    source_slug = ENV["SOURCE"] || "teeem"
+    migrator = SharedConfigMigrator.new(source_slug: source_slug)
     migrator.migrate_table(table_key)
   end
 
-  desc "Rollback: set global records back to master tenant"
+  desc "Rollback: set global records back to source tenant"
   task rollback: :environment do
-    migrator = SharedConfigMigrator.new
+    source_slug = ENV["SOURCE"] || "teeem"
+    migrator = SharedConfigMigrator.new(source_slug: source_slug)
     migrator.rollback_all
   end
 end

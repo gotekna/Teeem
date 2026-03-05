@@ -427,6 +427,7 @@ module Api
           :generates_certificate,     # Auto-generate certificate on task completion
           :certificate_template,      # Template to use (e.g., "form_43")
           :updates_corporate_key,     # Prompt to update corporate key when scanning this doc type
+          :updates_tax_file_number,   # Prompt to update tax file number when scanning this doc type
           :signature_field_config,    # JSONB: Signature field positions for Word→PDF conversion
           file_extensions: [],
           aliases: [],                # JSONB: Alternative names for document matching
@@ -547,6 +548,7 @@ module Api
           generates_certificate: document_type.generates_certificate || false,
           certificate_template: document_type.certificate_template,
           updates_corporate_key: document_type.updates_corporate_key || false,
+          updates_tax_file_number: document_type.updates_tax_file_number || false,
           signature_field_config: document_type.signature_field_config || [],
           documents_count: 0,  # Table dropped (Jan 2026) - use WarehouseDocument
           created_at: document_type.created_at,
