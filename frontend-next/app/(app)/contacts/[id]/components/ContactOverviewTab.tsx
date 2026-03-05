@@ -419,18 +419,27 @@ export function ContactOverviewTab({
       const firstName = nameParts[0] || personSearchQuery.trim();
       const lastName = nameParts.slice(1).join(" ") || "";
 
-      // Create the new person contact linked to this company
+      // Create the new person contact
       const response = await api.post<{ contact: { id: number; display_name: string } }>("/api/v1/contacts", {
         contact: {
           first_name: firstName,
           last_name: lastName,
           display_name: personSearchQuery.trim(),
           entity_type: "person",
-          primary_company_id: contact.id,
         },
       });
 
       if (response?.contact) {
+        // Create employee_of relationship to link person to this company
+        // (primary_company_id is read-only, auto-synced from ContactRelationship)
+        await api.post(`/api/v1/contacts/${response.contact.id}/relationships`, {
+          contact_relationship: {
+            related_contact_id: contact.id,
+            relationship_type: "employee_of",
+            is_active: true,
+          },
+        });
+
         // Refresh contact to get updated employees list
         const contactRes = await api.get<{ contact: Contact }>(`/api/v1/contacts/${contact.id}`);
         onContactUpdate(contactRes.contact);

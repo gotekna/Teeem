@@ -9,16 +9,12 @@ require "hexapdf"
 # WarehouseDocument. No legacy S3 folder structure created.
 #
 # Architecture:
-# 1. PlanUploadsController uploads PDF to storage staging area
-# 2. This job downloads from staging, splits, creates blobs per page
+# 1. PlanUploadsController stages PDF as StorageBlob
+# 2. This job downloads from blob, splits, creates blobs per page
 # 3. Progress is tracked in PlanUpload model (frontend polls for updates)
-# 4. Staging file is deleted after successful completion
-#
-# DocumentProviderAware is retained solely for staging file download/cleanup.
+# 4. Staging blob reference is decremented after successful completion
 # =============================================================================
 class PlanSetUploadJob < ApplicationJob
-  include DocumentProviderAware
-
   queue_as :default
 
   def perform(plan_upload_id)
@@ -26,13 +22,6 @@ class PlanSetUploadJob < ApplicationJob
     @job = @plan_upload.job
 
     Rails.logger.info "[PlanSetUploadJob] Starting upload #{plan_upload_id} for job #{@job.id}"
-
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      @plan_upload.mark_failed!("No storage provider configured: #{e.message}")
-      return
-    end
 
     begin
       process_upload!
@@ -60,12 +49,13 @@ class PlanSetUploadJob < ApplicationJob
   end
 
   def download_staging_file!
-    Rails.logger.info "[PlanSetUploadJob] Downloading staging file..."
+    Rails.logger.info "[PlanSetUploadJob] Downloading staging file from blob..."
 
-    @file_content = download_from_provider(@plan_upload.staging_file_id)
-    raise "Failed to download staging file" unless @file_content
+    staging_blob = StorageBlob.find(@plan_upload.staging_file_id)
+    @file_content = staging_blob.download
+    raise "Failed to download staging file from blob #{staging_blob.id}" unless @file_content
 
-    Rails.logger.info "[PlanSetUploadJob] Downloaded #{@file_content.bytesize} bytes"
+    Rails.logger.info "[PlanSetUploadJob] Downloaded #{@file_content.bytesize} bytes from blob"
   end
 
   def split_pdf!
@@ -148,11 +138,12 @@ class PlanSetUploadJob < ApplicationJob
     return unless @plan_upload.staging_file_id.present?
 
     begin
-      delete_from_provider(@plan_upload.staging_file_id)
+      blob = StorageBlob.find_by(id: @plan_upload.staging_file_id)
+      blob&.decrement_reference!
       @plan_upload.update!(staging_file_id: nil)
-      Rails.logger.info "[PlanSetUploadJob] Deleted staging file"
+      Rails.logger.info "[PlanSetUploadJob] Cleaned up staging blob"
     rescue => e
-      Rails.logger.warn "[PlanSetUploadJob] Failed to delete staging file: #{e.message}"
+      Rails.logger.warn "[PlanSetUploadJob] Failed to clean staging blob: #{e.message}"
     end
   end
 

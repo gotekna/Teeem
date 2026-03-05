@@ -23,7 +23,6 @@
 module Api
   module V1
     class BatchOperationsController < ApplicationController
-      include DocumentProviderAware
 
       before_action :set_job, only: [:create, :show, :active], if: -> { params[:job_id].present? }
       before_action :set_operation, only: [:show]
@@ -134,31 +133,19 @@ module Api
         )
         operation.save!
 
-        # SSoT: Setup provider using WarehouseProvider
-        begin
-          setup_default_provider!
-        rescue DocumentProviders::NotConnectedError => e
-          operation.mark_failed!("Storage not connected: #{e.message}")
-          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
-        end
-
         begin
           operation.update!(current_step: "Uploading to storage...")
 
-          # Find or create staging folder at root
-          staging_folder_path = "/#{BatchOperation.staging_folder_name}"
-          get_or_create_folder_path(staging_folder_path)
-
-          # Upload to staging folder
+          # Stage as a temporary StorageBlob (blob-only, no legacy S3 folder)
           staging_filename = "staging_#{operation.id}_#{uploaded_file.original_filename}"
-          staging_result = upload_to_provider(
-            staging_folder_path,
-            uploaded_file.read,
-            staging_filename,
-            content_type: uploaded_file.content_type
+          file_content = uploaded_file.read
+          staging_blob = StorageBlob.find_or_create_for_content!(
+            file_content,
+            filename: staging_filename,
+            content_type: uploaded_file.content_type || "application/pdf"
           )
 
-          operation.staging_file_id = staging_result[:id]
+          operation.staging_file_id = staging_blob.id.to_s
           operation.save!
 
           # Queue background job
@@ -166,14 +153,9 @@ module Api
 
           render json: {
             success: true,
-            data: operation.as_json_status,
-            provider: current_provider_type.to_s
+            data: operation.as_json_status
           }, status: :accepted
 
-        rescue DocumentProviders::Error => e
-          Rails.logger.error("[BatchOperation] Storage error: #{e.message}")
-          operation.mark_failed!(e.message)
-          render_error("Storage error: #{e.message}", status: :bad_gateway)
         rescue => e
           Rails.logger.error("[BatchOperation] Upload failed: #{e.message}")
           operation.mark_failed!(e.message)

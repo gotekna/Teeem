@@ -1,7 +1,6 @@
 module Api
   module V1
     class JobPlansController < ApplicationController
-      include DocumentProviderAware
 
       before_action :set_job
       before_action :set_job_plan, only: [:show, :update, :destroy, :add_revision, :set_on_issue, :reprocess]
@@ -214,7 +213,7 @@ module Api
 
       # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set
       # Uploads a multi-page PDF - processing is done in background to avoid timeout
-      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
+      # SSoT: Blob-only staging (Mar 2026) — no legacy S3 folder
       def upload_plan_set
         unless params[:file].present?
           return render_error('No file provided', status: :unprocessable_entity)
@@ -223,38 +222,26 @@ module Api
         # Ensure job has plan tabs
         ensure_job_has_plan_tabs
 
-        # SSoT: Setup provider using WarehouseProvider
-        begin
-          setup_default_provider!
-        rescue DocumentProviders::NotConnectedError => e
-          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
-        end
-
         uploaded_file = params[:file]
 
-        # Build job folder path
-        job_folder_path = build_job_folder_path(@job)
-
-        # Ensure job folder exists
-        unless folder_exists_in_provider?(job_folder_path)
-          return render_error('Job folder not found in storage', status: :unprocessable_entity)
-        end
-
-        # Create staging filename with timestamp
+        # Stage as a temporary StorageBlob (blob-only, no legacy S3 folder)
         staging_filename = "_staging_#{Time.current.to_i}_#{uploaded_file.original_filename}"
-        staging_result = upload_to_provider(job_folder_path, uploaded_file.read, staging_filename, content_type: uploaded_file.content_type)
-        uploaded_file.rewind
+        file_content = uploaded_file.read
+        staging_blob = StorageBlob.find_or_create_for_content!(
+          file_content,
+          filename: staging_filename,
+          content_type: uploaded_file.content_type || "application/pdf"
+        )
 
-        staging_file_id = staging_result[:id]
-        Rails.logger.info "[upload_plan_set] Staged file to storage: #{staging_file_id} (provider: #{current_provider_type})"
+        Rails.logger.info "[upload_plan_set] Staged file as blob: #{staging_blob.id}"
 
         # Get the first tab (or specified tab) for categorizing plans
         tab_id = params[:job_plan_tab_id] || @job.job_plan_tabs.root_tabs.ordered.first&.id
 
-        # Queue background job for processing with storage file ID
+        # Queue background job for processing with blob ID
         PlanSetUploadJob.perform_later(
           @job.id,
-          staging_file_id,
+          staging_blob.id.to_s,
           uploaded_file.original_filename,
           tab_id
         )
@@ -263,14 +250,10 @@ module Api
           success: true,
           data: {
             message: "Plan set upload queued for processing",
-            processing: true,
-            provider: current_provider_type.to_s
+            processing: true
           }
         }, status: :accepted
 
-      rescue DocumentProviders::Error => e
-        Rails.logger.error("upload_plan_set storage error: #{e.message}")
-        render_error("Storage error: #{e.message}", status: :bad_gateway)
       rescue StandardError => e
         Rails.logger.error("upload_plan_set failed: #{e.class} - #{e.message}")
         Rails.logger.error(e.backtrace.first(10).join("\n"))
@@ -390,11 +373,6 @@ module Api
       end
 
       private
-
-      # SSoT: Use WarehouseProvider.job_path for consistent folder naming
-      def build_job_folder_path(job)
-        storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
-      end
 
       def set_job
         @job = Job.find(params[:job_id])

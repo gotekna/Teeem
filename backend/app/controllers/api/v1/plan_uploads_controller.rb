@@ -3,7 +3,6 @@
 module Api
   module V1
     class PlanUploadsController < ApplicationController
-      include DocumentProviderAware
       include PresignedUploadHandler
 
       before_action :set_job
@@ -78,44 +77,27 @@ module Api
           status: "pending"
         )
 
-        # SSoT: Setup provider using WarehouseProvider
-        begin
-          setup_default_provider!
-        rescue DocumentProviders::NotConnectedError => e
-          @plan_upload.mark_failed!("Storage not connected: #{e.message}")
-          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
-        end
-
         begin
           @plan_upload.start_uploading!
 
-          # Find or create staging folder at root
-          staging_folder_path = "/#{PlanUpload.staging_folder_name}"
-          get_or_create_folder_path(staging_folder_path)
-
-          # Upload to staging folder
-          staging_result = upload_to_provider(
-            staging_folder_path,
-            uploaded_file.read,
-            @plan_upload.staging_filename,
-            content_type: uploaded_file.content_type
+          # Stage as a temporary StorageBlob (blob-only, no legacy S3 folder)
+          file_content = uploaded_file.read
+          staging_blob = StorageBlob.find_or_create_for_content!(
+            file_content,
+            filename: @plan_upload.staging_filename,
+            content_type: uploaded_file.content_type || "application/pdf"
           )
 
-          @plan_upload.update!(staging_file_id: staging_result[:id])
+          @plan_upload.update!(staging_file_id: staging_blob.id.to_s)
 
           # Queue background job
           PlanSetUploadJob.perform_later(@plan_upload.id)
 
           render json: {
             success: true,
-            data: @plan_upload.as_json_status,
-            provider: current_provider_type.to_s
+            data: @plan_upload.as_json_status
           }, status: :accepted
 
-        rescue DocumentProviders::Error => e
-          Rails.logger.error("[PlanUpload] Storage error: #{e.message}")
-          @plan_upload.mark_failed!(e.message)
-          render_error("Storage error: #{e.message}", status: :bad_gateway)
         rescue => e
           Rails.logger.error("[PlanUpload] Upload failed: #{e.message}")
           @plan_upload.mark_failed!(e.message)

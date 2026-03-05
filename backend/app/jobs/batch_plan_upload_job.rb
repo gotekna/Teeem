@@ -9,12 +9,8 @@ require "hexapdf"
 # WarehouseDocument. No legacy S3 folder structure created.
 #
 # Uses BatchOperation for progress tracking (SSoT for all batch operations).
-#
-# DocumentProviderAware is retained solely for staging file download/cleanup.
 # =============================================================================
 class BatchPlanUploadJob < ApplicationJob
-  include DocumentProviderAware
-
   queue_as :default
 
   def perform(operation_id)
@@ -26,13 +22,6 @@ class BatchPlanUploadJob < ApplicationJob
     return unless @job
 
     Rails.logger.info "[BatchPlanUploadJob] Starting upload for job #{@job.id}"
-
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      @operation.mark_failed!("No storage provider configured: #{e.message}")
-      return
-    end
 
     begin
       process_upload!
@@ -59,16 +48,17 @@ class BatchPlanUploadJob < ApplicationJob
   end
 
   def download_staging_file!
-    Rails.logger.info "[BatchPlanUploadJob] Downloading staging file..."
+    Rails.logger.info "[BatchPlanUploadJob] Downloading staging file from blob..."
     @operation.update!(current_step: "Downloading from storage...")
 
     staging_file_id = @operation.staging_file_id
     raise "No staging file ID" unless staging_file_id.present?
 
-    @file_content = download_from_provider(staging_file_id)
-    raise "Failed to download staging file" unless @file_content
+    staging_blob = StorageBlob.find(staging_file_id)
+    @file_content = staging_blob.download
+    raise "Failed to download staging file from blob #{staging_blob.id}" unless @file_content
 
-    Rails.logger.info "[BatchPlanUploadJob] Downloaded #{@file_content.bytesize} bytes"
+    Rails.logger.info "[BatchPlanUploadJob] Downloaded #{@file_content.bytesize} bytes from blob"
   end
 
   def split_pdf!
@@ -154,12 +144,13 @@ class BatchPlanUploadJob < ApplicationJob
     return unless staging_file_id.present?
 
     begin
-      delete_from_provider(staging_file_id)
+      blob = StorageBlob.find_by(id: staging_file_id)
+      blob&.decrement_reference!
       @operation.staging_file_id = nil
       @operation.save!
-      Rails.logger.info "[BatchPlanUploadJob] Deleted staging file"
+      Rails.logger.info "[BatchPlanUploadJob] Cleaned up staging blob"
     rescue => e
-      Rails.logger.warn "[BatchPlanUploadJob] Failed to delete staging file: #{e.message}"
+      Rails.logger.warn "[BatchPlanUploadJob] Failed to clean staging blob: #{e.message}"
     end
   end
 

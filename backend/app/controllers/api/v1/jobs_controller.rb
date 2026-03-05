@@ -1,7 +1,6 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      include DocumentProviderAware
       include AsyncPdfGeneration
 
       before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :finance_counts, :activities, :budget_tracking, :boq, :price_analysis, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders, :markup, :update_markup, :target_margin ]
@@ -1488,8 +1487,8 @@ module Api
       end
 
       # POST /api/v1/jobs/:id/send_contract_for_signing
-      # Generate QBCC contract PDF, save to storage, and send for e-signing
-      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
+      # Generate QBCC contract PDF, save to blob storage, and send for e-signing
+      # Blob-only (Mar 2026): No legacy S3 folder upload
       def send_contract_for_signing
         # Step 1: Generate the QBCC contract PDF
         engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
@@ -1497,25 +1496,17 @@ module Api
 
         filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
 
-        # Step 2: Upload to storage provider
-        begin
-          setup_default_provider!
-        rescue DocumentProviders::NotConnectedError => e
-          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
-        end
+        # Step 2: Store as blob + WarehouseDocument
+        blob = StorageBlob.find_or_create_for_content!(
+          pdf_content, filename: filename, content_type: "application/pdf"
+        )
 
-        # Build folder path using SSoT pattern
-        job_folder_path = build_job_folder_path(@job)
-        contracts_folder_name = WarehouseFolder.folder_name_for("job", "contracts", "01 Contract Documents")
-        folder_path = "#{job_folder_path}/#{contracts_folder_name}"
-
-        # Ensure folder exists and upload
-        get_or_create_folder_path(folder_path)
-        uploaded = upload_to_provider(folder_path, pdf_content, filename, content_type: "application/pdf")
-
-        unless uploaded
-          return render_error("Failed to upload to storage", status: :internal_server_error)
-        end
+        contracts_folder = WarehouseFolder.where(warehouse_type: "job", tab_key: "contracts").enabled.first
+        WarehouseDocumentCreator.create!(
+          filename: filename, source_type: "job", linkable: @job,
+          storage_blob: blob, warehouse_folder_id: contracts_folder&.id,
+          file_size: pdf_content.bytesize, content_type: "application/pdf"
+        )
 
         # Step 3: Get signers from job contacts (clients only)
         client_contacts = @job.job_contacts
@@ -1535,8 +1526,7 @@ module Api
           return render_error("Missing email for: #{missing_emails.join(', ')}", status: :unprocessable_entity)
         end
 
-        # Step 4: Create e-signature request
-        # Storage reference fields work across providers (sharepoint_ prefix is legacy naming)
+        # Step 4: Create e-signature request (blob ID as storage reference)
         request = ESignatureRequest.new(
           title: "QBCC Contract - #{@job.name}",
           description: "Building Contract for #{@job.address || @job.name}",
@@ -1545,9 +1535,7 @@ module Api
           signing_order: 0, # Parallel signing
           expires_at: 30.days.from_now,
           send_reminders: true,
-          original_storage_file_id: uploaded[:id],
-          storage_site_id: storage_config&.site_id,
-          storage_drive_id: storage_config&.drive_id
+          original_storage_file_id: blob.id.to_s
         )
 
         # Add client contacts as signers
@@ -1931,10 +1919,6 @@ module Api
         render json: { success: false, errors: [e.message] }, status: :unprocessable_entity
       end
 
-      # SSoT: Use WarehouseProvider.job_path for consistent folder naming
-      def build_job_folder_path(job)
-        storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
-      end
 
       def set_job
         # Support lookup by ID or slug (title-based)

@@ -13,7 +13,6 @@ require "tempfile"
 
 class PricebookImageFetcherService
   include HTTParty
-  include StorageUploadable
 
   GOOGLE_SEARCH_API_KEY = ENV["GOOGLE_SEARCH_API_KEY"]
   GOOGLE_CX = ENV["GOOGLE_CX"]
@@ -398,20 +397,13 @@ class PricebookImageFetcherService
     false
   end
 
-  # Upload file to storage test folder
-  # SSoT: Uses StorageUploadable for provider-agnostic upload
+  # Upload file to blob storage (test images, no WarehouseDocument needed)
   def upload_to_storage(file_path, filename)
     content = File.read(file_path)
-    folder_path = self.class.storage_test_folder
-
-    result = upload_to_storage_path(folder_path, content, filename, content_type: "image/png")
-
-    if result[:success]
-      result[:url]
-    else
-      Rails.logger.error "[ImageFetcher] Storage upload failed: #{result[:error]}"
-      nil
-    end
+    blob = StorageBlob.find_or_create_for_content!(
+      content, filename: filename, content_type: "image/png"
+    )
+    blob.presigned_url
   rescue StandardError => e
     Rails.logger.error "[ImageFetcher] Storage upload failed: #{e.message}"
     nil
@@ -419,6 +411,6 @@ class PricebookImageFetcherService
 
   # SSoT: Use centralized filename sanitization
   def sanitize_filename(filename)
-    sanitize_storage_path(filename)
+    Warehouse::FilenameSanitizer.sanitize_path_segment(filename.to_s)
   end
 end

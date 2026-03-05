@@ -5,7 +5,6 @@ require "hexapdf"
 # Generates PDF financial reports (P&L, Balance Sheet) from Xero data
 # SSoT: Single service for all financial report types
 class FinancialReportService
-  include StorageUploadable
 
   COLORS = {
     primary: "1A365D", accent: "2B6CB0", border: "CBD5E0", header_bg: "EBF8FF",
@@ -28,11 +27,24 @@ class FinancialReportService
 
     pdf_content = build_pdf
     filename = @report.generate_file_name || generate_filename
-    folder_path = "/Warehouse/Financial Reports/#{sanitize_storage_path(@report.company_name)}/#{@report.financial_year}"
 
-    result = upload_to_storage_path(folder_path, pdf_content, filename, content_type: "application/pdf")
+    # Blob-only storage (Mar 2026)
+    blob = StorageBlob.find_or_create_for_content!(
+      pdf_content, filename: filename, content_type: "application/pdf"
+    )
 
-    { success: true, pdf: pdf_content, filename: filename, storage_url: result[:url], storage_id: result[:id] }
+    # Create WarehouseDocument for warehouse visibility
+    if @company.present?
+      financial_folder = WarehouseFolder.where(warehouse_type: "corporate", tab_key: "financial").enabled.first
+      WarehouseDocumentCreator.create!(
+        filename: filename, source_type: "financial",
+        linkable: @company, storage_blob: blob,
+        warehouse_folder_id: financial_folder&.id,
+        file_size: pdf_content.bytesize, content_type: "application/pdf"
+      )
+    end
+
+    { success: true, pdf: pdf_content, filename: filename, storage_url: blob.presigned_url, storage_id: blob.id }
   rescue StandardError => e
     Rails.logger.error("FinancialReportService error: #{e.message}")
     { success: false, error: e.message }
