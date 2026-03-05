@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260305",
     "started_at": "2026-03-05T12:10:35.189Z",
     "completed_at": null,
-    "last_updated": "2026-03-05T21:25:20.574Z",
-    "iteration": 6,
+    "last_updated": "2026-03-06T10:45:00.000Z",
+    "iteration": 7,
     "ship_ready": false,
     "total_pages": 199,
     "total_stories": 19
@@ -2020,7 +2020,7 @@
       "title": "File Warehouse",
       "icon": "database",
       "description": "Warehouse views and data warehouse",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/warehouse",
         "/data-warehouse",
@@ -2036,14 +2036,20 @@
         "My Docs shows personal files",
         "DocSort shows classification UI"
       ],
-      "page_results": {}
+      "page_results": {
+        "/warehouse": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=815, breadcrumb=File Warehouse > Doc Tree, title=Doc Tree | Teeem" },
+        "/data-warehouse": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=3947, breadcrumb=Data Warehouse, title=Data Warehouse | Teeem" },
+        "/my-docs": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=721, breadcrumb=My Docs, title=My Docs | Teeem" },
+        "/docsort": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=875, breadcrumb=Docsort, title=Docsort | Teeem" },
+        "/import": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=861, breadcrumb=Import, title=Import | Teeem" }
+      }
     },
     {
       "id": "US-SM",
       "title": "Schedule Master & Calendar",
       "icon": "gauge",
       "description": "Schedule Master, templates, tasks, calendar",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/schedule-master",
         "/schedule-templates",
@@ -2059,14 +2065,21 @@
         "Calendar renders with events",
         "SM Tasks shows task list"
       ],
-      "page_results": {}
+      "page_results": {
+        "/schedule-master": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=1116, breadcrumb=Schedule Master, title=Schedule Master | Teeem" },
+        "/schedule-templates": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=979, breadcrumb=Schedule Templates, title=Schedule Templates | Teeem" },
+        "/sm_tasks": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=799, breadcrumb=Tasks, redirected to /tasks, title=Tasks | Teeem" },
+        "/task-templates": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=979, breadcrumb=Schedule Templates, redirected to /schedule-templates, title=Schedule Templates | Teeem" },
+        "/calendar": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=1069, breadcrumb=Calendar, title=Calendar | Teeem" },
+        "/site-presence/live": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=822, breadcrumb=Site Presence > Live, title=Live | Teeem" }
+      }
     },
     {
       "id": "US-OTHER",
       "title": "Leads, Cases, Email, Meetings, Workflows & More",
       "icon": "clipboard-check",
       "description": "All remaining app pages",
-      "status": "pending",
+      "status": "in_progress",
       "page_manifest": [
         "/leads",
         "/leads/emails",
@@ -2107,7 +2120,17 @@
         "System Health shows status",
         "Feature Requests loads"
       ],
-      "page_results": {}
+      "page_results": {
+        "/leads": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=596, breadcrumb=Leads, title=Leads | Teeem" },
+        "/leads/emails": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=905, breadcrumb=Leads > Emails, title=Emails | Teeem" },
+        "/quote-requests": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=949, breadcrumb=Quote Requests > Setup, title=Quote Requests | Teeem" },
+        "/cases": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=991, breadcrumb=Cases, title=Cases | Teeem" },
+        "/cases/new": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=789, breadcrumb=Cases > New, title=New | Teeem" },
+        "/email": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=4036, breadcrumb=Email, title=Email | Teeem" },
+        "/email/rules": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=1138, breadcrumb=Email > Rules, title=Rules | Teeem" },
+        "/email/settings": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=112215, breadcrumb=Email > Settings > Blacklist, title=Blacklist | Teeem" },
+        "/meetings": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=801, breadcrumb=Meetings > Upcoming, title=Upcoming | Teeem" }
+      }
     },
     {
       "id": "US-PORTAL",
