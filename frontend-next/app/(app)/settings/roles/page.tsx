@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,25 +32,23 @@ import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { API } from "@/lib/constants/api-endpoints";
 import {
-  UserGroupIcon,
   ShieldCheckIcon,
-  MagnifyingGlassIcon,
-  CheckIcon,
 } from "@heroicons/react/24/outline";
 import {
   Shield,
   UsersRound,
   MoreHorizontal,
   Plus,
-  Search,
   Pencil,
   Trash2,
   Users,
-  KeyRound,
   LayoutGrid,
   List,
   GanttChart,
+  ToggleLeft,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import TeeemTableView from "@/components/table/TeeemTableView";
 import {
   Select,
   SelectContent,
@@ -59,18 +57,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { User } from "@/lib/types";
-import {
-  PERMISSION_LEVEL_LABELS,
-  type PermissionLevel,
-  type PermissionSectionData,
-} from "@/lib/constants/permission-levels";
 
 /**
- * Roles & Permissions Page - Organization Settings
+ * Access Control Page - Organization Settings
  *
  * SSoT: This is THE ONE location for managing:
- * - User Permissions (assign permissions to users)
- * - User Roles (define role types like Admin, Supervisor)
+ * - Permissions (define what each role can do via role cards + permission matrix)
+ * - Users (assign roles to users via TeeemTableView)
+ * - Features (enable/disable company modules)
  * - Groups (user groups)
  *
  * Part of the Settings/Admin merge - Organization section.
@@ -81,9 +75,10 @@ import {
 
 // Tab definitions
 const ROLES_TABS = [
-  { id: "permissions", label: "Permissions", icon: KeyRound },
-  { id: "roles", label: "User Roles", icon: Shield },
-  { id: "groups", label: "Groups", icon: UsersRound },
+  { id: "permissions", label: "Permissions", icon: Shield },
+  { id: "users", label: "Users", icon: UsersRound },
+  { id: "features", label: "Features", icon: ToggleLeft },
+  { id: "groups", label: "Groups", icon: Users },
 ];
 
 const DEFAULT_TAB = "permissions";
@@ -112,314 +107,11 @@ interface Group {
   members_count: number;
 }
 
-// Level badge color helper
-function levelBadgeClass(level: number): string {
-  switch (level) {
-    case 0: return "bg-muted text-muted-foreground";
-    case 1: return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300";
-    case 2: return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
-    case 3: return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
-    case 4: return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
-    default: return "bg-muted text-muted-foreground";
-  }
-}
-
 // ============================================
-// Permissions Sub-Tab
+// Permissions Sub-Tab (Role Cards + Permission Matrix)
 // ============================================
 
 function PermissionsSubTab() {
-  const router = useRouter();
-  const [users, setUsers] = useState<User[]>([]);
-  const [sections, setSections] = useState<PermissionSectionData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  // Per-user section permissions + role breakdown
-  const [userSectionPerms, setUserSectionPerms] = useState<Record<string, number>>({});
-  const [roleSectionPerms, setRoleSectionPerms] = useState<Record<string, Record<string, number>>>({});
-  const [loadingUser, setLoadingUser] = useState(false);
-
-  const selectedUser = selectedUserId
-    ? users.find((u) => u.id === selectedUserId) || null
-    : null;
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const [usersRes, sectionsRes] = await Promise.all([
-        api.get<{ users: User[] }>(API.users.list),
-        api.get<{ success: boolean; sections: PermissionSectionData[] }>("/api/v1/permissions"),
-      ]);
-
-      setUsers(usersRes?.users || []);
-      if (sectionsRes?.success) {
-        setSections(sectionsRes.sections || []);
-      }
-    } catch (err) {
-      console.error("Failed to load permissions data:", err);
-      setError("Failed to load permissions data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadUserPermissions = useCallback(async (userId: number) => {
-    try {
-      setLoadingUser(true);
-      const response = await api.get<{
-        success: boolean;
-        section_permissions: Record<string, number>;
-        role_section_permissions: Record<string, Record<string, number>>;
-      }>(`/api/v1/permissions/user/${userId}`);
-      if (response?.success) {
-        setUserSectionPerms(response.section_permissions || {});
-        setRoleSectionPerms(response.role_section_permissions || {});
-      }
-    } catch (err) {
-      console.error("Failed to load user permissions:", err);
-    } finally {
-      setLoadingUser(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedUser) {
-      loadUserPermissions(selectedUser.id);
-    } else {
-      setUserSectionPerms({});
-      setRoleSectionPerms({});
-    }
-  }, [selectedUser, loadUserPermissions]);
-
-  // Find which role gave the highest level for a key
-  const sourceRoleForKey = (key: string): string | null => {
-    let maxLevel = -1;
-    let maxRole: string | null = null;
-    for (const [roleName, perms] of Object.entries(roleSectionPerms)) {
-      const level = perms[key] ?? 0;
-      if (level > maxLevel) {
-        maxLevel = level;
-        maxRole = roleName;
-      }
-    }
-    return maxRole;
-  };
-
-  // Group sections by section name for display
-  const groupedSections = sections.reduce<
-    Record<string, { header: PermissionSectionData | null; items: PermissionSectionData[] }>
-  >((acc, s) => {
-    if (!acc[s.section]) {
-      acc[s.section] = { header: null, items: [] };
-    }
-    if (s.isSectionHeader) {
-      acc[s.section].header = s;
-    } else {
-      acc[s.section].items.push(s);
-    }
-    return acc;
-  }, {});
-
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const isAdmin = selectedUser?.role_names?.includes("admin");
-
-  if (loading) {
-    return <LoadingOverlay height="py-12" />;
-  }
-
-  if (error) {
-    return (
-      <div className="py-12">
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-          <p className="text-destructive">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-12 gap-6">
-      {/* User List */}
-      <div className="col-span-4 bg-card rounded-lg border border-border">
-        <div className="p-4 border-b border-border">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        <div className="divide-y divide-border max-h-[600px] overflow-y-auto">
-          {filteredUsers.map((user) => (
-            <button
-              key={user.id}
-              onClick={() => setSelectedUserId(user.id)}
-              className={`w-full p-3 text-left hover:bg-muted transition-colors ${
-                selectedUser?.id === user.id
-                  ? "bg-primary/10 border-l-4 border-primary"
-                  : ""
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary shrink-0">
-                  {user.name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{user.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{user.email}</div>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Permissions Panel */}
-      <div className="col-span-8 bg-card rounded-lg border border-border">
-        {!selectedUser ? (
-          <div className="p-12">
-            <EmptyState
-              title="Select a user to view their permissions"
-              icon={<Shield className="h-12 w-12" />}
-            />
-          </div>
-        ) : (
-          <div>
-            <div className="p-4 border-b border-border bg-muted/50 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">
-                  {selectedUser.name}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {selectedUser.email}
-                </p>
-                <div className="mt-2 flex gap-2 flex-wrap">
-                  {(selectedUser.role_names || [selectedUser.role]).filter(Boolean).map((r) => (
-                    <Badge key={r} variant="secondary" className="text-xs">{r}</Badge>
-                  ))}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground max-w-[200px] text-right">
-                Permissions are managed via roles.{" "}
-                <button
-                  className="text-primary underline"
-                  onClick={() => router.push("/settings/roles/roles")}
-                >
-                  Edit roles
-                </button>
-              </p>
-            </div>
-
-            <div className="p-4 max-h-[550px] overflow-y-auto">
-              {isAdmin && (
-                <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg">
-                  <p className="text-sm text-purple-800 dark:text-purple-200 font-medium">
-                    Admin users have full access to all permissions.
-                  </p>
-                </div>
-              )}
-
-              {loadingUser ? (
-                <div className="flex items-center justify-center py-8">
-                  <Spinner size={24} className="text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {Object.entries(groupedSections).map(([sectionName, { header, items }]) => {
-                    const headerLevel = header ? (userSectionPerms[header.key] ?? 0) : 0;
-                    return (
-                      <div key={sectionName}>
-                        {/* Section header row */}
-                        {header && (
-                          <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
-                            <div>
-                              <h3 className="font-semibold text-foreground text-sm">
-                                {header.displayName}
-                              </h3>
-                              {header.description && (
-                                <p className="text-xs text-muted-foreground">{header.description}</p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${levelBadgeClass(headerLevel)}`}>
-                                {PERMISSION_LEVEL_LABELS[headerLevel as PermissionLevel] || "No Access"}
-                              </span>
-                              {!isAdmin && sourceRoleForKey(header.key) && (
-                                <span className="text-xs text-muted-foreground">
-                                  via {sourceRoleForKey(header.key)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Sub-feature rows */}
-                        {items.length > 0 && (
-                          <div className="space-y-1 ml-4">
-                            {items.map((item) => {
-                              const level = userSectionPerms[item.key] ?? 0;
-                              return (
-                                <div
-                                  key={item.key}
-                                  className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50"
-                                >
-                                  <div className="flex-1 min-w-0">
-                                    <span className="text-sm text-foreground">{item.displayName}</span>
-                                    {item.description && (
-                                      <span className="text-xs text-muted-foreground ml-2">{item.description}</span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${levelBadgeClass(level)}`}>
-                                      {PERMISSION_LEVEL_LABELS[level as PermissionLevel] || "No Access"}
-                                    </span>
-                                    {!isAdmin && sourceRoleForKey(item.key) && (
-                                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                        via {sourceRoleForKey(item.key)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// User Roles Sub-Tab
-// ============================================
-
-function UserRolesSubTab() {
   const router = useRouter();
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -827,6 +519,144 @@ function UserRolesSubTab() {
 }
 
 // ============================================
+// Users Sub-Tab (TeeemTableView)
+// ============================================
+
+function UsersSubTab() {
+  return (
+    <div className="flex flex-col h-full -mx-4">
+      <TeeemTableView
+        foundationId="user-management"
+        autoFetchRecords={true}
+      />
+    </div>
+  );
+}
+
+// ============================================
+// Features Sub-Tab (Module Toggles)
+// ============================================
+
+interface ModuleConfig {
+  key: string;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const AVAILABLE_MODULES: ModuleConfig[] = [
+  { key: "finance", label: "Finance", description: "Invoices, Purchase Orders, Estimates, Bill Inbox", icon: LayoutGrid },
+  { key: "warehouse", label: "File Warehouse", description: "Document storage and management", icon: LayoutGrid },
+  { key: "corporate", label: "Corporate", description: "Corporate companies, groups, cases", icon: LayoutGrid },
+  { key: "properties", label: "Properties", description: "Property management", icon: LayoutGrid },
+  { key: "calendar", label: "Calendar", description: "Calendar and scheduling", icon: LayoutGrid },
+  { key: "meetings", label: "Meetings", description: "Meeting management", icon: LayoutGrid },
+  { key: "docsort", label: "DocSort", description: "AI document sorting", icon: LayoutGrid },
+  { key: "esignature", label: "E-Signatures", description: "Digital signature workflows", icon: LayoutGrid },
+  { key: "library", label: "Library", description: "Templates and resources", icon: LayoutGrid },
+  { key: "portal", label: "Portal", description: "Client portal", icon: LayoutGrid },
+  { key: "schedule_master", label: "Schedule Master", description: "Gantt charts and scheduling", icon: LayoutGrid },
+  { key: "leads", label: "Leads", description: "Lead management", icon: LayoutGrid },
+];
+
+function FeaturesSubTab() {
+  const { toast } = useToast();
+  const [modules, setModules] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadModules();
+  }, []);
+
+  const loadModules = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; modules: Record<string, boolean> }>(
+        "/api/v1/tenant_settings/modules"
+      );
+      if (response?.success) {
+        setModules(response.modules || {});
+      }
+    } catch (err) {
+      console.error("Failed to load modules:", err);
+      // Default: all enabled
+      const defaults: Record<string, boolean> = {};
+      AVAILABLE_MODULES.forEach(m => { defaults[m.key] = true; });
+      setModules(defaults);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggle = async (moduleKey: string, enabled: boolean) => {
+    setSaving(moduleKey);
+    // Optimistic update
+    setModules(prev => ({ ...prev, [moduleKey]: enabled }));
+    try {
+      await api.patch("/api/v1/tenant_settings/modules", {
+        modules: { [moduleKey]: enabled },
+      });
+      toast({
+        title: enabled ? "Module enabled" : "Module disabled",
+        description: `${AVAILABLE_MODULES.find(m => m.key === moduleKey)?.label} has been ${enabled ? "enabled" : "disabled"}.`,
+      });
+    } catch (err) {
+      console.error("Failed to toggle module:", err);
+      // Revert on error
+      setModules(prev => ({ ...prev, [moduleKey]: !enabled }));
+      toast({
+        title: "Error",
+        description: "Failed to update module setting",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (loading) {
+    return <LoadingOverlay height="py-12" />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-foreground">Features</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Enable or disable modules for your company. Disabled modules are hidden from navigation.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {AVAILABLE_MODULES.map((mod) => {
+          const isEnabled = modules[mod.key] !== false; // Default: enabled
+          return (
+            <Card key={mod.key} className={!isEnabled ? "opacity-60" : ""}>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-foreground">{mod.label}</h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {mod.description}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={isEnabled}
+                    onCheckedChange={(checked) => handleToggle(mod.key, checked)}
+                    disabled={saving === mod.key}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // Groups Sub-Tab
 // ============================================
 
@@ -1189,7 +1019,7 @@ export default function RolesSettingsPage() {
           Access Control
         </h2>
         <p className="text-muted-foreground mt-1">
-          Manage permissions, roles, and groups
+          Manage permissions, roles, features, and groups
         </p>
       </div>
 
@@ -1214,8 +1044,11 @@ export default function RolesSettingsPage() {
           <TabsContent value="permissions">
             <PermissionsSubTab />
           </TabsContent>
-          <TabsContent value="roles">
-            <UserRolesSubTab />
+          <TabsContent value="users">
+            <UsersSubTab />
+          </TabsContent>
+          <TabsContent value="features">
+            <FeaturesSubTab />
           </TabsContent>
           <TabsContent value="groups">
             <GroupsSubTab />

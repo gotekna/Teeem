@@ -6,7 +6,7 @@ module Api
     #
     # Handles: company info, email config, brand colors, storage config
     class TenantSettingsController < ApplicationController
-      before_action :require_admin, only: %i[update update_sharepoint test_sharepoint update_brand apply_brand update_email_config update_po_template]
+      before_action :require_admin, only: %i[update update_sharepoint test_sharepoint update_brand apply_brand update_email_config update_po_template update_modules]
 
       # GET /api/v1/tenant_settings
       def show
@@ -224,6 +224,47 @@ module Api
         settings = TenantSetting.instance
         if settings.update(email_config_params)
           render json: { success: true, data: TenantSetting.email_config }
+        else
+          render_validation_errors(settings)
+        end
+      end
+
+      # Available modules that can be toggled per tenant
+      AVAILABLE_MODULES = %w[
+        finance warehouse corporate properties calendar meetings
+        docsort esignature library portal schedule_master leads
+      ].freeze
+
+      # GET /api/v1/tenant_settings/modules
+      def modules
+        settings = TenantSetting.instance
+        enabled = settings.enabled_modules || {}
+
+        # Build module state: default is enabled (true) unless explicitly set to false
+        module_state = AVAILABLE_MODULES.each_with_object({}) do |key, hash|
+          hash[key] = enabled[key] != false
+        end
+
+        render json: { success: true, modules: module_state }
+      end
+
+      # PATCH /api/v1/tenant_settings/modules
+      def update_modules
+        settings = TenantSetting.instance
+        current = settings.enabled_modules || {}
+        updates = params[:modules]&.to_unsafe_h || {}
+
+        # Only allow known module keys
+        updates.each do |key, value|
+          next unless AVAILABLE_MODULES.include?(key.to_s)
+          current[key.to_s] = ActiveModel::Type::Boolean.new.cast(value)
+        end
+
+        if settings.update(enabled_modules: current)
+          module_state = AVAILABLE_MODULES.each_with_object({}) do |key, hash|
+            hash[key] = current[key] != false
+          end
+          render json: { success: true, modules: module_state }
         else
           render_validation_errors(settings)
         end

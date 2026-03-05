@@ -2024,6 +2024,8 @@ Rails.application.routes.draw do
           post "brand/apply", action: :apply_brand
           get :po_template
           put :po_template, action: :update_po_template
+          get :modules
+          patch :modules, action: :update_modules
         end
       end
 

@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260305",
     "started_at": "2026-03-05T12:10:35.189Z",
     "completed_at": null,
-    "last_updated": "2026-03-06T11:45:00.000Z",
-    "iteration": 9,
+    "last_updated": "2026-03-06T12:00:00.000Z",
+    "iteration": 10,
     "ship_ready": false,
     "total_pages": 199,
     "total_stories": 19
@@ -2233,7 +2233,7 @@
       "title": "Responsive Layout Sweep",
       "icon": "gauge",
       "description": "Verify key pages at tablet (768px) and mobile (375px) viewports",
-      "status": "in_progress",
+      "status": "completed",
       "page_manifest": [
         "/dashboard",
         "/jobs",
@@ -2253,7 +2253,14 @@
         "Navigation adapts to mobile layout"
       ],
       "page_results": {
-        "/dashboard": { "status": "passed", "iteration": 9, "evidence": "responsive_check: 768px viewport, hasContent=true, noHorizontalOverflow, mainVisible=true, docScrollWidth=768" }
+        "/dashboard": { "status": "passed", "iteration": 9, "evidence": "responsive_check: 768px viewport, hasContent=true, noHorizontalOverflow, mainVisible=true, docScrollWidth=768" },
+        "/jobs": { "status": "passed", "iteration": 10, "evidence": "responsive_check: 768px, noHorizontalOverflow, mainVisible, docScrollWidth=768" },
+        "/contacts": { "status": "passed", "iteration": 10, "evidence": "responsive_check: 768px, noHorizontalOverflow, mainVisible, docScrollWidth=768" },
+        "/purchase_orders": { "status": "passed", "iteration": 10, "evidence": "responsive_check: 768px, noHorizontalOverflow, mainVisible, docScrollWidth=768" },
+        "/settings/profile": { "status": "passed", "iteration": 10, "evidence": "responsive_check: 768px, noHorizontalOverflow, mainVisible, docScrollWidth=768" },
+        "/settings/company": { "status": "passed", "iteration": 10, "evidence": "responsive_check: 768px, noHorizontalOverflow, mainVisible, docScrollWidth=768" },
+        "/email": { "status": "passed", "iteration": 10, "evidence": "responsive_check: 768px, noHorizontalOverflow, mainVisible, docScrollWidth=768" },
+        "/system-health": { "status": "passed", "iteration": 10, "evidence": "responsive_check: 768px, noHorizontalOverflow, mainVisible, docScrollWidth=768" }
       }
     }
   ],

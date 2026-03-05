@@ -321,6 +321,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   // Settings > Access Control sub-tabs
   "users": "Users",
   "roles": "User Roles",
+  "features": "Features",
   // "groups" already defined above
   // "permissions" already defined above
 
