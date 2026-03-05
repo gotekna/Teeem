@@ -1,0 +1,396 @@
+<div class="inspection-report">
+  <style>
+    .inspection-report {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 11px;
+      color: #1a1a1a;
+      line-height: 1.4;
+    }
+    .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 3px solid #2563eb;
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    .report-header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1e3a5f;
+      margin: 0 0 4px 0;
+    }
+    .report-header .meta {
+      font-size: 10px;
+      color: #6b7280;
+    }
+    .report-header .meta span {
+      display: block;
+      margin-bottom: 2px;
+    }
+    .company-logo img {
+      max-height: 50px;
+      max-width: 180px;
+    }
+    .property-details {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+    }
+    .property-details h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 8px 0;
+      color: #1e3a5f;
+    }
+    .property-details .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .property-details .detail-item {
+      font-size: 10px;
+    }
+    .property-details .detail-label {
+      color: #6b7280;
+      font-weight: 500;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }
+    .summary-table th,
+    .summary-table td {
+      border: 1px solid #e2e8f0;
+      padding: 6px 10px;
+      text-align: left;
+      font-size: 10px;
+    }
+    .summary-table th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #475569;
+    }
+    .condition-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 9px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .room-section {
+      margin-bottom: 20px;
+      page-break-inside: avoid;
+    }
+    .room-header {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 4px 4px 0 0;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .room-header .room-condition {
+      font-size: 10px;
+      font-weight: 500;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #e2e8f0;
+      border-top: none;
+    }
+    .items-table th,
+    .items-table td {
+      border: 1px solid #e2e8f0;
+      padding: 5px 8px;
+      font-size: 10px;
+    }
+    .items-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+    }
+    .items-table tr.action-required {
+      background: #fef2f2;
+    }
+    .check-mark { color: #16a34a; }
+    .cross-mark { color: #dc2626; }
+    .photo-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .photo-grid img {
+      width: 120px;
+      height: 90px;
+      object-fit: cover;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+    }
+    .photo-caption {
+      font-size: 8px;
+      color: #6b7280;
+      text-align: center;
+    }
+    .action-items {
+      margin-top: 24px;
+      border: 2px solid #dc2626;
+      border-radius: 6px;
+      padding: 12px;
+    }
+    .action-items h3 {
+      color: #dc2626;
+      font-size: 13px;
+      font-weight: 600;
+      margin: 0 0 8px 0;
+    }
+    .signature-section {
+      margin-top: 32px;
+      display: flex;
+      justify-content: space-between;
+      gap: 40px;
+    }
+    .signature-box {
+      flex: 1;
+      border-top: 2px solid #1a1a1a;
+      padding-top: 8px;
+    }
+    .signature-box img {
+      max-height: 60px;
+      margin-bottom: 8px;
+    }
+    .signature-label {
+      font-size: 10px;
+      color: #6b7280;
+    }
+    .report-footer {
+      margin-top: 32px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 9px;
+      color: #9ca3af;
+      text-align: center;
+    }
+  </style>
+
+  <!-- Header -->
+  <div class="report-header">
+    <div>
+      <h1>Property Inspection Report</h1>
+      <div class="meta">
+        <span><strong>Type:</strong> <%= summary[:inspection_type].titleize %> Inspection</span>
+        <span><strong>Number:</strong> <%= summary[:inspection_number] %></span>
+        <span><strong>Date:</strong> <%= summary[:inspection_date]&.strftime("%d %B %Y") %></span>
+        <span><strong>Inspector:</strong> <%= summary[:inspector_name] || "Not assigned" %></span>
+      </div>
+    </div>
+    <% if company[:logo_url].present? %>
+      <div class="company-logo">
+        <img src="<%= company[:logo_url] %>" alt="<%= company[:name] %>" />
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Property Details -->
+  <div class="property-details">
+    <h2><%= property[:property_code] %> - <%= property[:name] || property[:address] %></h2>
+    <div class="detail-grid">
+      <div class="detail-item">
+        <span class="detail-label">Address:</span><br/>
+        <%= property[:address] %>
+      </div>
+      <% if property[:bedrooms] %>
+        <div class="detail-item">
+          <span class="detail-label">Bedrooms:</span> <%= property[:bedrooms] %> |
+          <span class="detail-label">Bathrooms:</span> <%= property[:bathrooms] %> |
+          <span class="detail-label">Parking:</span> <%= property[:parking] %>
+        </div>
+      <% end %>
+      <div class="detail-item">
+        <span class="detail-label">Overall Condition:</span><br/>
+        <% if summary[:overall_condition] %>
+          <span class="condition-pill" style="background-color: <%= condition_colors[summary[:overall_condition]] %>;">
+            <%= condition_labels[summary[:overall_condition]] %>
+          </span>
+        <% else %>
+          Not assessed
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Table -->
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>Room</th>
+        <th>Condition</th>
+        <th>Items Checked</th>
+        <th>Action Items</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rooms.each do |room| %>
+        <tr>
+          <td><strong><%= room[:name] %></strong></td>
+          <td>
+            <% if room[:overall_condition] %>
+              <span class="condition-pill" style="background-color: <%= condition_colors[room[:overall_condition]] %>;">
+                <%= condition_labels[room[:overall_condition]] %>
+              </span>
+            <% else %>
+              -
+            <% end %>
+          </td>
+          <td><%= room[:completion] %>%</td>
+          <td><%= room[:items].count { |i| i[:action_required] } %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <!-- Room Sections -->
+  <% rooms.each do |room| %>
+    <div class="room-section">
+      <div class="room-header">
+        <span><%= room[:name] %> (<%= room[:room_type].titleize %>)</span>
+        <% if room[:overall_condition] %>
+          <span class="room-condition">
+            <span class="condition-pill" style="background-color: <%= condition_colors[room[:overall_condition]] %>;">
+              <%= condition_labels[room[:overall_condition]] %>
+            </span>
+          </span>
+        <% end %>
+      </div>
+
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th style="width: 30%;">Item</th>
+            <th style="width: 15%;">Condition</th>
+            <th style="width: 8%;">Clean</th>
+            <th style="width: 8%;">Working</th>
+            <th style="width: 8%;">Action</th>
+            <th style="width: 31%;">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% room[:items].each do |item| %>
+            <tr class="<%= 'action-required' if item[:action_required] %>">
+              <td><%= item[:name] %></td>
+              <td>
+                <% if item[:condition] %>
+                  <span class="condition-pill" style="background-color: <%= condition_colors[item[:condition]] %>;">
+                    <%= condition_labels[item[:condition]] %>
+                  </span>
+                <% else %>
+                  <span style="color: #9ca3af;">Not checked</span>
+                <% end %>
+              </td>
+              <td class="<%= item[:is_clean] ? 'check-mark' : 'cross-mark' %>">
+                <%= item[:is_clean] ? '✓' : '✗' %>
+              </td>
+              <td class="<%= item[:is_working] ? 'check-mark' : 'cross-mark' %>">
+                <%= item[:is_working] ? '✓' : '✗' %>
+              </td>
+              <td class="<%= item[:action_required] ? 'cross-mark' : '' %>">
+                <%= item[:action_required] ? '⚠ Yes' : '-' %>
+              </td>
+              <td><%= item[:notes] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <% photos = room[:items].flat_map { |i| i[:photos] }.compact %>
+      <% if photos.any? %>
+        <div class="photo-grid">
+          <% photos.each do |photo| %>
+            <div>
+              <% if photo[:url] %>
+                <img src="<%= photo[:url] %>" alt="<%= photo[:caption] || 'Inspection photo' %>" />
+              <% end %>
+              <% if photo[:caption] %>
+                <div class="photo-caption"><%= photo[:caption] %></div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <% if room[:notes].present? %>
+        <div style="padding: 6px 8px; font-size: 10px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-top: none;">
+          <strong>Room Notes:</strong> <%= room[:notes] %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <!-- Action Items Summary -->
+  <% action_items = rooms.flat_map { |r| r[:items].select { |i| i[:action_required] }.map { |i| i.merge(room_name: r[:name]) } } %>
+  <% if action_items.any? %>
+    <div class="action-items">
+      <h3>⚠ Action Items Required (<%= action_items.count %>)</h3>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Room</th>
+            <th>Item</th>
+            <th>Condition</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% action_items.each do |item| %>
+            <tr>
+              <td><%= item[:room_name] %></td>
+              <td><%= item[:name] %></td>
+              <td>
+                <% if item[:condition] %>
+                  <span class="condition-pill" style="background-color: <%= condition_colors[item[:condition]] %>;">
+                    <%= condition_labels[item[:condition]] %>
+                  </span>
+                <% end %>
+              </td>
+              <td><%= item[:notes] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <!-- Signatures -->
+  <div class="signature-section">
+    <div class="signature-box">
+      <% if summary[:inspector_signature_url] %>
+        <img src="<%= summary[:inspector_signature_url] %>" alt="Inspector signature" />
+      <% end %>
+      <div class="signature-label">Inspector: <%= summary[:inspector_name] || "_________________" %></div>
+      <div class="signature-label">Date: <%= summary[:inspection_date]&.strftime("%d/%m/%Y") %></div>
+    </div>
+    <div class="signature-box">
+      <% if summary[:tenant_signature_url] %>
+        <img src="<%= summary[:tenant_signature_url] %>" alt="Tenant signature" />
+      <% end %>
+      <div class="signature-label">Tenant: _________________</div>
+      <div class="signature-label">Date: _________________</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="report-footer">
+    <%= company[:name] %> | <%= company[:address] %> | <%= company[:phone] %> | <%= company[:email] %>
+    <br/>
+    Report generated on <%= generated_at.strftime("%d %B %Y at %I:%M %p") %> | Powered by TEEEM
+  </div>
+</div>

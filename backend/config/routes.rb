@@ -1421,6 +1421,35 @@ Rails.application.routes.draw do
       resources :property_inspections do
         member do
           patch :complete
+          patch :start
+          post :generate_report
+          post :send_report
+          post :generate_portal_link
+          post :sign
+        end
+
+        resources :inspection_rooms do
+          member do
+            post :duplicate
+          end
+
+          resources :inspection_items do
+            collection do
+              patch :bulk_update
+            end
+
+            resources :inspection_photos, only: [:index, :create, :destroy] do
+              member do
+                post :annotate
+              end
+            end
+          end
+        end
+      end
+
+      resources :inspection_room_templates do
+        collection do
+          post :seed_defaults
         end
       end
 

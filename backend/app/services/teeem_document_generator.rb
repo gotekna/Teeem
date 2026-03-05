@@ -151,6 +151,24 @@ class TeeemDocumentGenerator
       layout: "teeem",
       title: "Deposit Claim Invoice",
       output_filename: "{date}_deposit_invoice_{job_name}"
+    },
+
+    # Property Inspection reports
+    inspection_report: {
+      path: "templates/inspection_report",
+      category: "inspection",
+      requires: [ :inspection ],
+      layout: "teeem",
+      title: "Property Inspection Report",
+      output_filename: "{date}_inspection_report_{inspection_number}"
+    },
+    inspection_comparison: {
+      path: "templates/inspection_comparison",
+      category: "inspection",
+      requires: [ :inspection ],
+      layout: "teeem",
+      title: "Entry vs Exit Comparison Report",
+      output_filename: "{date}_inspection_comparison_{inspection_number}"
     }
   }.freeze
 

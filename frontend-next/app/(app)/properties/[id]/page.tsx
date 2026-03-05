@@ -36,6 +36,7 @@ import {
   XCircle,
   Save,
   X,
+  ClipboardCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -44,6 +45,7 @@ import { CreateTenancyDialog } from "@/components/properties/CreateTenancyDialog
 import { CreateBillDialog } from "@/components/properties/CreateBillDialog";
 import { CreateInspectionDialog } from "@/components/properties/CreateInspectionDialog";
 import { AddPropertyContactDialog } from "@/components/properties/AddPropertyContactDialog";
+import { PropertyInspectionsTab } from "@/components/properties/PropertyInspectionsTab";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import EntityDocumentListTab from "@/components/documents/EntityDocumentListTab";
 
@@ -163,7 +165,7 @@ export default function PropertyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showTenancyDialog, setShowTenancyDialog] = useState(false);
   const [showBillDialog, setShowBillDialog] = useState(false);
-  const [showInspectionDialog, setShowInspectionDialog] = useState(false);  // TODO: move to inspections warehouse tab
+  const [showInspectionDialog, setShowInspectionDialog] = useState(false);
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -451,6 +453,10 @@ export default function PropertyDetailPage() {
             <TabsTrigger value="financials" className="gap-1.5">
               <DollarSign className="h-3.5 w-3.5" />
               Financials
+            </TabsTrigger>
+            <TabsTrigger value="inspections" className="gap-1.5">
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              Inspections
             </TabsTrigger>
             {/* SSoT: Document folder tabs from warehouse folders */}
             {documentFolderTabs.map(tab => (
@@ -1077,6 +1083,14 @@ export default function PropertyDetailPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Inspections Tab */}
+          <TabsContent value="inspections" className="p-6 mt-0">
+            <PropertyInspectionsTab
+              propertyId={id}
+              onScheduleInspection={() => setShowInspectionDialog(true)}
+            />
           </TabsContent>
 
           {/* SSoT: Document folder tabs from warehouse folders */}

@@ -6080,6 +6080,73 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["status"], name: "index_import_sessions_on_status"
   end
 
+  create_table "inspection_items", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "inspection_room_id", null: false
+    t.string "name", null: false
+    t.string "condition"
+    t.string "entry_condition"
+    t.text "notes"
+    t.boolean "is_clean", default: true
+    t.boolean "is_working", default: true
+    t.boolean "action_required", default: false
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_required"], name: "idx_inspection_items_action_required", where: "(action_required = true)"
+    t.index ["inspection_room_id", "sort_order"], name: "idx_inspection_items_on_room_and_order"
+    t.index ["inspection_room_id"], name: "index_inspection_items_on_inspection_room_id"
+    t.index ["tenant_id"], name: "index_inspection_items_on_tenant_id"
+  end
+
+  create_table "inspection_photos", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "inspection_item_id", null: false
+    t.bigint "storage_blob_id", null: false
+    t.bigint "annotated_blob_id"
+    t.string "caption"
+    t.jsonb "annotations_json", default: {}
+    t.datetime "taken_at"
+    t.decimal "latitude", precision: 10, scale: 7
+    t.decimal "longitude", precision: 10, scale: 7
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["inspection_item_id", "sort_order"], name: "idx_inspection_photos_on_item_and_order"
+    t.index ["inspection_item_id"], name: "index_inspection_photos_on_inspection_item_id"
+    t.index ["storage_blob_id"], name: "index_inspection_photos_on_storage_blob_id"
+    t.index ["tenant_id"], name: "index_inspection_photos_on_tenant_id"
+  end
+
+  create_table "inspection_room_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "property_type_name", null: false
+    t.string "name", null: false
+    t.jsonb "rooms", default: [], null: false
+    t.boolean "is_default", default: false
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "name"], name: "idx_inspection_templates_on_tenant_and_name", unique: true
+    t.index ["tenant_id", "property_type_name"], name: "idx_inspection_templates_on_tenant_and_type"
+    t.index ["tenant_id"], name: "index_inspection_room_templates_on_tenant_id"
+  end
+
+  create_table "inspection_rooms", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "property_inspection_id", null: false
+    t.string "name", null: false
+    t.string "room_type", default: "other", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.string "overall_condition"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["property_inspection_id", "sort_order"], name: "idx_inspection_rooms_on_inspection_and_order"
+    t.index ["property_inspection_id"], name: "index_inspection_rooms_on_property_inspection_id"
+    t.index ["tenant_id"], name: "index_inspection_rooms_on_tenant_id"
+  end
+
   create_table "inspiring_quotes", force: :cascade do |t|
     t.text "quote", null: false
     t.string "author"
@@ -7994,6 +8061,18 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "inspector_signature_blob_id"
+    t.bigint "tenant_signature_blob_id"
+    t.bigint "report_blob_id"
+    t.string "access_token"
+    t.datetime "access_token_expires_at"
+    t.decimal "gps_latitude", precision: 10, scale: 7
+    t.decimal "gps_longitude", precision: 10, scale: 7
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.string "inspection_number"
+    t.index ["access_token"], name: "idx_property_inspections_access_token", unique: true, where: "(access_token IS NOT NULL)"
+    t.index ["inspection_number"], name: "idx_property_inspections_number", unique: true, where: "(inspection_number IS NOT NULL)"
     t.index ["inspection_type"], name: "index_property_inspections_on_inspection_type"
     t.index ["inspector_contact_id"], name: "index_property_inspections_on_inspector_contact_id"
     t.index ["property_id", "status"], name: "index_property_inspections_on_property_id_and_status"
@@ -12509,6 +12588,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "imap_credentials", "users"
   add_foreign_key "import_audit_logs", "tenants"
   add_foreign_key "import_audit_logs", "users"
+  add_foreign_key "inspection_items", "inspection_rooms"
+  add_foreign_key "inspection_photos", "inspection_items"
+  add_foreign_key "inspection_photos", "storage_blobs"
+  add_foreign_key "inspection_photos", "storage_blobs", column: "annotated_blob_id"
+  add_foreign_key "inspection_rooms", "property_inspections"
   add_foreign_key "insurance_policies", "corporates", column: "company_id"
   add_foreign_key "intercompany_balances", "corporates", column: "company_id"
   add_foreign_key "intercompany_balances", "corporates", column: "related_company_id"
@@ -12697,6 +12781,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "property_contacts", "properties"
   add_foreign_key "property_inspections", "contacts", column: "inspector_contact_id"
   add_foreign_key "property_inspections", "properties"
+  add_foreign_key "property_inspections", "storage_blobs", column: "inspector_signature_blob_id"
+  add_foreign_key "property_inspections", "storage_blobs", column: "report_blob_id"
+  add_foreign_key "property_inspections", "storage_blobs", column: "tenant_signature_blob_id"
   add_foreign_key "property_inspections", "tenancies"
   add_foreign_key "property_settings", "tenants"
   add_foreign_key "property_settings", "xero_credentials"
