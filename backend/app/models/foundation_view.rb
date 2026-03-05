@@ -15,9 +15,6 @@ class FoundationView < ApplicationRecord
   # Ensure only one default view per user per foundation per tenant
   validates :is_default, uniqueness: { scope: [ :tenant_id, :user_id, :foundation_id ] }, if: :is_default?
 
-  # Protect the "Setup" view from being renamed
-  validate :prevent_setup_view_rename, on: :update
-
   # CRITICAL: foundation_id is IMMUTABLE after creation
   # This prevents views from being "orphaned" when foundation_id is accidentally cleared
   validate :prevent_foundation_id_change, on: :update
@@ -164,13 +161,6 @@ class FoundationView < ApplicationRecord
                .where.not(id: first_view.id)
                .where(is_default: true)
                .update_all(is_default: false)
-    end
-  end
-
-  # Prevent renaming the "Setup" view (it's the standard template)
-  def prevent_setup_view_rename
-    if name_was == "Setup" && name_changed? && name != "Setup"
-      errors.add(:name, "The 'Setup' view cannot be renamed as it's the default template for new views")
     end
   end
 
