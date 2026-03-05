@@ -12,23 +12,19 @@ import {
 } from "lucide-react";
 
 const SDA_TABS = [
-  { value: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/sda" },
-  { value: "properties", label: "Properties", icon: Building2, href: "/sda/properties" },
-  { value: "enrolments", label: "Enrolments", icon: FileCheck2, href: "/sda/enrolments" },
-  { value: "claims", label: "Claims", icon: Receipt, href: "/sda/claims" },
-  { value: "compliance", label: "Compliance", icon: ShieldCheck, href: "/sda/compliance" },
+  { value: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/properties/sda" },
+  { value: "properties", label: "Properties", icon: Building2, href: "/properties/sda/properties" },
+  { value: "enrolments", label: "Enrolments", icon: FileCheck2, href: "/properties/sda/enrolments" },
+  { value: "claims", label: "Claims", icon: Receipt, href: "/properties/sda/claims" },
+  { value: "compliance", label: "Compliance", icon: ShieldCheck, href: "/properties/sda/compliance" },
 ];
 
 export default function SdaLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Determine active tab from pathname
-  // /sda → "dashboard"
-  // /sda/properties → "properties"
-  // /sda/enrolments → "enrolments"
   const activeTab =
-    SDA_TABS.find((t) => t.href !== "/sda" && pathname.startsWith(t.href))
+    SDA_TABS.find((t) => t.href !== "/properties/sda" && pathname.startsWith(t.href))
       ?.value ?? "dashboard";
 
   return (

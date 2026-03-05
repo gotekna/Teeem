@@ -102,11 +102,11 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/properties/setup": "Setup",
 
   // SDA Management
-  "/sda": "SDA Management",
-  "/sda/properties": "Properties",
-  "/sda/enrolments": "Enrolments",
-  "/sda/claims": "Claims",
-  "/sda/compliance": "Compliance",
+  "/properties/sda": "SDA Management",
+  "/properties/sda/properties": "Properties",
+  "/properties/sda/enrolments": "Enrolments",
+  "/properties/sda/claims": "Claims",
+  "/properties/sda/compliance": "Compliance",
 };
 
 /**
@@ -133,7 +133,7 @@ const ROUTE_ICONS: Record<string, string> = {
   "/xero": "Link",
   "/data-warehouse": "Database",
   "/training": "GraduationCap",
-  "/sda": "Accessibility",
+  "/properties/sda": "Accessibility",
 };
 
 /**

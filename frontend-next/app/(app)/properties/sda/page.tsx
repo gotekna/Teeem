@@ -185,7 +185,7 @@ export default function SdaDashboardPage() {
           iconBg: "bg-blue-100 dark:bg-blue-900/30",
           iconColor: "text-blue-600 dark:text-blue-400",
           description: "Enrolled & active",
-          href: "/sda/properties",
+          href: "/properties/sda/properties",
         },
         {
           title: "Pending Enrolments",
@@ -194,7 +194,7 @@ export default function SdaDashboardPage() {
           iconBg: "bg-amber-100 dark:bg-amber-900/30",
           iconColor: "text-amber-600 dark:text-amber-400",
           description: "Awaiting NDIA approval",
-          href: "/sda/enrolments",
+          href: "/properties/sda/enrolments",
         },
         {
           title: "Monthly Revenue",
@@ -231,7 +231,7 @@ export default function SdaDashboardPage() {
               ? "text-amber-600 dark:text-amber-400"
               : "text-red-600 dark:text-red-400",
           description: "Portfolio compliance",
-          href: "/sda/compliance",
+          href: "/properties/sda/compliance",
         },
         {
           title: "Claims This Month",
@@ -240,7 +240,7 @@ export default function SdaDashboardPage() {
           iconBg: "bg-indigo-100 dark:bg-indigo-900/30",
           iconColor: "text-indigo-600 dark:text-indigo-400",
           description: "NDIS claims submitted",
-          href: "/sda/claims",
+          href: "/properties/sda/claims",
         },
       ]
     : [];
@@ -372,7 +372,7 @@ export default function SdaDashboardPage() {
               <CardDescription>Properties in enrolment process</CardDescription>
             </div>
             <Button variant="ghost" size="sm" asChild>
-              <a href="/sda/enrolments" className="text-xs flex items-center gap-1">
+              <a href="/properties/sda/enrolments" className="text-xs flex items-center gap-1">
                 View All
                 <ArrowRight className="h-3 w-3" />
               </a>
