@@ -12,6 +12,11 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // ChunkLoadError = stale deployment chunks. Auto-reload to fetch fresh ones.
+    if (error.name === "ChunkLoadError") {
+      window.location.reload();
+      return;
+    }
     console.error("Global error boundary caught:", error);
     Sentry.captureException(error);
   }, [error]);
