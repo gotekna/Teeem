@@ -27,16 +27,12 @@ module GlobalConfigRecord
     #      which registers a PresenceValidator. Re-declaring with `optional: true` updates
     #      the association but does NOT remove the already-registered validator.
     # ❌ WRONG: Just `belongs_to :tenant, optional: true` — old validator persists
-    # ✅ CORRECT: Remove old validator first, then re-declare as optional
+    # ❌ WRONG: `_validate_callbacks.each { delete }` — unreliable in production
+    # ✅ CORRECT: Re-declare as optional + after_validation safety net
     # ════════════════════════════════════════════════════════════════
-    _validators.reject! { |key, _| key == :tenant }
-    _validate_callbacks.each do |callback|
-      if callback.filter.respond_to?(:attributes) && callback.filter.attributes.include?(:tenant)
-        _validate_callbacks.delete(callback)
-      end
-    end
     belongs_to :tenant, optional: true
 
+    after_validation :clear_stale_tenant_errors
     before_create :auto_globalize_master_record
     before_save :prevent_non_master_edit_of_global_record
     before_destroy :prevent_non_master_destroy_of_global_record
@@ -55,6 +51,14 @@ module GlobalConfigRecord
   end
 
   private
+
+  # Clear stale PresenceValidator errors on :tenant for shared records.
+  # acts_as_tenant's belongs_to validator persists even after re-declaring
+  # with optional: true. This safely removes those errors for records
+  # that are intentionally global (tenant_id = NULL).
+  def clear_stale_tenant_errors
+    errors.delete(:tenant) if tenant_id.nil?
+  end
 
   # When master tenant creates a config record, auto-set tenant_id=NULL
   # so it's immediately shared globally. Customer tenants keep normal tenant_id.

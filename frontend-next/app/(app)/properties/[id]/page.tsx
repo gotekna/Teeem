@@ -24,10 +24,14 @@ import {
   Wrench,
   Home,
   Shield,
+  Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { CreateTenancyDialog } from "@/components/properties/CreateTenancyDialog";
+import { CreateBillDialog } from "@/components/properties/CreateBillDialog";
+import { CreateInspectionDialog } from "@/components/properties/CreateInspectionDialog";
 
 interface Property {
   id: number;
@@ -145,6 +149,9 @@ export default function PropertyDetailPage() {
   const [inspections, setInspections] = useState<PropertyInspection[]>([]);
   const [contacts, setContacts] = useState<PropertyContact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showTenancyDialog, setShowTenancyDialog] = useState(false);
+  const [showBillDialog, setShowBillDialog] = useState(false);
+  const [showInspectionDialog, setShowInspectionDialog] = useState(false);
 
   // URL is SSoT for tab state
   const pathParts = pathname.split("/");
@@ -153,6 +160,27 @@ export default function PropertyDetailPage() {
   const handleTabChange = useCallback((tab: string) => {
     router.push(`/properties/${id}/${tab}`);
   }, [router, id]);
+
+  const refreshTenancies = useCallback(() => {
+    api.get<{ success: boolean; data: Tenancy[] }>(`/api/v1/properties/${id}/tenancies`).then(res => {
+      if (res.success) setTenancies(res.data);
+    });
+    api.get<{ success: boolean; data: PropertyContact[] }>(`/api/v1/properties/${id}/contacts`).then(res => {
+      if (res.success) setContacts(res.data);
+    });
+  }, [id]);
+
+  const refreshBills = useCallback(() => {
+    api.get<{ success: boolean; data: PropertyBill[] }>(`/api/v1/properties/${id}/bills`).then(res => {
+      if (res.success) setBills(res.data);
+    });
+  }, [id]);
+
+  const refreshInspections = useCallback(() => {
+    api.get<{ success: boolean; data: PropertyInspection[] }>(`/api/v1/properties/${id}/inspections`).then(res => {
+      if (res.success) setInspections(res.data);
+    });
+  }, [id]);
 
   // Fetch property data
   useEffect(() => {
@@ -176,22 +204,13 @@ export default function PropertyDetailPage() {
     if (!id) return;
 
     if (activeTab === "tenancy") {
-      api.get<{ success: boolean; data: Tenancy[] }>(`/api/v1/properties/${id}/tenancies`).then(res => {
-        if (res.success) setTenancies(res.data);
-      });
-      api.get<{ success: boolean; data: PropertyContact[] }>(`/api/v1/properties/${id}/contacts`).then(res => {
-        if (res.success) setContacts(res.data);
-      });
+      refreshTenancies();
     } else if (activeTab === "financials") {
-      api.get<{ success: boolean; data: PropertyBill[] }>(`/api/v1/properties/${id}/bills`).then(res => {
-        if (res.success) setBills(res.data);
-      });
+      refreshBills();
     } else if (activeTab === "inspections") {
-      api.get<{ success: boolean; data: PropertyInspection[] }>(`/api/v1/properties/${id}/inspections`).then(res => {
-        if (res.success) setInspections(res.data);
-      });
+      refreshInspections();
     }
-  }, [id, activeTab]);
+  }, [id, activeTab, refreshTenancies, refreshBills, refreshInspections]);
 
   if (loading) {
     return (
@@ -406,6 +425,13 @@ export default function PropertyDetailPage() {
 
           {/* Tenancy Tab */}
           <TabsContent value="tenancy" className="p-6 space-y-6 mt-0">
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => setShowTenancyDialog(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Add Tenancy
+              </Button>
+            </div>
+
             {/* Active Tenancy */}
             {activeTenancy ? (
               <Card>
@@ -539,6 +565,13 @@ export default function PropertyDetailPage() {
 
           {/* Financials Tab */}
           <TabsContent value="financials" className="p-6 space-y-6 mt-0">
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => setShowBillDialog(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Add Bill
+              </Button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card>
                 <CardContent className="pt-6">
@@ -609,6 +642,13 @@ export default function PropertyDetailPage() {
 
           {/* Inspections Tab */}
           <TabsContent value="inspections" className="p-6 space-y-6 mt-0">
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => setShowInspectionDialog(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Schedule Inspection
+              </Button>
+            </div>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">Inspections</CardTitle>
@@ -661,6 +701,26 @@ export default function PropertyDetailPage() {
           </TabsContent>
         </div>
       </Tabs>
+
+      {/* Create Dialogs */}
+      <CreateTenancyDialog
+        open={showTenancyDialog}
+        onOpenChange={setShowTenancyDialog}
+        propertyId={id}
+        onSuccess={refreshTenancies}
+      />
+      <CreateBillDialog
+        open={showBillDialog}
+        onOpenChange={setShowBillDialog}
+        propertyId={id}
+        onSuccess={refreshBills}
+      />
+      <CreateInspectionDialog
+        open={showInspectionDialog}
+        onOpenChange={setShowInspectionDialog}
+        propertyId={id}
+        onSuccess={refreshInspections}
+      />
     </div>
   );
 }
