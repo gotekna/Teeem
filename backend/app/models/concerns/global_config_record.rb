@@ -58,11 +58,13 @@ module GlobalConfigRecord
 
   private
 
-  # When master tenant creates a config record, auto-set tenant_id=NULL
+  # When internal tenant creates a config record, auto-set tenant_id=NULL
   # so it's immediately shared globally. Customer tenants keep normal tenant_id.
+  # FRC (Mar 2026): Was only checking is_master_tenant? which missed Tekna/Pilgrim.
+  # They create doc types too, and those stayed tenant-specific (invisible to others).
   def auto_globalize_master_record
     return if ActsAsTenant.current_tenant.nil?
-    return unless ActsAsTenant.current_tenant.respond_to?(:is_master_tenant?) && ActsAsTenant.current_tenant.is_master_tenant?
+    return unless ActsAsTenant.current_tenant.respond_to?(:internal_tenant?) && ActsAsTenant.current_tenant.internal_tenant?
 
     self.tenant_id = nil
   end

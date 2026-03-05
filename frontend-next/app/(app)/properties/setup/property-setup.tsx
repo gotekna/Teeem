@@ -178,7 +178,7 @@ export default function PropertySetup() {
       setXeroConfigLoading(true);
       try {
         const [xeroRes, settingsRes] = await Promise.all([
-          api.get("/api/v1/corporate_xero_connections"),
+          api.get("/api/v1/company_xero_connections"),
           api.get("/api/v1/property_settings"),
         ]);
 
@@ -186,15 +186,13 @@ export default function PropertySetup() {
         const xeroData = xeroRes as Record<string, unknown>;
         const orgs = ((xeroData?.organizations ?? xeroData?.data) as XeroOrg[]) ?? [];
         setXeroOrgs(
-          orgs
-            .filter((o) => o.connected)
-            .map((o) => ({
-              id: o.id,
-              tenant_id: o.tenant_id,
-              tenant_name: o.tenant_name,
-              connected: o.connected,
-              display_status: o.display_status,
-            }))
+          orgs.map((o) => ({
+            id: o.id,
+            tenant_id: o.tenant_id,
+            tenant_name: o.tenant_name,
+            connected: o.connected,
+            display_status: o.display_status,
+          }))
         );
 
         // Parse current settings
@@ -250,7 +248,8 @@ export default function PropertySetup() {
 
   const xeroComboItems: ComboboxItem[] = xeroOrgs.map((o) => ({
     id: String(o.id),
-    label: o.tenant_name,
+    label: o.connected ? o.tenant_name : `${o.tenant_name} (disconnected)`,
+    disabled: !o.connected,
   }));
 
   const renderAction = (item: ChecklistItem) => {
