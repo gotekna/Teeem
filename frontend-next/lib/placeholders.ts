@@ -134,6 +134,30 @@ export const COMPANY_PLACEHOLDERS: PlaceholderToken[] = [
     color: "purple",
     description: "Director/officer name (from workflow metadata)",
   },
+  {
+    code: "{CorporateKey}",
+    example: "ABC123",
+    color: "purple",
+    description: "ASIC corporate key",
+  },
+  {
+    code: "{ABN}",
+    example: "51 123 456 789",
+    color: "purple",
+    description: "Australian Business Number",
+  },
+  {
+    code: "{ACN}",
+    example: "123 456 789",
+    color: "purple",
+    description: "Australian Company Number",
+  },
+  {
+    code: "{TFN}",
+    example: "123 456 789",
+    color: "purple",
+    description: "Tax File Number",
+  },
 ];
 
 // =============================================================================

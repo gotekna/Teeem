@@ -231,14 +231,21 @@ class PlanSetService
   end
 
   def upload_full_pdf(content, folder_path)
-    # Upload as "All Plans.pdf"
-    result = upload_to_provider(folder_path, content, "All Plans.pdf", content_type: "application/pdf")
+    # Blob-only storage (Mar 2026)
+    blob = StorageBlob.find_or_create_for_content!(
+      content, filename: "All Plans.pdf", content_type: "application/pdf"
+    )
+
+    plans_folder = WarehouseFolder.where(warehouse_type: "job", tab_key: "plans").enabled.first
+    WarehouseDocumentCreator.create!(
+      filename: "All Plans.pdf", source_type: "job", linkable: @construction,
+      storage_blob: blob, warehouse_folder_id: plans_folder&.id,
+      file_size: content.bytesize, content_type: "application/pdf"
+    )
 
     {
       name: "All Plans.pdf",
-      file_id: result[:id],
-      path: result[:path],
-      web_url: result[:web_url] || result[:url],
+      blob_id: blob.id,
       size: content.bytesize
     }
   end
@@ -246,6 +253,7 @@ class PlanSetService
   def extract_and_upload_pages(doc, folder_path)
     pages = []
     used_filenames = Set.new([ "All Plans.pdf" ])
+    plans_folder = WarehouseFolder.where(warehouse_type: "job", tab_key: "plans").enabled.first
 
     doc.pages.count.times do |index|
       Rails.logger.info "[PlanSetService] Processing page #{index + 1} of #{doc.pages.count}#{@skip_ai ? ' (skip AI)' : ''}"
@@ -264,8 +272,15 @@ class PlanSetService
       filename = determine_filename(sheet_info, index, used_filenames)
       used_filenames.add(filename)
 
-      # Upload to storage
-      result = upload_to_provider(folder_path, page_content, filename, content_type: "application/pdf")
+      # Blob-only storage (Mar 2026)
+      blob = StorageBlob.find_or_create_for_content!(
+        page_content, filename: filename, content_type: "application/pdf"
+      )
+      WarehouseDocumentCreator.create!(
+        filename: filename, source_type: "job", linkable: @construction,
+        storage_blob: blob, warehouse_folder_id: plans_folder&.id,
+        file_size: page_content.bytesize, content_type: "application/pdf"
+      )
 
       pages << {
         page_number: index + 1,
@@ -274,11 +289,9 @@ class PlanSetService
         sheet_date: sheet_info[:sheet_date],
         sheet_issue: sheet_info[:sheet_issue],
         name: filename,
-        file_id: result[:id],
-        path: result[:path],
-        web_url: result[:web_url] || result[:url],
+        blob_id: blob.id,
         size: page_content.bytesize,
-        needs_ai_analysis: @skip_ai # Flag to indicate AI analysis is pending
+        needs_ai_analysis: @skip_ai
       }
     end
 

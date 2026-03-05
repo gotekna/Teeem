@@ -1003,8 +1003,16 @@ export default function DocumentTypeDetailPage() {
     // Get base placeholders from SSoT
     const basePlaceholders = getBasePlaceholders(scope);
 
-    // Add DocType placeholder and sort alphabetically by code
+    // Conditional placeholders: only show when their checkbox is ticked
+    const conditionalCodes = new Set<string>();
+    if (!documentType?.updates_corporate_key) conditionalCodes.add("{CorporateKey}");
+    if (!documentType?.updates_tax_file_number) conditionalCodes.add("{TFN}");
+    if (!documentType?.updates_abn) conditionalCodes.add("{ABN}");
+    if (!documentType?.updates_acn) conditionalCodes.add("{ACN}");
+
+    // Add DocType placeholder, filter conditional ones, and sort alphabetically
     let placeholders: PlaceholderToken[] = [docTypePlaceholder, ...basePlaceholders]
+      .filter((p) => !conditionalCodes.has(p.code))
       .sort((a, b) => a.code.replace(/[{}]/g, '').localeCompare(b.code.replace(/[{}]/g, '')));
 
     // Filter by category (SSoT: Feb 2026)

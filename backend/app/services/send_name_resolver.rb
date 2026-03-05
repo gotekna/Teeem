@@ -218,6 +218,10 @@ class SendNameResolver
         context[:company_code] ||= linkable.company_code || linkable.try(:code)
         context[:company_name] ||= linkable.name
         context[:company_group] ||= linkable.company_group&.name
+        context[:corporate_key] ||= linkable.corporate_key
+        context[:abn] ||= linkable.abn
+        context[:acn] ||= linkable.acn
+        context[:tfn] ||= linkable.tfn
       end
     end
 
@@ -310,6 +314,10 @@ class SendNameResolver
       context[:company_code] = company.company_code || company.try(:code)
       context[:company_name] = company.name
       context[:company_group] = company.company_group&.name  # SSoT: use association
+      context[:corporate_key] = company.corporate_key
+      context[:abn] = company.abn
+      context[:acn] = company.acn
+      context[:tfn] = company.tfn
     end
 
     # Document type context
