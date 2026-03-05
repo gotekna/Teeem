@@ -257,12 +257,44 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
     router.push(`/purchase_orders/${groupId}`);
   }, [router]);
 
+  const handleStatusChange = useCallback(async (groupId: number | string, action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => {
+    const endpoint = action === "cancel"
+      ? `/api/v1/purchase_orders/${groupId}`
+      : `/api/v1/purchase_orders/${groupId}/${action}`;
+
+    try {
+      if (action === "cancel") {
+        await api.delete(endpoint);
+      } else {
+        await api.post(endpoint, {});
+      }
+      toast.success(
+        action === "approve" ? "PO approved" :
+        action === "send_to_supplier" ? "PO marked as sent" :
+        action === "mark_received" ? "PO marked as received" :
+        "PO cancelled"
+      );
+      // Reload inline - avoids stale loadBOQData ref in useCallback deps
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await api.get<BOQData>(`/api/v1/jobs/${jobId}/boq`);
+        if (response?.success) setBOQData(response);
+      } finally {
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error(`Failed to update PO status (${action}):`, err);
+      toast.error("Failed to update PO status");
+    }
+  }, [jobId]);
+
   const handleSave = useCallback(async (payload: BOQSavePayload) => {
-    const { quantityChanges, profitCentreChanges, pricebookChanges, newLines } = payload;
+    const { quantityChanges, profitCentreChanges, pricebookChanges, newLines, deletedLines } = payload;
 
     // Group all changes by PO id
     const poUpdates = new Map<string, {
-      existing: Array<{ id: string; quantity?: number; profit_centre_id?: number | null; pricebook_item_id?: number }>;
+      existing: Array<{ id: string; quantity?: number; profit_centre_id?: number | null; pricebook_item_id?: number; _destroy?: boolean }>;
       newItems: Array<{ description: string; quantity: number; unit_price: number; gst_code: string; pricebook_item_id?: number | null; profit_centre_id?: number | null }>;
     }>();
 
@@ -307,6 +339,12 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
       }
     }
 
+    // Parse deleted lines: key format is "groupId:lineItemId"
+    for (const key of deletedLines) {
+      const [groupId, lineItemId] = key.split(":");
+      ensurePo(groupId).existing.push({ id: lineItemId, _destroy: true });
+    }
+
     // Group new lines by PO
     for (const nl of newLines) {
       const gid = String(nl.groupId);
@@ -326,6 +364,7 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
       const lineItemsAttributes = [
         ...updates.existing.map((e) => {
           const attrs: Record<string, unknown> = { id: Number(e.id) };
+          if (e._destroy) { attrs._destroy = true; return attrs; }
           if (e.quantity !== undefined) attrs.quantity = e.quantity;
           if (e.profit_centre_id !== undefined) attrs.profit_centre_id = e.profit_centre_id;
           if (e.pricebook_item_id !== undefined) attrs.pricebook_item_id = e.pricebook_item_id;
@@ -466,6 +505,7 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
           onSave={handleSave}
           onGroupClick={handleGroupClick}
           onAddPO={handleAddPO}
+          onStatusChange={handleStatusChange}
           profitCentres={boqData.profitCentres?.map((pc) => ({ id: pc.id, label: pc.label })) ?? []}
           loading={loading}
         />

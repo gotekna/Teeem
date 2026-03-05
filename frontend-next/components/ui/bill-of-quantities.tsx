@@ -14,7 +14,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
+import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SearchInput } from "@/components/ui/search-input";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { cn } from "@/lib/utils";
@@ -92,6 +99,8 @@ export interface BOQSavePayload {
   profitCentreChanges: BOQProfitCentreChanges;
   pricebookChanges: BOQPricebookChanges;
   newLines: BOQNewLine[];
+  /** Set of "groupId:lineItemId" keys to delete */
+  deletedLines: Set<string>;
 }
 
 type SortColumn = "group" | "supplier" | "profitCentre" | "description" | "code" | "qty" | "unitPrice" | "gst" | "subtotal";
@@ -125,6 +134,8 @@ export interface BillOfQuantitiesProps {
   excludedIds?: Set<string>;
   /** Called when user toggles a line item's exclude checkbox */
   onToggleExclude?: (lineKey: string, excluded: boolean) => void;
+  /** Called when user changes a PO's status from the inline dropdown */
+  onStatusChange?: (groupId: number | string, action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => Promise<void>;
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -177,11 +188,13 @@ export function BillOfQuantities({
   excludeMode = false,
   excludedIds,
   onToggleExclude,
+  onStatusChange,
 }: BillOfQuantitiesProps) {
   const [changes, setChanges] = useState<BOQChanges>(new Map());
   const [pcChanges, setPcChanges] = useState<BOQProfitCentreChanges>(new Map());
   const [pbChanges, setPbChanges] = useState<BOQPricebookChanges>(new Map());
   const [newLines, setNewLines] = useState<BOQNewLine[]>([]);
+  const [deletedLines, setDeletedLines] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   // PO/Task is always the primary grouping; optionally sort groups by a secondary dimension
@@ -192,7 +205,7 @@ export function BillOfQuantities({
   const [expandedPOs, setExpandedPOs] = useState<Set<string | number>>(new Set());
 
   const canEdit = !readOnly && !!onSave;
-  const hasChanges = changes.size > 0 || pcChanges.size > 0 || pbChanges.size > 0 || newLines.length > 0;
+  const hasChanges = changes.size > 0 || pcChanges.size > 0 || pbChanges.size > 0 || newLines.length > 0 || deletedLines.size > 0;
 
   // Stable color assignment: each group keeps its original color regardless of sort/filter
   const groupColorIndex = useMemo(() => {
@@ -200,7 +213,7 @@ export function BillOfQuantities({
     groups.forEach((g, i) => map.set(g.id, i));
     return map;
   }, [groups]);
-  const changeCount = changes.size + pcChanges.size + pbChanges.size + newLines.length;
+  const changeCount = changes.size + pcChanges.size + pbChanges.size + newLines.length + deletedLines.size;
 
   // Extract unique values for multi-select filters
   const uniqueSuppliers = useMemo(() =>
@@ -483,6 +496,19 @@ export function BillOfQuantities({
     setNewLines((prev) => prev.filter((nl) => nl.tempId !== tempId));
   }, []);
 
+  // Mark an existing line for deletion (toggled - click again to undelete)
+  const handleDeleteLine = useCallback((key: string) => {
+    setDeletedLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
   // Batch update a new line when a pricebook item is selected
   const handleNewLinePricebookSelect = useCallback(
     (tempId: string, item: {
@@ -520,11 +546,12 @@ export function BillOfQuantities({
     }
     try {
       setSaving(true);
-      await onSave({ quantityChanges: changes, profitCentreChanges: pcChanges, pricebookChanges: pbChanges, newLines: validNewLines });
+      await onSave({ quantityChanges: changes, profitCentreChanges: pcChanges, pricebookChanges: pbChanges, newLines: validNewLines, deletedLines });
       setChanges(new Map());
       setPcChanges(new Map());
       setPbChanges(new Map());
       setNewLines([]);
+      setDeletedLines(new Set());
     } finally {
       setSaving(false);
     }
@@ -536,6 +563,7 @@ export function BillOfQuantities({
     setPcChanges(new Map());
     setPbChanges(new Map());
     setNewLines([]);
+    setDeletedLines(new Set());
   }, []);
 
   // Get new lines for a specific group
@@ -1150,7 +1178,10 @@ export function BillOfQuantities({
                                 onNewLineChange={handleNewLineChange}
                                 onNewLinePricebookSelect={handleNewLinePricebookSelect}
                                 onRemoveNewLine={handleRemoveNewLine}
+                                onDeleteLine={handleDeleteLine}
+                                deletedLines={deletedLines}
                                 onGroupClick={onGroupClick}
+                                onStatusChange={onStatusChange}
                                 excludeMode={excludeMode}
                                 excludedIds={excludedIds}
                                 onToggleExclude={onToggleExclude}
@@ -1179,7 +1210,10 @@ export function BillOfQuantities({
                         onNewLineChange={handleNewLineChange}
                         onNewLinePricebookSelect={handleNewLinePricebookSelect}
                         onRemoveNewLine={handleRemoveNewLine}
+                        onDeleteLine={handleDeleteLine}
+                        deletedLines={deletedLines}
                         onGroupClick={onGroupClick}
+                        onStatusChange={onStatusChange}
                         excludeMode={excludeMode}
                         excludedIds={excludedIds}
                         onToggleExclude={onToggleExclude}
@@ -1209,7 +1243,10 @@ export function BillOfQuantities({
                   onNewLineChange={handleNewLineChange}
                   onNewLinePricebookSelect={handleNewLinePricebookSelect}
                   onRemoveNewLine={handleRemoveNewLine}
+                  onDeleteLine={handleDeleteLine}
+                  deletedLines={deletedLines}
                   onGroupClick={onGroupClick}
+                  onStatusChange={onStatusChange}
                   excludeMode={excludeMode}
                   excludedIds={excludedIds}
                   onToggleExclude={onToggleExclude}
@@ -1241,7 +1278,10 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   onNewLineChange,
   onNewLinePricebookSelect,
   onRemoveNewLine,
+  onDeleteLine,
+  deletedLines,
   onGroupClick,
+  onStatusChange,
   excludeMode,
   excludedIds,
   onToggleExclude,
@@ -1282,7 +1322,10 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
     pricebookItemCode: string;
   }) => void;
   onRemoveNewLine: (tempId: string) => void;
+  onDeleteLine: (key: string) => void;
+  deletedLines: Set<string>;
   onGroupClick?: (groupId: number | string) => void;
+  onStatusChange?: (groupId: number | string, action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => Promise<void>;
   excludeMode?: boolean;
   excludedIds?: Set<string>;
   onToggleExclude?: (lineKey: string, excluded: boolean) => void;
@@ -1327,9 +1370,16 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                   group.name
                 )}
                 {group.poStatusName && (
-                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${group.poStatusColor || ""}`}>
-                    {group.poStatusName}
-                  </Badge>
+                  onStatusChange ? (
+                    <POStatusDropdown
+                      group={group}
+                      onStatusChange={onStatusChange}
+                    />
+                  ) : (
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${group.poStatusColor || ""}`}>
+                      {group.poStatusName}
+                    </Badge>
+                  )
                 )}
               </div>
               {(group.stageName || group.tradeName) && (
@@ -1356,6 +1406,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
       {group.items.map((item, idx) => {
         const key = changeKey(group.id, item.id);
         const isDirty = changes.has(key);
+        const isDeleted = deletedLines.has(key);
         const qty = getQty(group.id, item);
         const subtotal = qty * item.unitPrice;
         const isExcluded = excludeMode && excludedIds?.has(key);
@@ -1366,6 +1417,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
             className={cn(
               color.bg,
               isDirty && "!bg-amber-50 dark:!bg-amber-950/30",
+              isDeleted && "!bg-red-50 dark:!bg-red-950/30 opacity-60",
               isExcluded && "opacity-40 line-through decoration-muted-foreground"
             )}
             style={idx === 0 ? { scrollSnapAlign: "start" } : undefined}
@@ -1494,7 +1546,29 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 isDirty && "font-semibold text-amber-700 dark:text-amber-400"
               )}
             >
-              {formatCurrency(subtotal)}
+              {canEdit ? (
+                <div className="flex items-center justify-end gap-1">
+                  <span className={cn(isDirty && "font-semibold text-amber-700 dark:text-amber-400")}>
+                    {formatCurrency(subtotal)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      "h-6 w-6 shrink-0",
+                      isDeleted
+                        ? "text-muted-foreground hover:text-foreground"
+                        : "text-muted-foreground/40 hover:text-destructive"
+                    )}
+                    onClick={() => onDeleteLine(key)}
+                    title={isDeleted ? "Undo delete" : "Delete line"}
+                  >
+                    {isDeleted ? <Undo2 className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              ) : (
+                formatCurrency(subtotal)
+              )}
             </TableCell>
             <TableCell className="text-sm py-1 border-l">
               {canEdit && profitCentres.length > 0 ? (
@@ -1690,6 +1764,78 @@ function QtyInput({
       )}
       title={isDirty ? `Original: ${originalValue}` : undefined}
     />
+  );
+}
+
+// Status actions available per PO status
+const STATUS_ACTIONS: Record<string, Array<{ action: "approve" | "send_to_supplier" | "mark_received" | "cancel"; label: string }>> = {
+  draft:         [{ action: "approve", label: "Approve" }, { action: "cancel", label: "Cancel" }],
+  pending:       [{ action: "approve", label: "Approve" }, { action: "cancel", label: "Cancel" }],
+  pending_quote: [{ action: "approve", label: "Approve" }, { action: "cancel", label: "Cancel" }],
+  approved:      [{ action: "send_to_supplier", label: "Mark Sent" }, { action: "cancel", label: "Cancel" }],
+  sent:          [{ action: "mark_received", label: "Mark Received" }, { action: "cancel", label: "Cancel" }],
+  received:      [{ action: "cancel", label: "Cancel" }],
+  invoiced:      [{ action: "cancel", label: "Cancel" }],
+  paid:          [],
+  cancelled:     [],
+};
+
+function POStatusDropdown({
+  group,
+  onStatusChange,
+}: {
+  group: BOQGroup;
+  onStatusChange: (groupId: number | string, action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => Promise<void>;
+}) {
+  const [loading, setLoading] = useState(false);
+  const actions = STATUS_ACTIONS[group.poStatus ?? ""] ?? [];
+
+  const handleAction = async (action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => {
+    setLoading(true);
+    try {
+      await onStatusChange(group.id, action);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (actions.length === 0) {
+    return (
+      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${group.poStatusColor || ""}`}>
+        {group.poStatusName}
+      </Badge>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={loading}>
+        <button
+          className={cn(
+            "inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0 text-[10px] font-medium transition-colors hover:opacity-80",
+            group.poStatusColor || "border-border"
+          )}
+          title="Change status"
+        >
+          {loading ? <Spinner size={10} className="mr-0.5" /> : null}
+          {group.poStatusName}
+          <ChevronDown className="h-2.5 w-2.5 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[140px]">
+        {actions.map((item, idx) => (
+          <React.Fragment key={item.action}>
+            {item.action === "cancel" && idx > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              onClick={() => handleAction(item.action)}
+              className={cn(item.action === "cancel" && "text-destructive focus:text-destructive")}
+            >
+              {item.label}
+            </DropdownMenuItem>
+          </React.Fragment>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

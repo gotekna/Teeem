@@ -22,8 +22,7 @@ class AddNotebookWarehouseType < ActiveRecord::Migration[7.1]
           is_system: true,
           enabled: true,
           order_position: 15,
-          folder_path_template: "Notes",
-          source_types: ["notebook"]
+          folder_path_template: "Notes"
         )
 
         # No root WarehouseFolder needed — same pattern as library WT.
