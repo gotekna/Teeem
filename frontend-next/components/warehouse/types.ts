@@ -163,14 +163,14 @@ export type WarehouseTreeMode =
   | { type: "full" }
   | {
       type: "scoped";
-      linkableType: "Job" | "Contact" | "CorporateCompany";
+      linkableType: "Job" | "Contact" | "CorporateCompany" | "Property";
       linkableId: number;
       warehouseTypeCode: string;
       recordTokenValues?: Record<string, string | null>;
     }
   | {
       type: "context";
-      entityType: "Job" | "Contact" | "CorporateCompany";
+      entityType: "Job" | "Contact" | "CorporateCompany" | "Property";
       entityId: number;
     };
 

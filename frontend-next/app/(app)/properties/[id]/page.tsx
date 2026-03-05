@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,20 +18,23 @@ import {
   Bath,
   Car,
   DollarSign,
-  FileText,
   Users,
-  ClipboardCheck,
-  Wrench,
   Home,
   Shield,
   Plus,
+  Trash2,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+
 import { CreateTenancyDialog } from "@/components/properties/CreateTenancyDialog";
 import { CreateBillDialog } from "@/components/properties/CreateBillDialog";
 import { CreateInspectionDialog } from "@/components/properties/CreateInspectionDialog";
+import { AddPropertyContactDialog } from "@/components/properties/AddPropertyContactDialog";
+import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
+import EntityDocumentListTab from "@/components/documents/EntityDocumentListTab";
 
 interface Property {
   id: number;
@@ -112,7 +115,6 @@ interface PropertyContact {
   contact: { id: number; display_name: string; email?: string; phone?: string };
 }
 
-const TABS = ["overview", "tenancy", "financials", "documents", "inspections", "maintenance"] as const;
 
 function StatusBadge({ status, color }: { status: string; color?: string }) {
   return (
@@ -146,16 +148,32 @@ export default function PropertyDetailPage() {
   const [property, setProperty] = useState<Property | null>(null);
   const [tenancies, setTenancies] = useState<Tenancy[]>([]);
   const [bills, setBills] = useState<PropertyBill[]>([]);
-  const [inspections, setInspections] = useState<PropertyInspection[]>([]);
   const [contacts, setContacts] = useState<PropertyContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTenancyDialog, setShowTenancyDialog] = useState(false);
   const [showBillDialog, setShowBillDialog] = useState(false);
-  const [showInspectionDialog, setShowInspectionDialog] = useState(false);
+  const [showInspectionDialog, setShowInspectionDialog] = useState(false);  // TODO: move to inspections warehouse tab
+
+  // SSoT: Load warehouse folder tabs for property scope
+  const { tabs: propertyTabs } = useWarehouseFolders({ scope: "property" });
+
+  // Get enabled document folder tabs (children of root "properties" parent)
+  const documentFolderTabs = useMemo(() => {
+    // Property has a single root parent with children - flatten children as tabs
+    const rootTab = propertyTabs.find(t => t.tab_key === "properties");
+    const children = rootTab?.children || [];
+    return children
+      .filter(t => t.enabled)
+      .map(t => ({
+        id: t.tab_key,
+        name: t.display_name,
+        warehouseFolder: t,
+      }));
+  }, [propertyTabs]);
 
   // URL is SSoT for tab state
   const pathParts = pathname.split("/");
-  const activeTab = (pathParts[3] as typeof TABS[number]) || "overview";
+  const activeTab = pathParts[3] || "overview";
 
   const handleTabChange = useCallback((tab: string) => {
     router.push(`/properties/${id}/${tab}`);
@@ -173,12 +191,6 @@ export default function PropertyDetailPage() {
   const refreshBills = useCallback(() => {
     api.get<{ success: boolean; data: PropertyBill[] }>(`/api/v1/properties/${id}/bills`).then(res => {
       if (res.success) setBills(res.data);
-    });
-  }, [id]);
-
-  const refreshInspections = useCallback(() => {
-    api.get<{ success: boolean; data: PropertyInspection[] }>(`/api/v1/properties/${id}/inspections`).then(res => {
-      if (res.success) setInspections(res.data);
     });
   }, [id]);
 
@@ -207,10 +219,8 @@ export default function PropertyDetailPage() {
       refreshTenancies();
     } else if (activeTab === "financials") {
       refreshBills();
-    } else if (activeTab === "inspections") {
-      refreshInspections();
     }
-  }, [id, activeTab, refreshTenancies, refreshBills, refreshInspections]);
+  }, [id, activeTab, refreshTenancies, refreshBills]);
 
   if (loading) {
     return (
@@ -287,18 +297,12 @@ export default function PropertyDetailPage() {
               <DollarSign className="h-3.5 w-3.5" />
               Financials
             </TabsTrigger>
-            <TabsTrigger value="documents" className="gap-1.5">
-              <FileText className="h-3.5 w-3.5" />
-              Documents
-            </TabsTrigger>
-            <TabsTrigger value="inspections" className="gap-1.5">
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              Inspections
-            </TabsTrigger>
-            <TabsTrigger value="maintenance" className="gap-1.5">
-              <Wrench className="h-3.5 w-3.5" />
-              Maintenance
-            </TabsTrigger>
+            {/* SSoT: Document folder tabs from warehouse folders */}
+            {documentFolderTabs.map(tab => (
+              <TabsTrigger key={tab.id} value={tab.id}>
+                {tab.name}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 
@@ -629,76 +633,20 @@ export default function PropertyDetailPage() {
             </Card>
           </TabsContent>
 
-          {/* Documents Tab */}
-          <TabsContent value="documents" className="p-6 mt-0">
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>Document management for this property.</p>
-                <p className="text-xs mt-1">Lease agreements, insurance, compliance documents will appear here.</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Inspections Tab */}
-          <TabsContent value="inspections" className="p-6 space-y-6 mt-0">
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => setShowInspectionDialog(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                Schedule Inspection
-              </Button>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">Inspections</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {inspections.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No inspections scheduled.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {inspections.map((insp) => (
-                      <div key={insp.id} className="flex items-center justify-between text-sm border-b pb-2 last:border-0">
-                        <div>
-                          <span className="font-medium capitalize">{insp.inspection_type.replace(/_/g, " ")}</span>
-                          <div className="text-xs text-muted-foreground">
-                            Scheduled: {insp.scheduled_date}
-                            {insp.completed_date && ` | Completed: ${insp.completed_date}`}
-                          </div>
-                          {insp.inspector_contact && (
-                            <div className="text-xs text-muted-foreground">Inspector: {insp.inspector_contact.display_name}</div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {insp.overall_condition && (
-                            <Badge variant="outline" className="text-xs capitalize">{insp.overall_condition}</Badge>
-                          )}
-                          <Badge
-                            variant={insp.status === "completed" ? "default" : insp.status === "overdue" ? "destructive" : "secondary"}
-                            className="text-xs capitalize"
-                          >
-                            {insp.status.replace(/_/g, " ")}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Maintenance Tab */}
-          <TabsContent value="maintenance" className="p-6 mt-0">
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                <Wrench className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>Maintenance requests and work orders.</p>
-                <p className="text-xs mt-1">Track repairs, maintenance schedules, and contractor work here.</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          {/* SSoT: Document folder tabs from warehouse folders */}
+          {documentFolderTabs.map(tab => (
+            <TabsContent key={tab.id} value={tab.id} className="mt-0 flex-1">
+              <EntityDocumentListTab
+                entityId={Number(id)}
+                entityType="Property"
+                sourceType="property"
+                uploadScope="documents"
+                warehouseFolder={tab.warehouseFolder}
+                entityName={property.name || property.street_address}
+                entityCode={property.property_code}
+              />
+            </TabsContent>
+          ))}
         </div>
       </Tabs>
 
@@ -719,7 +667,7 @@ export default function PropertyDetailPage() {
         open={showInspectionDialog}
         onOpenChange={setShowInspectionDialog}
         propertyId={id}
-        onSuccess={refreshInspections}
+        onSuccess={() => {}}
       />
     </div>
   );
