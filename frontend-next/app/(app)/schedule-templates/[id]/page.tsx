@@ -136,13 +136,6 @@ interface SmScheduleMaster {
   sm_template_ids: number[];
 }
 
-interface PlanType {
-  id: number;
-  code: string;
-  name: string;
-  display_name: string;
-}
-
 interface JobDocTab {
   id: number;
   tab_key: string;
@@ -250,7 +243,6 @@ export default function ScheduleTemplateDetailPage() {
   // State
   const [template, setTemplate] = React.useState<SmScheduleMasterTemplate | null>(null);
   const [rows, setRows] = React.useState<SmScheduleMaster[]>([]);
-  const [planTypes, setPlanTypes] = React.useState<PlanType[]>([]);
   const [entityTabs, setJobDocTabs] = React.useState<JobDocTab[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -303,11 +295,10 @@ export default function ScheduleTemplateDetailPage() {
     try {
       setLoading(true);
 
-      // Load template, rows, plan types, entity tabs, trades, stages, workflows, and document types in parallel
-      const [templateData, rowsData, planTypesData, entityTabsData, tradesData, stagesData, workflowsData, documentTypesData] = await Promise.all([
+      // Load template, rows, entity tabs, trades, stages, workflows, and document types in parallel
+      const [templateData, rowsData, entityTabsData, tradesData, stagesData, workflowsData, documentTypesData] = await Promise.all([
         api.get<{ success: boolean; sm_schedule_master_template: SmScheduleMasterTemplate }>(`/api/v1/sm_schedule_master_templates/${templateId}`),
         api.get<{ success: boolean; rows: SmScheduleMaster[] }>(`/api/v1/sm_schedule_master_templates/${templateId}/rows`),
-        api.get<{ success: boolean; data: PlanType[] }>("/api/v1/plan_types"),
         api.get<{ success: boolean; data: { tabs: JobDocTab[] } }>("/api/v1/warehouse_folders/for_scope/job"),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>(API.foundations.bySlug("sm_trades")),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>(API.foundations.bySlug("sm_stages")),
@@ -317,7 +308,6 @@ export default function ScheduleTemplateDetailPage() {
 
       setTemplate(templateData.sm_schedule_master_template);
       setRows(rowsData.rows || []);
-      setPlanTypes(planTypesData.data || []);
       setJobDocTabs(entityTabsData.data?.tabs || []);
       setTrades(tradesData.data || []);
       setStages(stagesData.data || []);
@@ -654,11 +644,6 @@ export default function ScheduleTemplateDetailPage() {
   };
 
   // Convert arrays to MultipleSelector options
-  const planTypeOptions: Option[] = planTypes.map((pt) => ({
-    value: String(pt.id),
-    label: pt.display_name || pt.name,
-  }));
-
   const entityTabOptions: Option[] = entityTabs.map((tab) => ({
     value: String(tab.id),
     label: tab.display_name || tab.tab_key,

@@ -190,11 +190,6 @@ class SmScheduleMaster < ApplicationRecord
     name.sub(/^CLAIM\s*[-–—:]\s*/i, "").strip
   end
 
-  # Plan types to attach to this task
-  def plan_type_list
-    plan_type_ids || []
-  end
-
   # Document reference types to attach to this task
   def document_ref_type_list
     document_ref_type_ids || []

@@ -714,27 +714,6 @@ class TenantConfigSyncService
     },
 
     # ============================================================================
-    # Plans Group
-    # ============================================================================
-    plan_types: {
-      model: "PlanType",
-      name_field: :name,
-      match_fields: [:code],
-      sync_fields: [:name, :code, :allows_variants, :notes, :sequence_order, :is_active,
-                    :short_name_template, :long_name_template],
-      description: "Plan/drawing type definitions",
-      group: "plans"
-    },
-    plan_categories: {
-      model: "PlanCategory",
-      name_field: :name,
-      match_fields: [:code],
-      sync_fields: [:name, :code, :is_active, :sequence_order],
-      description: "Plan category groupings",
-      group: "plans"
-    },
-
-    # ============================================================================
     # Views Group
     # ============================================================================
     foundation_views: {
@@ -806,7 +785,6 @@ class TenantConfigSyncService
     "warehouse" => "Warehouse",
     "whs" => "WHS",
     "email" => "Email",
-    "plans" => "Plans",
     "views" => "Views"
   }.freeze
 

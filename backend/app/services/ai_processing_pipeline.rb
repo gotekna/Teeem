@@ -9,8 +9,8 @@
 #   Decision Engine: Choose best result
 #
 # Usage:
-#   pipeline = AiProcessingPipeline.new(service_type: 'plan_identification', processable: job_plan)
-#   result = pipeline.process(pdf_content, filename: 'Floor Plan.pdf')
+#   pipeline = AiProcessingPipeline.new(service_type: 'document_verification', processable: doc)
+#   result = pipeline.process(pdf_content, filename: 'document.pdf')
 #
 class AiProcessingPipeline
   attr_reader :config, :log
@@ -74,8 +74,6 @@ class AiProcessingPipeline
     return nil unless ocr_result&.dig(:success) && ocr_result[:text].present?
 
     case @service_type
-    when "plan_identification"
-      run_plan_pattern_matching(ocr_result[:text])
     when "document_verification"
       run_document_pattern_matching(ocr_result[:text])
     else
@@ -90,8 +88,6 @@ class AiProcessingPipeline
 
     start_time = monotonic_time
     result = case @service_type
-    when "plan_identification"
-      run_plan_ai_validation(pdf_content)
     when "document_verification"
       run_document_ai_validation(pdf_content)
     when "invoice_parsing"
@@ -106,44 +102,6 @@ class AiProcessingPipeline
     end
 
     result
-  end
-
-  # Plan Identification: Pattern Matching
-  def run_plan_pattern_matching(text)
-    plan_types = PlanType.active  # Must be ActiveRecord::Relation for find_by
-    result = PlanIdentification::PatternMatchingLayer.match_from_text(text, plan_types)
-
-    pattern_data = {
-      matched: result.plan_type.present?,
-      type: result.plan_type&.name,
-      type_id: result.plan_type&.id,
-      confidence: result.confidence,
-      reason: result.reason
-    }
-
-    @log.pattern_result = pattern_data
-    pattern_data
-  end
-
-  # Plan Identification: AI Validation
-  def run_plan_ai_validation(pdf_content)
-    plan_types = PlanType.active  # Must be ActiveRecord::Relation for find_by
-    result = PlanIdentification::AiValidationLayer.extract(
-      pdf_content,
-      plan_types: plan_types
-    )
-
-    {
-      type: result.plan_type&.name,
-      type_id: result.plan_type&.id,
-      confidence: result.confidence,
-      reasoning: result.reasoning,
-      sheet_number: result.sheet_number,
-      sheet_name: result.sheet_name,
-      sheet_date: result.sheet_date,
-      sheet_issue: result.sheet_issue,
-      revision_letter: result.revision_letter
-    }
   end
 
   # Document Verification: Pattern Matching

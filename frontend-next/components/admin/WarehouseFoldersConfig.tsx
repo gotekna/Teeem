@@ -27,13 +27,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Table,
   TableBody,
   TableCell,
@@ -41,12 +34,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-// Plan configuration components (SSoT: Plans config moved from separate tab)
-import {
-  CategoriesSection as PlanCategoriesSection,
-  TypesSection as PlanTypesSection,
-  RevisionFormatsSection as PlanRevisionFormatsSection,
-} from "@/app/(app)/admin/system/components/PlansTab";
 import {
   Accordion,
   AccordionContent,
@@ -369,7 +356,6 @@ export function WarehouseFoldersConfig({
   const [activeGroup, setActiveGroup] = React.useState("overview");
   const [editingTabKey, setEditingTabKey] = React.useState<string | null>(null);
   const [dialogAction, setDialogAction] = React.useState<"edit" | "create" | null>(null);
-  const [configPanelName, setConfigPanelName] = React.useState<string | null>(null);
 
   // Local state for expanded items
   const [expandedItems, setExpandedItemsState] = React.useState<Set<string>>(new Set());
@@ -400,14 +386,6 @@ export function WarehouseFoldersConfig({
     return findTab(tabs);
   }, [editingTabKey, dialogAction, tabs]);
 
-  // Look up configTab from tabs array using local state
-  const configTab = React.useMemo(() => {
-    if (!configPanelName) return null;
-    // Find the plans tab and add the component_name
-    const plansTab = tabs.find(t => t.tab_key === "plans");
-    if (!plansTab) return null;
-    return { ...plansTab, component_name: configPanelName } as WarehouseFolder & { component_name: string };
-  }, [configPanelName, tabs]);
 
   // Use tab_key (slug) for expanded state - Set<string> instead of Set<number>
   const setExpandedItems = React.useCallback((updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
@@ -449,9 +427,6 @@ export function WarehouseFoldersConfig({
     setEditingTabKey(null);
   }, []);
 
-  const setConfigTab = React.useCallback((tab: WarehouseFolder | null, componentName?: string) => {
-    setConfigPanelName(componentName || null);
-  }, []);
 
   const [deleteConfirmTab, setDeleteConfirmTab] = React.useState<WarehouseFolder | null>(null);
   const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
@@ -1546,36 +1521,6 @@ export function WarehouseFoldersConfig({
 
           {/* Actions */}
           <div className="flex items-center gap-1">
-            {/* Plan configuration buttons (only for Plans tab) */}
-            {tab.tab_key === "plans" && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setConfigTab(tab, "PlanCategories")}
-                >
-                  Categories
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setConfigTab(tab, "PlanTypes")}
-                >
-                  Types
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setConfigTab(tab, "RevisionFormats")}
-                >
-                  Revisions
-                </Button>
-              </>
-            )}
-
             {/* Edit button - hidden in readOnly mode (managed via Warehouse Types) */}
             {!readOnly && (
               <TooltipProvider>
@@ -2757,22 +2702,6 @@ export function WarehouseFoldersConfig({
         </div>
       )}
 
-      {/* Plan Configuration Sheet (SSoT: Plans config integrated from separate tab) */}
-      <Sheet open={!!configTab} onOpenChange={() => setConfigTab(null, undefined)}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{configTab?.display_name} Configuration</SheetTitle>
-            <SheetDescription>
-              Configure {configTab?.display_name?.toLowerCase()} for the Plans document tab
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-6">
-            {configTab?.component_name === "PlanCategories" && <PlanCategoriesSection />}
-            {configTab?.component_name === "PlanTypes" && <PlanTypesSection />}
-            {configTab?.component_name === "RevisionFormats" && <PlanRevisionFormatsSection />}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

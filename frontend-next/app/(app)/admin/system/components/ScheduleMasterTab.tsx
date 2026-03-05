@@ -232,9 +232,7 @@ interface SmScheduleMaster {
   requires_document_to_complete?: boolean;
   completion_document_type_id?: number | null;
   completion_document_type_name?: string | null;
-  // Attached plan types and document reference types (JSONB arrays)
-  plan_type_ids?: number[];
-  plan_type_names?: string[];
+  // Document reference types (JSONB array)
   document_ref_type_ids?: number[];
   document_ref_type_names?: string[];
 }
@@ -1561,9 +1559,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       linked_task_ids: row.linked_task_ids || [],
       // Completion linked tasks (cascade complete together)
       completion_linked_task_ids: row.completion_linked_task_ids || [],
-      // Plan and document reference types (JSONB arrays of document_type IDs)
-      plan_type_ids: row.plan_type_ids || [],
-      plan_type_names: row.plan_type_names || [],
+      // Document reference types (JSONB array of document_type IDs)
       document_ref_type_ids: row.document_ref_type_ids || [],
       document_ref_type_names: row.document_ref_type_names || [],
     };
@@ -1635,8 +1631,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       po_description: data.po_description,
       rfq_instructions: data.rfq_instructions,
       budget_amount: data.budget_amount,
-      // Plan and document reference types
-      plan_type_ids: data.plan_type_ids,
+      // Document reference types
       document_ref_type_ids: data.document_ref_type_ids,
       // Dependencies (predecessor_ids JSONB)
       predecessor_ids: data.predecessor_ids,

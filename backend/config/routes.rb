@@ -278,17 +278,7 @@ Rails.application.routes.draw do
         end
       end
 
-      # Plan Folder Scans (for Revit plan import workflow)
-      resources :plan_folder_scans, only: [:index, :destroy] do
-        collection do
-          get :pending_count  # GET /api/v1/plan_folder_scans/pending_count - for nav badge
-          post :scan_all      # POST /api/v1/plan_folder_scans/scan_all - scan all job folders
-        end
-        member do
-          post :process_scan  # POST /api/v1/plan_folder_scans/:id/process
-          post :skip          # POST /api/v1/plan_folder_scans/:id/skip
-        end
-      end
+      # Plan Folder Scans removed - legacy plan system deleted
 
       # Notifications
       resources :notifications, only: [ :index ] do
@@ -737,21 +727,7 @@ Rails.application.routes.draw do
           resources :revisions, controller: "job_plan_revisions", only: [ :index, :show, :create, :update, :destroy ]
         end
 
-        # Plan uploads - Progress-tracked plan set uploads (SSoT for plan uploads)
-        resources :plan_uploads, only: [ :index, :show, :create ] do
-          collection do
-            get :active               # GET /api/v1/jobs/:job_id/plan_uploads/active
-          end
-          member do
-            post :resume              # POST /api/v1/jobs/:job_id/plan_uploads/:id/resume
-          end
-        end
-
-        # Plan reextractions - Batch re-extraction with progress tracking
-        resources :plan_reextractions, only: [ :create, :show ]
-
         # Batch operations - THE SSoT for all batch operation progress tracking
-        # Replaces: plan_uploads, plan_reextractions (backward compatible routes kept above)
         resources :batch_operations, only: [ :create, :show ] do
           collection do
             get :active  # GET /api/v1/jobs/:job_id/batch_operations/active
@@ -2053,23 +2029,7 @@ Rails.application.routes.draw do
       # NOTE: Documentation Categories removed - SSoT: DocumentType with SmScheduleMasterDocumentType
       # The documentation_categories routes have been removed. Use document_types instead.
 
-      # Plan Categories and Types (Admin settings for Plans tab)
-      resources :plan_categories do
-        collection do
-          post :reorder
-        end
-      end
-      # Plan Types - independent of categories (many-to-many relationship)
-      resources :plan_types do
-        collection do
-          post :reorder
-          get :defaults
-          patch :defaults, action: :update_defaults
-        end
-        member do
-          post :assign_categories
-        end
-      end
+      # Plan Categories and Types removed - legacy plan system deleted, use DocumentTypes
       resources :revision_formats
 
       # TEEEM_DOCS Documentation Viewer

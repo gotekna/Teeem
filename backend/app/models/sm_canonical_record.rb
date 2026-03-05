@@ -35,7 +35,7 @@ class SmCanonicalRecord < ApplicationRecord
       task_code start_workflow_enabled complete_workflow_enabled
       requires_document_to_complete is_claim_task is_variation claim_percentage
       claim_sequence_number claim_invoice_pattern spawn_scan_lag_days
-      plan_type_ids document_ref_type_ids
+      document_ref_type_ids
     ],
     "SmScheduleMasterTemplate" => %w[
       name description is_default is_active

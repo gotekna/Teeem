@@ -351,9 +351,7 @@ export default function GanttPage() {
       related_po_task_names: jobRow.related_po_task_names || [],
       linked_task_ids: jobRow.linked_task_ids || [],
       completion_linked_task_ids: jobRow.completion_linked_task_ids || [],
-      // Plan and document reference types
-      plan_type_ids: jobRow.plan_type_ids || [],
-      plan_type_names: jobRow.plan_type_names || [],
+      // Document reference types
       document_ref_type_ids: jobRow.document_ref_type_ids || [],
       document_ref_type_names: jobRow.document_ref_type_names || [],
     };
@@ -411,8 +409,7 @@ export default function GanttPage() {
         related_po_task_ids: data.related_po_task_ids,
         linked_task_ids: data.linked_task_ids,
         completion_linked_task_ids: data.completion_linked_task_ids,
-        // Plan and document reference types
-        plan_type_ids: data.plan_type_ids,
+        // Document reference types
         document_ref_type_ids: data.document_ref_type_ids,
       }
     });

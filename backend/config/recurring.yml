@@ -474,12 +474,6 @@ check_yesterday_rain:
 # PLAN UPLOADS MAINTENANCE
 # ============================================
 
-# Clean up orphaned staging files from failed plan uploads
-# Runs daily at 4am to delete staging files older than 24 hours
-plan_staging_cleanup:
-  class: PlanStagingCleanupJob
-  queue: low
-  schedule: at 4am every day
 
 # ============================================
 # STORAGE TEMP FILES MAINTENANCE

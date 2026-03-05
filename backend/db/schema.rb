@@ -6406,7 +6406,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
 
   create_table "job_plan_tabs", force: :cascade do |t|
     t.bigint "job_id", null: false
-    t.bigint "plan_category_id"
     t.bigint "parent_id"
     t.string "name", null: false
     t.string "code"
@@ -6416,17 +6415,14 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.integer "plans_count", default: 0, null: false
     t.integer "on_issue_plans_count", default: 0, null: false
-    t.index ["job_id", "plan_category_id"], name: "index_job_plan_tabs_on_job_id_and_plan_category_id"
     t.index ["job_id", "plans_count"], name: "idx_job_plan_tabs_count"
     t.index ["job_id"], name: "index_job_plan_tabs_on_job_id"
     t.index ["parent_id"], name: "index_job_plan_tabs_on_parent_id"
-    t.index ["plan_category_id"], name: "index_job_plan_tabs_on_plan_category_id"
   end
 
   create_table "job_plans", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "job_plan_tab_id"
-    t.bigint "plan_type_id"
     t.string "variant_suffix"
     t.string "display_name"
     t.datetime "created_at", null: false
@@ -6436,10 +6432,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "revisions_count", default: 0, null: false
     t.integer "sort_order", default: 0, null: false
     t.index ["current_revision_id"], name: "index_job_plans_on_current_revision_id"
-    t.index ["job_id", "plan_type_id", "variant_suffix"], name: "idx_job_plans_unique_per_job", unique: true
     t.index ["job_id"], name: "index_job_plans_on_job_id"
     t.index ["job_plan_tab_id"], name: "index_job_plans_on_job_plan_tab_id"
-    t.index ["plan_type_id"], name: "index_job_plans_on_plan_type_id"
   end
 
   create_table "job_quantity_variables", force: :cascade do |t|
@@ -7562,173 +7556,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.index ["category"], name: "index_permissions_on_category"
     t.index ["name"], name: "index_permissions_on_name", unique: true
-  end
-
-  create_table "plan_categories", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "code"
-    t.integer "sequence_order", default: 0
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "tenant_id"
-    t.string "sync_key"
-    t.datetime "record_updated_at"
-    t.index ["sequence_order"], name: "index_plan_categories_on_sequence_order"
-    t.index ["tenant_id", "code"], name: "index_plan_categories_on_tenant_id_and_code", unique: true
-    t.index ["tenant_id", "sync_key"], name: "idx_plan_categories_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
-    t.index ["tenant_id"], name: "index_plan_categories_on_tenant_id"
-  end
-
-  create_table "plan_category_plan_types", force: :cascade do |t|
-    t.bigint "plan_category_id", null: false
-    t.bigint "plan_type_id", null: false
-    t.integer "sequence_order", default: 0
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["plan_category_id", "plan_type_id"], name: "idx_plan_cat_type_unique", unique: true
-    t.index ["plan_category_id"], name: "index_plan_category_plan_types_on_plan_category_id"
-    t.index ["plan_type_id"], name: "index_plan_category_plan_types_on_plan_type_id"
-  end
-
-  create_table "plan_folder_scans", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.string "storage_file_id", null: false
-    t.string "file_name"
-    t.datetime "file_modified_at"
-    t.integer "file_size"
-    t.string "status", default: "pending"
-    t.bigint "job_plan_id"
-    t.text "error_message"
-    t.datetime "processed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "storage_item_id"
-    t.index ["job_id", "status"], name: "index_plan_folder_scans_on_job_id_and_status"
-    t.index ["job_id"], name: "index_plan_folder_scans_on_job_id"
-    t.index ["job_plan_id"], name: "index_plan_folder_scans_on_job_plan_id"
-    t.index ["status"], name: "index_plan_folder_scans_on_status"
-    t.index ["storage_file_id"], name: "index_plan_folder_scans_on_storage_file_id", unique: true
-    t.index ["storage_item_id"], name: "index_plan_folder_scans_on_storage_item_id"
-  end
-
-  create_table "plan_identification_rules", force: :cascade do |t|
-    t.string "rule_type", null: false
-    t.string "match_text", null: false
-    t.bigint "plan_type_id", null: false
-    t.integer "priority", default: 0
-    t.integer "success_count", default: 0
-    t.integer "failure_count", default: 0
-    t.boolean "is_active", default: true
-    t.bigint "created_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["created_by_id"], name: "index_plan_identification_rules_on_created_by_id"
-    t.index ["is_active", "priority"], name: "index_plan_identification_rules_on_is_active_and_priority", order: { priority: :desc }
-    t.index ["plan_type_id", "match_text"], name: "index_plan_identification_rules_on_plan_type_id_and_match_text", unique: true
-    t.index ["plan_type_id"], name: "index_plan_identification_rules_on_plan_type_id"
-    t.index ["rule_type"], name: "index_plan_identification_rules_on_rule_type"
-  end
-
-  create_table "plan_identifications", force: :cascade do |t|
-    t.bigint "job_plan_id", null: false
-    t.bigint "identified_plan_type_id"
-    t.bigint "identified_plan_category_id"
-    t.text "ocr_raw_text"
-    t.integer "ocr_confidence"
-    t.integer "pattern_match_plan_type_id"
-    t.integer "pattern_match_confidence"
-    t.string "pattern_match_reason"
-    t.integer "ai_plan_type_id"
-    t.integer "ai_confidence"
-    t.text "ai_reasoning"
-    t.boolean "ai_invoked", default: false
-    t.string "sheet_number"
-    t.string "sheet_name"
-    t.string "sheet_date"
-    t.string "sheet_issue"
-    t.integer "final_confidence"
-    t.string "decision_status"
-    t.boolean "human_reviewed", default: false
-    t.bigint "reviewed_by_id"
-    t.datetime "reviewed_at"
-    t.integer "human_override_plan_type_id"
-    t.text "human_override_reason"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["decision_status"], name: "index_plan_identifications_on_decision_status"
-    t.index ["human_reviewed"], name: "index_plan_identifications_on_human_reviewed"
-    t.index ["identified_plan_category_id"], name: "index_plan_identifications_on_identified_plan_category_id"
-    t.index ["identified_plan_type_id"], name: "index_plan_identifications_on_identified_plan_type_id"
-    t.index ["job_plan_id", "created_at"], name: "index_plan_identifications_on_job_plan_id_and_created_at", order: { created_at: :desc }
-    t.index ["job_plan_id"], name: "index_plan_identifications_on_job_plan_id"
-    t.index ["reviewed_by_id"], name: "index_plan_identifications_on_reviewed_by_id"
-  end
-
-  create_table "plan_reextractions", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.string "status", default: "pending"
-    t.string "current_step"
-    t.integer "total_plans"
-    t.integer "processed_plans"
-    t.string "current_plan_name"
-    t.jsonb "plans_updated", default: []
-    t.jsonb "rename_errors", default: []
-    t.text "error_message"
-    t.datetime "started_at"
-    t.datetime "completed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["job_id"], name: "index_plan_reextractions_on_job_id"
-    t.index ["status"], name: "index_plan_reextractions_on_status"
-  end
-
-  create_table "plan_types", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "code", null: false
-    t.boolean "allows_variants", default: true
-    t.text "notes"
-    t.integer "sequence_order", default: 0
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "short_name_template", default: "{Code}-{Name}"
-    t.string "long_name_template", default: "{JobCode}-{Code}-{Name}-Rev{Rev}"
-    t.bigint "tenant_id"
-    t.string "sync_key"
-    t.datetime "record_updated_at"
-    t.index ["sequence_order"], name: "index_plan_types_on_sequence_order"
-    t.index ["tenant_id", "code"], name: "index_plan_types_on_tenant_id_and_code", unique: true
-    t.index ["tenant_id", "name"], name: "index_plan_types_on_tenant_id_and_name", unique: true
-    t.index ["tenant_id", "sync_key"], name: "idx_plan_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
-    t.index ["tenant_id"], name: "index_plan_types_on_tenant_id"
-  end
-
-  create_table "plan_uploads", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.bigint "uploaded_by_id"
-    t.bigint "job_plan_tab_id"
-    t.string "status", default: "pending", null: false
-    t.string "current_step"
-    t.text "error_message"
-    t.string "original_filename", null: false
-    t.string "staging_file_id"
-    t.bigint "file_size"
-    t.integer "total_pages"
-    t.integer "processed_pages", default: 0
-    t.jsonb "plans_created", default: []
-    t.integer "retry_count", default: 0
-    t.datetime "last_retry_at"
-    t.datetime "started_at"
-    t.datetime "completed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["job_id", "status"], name: "index_plan_uploads_on_job_id_and_status"
-    t.index ["job_id"], name: "index_plan_uploads_on_job_id"
-    t.index ["job_plan_tab_id"], name: "index_plan_uploads_on_job_plan_tab_id"
-    t.index ["staging_file_id"], name: "index_plan_uploads_on_staging_file_id"
-    t.index ["status"], name: "index_plan_uploads_on_status"
-    t.index ["uploaded_by_id"], name: "index_plan_uploads_on_uploaded_by_id"
   end
 
   create_table "po_statuses", force: :cascade do |t|
@@ -9320,7 +9147,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "sync_key"
     t.string "task_code", limit: 50
     t.integer "tender_id"
-    t.jsonb "plan_type_ids", default: []
     t.jsonb "document_ref_type_ids", default: []
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
@@ -12716,11 +12542,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "job_plan_revisions", "users", column: "issued_by_id"
   add_foreign_key "job_plan_tabs", "job_plan_tabs", column: "parent_id"
   add_foreign_key "job_plan_tabs", "jobs"
-  add_foreign_key "job_plan_tabs", "plan_categories"
   add_foreign_key "job_plans", "job_plan_revisions", column: "current_revision_id"
   add_foreign_key "job_plans", "job_plan_tabs"
   add_foreign_key "job_plans", "jobs"
-  add_foreign_key "job_plans", "plan_types"
   add_foreign_key "job_quantity_variables", "jobs"
   add_foreign_key "job_quantity_variables", "quantity_variables"
   add_foreign_key "job_quantity_variables", "users", column: "updated_by_id"
@@ -12835,22 +12659,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "performance_slo_snapshots", "performance_slos"
   add_foreign_key "performance_slow_queries", "users"
   add_foreign_key "performance_vitals", "users"
-  add_foreign_key "plan_categories", "tenants", on_delete: :cascade
-  add_foreign_key "plan_category_plan_types", "plan_categories"
-  add_foreign_key "plan_category_plan_types", "plan_types"
-  add_foreign_key "plan_folder_scans", "job_plans"
-  add_foreign_key "plan_folder_scans", "jobs"
-  add_foreign_key "plan_identification_rules", "plan_types"
-  add_foreign_key "plan_identification_rules", "users", column: "created_by_id"
-  add_foreign_key "plan_identifications", "job_plans"
-  add_foreign_key "plan_identifications", "plan_categories", column: "identified_plan_category_id"
-  add_foreign_key "plan_identifications", "plan_types", column: "identified_plan_type_id"
-  add_foreign_key "plan_identifications", "users", column: "reviewed_by_id"
-  add_foreign_key "plan_reextractions", "jobs"
-  add_foreign_key "plan_types", "tenants", on_delete: :cascade
-  add_foreign_key "plan_uploads", "job_plan_tabs"
-  add_foreign_key "plan_uploads", "jobs"
-  add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
   add_foreign_key "po_statuses", "tenants"
   add_foreign_key "po_template_items", "po_template_packs"
   add_foreign_key "po_template_items", "profit_centres", on_delete: :nullify

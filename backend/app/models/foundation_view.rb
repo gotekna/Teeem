@@ -1,14 +1,9 @@
 class FoundationView < ApplicationRecord
   include ConfigSyncable
-  # NOT including GlobalConfigRecord — views are user-editable settings, not locked config.
-  # GlobalConfigRecord's belongs_to :tenant + acts_as_tenant double-registers a PresenceValidator
-  # that causes valid? to return false for global views (tenant_id=NULL) even with no errors.
-  # Views have their own guards: prevent_setup_view_rename, prevent_setup_view_deletion,
-  # prevent_foundation_id_change.
 
   acts_as_tenant :tenant, has_global_records: true, optional: true
+  include GlobalConfigRecord  # Must be AFTER acts_as_tenant (overrides belongs_to :tenant to optional)
 
-  belongs_to :tenant, optional: true  # optional for global records (tenant_id = NULL)
   belongs_to :user, optional: true  # optional for global views (is_global = true)
   belongs_to :foundation, optional: true  # optional because foundation_id might reference dynamic foundations
 
@@ -91,6 +86,14 @@ class FoundationView < ApplicationRecord
   end
 
   private
+
+  # Override GlobalConfigRecord — only globalize SHARED views, not personal ones.
+  # Personal views (user_id set) must stay tenant-scoped so each user keeps their own.
+  # Shared views (is_global=true, user_id=nil) become truly global (tenant_id=NULL).
+  def auto_globalize_master_record
+    return unless is_global? && user_id.nil?
+    super
+  end
 
   # Generate a URL-friendly slug from the view name
   def generate_slug

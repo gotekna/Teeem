@@ -126,9 +126,7 @@ export interface EditRowData {
   po_description?: string | null;
   rfq_instructions?: string | null;
   budget_amount?: number | null;
-  // Plan and document reference types (JSONB arrays of document_type IDs)
-  plan_type_ids?: number[];
-  plan_type_names?: string[];
+  // Document reference types (JSONB array of document_type IDs)
   document_ref_type_ids?: number[];
   document_ref_type_names?: string[];
 }
@@ -356,8 +354,7 @@ export function EditRowDialog({
         po_description: row.po_description || '',
         rfq_instructions: row.rfq_instructions || '',
         budget_amount: row.budget_amount || null,
-        // Plan and document reference types
-        plan_type_ids: row.plan_type_ids || [],
+        // Document reference types
         document_ref_type_ids: row.document_ref_type_ids || [],
         // Dependencies (predecessor_ids JSONB)
         predecessor_ids: row.predecessor_ids || [],
@@ -1826,50 +1823,8 @@ export function EditRowDialog({
                  ============================================================ */}
               <TabsContent value="documents" className="mt-3">
                 <div className="grid grid-cols-2 gap-6">
-                  {/* Left: Attached Plans + Spawn Scan Task */}
+                  {/* Left: Spawn Scan Task */}
                   <div className="space-y-4">
-                    {/* Attached Plans */}
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Attached Plans</Label>
-                      <MultipleSelector
-                        value={(editRowForm.plan_type_ids || []).map(id => {
-                          const dt = planDocTypes.find(d => d.id === id);
-                          const label = dt ? (dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name) : `Type ${id}`;
-                          return { value: String(id), label };
-                        })}
-                        onChange={(options) => {
-                          setEditRowForm({
-                            ...editRowForm,
-                            plan_type_ids: options.map(o => parseInt(o.value))
-                          });
-                        }}
-                        defaultOptions={planDocTypes.map(dt => ({
-                          value: String(dt.id),
-                          label: dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name
-                        }))}
-                        onSearchSync={(search) => {
-                          const lower = search.toLowerCase();
-                          return planDocTypes
-                            .filter(dt => {
-                              const label = dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name;
-                              return label.toLowerCase().includes(lower);
-                            })
-                            .map(dt => ({
-                              value: String(dt.id),
-                              label: dt.abbreviation ? `${dt.abbreviation} - ${dt.name}` : dt.name
-                            }));
-                        }}
-                        placeholder="Select plan types..."
-                        emptyIndicator={
-                          <p className="text-center text-xs text-muted-foreground">
-                            No plan document types available
-                          </p>
-                        }
-                      />
-                      <p className="text-[10px] text-muted-foreground">
-                        Plan types associated with this task for reference when working on jobs
-                      </p>
-                    </div>
 
                     {/* Spawn Scan Task */}
                     <div className="space-y-1 pt-3 border-t">

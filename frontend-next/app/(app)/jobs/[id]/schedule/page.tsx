@@ -522,9 +522,7 @@ export default function SchedulePage() {
       related_po_task_names: (row.related_po_task_names as string[]) || [],
       linked_task_ids: (row.linked_task_ids as number[]) || [],
       completion_linked_task_ids: (row.completion_linked_task_ids as number[]) || [],
-      // Plan and document reference types
-      plan_type_ids: (row.plan_type_ids as number[]) || [],
-      plan_type_names: (row.plan_type_names as string[]) || [],
+      // Document reference types
       document_ref_type_ids: (row.document_ref_type_ids as number[]) || [],
       document_ref_type_names: (row.document_ref_type_names as string[]) || [],
     };
@@ -583,8 +581,7 @@ export default function SchedulePage() {
         related_po_task_ids: data.related_po_task_ids,
         linked_task_ids: data.linked_task_ids,
         completion_linked_task_ids: data.completion_linked_task_ids,
-        // Plan and document reference types
-        plan_type_ids: data.plan_type_ids,
+        // Document reference types
         document_ref_type_ids: data.document_ref_type_ids,
       }
     });

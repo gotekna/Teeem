@@ -15,13 +15,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   FileText,
   Mail,
   CheckCircle,
@@ -57,27 +50,6 @@ import { Spinner } from "@/components/ui/spinner";
 // Layout mode is handled by parent page wrapper (TabbedDetailPage)
 // This tab uses EdgeToEdgeTabContent for internal padding
 
-interface PlanTypeOption {
-  id: number;
-  code: string;
-  name: string;
-  display_name: string;
-  category_ids: number[];
-  short_name_template?: string;
-  long_name_template?: string;
-  effective_short_template: string;
-  effective_long_template: string;
-  short_name_preview?: string;
-  long_name_preview?: string;
-}
-
-interface PlanType {
-  id: number;
-  code: string;
-  name: string;
-  category_name: string;
-}
-
 interface Revision {
   id: number;
   job_plan_id: number;
@@ -106,10 +78,8 @@ interface JobPlan {
   id: number;
   job_id: number;
   job_plan_tab_id: number | null;
-  plan_type_id: number | null;
   variant_suffix: string | null;
   display_name: string;
-  plan_type: PlanType | null;
   current_revision: Revision | null;
   revision_count: number;
 }
@@ -153,10 +123,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
   // Add Plan Dialog State
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [planTypes, setPlanTypes] = useState<PlanTypeOption[]>([]);
-  const [loadingPlanTypes, setLoadingPlanTypes] = useState(false);
-  const [selectedPlanTypeId, setSelectedPlanTypeId] = useState<string>("");
-  const [variantSuffix, setVariantSuffix] = useState("");
+  const [newPlanName, setNewPlanName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -240,23 +207,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   }, [fetchPlans, hasMore, nextCursor, loadingMore]);
 
-  // Fetch plan types
-  const fetchPlanTypes = useCallback(async () => {
-    try {
-      setLoadingPlanTypes(true);
-      const response = (await api.get("/api/v1/plan_types")) as {
-        success: boolean;
-        data?: PlanTypeOption[];
-      };
-      if (response.success) {
-        setPlanTypes(response.data || []);
-      }
-    } catch (err) {
-      console.error("Error fetching plan types:", err);
-    } finally {
-      setLoadingPlanTypes(false);
-    }
-  }, []);
 
   useEffect(() => {
     fetchPlans();
@@ -375,9 +325,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
   // Open Add Plan dialog
   const handleOpenAddDialog = () => {
-    fetchPlanTypes();
-    setSelectedPlanTypeId("");
-    setVariantSuffix("");
+    setNewPlanName("");
     setSelectedFile(null);
     setShowAddDialog(true);
   };
@@ -475,17 +423,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Resolve template placeholders with actual values
-  const resolveTemplate = (
-    template: string,
-    values: Record<string, string>
-  ) => {
-    let result = template;
-    Object.entries(values).forEach(([key, value]) => {
-      result = result.replace(new RegExp(`\\{${key}\\}`, "g"), value || "");
-    });
-    return result.trim();
-  };
 
   // Handle rename
   const handleRename = async (plan: JobPlan, newName: string) => {
@@ -699,44 +636,14 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
   // Save new plan
   const handleSavePlan = async () => {
-    if (!selectedPlanTypeId) {
+    if (!newPlanName.trim()) {
       toast({
         title: "Error",
-        description: "Please select a plan type",
+        description: "Please enter a plan name",
         variant: "destructive",
       });
       return;
     }
-
-    const selectedPlanType = planTypes.find(
-      (pt) => pt.id === parseInt(selectedPlanTypeId)
-    );
-    if (!selectedPlanType) {
-      toast({
-        title: "Error",
-        description: "Invalid plan type selected",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const templateValues: Record<string, string> = {
-      JobCode: jobCode,
-      JobName: jobTitle,
-      Code: selectedPlanType.code,
-      Name: selectedPlanType.name,
-      Variant: variantSuffix || "",
-      Rev: "A",
-      Date: new Date().toISOString().split("T")[0].replace(/-/g, ""),
-      Category: "",
-      CategoryCode: "",
-    };
-
-    const shortTemplate = selectedPlanType.effective_short_template;
-    const longTemplate = selectedPlanType.effective_long_template;
-
-    const shortName = resolveTemplate(shortTemplate, templateValues);
-    const longName = resolveTemplate(longTemplate, templateValues);
 
     setSaving(true);
     try {
@@ -744,9 +651,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         `/api/v1/jobs/${jobId}/job_plans`,
         {
           job_plan: {
-            plan_type_id: parseInt(selectedPlanTypeId),
-            variant_suffix: variantSuffix || null,
-            display_name: longName,
+            display_name: newPlanName.trim(),
           },
         }
       )) as { success: boolean; data?: JobPlan; error?: string };
@@ -759,7 +664,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       if (selectedFile) {
         const fileExt = selectedFile.name.split(".").pop() || "pdf";
-        const renamedFileName = `${shortName}.${fileExt}`;
+        const sanitizedName = newPlanName.trim().replace(/[^a-zA-Z0-9_\- ]/g, "");
+        const renamedFileName = `${sanitizedName}.${fileExt}`;
         const renamedFile = new File([selectedFile], renamedFileName, {
           type: selectedFile.type,
         });
@@ -1064,46 +970,18 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           <DialogHeader>
             <DialogTitle>Add Plan</DialogTitle>
             <DialogDescription>
-              Add a new plan to this job. Select a plan type and optionally
-              upload a PDF.
+              Add a new plan to this job. Enter a name and optionally upload a PDF.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Plan Type *</Label>
-              <Select
-                value={selectedPlanTypeId}
-                onValueChange={setSelectedPlanTypeId}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      loadingPlanTypes ? "Loading..." : "Select a plan type"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {planTypes.map((pt) => (
-                    <SelectItem key={pt.id} value={pt.id.toString()}>
-                      {pt.display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Variant (optional)</Label>
+              <Label>Plan Name *</Label>
               <Input
-                value={variantSuffix}
-                onChange={(e) => setVariantSuffix(e.target.value)}
-                placeholder="e.g., a, b, c"
-                maxLength={5}
+                value={newPlanName}
+                onChange={(e) => setNewPlanName(e.target.value)}
+                placeholder="e.g., Floor Plan, Elevation, Site Plan"
               />
-              <p className="text-xs text-muted-foreground">
-                Use for multiple versions like 01a-PERSPECTIVE, 01b-PERSPECTIVE
-              </p>
             </div>
 
             <div className="space-y-2">
@@ -1147,56 +1025,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                 </div>
               )}
             </div>
-
-            {selectedPlanTypeId &&
-              (() => {
-                const pt = planTypes.find(
-                  (p) => p.id === parseInt(selectedPlanTypeId)
-                );
-                if (!pt) return null;
-
-                const values: Record<string, string> = {
-                  JobCode: jobCode,
-                  JobName: jobTitle,
-                  Code: pt.code,
-                  Name: pt.name,
-                  Variant: variantSuffix || "",
-                  Rev: "A",
-                  Date: new Date()
-                    .toISOString()
-                    .split("T")[0]
-                    .replace(/-/g, ""),
-                  Category: "",
-                  CategoryCode: "",
-                };
-
-                const shortName = resolveTemplate(
-                  pt.effective_short_template,
-                  values
-                );
-                const longName = resolveTemplate(
-                  pt.effective_long_template,
-                  values
-                );
-
-                return (
-                  <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Preview
-                    </p>
-                    <div className="space-y-1">
-                      <p className="text-sm">
-                        <span className="text-muted-foreground">Filename:</span>{" "}
-                        <span className="font-mono">{shortName}.pdf</span>
-                      </p>
-                      <p className="text-sm">
-                        <span className="text-muted-foreground">Display:</span>{" "}
-                        <span className="font-medium">{longName}</span>
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
           </div>
 
           <DialogFooter>
@@ -1205,7 +1033,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
             </Button>
             <Button
               onClick={handleSavePlan}
-              disabled={saving || !selectedPlanTypeId}
+              disabled={saving || !newPlanName.trim()}
             >
               {saving && <Spinner size={16} className="mr-2" />}
               Add Plan

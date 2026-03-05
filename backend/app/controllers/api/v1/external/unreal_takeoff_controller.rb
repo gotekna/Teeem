@@ -48,13 +48,11 @@ module Api
             }, status: :not_found
           end
 
-          plans = job.job_plans.includes(:current_revision, :plan_type).map do |plan|
+          plans = job.job_plans.includes(:current_revision).map do |plan|
             revision = plan.current_revision
             {
               id: plan.id,
               name: plan.display_name,
-              plan_type: plan.plan_type&.name,
-              plan_type_code: plan.plan_type&.code,
               revision: revision&.revision,
               revision_date: revision&.revision_date,
               is_on_issue: revision&.is_on_issue,
