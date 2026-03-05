@@ -198,6 +198,15 @@ module Api
         })
       end
 
+      # GET /api/v1/properties/lookups
+      # Returns property types and statuses for dropdown selects
+      def lookups
+        render_success({
+          property_types: PropertyType.where(is_active: true).order(:name).as_json(only: [:id, :name]),
+          property_statuses: PropertyStatus.where(is_active: true).order(:name).as_json(only: [:id, :name, :color])
+        })
+      end
+
       # GET /api/v1/properties/stats
       def stats
         render_success({

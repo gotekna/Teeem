@@ -1419,6 +1419,7 @@ Rails.application.routes.draw do
       resources :properties do
         collection do
           get :for_select
+          get :lookups
           get :stats
           post :from_job
         end

@@ -108,7 +108,7 @@ export function AddPropertyContactDialog({
           is_primary: isPrimary,
         }
       );
-      if (res.success) {
+      if (res?.success) {
         toast({ title: "Contact added" });
         onSuccess();
         onOpenChange(false);
@@ -119,7 +119,7 @@ export function AddPropertyContactDialog({
       } else {
         toast({
           title: "Error",
-          description: res.error || "Failed to add contact",
+          description: res?.error || "Failed to add contact",
           variant: "destructive",
         });
       }

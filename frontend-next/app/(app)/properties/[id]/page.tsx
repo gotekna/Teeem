@@ -9,6 +9,15 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { BackButton } from "@/components/ui/back-button";
 import {
   Building2,
@@ -25,6 +34,8 @@ import {
   Trash2,
   CheckCircle,
   XCircle,
+  Save,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -153,6 +164,15 @@ export default function PropertyDetailPage() {
   const [showTenancyDialog, setShowTenancyDialog] = useState(false);
   const [showBillDialog, setShowBillDialog] = useState(false);
   const [showInspectionDialog, setShowInspectionDialog] = useState(false);  // TODO: move to inspections warehouse tab
+  const [showContactDialog, setShowContactDialog] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, string | number | boolean | null>>({});
+  const [saving, setSaving] = useState(false);
+  const [lookups, setLookups] = useState<{
+    property_types: { id: number; name: string }[];
+    property_statuses: { id: number; name: string; color: string }[];
+  }>({ property_types: [], property_statuses: [] });
 
   // SSoT: Load warehouse folder tabs for property scope
   const { tabs: propertyTabs } = useWarehouseFolders({ scope: "property" });
@@ -193,6 +213,126 @@ export default function PropertyDetailPage() {
       if (res.success) setBills(res.data);
     });
   }, [id]);
+
+  const startEditing = useCallback(() => {
+    if (!property) return;
+    setEditForm({
+      name: property.name || "",
+      street_address: property.street_address || "",
+      suburb: property.suburb || "",
+      state: property.state || "",
+      postcode: property.postcode || "",
+      bedrooms: property.bedrooms,
+      bathrooms: property.bathrooms,
+      parking_spaces: property.parking_spaces,
+      land_area_sqm: property.land_area_sqm,
+      floor_area_sqm: property.floor_area_sqm,
+      year_built: property.year_built,
+      description: property.description || "",
+      weekly_rent_amount: property.weekly_rent_amount,
+      bond_amount: property.bond_amount,
+      property_type_id: property.property_type?.id ?? null,
+      property_status_id: property.property_status?.id ?? null,
+      sda_enrolled: property.sda_enrolled,
+      sda_category: property.sda_category || "",
+      sda_dwelling_id: property.sda_dwelling_id || "",
+      sda_enrolment_date: property.sda_enrolment_date || "",
+    });
+    // Fetch lookups for dropdowns
+    api.get<{ success: boolean; data: typeof lookups }>("/api/v1/properties/lookups").then(res => {
+      if (res.success) setLookups(res.data);
+    });
+    setIsEditing(true);
+  }, [property, lookups]);
+
+  const cancelEditing = useCallback(() => {
+    setIsEditing(false);
+    setEditForm({});
+  }, []);
+
+  const saveProperty = useCallback(async () => {
+    setSaving(true);
+    try {
+      const res = await api.patch<{ success: boolean; data: Property }>(`/api/v1/properties/${id}`, {
+        property: editForm,
+      });
+      if (res.success) {
+        setProperty(res.data);
+        setIsEditing(false);
+        toast({ title: "Property updated" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to save property", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }, [id, editForm, toast]);
+
+  const updateField = useCallback((field: string, value: string | number | boolean | null) => {
+    setEditForm(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleActivateTenancy = useCallback(async (tenancyId: number) => {
+    setActionLoading(`activate-${tenancyId}`);
+    try {
+      const res = await api.patch<{ success: boolean; data: Tenancy }>(`/api/v1/tenancies/${tenancyId}/activate`);
+      if (res.success) {
+        toast({ title: "Tenancy activated", description: "Billing has been set up." });
+        refreshTenancies();
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to activate tenancy", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [toast, refreshTenancies]);
+
+  const handleTerminateTenancy = useCallback(async (tenancyId: number) => {
+    setActionLoading(`terminate-${tenancyId}`);
+    try {
+      const res = await api.patch<{ success: boolean }>(`/api/v1/tenancies/${tenancyId}/terminate`, {
+        end_date: new Date().toISOString().split("T")[0],
+      });
+      if (res.success) {
+        toast({ title: "Tenancy terminated", description: "Billing has been deactivated." });
+        refreshTenancies();
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to terminate tenancy", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [toast, refreshTenancies]);
+
+  const handleApproveBill = useCallback(async (billId: number) => {
+    setActionLoading(`approve-${billId}`);
+    try {
+      const res = await api.patch<{ success: boolean }>(`/api/v1/property_bills/${billId}/approve`);
+      if (res.success) {
+        toast({ title: "Bill approved" });
+        refreshBills();
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to approve bill", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [toast, refreshBills]);
+
+  const handleRemoveContact = useCallback(async (contactId: number, role: string) => {
+    setActionLoading(`remove-${contactId}-${role}`);
+    try {
+      const res = await api.delete<{ success: boolean }>(`/api/v1/properties/${id}/remove_contact?contact_id=${contactId}&role=${role}`);
+      if (res?.success) {
+        toast({ title: "Contact removed" });
+        refreshTenancies();
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to remove contact", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [id, toast, refreshTenancies]);
 
   // Fetch property data
   useEffect(() => {
@@ -275,10 +415,23 @@ export default function PropertyDetailPage() {
           </div>
         </div>
 
-        <Button variant="outline" size="sm" onClick={() => router.push(`/properties/${id}/overview`)}>
-          <Pencil className="h-3.5 w-3.5 mr-1.5" />
-          Edit
-        </Button>
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={cancelEditing}>
+              <X className="h-3.5 w-3.5 mr-1.5" />
+              Cancel
+            </Button>
+            <Button size="sm" onClick={saveProperty} disabled={saving}>
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" onClick={startEditing}>
+            <Pencil className="h-3.5 w-3.5 mr-1.5" />
+            Edit
+          </Button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -442,9 +595,35 @@ export default function PropertyDetailPage() {
                 <CardHeader>
                   <CardTitle className="text-sm font-medium flex items-center justify-between">
                     <span>Current Tenancy</span>
-                    <Badge variant={activeTenancy.status === "active" ? "default" : "secondary"}>
-                      {activeTenancy.status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={activeTenancy.status === "active" ? "default" : "secondary"}>
+                        {activeTenancy.status}
+                      </Badge>
+                      {activeTenancy.status === "draft" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                          onClick={() => handleActivateTenancy(activeTenancy.id)}
+                          disabled={actionLoading === `activate-${activeTenancy.id}`}
+                        >
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                          {actionLoading === `activate-${activeTenancy.id}` ? "Activating..." : "Activate"}
+                        </Button>
+                      )}
+                      {activeTenancy.status === "active" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                          onClick={() => handleTerminateTenancy(activeTenancy.id)}
+                          disabled={actionLoading === `terminate-${activeTenancy.id}`}
+                        >
+                          <XCircle className="h-3.5 w-3.5 mr-1" />
+                          {actionLoading === `terminate-${activeTenancy.id}` ? "Terminating..." : "Terminate"}
+                        </Button>
+                      )}
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -513,12 +692,18 @@ export default function PropertyDetailPage() {
             )}
 
             {/* Property Contacts */}
-            {contacts.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">Property Contacts</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-sm font-medium">Property Contacts</CardTitle>
+                <Button size="sm" variant="outline" onClick={() => setShowContactDialog(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add Contact
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {contacts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No contacts assigned.</p>
+                ) : (
                   <div className="space-y-3">
                     {contacts.map((pc) => (
                       <div key={pc.id} className="flex items-center justify-between text-sm border-b pb-2 last:border-0">
@@ -531,13 +716,22 @@ export default function PropertyDetailPage() {
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs capitalize">{pc.role.replace(/_/g, " ")}</Badge>
                           {pc.is_primary && <Badge className="text-xs">Primary</Badge>}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-red-600"
+                            onClick={() => handleRemoveContact(pc.contact.id, pc.role)}
+                            disabled={actionLoading === `remove-${pc.contact.id}-${pc.role}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                )}
+              </CardContent>
+            </Card>
 
             {/* Past Tenancies */}
             {tenancies.filter(t => t.status !== "active").length > 0 && (
@@ -558,6 +752,17 @@ export default function PropertyDetailPage() {
                         <div className="flex items-center gap-2">
                           <span>{formatCurrency(t.weekly_rent)}/wk</span>
                           <Badge variant="secondary" className="text-xs capitalize">{t.status}</Badge>
+                          {t.status === "draft" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-xs text-green-600"
+                              onClick={() => handleActivateTenancy(t.id)}
+                              disabled={actionLoading === `activate-${t.id}`}
+                            >
+                              {actionLoading === `activate-${t.id}` ? "..." : "Activate"}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -624,6 +829,17 @@ export default function PropertyDetailPage() {
                           <span className="font-medium">{formatCurrency(bill.amount)}</span>
                           <Badge variant="outline" className="text-xs capitalize">{bill.charge_to.replace(/_/g, " ")}</Badge>
                           <Badge variant={bill.status === "paid" ? "default" : "secondary"} className="text-xs capitalize">{bill.status}</Badge>
+                          {bill.status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-xs"
+                              onClick={() => handleApproveBill(bill.id)}
+                              disabled={actionLoading === `approve-${bill.id}`}
+                            >
+                              {actionLoading === `approve-${bill.id}` ? "..." : "Approve"}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -668,6 +884,12 @@ export default function PropertyDetailPage() {
         onOpenChange={setShowInspectionDialog}
         propertyId={id}
         onSuccess={() => {}}
+      />
+      <AddPropertyContactDialog
+        open={showContactDialog}
+        onOpenChange={setShowContactDialog}
+        propertyId={id}
+        onSuccess={refreshTenancies}
       />
     </div>
   );
