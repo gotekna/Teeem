@@ -18,9 +18,10 @@
 #   WarehouseType.codes                         # => Array of all enabled codes
 #
 class WarehouseType < ApplicationRecord
-  # Multi-tenancy - optional to allow global templates
-  acts_as_tenant :tenant, optional: true
+  # Multi-tenancy - optional to allow global templates (has_global_records makes NULL tenant_id visible to all)
+  acts_as_tenant :tenant, optional: true, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :code
 
   # Constants

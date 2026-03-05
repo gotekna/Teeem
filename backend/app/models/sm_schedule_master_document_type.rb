@@ -1,8 +1,9 @@
 # Join model linking SmScheduleMaster to DocumentType for GET task spawning
 # When a task completes, spawns "GET - {DocumentType.display_name}" tasks
 class SmScheduleMasterDocumentType < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   include CanonicalLinkable
   self.sync_key_source = [:sm_schedule_master_id, :document_type_id]
 

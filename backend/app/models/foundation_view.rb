@@ -1,7 +1,8 @@
 class FoundationView < ApplicationRecord
   include ConfigSyncable
+  include GlobalConfigRecord
 
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
 
   belongs_to :tenant
   belongs_to :user, optional: true  # optional for global views (is_global = true)

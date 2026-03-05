@@ -1346,7 +1346,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.text "payment_instructions"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["is_default"], name: "index_claim_invoice_templates_on_is_default", where: "(is_default = true)"
@@ -1356,7 +1356,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   end
 
   create_table "claim_stage_template_lines", force: :cascade do |t|
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.bigint "claim_stage_template_id", null: false
     t.string "name", limit: 100, null: false
     t.decimal "percentage", precision: 5, scale: 2, null: false
@@ -1376,7 +1376,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   end
 
   create_table "claim_stage_templates", force: :cascade do |t|
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "name", limit: 100, null: false
     t.text "description"
     t.boolean "is_active", default: true, null: false
@@ -1417,7 +1417,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["job_type_id"], name: "index_colour_selection_templates_on_job_type_id"
@@ -2217,7 +2217,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["active"], name: "index_cost_centres_on_active"
@@ -2339,7 +2339,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   end
 
   create_table "custom_quote_templates", force: :cascade do |t|
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "name", null: false
     t.text "description"
     t.boolean "is_active", default: true, null: false
@@ -3202,7 +3202,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "position", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["is_shared"], name: "index_email_templates_on_is_shared", where: "(is_shared = true)"
@@ -3524,7 +3524,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["created_by_id"], name: "index_folder_templates_on_created_by_id"
@@ -3563,7 +3563,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "is_global", default: false, null: false
     t.string "view_display_type", default: "table", null: false, comment: "Display mode: 'table' for traditional grid, 'relational' for network graph"
     t.string "slug"
-    t.integer "tenant_id", null: false
+    t.integer "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["foundation_id", "user_id", "display_order"], name: "index_foundation_views_on_foundation_user_order"
@@ -5907,7 +5907,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   end
 
   create_table "gst_codes", force: :cascade do |t|
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "code", null: false
     t.string "name", null: false
     t.decimal "rate", precision: 5, scale: 4, default: "0.0", null: false
@@ -6124,7 +6124,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "bank_account_name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_invoice_templates_on_is_active"
@@ -6523,7 +6523,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["is_active"], name: "index_job_tabs_on_is_active"
@@ -7545,7 +7545,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["sequence_order"], name: "index_plan_categories_on_sequence_order"
@@ -7668,7 +7668,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.string "short_name_template", default: "{Code}-{Name}"
     t.string "long_name_template", default: "{JobCode}-{Code}-{Name}-Rev{Rev}"
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["sequence_order"], name: "index_plan_types_on_sequence_order"
@@ -8219,7 +8219,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["category"], name: "index_quantity_variables_on_category"
@@ -8324,7 +8324,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   end
 
   create_table "quote_templates", force: :cascade do |t|
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "name", null: false
     t.text "description"
     t.boolean "is_active", default: true, null: false
@@ -8422,7 +8422,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["parent_id", "position"], name: "index_recipe_categories_on_parent_id_and_position"
@@ -8484,7 +8484,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["default_supplier_id"], name: "index_recipes_on_default_supplier_id"
@@ -8859,7 +8859,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
@@ -8947,7 +8947,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.decimal "availability_hours_per_day", precision: 4, scale: 2, default: "8.0"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
@@ -8994,7 +8994,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "assigned_role"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
@@ -9239,7 +9239,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
     t.integer "created_by"
     t.integer "updated_by"
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
@@ -9787,7 +9787,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
@@ -9947,7 +9947,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "response_type", default: "checkbox"
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["category"], name: "index_supervisor_checklist_templates_on_category"
@@ -10304,7 +10304,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   end
 
   create_table "takeoff_templates", force: :cascade do |t|
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.bigint "created_by_id"
     t.string "name", null: false
     t.string "description"
@@ -10772,7 +10772,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   end
 
   create_table "tender_headers", force: :cascade do |t|
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "code", limit: 20, null: false
     t.string "name", limit: 100, null: false
     t.text "description"
@@ -10792,7 +10792,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   end
 
   create_table "tenders", force: :cascade do |t|
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "code", limit: 20, null: false
     t.string "name", limit: 100, null: false
     t.text "description"
@@ -11164,7 +11164,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "download_name_template"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.boolean "is_system", default: false, null: false
     t.datetime "record_updated_at"
@@ -11376,7 +11376,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["active"], name: "index_whs_induction_templates_on_active"
@@ -11447,7 +11447,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id", null: false
+    t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
     t.index ["active"], name: "index_whs_inspection_templates_on_active"

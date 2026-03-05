@@ -1,5 +1,6 @@
 class GstCode < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
+  include GlobalConfigRecord
 
   # Validations
   validates :code, presence: true, uniqueness: { scope: :tenant_id }

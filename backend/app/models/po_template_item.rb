@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 class PoTemplateItem < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :name
 
   # Associations

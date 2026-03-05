@@ -24,8 +24,9 @@
 #  index_takeoff_templates_on_tenant_id_and_is_active  (tenant_id,is_active)
 #
 class TakeoffTemplate < ApplicationRecord
-  acts_as_tenant(:tenant)
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
 
   belongs_to :tenant
   belongs_to :created_by, class_name: "User", optional: true

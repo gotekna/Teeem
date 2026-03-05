@@ -1,7 +1,8 @@
 class JobType < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
 
   # Prevent deletion if jobs exist of this type (data integrity)
   has_many :jobs, dependent: :restrict_with_error

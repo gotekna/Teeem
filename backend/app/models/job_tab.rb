@@ -6,8 +6,9 @@
 # Each tenant can have their own set of tabs.
 #
 class JobTab < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :slug
 
   validates :name, presence: true

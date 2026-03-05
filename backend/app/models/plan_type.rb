@@ -5,8 +5,9 @@
 # - One plan type can belong to multiple categories
 # - PERSPECTIVE can be in Contract Drawings, Construction Drawings, Certification Drawings
 class PlanType < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :code
 
   has_many :plan_category_plan_types, dependent: :destroy

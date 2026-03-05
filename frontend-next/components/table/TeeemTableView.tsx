@@ -121,6 +121,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { getCachedRecords, getCachedRecordsAsync, setCachedRecords, clearCachedRecords } from "@/lib/records-cache";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTenantOptional } from "@/contexts/TenantContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
 import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
@@ -604,6 +605,8 @@ export default function TeeemTableView({
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { user } = useAuth();
+  const tenantCtx = useTenantOptional();
+  const isMasterTenant = tenantCtx?.currentTenant?.isMasterTenant ?? false;
 
   // Debug mode - add ?debug=grid to URL to show layout visualization
   const debugGrid = searchParams.get("debug") === "grid";
@@ -3190,6 +3193,8 @@ export default function TeeemTableView({
   // Handler for row double-click - uses parent handler if provided, else opens edit dialog (if available), else inline editing
   const handleRowDoubleClick = useCallback((row: TableRowType) => {
     if (editingRowIds.has(row.id)) return; // Already editing
+    // Shared/global records are read-only for non-master tenants
+    if (!isMasterTenant && (row as Record<string, unknown>).is_shared) return;
     if (onRowDoubleClick) {
       onRowDoubleClick(row);
     } else if (effectiveOnEdit) {
@@ -3197,7 +3202,7 @@ export default function TeeemTableView({
     } else {
       startEditing(row);
     }
-  }, [editingRowIds, onRowDoubleClick, effectiveOnEdit, startEditing]);
+  }, [editingRowIds, onRowDoubleClick, effectiveOnEdit, startEditing, isMasterTenant]);
 
   // Default handler for health issue click - opens row for editing
   const handleHealthIssueClick = useCallback(async (item: { id: number | string; display?: string }, _check: unknown) => {
@@ -4390,6 +4395,7 @@ export default function TeeemTableView({
             <ActionsButtons
               entry={entry}
               viewOnly={viewOnly}
+              isRowReadOnly={!isMasterTenant && !!(entry as Record<string, unknown>).is_shared}
               onView={effectiveOnView}
               onEdit={effectiveOnEdit}
               onRowUpdate={onRowUpdate}
@@ -4478,7 +4484,8 @@ export default function TeeemTableView({
       }
 
       // Global edit mode OR alwaysEditable - clickable cells that start editing on click
-      if ((isEditMode || alwaysEditable) && isColumnEditable) {
+      // Skip for shared records on non-master tenants
+      if ((isEditMode || alwaysEditable) && isColumnEditable && !((entry as Record<string, unknown>).is_shared && !isMasterTenant)) {
         return (
           <div
             className="cursor-text px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
@@ -4854,6 +4861,8 @@ export default function TeeemTableView({
         className={cn(
           selectedRows.has(row.id) && "bg-muted/50",
           isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
+          // Shared/global config records get a subtle tint
+          !!(row as Record<string, unknown>).is_shared && !isMasterTenant && "bg-sky-50/50 dark:bg-sky-950/20",
           "hover:bg-muted/30 cursor-pointer"
         )}
         onClick={() => {

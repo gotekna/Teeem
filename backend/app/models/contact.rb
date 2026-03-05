@@ -1,10 +1,11 @@
 class Contact < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
 
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
   include Searchable
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :display_name
 
   # FRC (Feb 2026): Contacts page took 7 seconds due to N+1 queries in record_to_json.

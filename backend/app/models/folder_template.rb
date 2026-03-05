@@ -6,8 +6,9 @@
 # when creating new jobs, contacts, or other entities.
 #
 class FolderTemplate < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
 
   belongs_to :created_by, class_name: "User", optional: true
 

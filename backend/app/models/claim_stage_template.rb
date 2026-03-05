@@ -1,6 +1,7 @@
 class ClaimStageTemplate < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
 
   # Associations
   belongs_to :created_by, class_name: "User", optional: true

@@ -1381,6 +1381,11 @@ module Api
           updated_at: record.updated_at
         }
 
+        # Add is_shared flag for global config records (tenant_id = NULL)
+        if record.respond_to?(:shared_record?)
+          json[:is_shared] = record.shared_record?
+        end
+
         # For system foundations, return all model attributes directly
         if @foundation.table_type == "system"
           # Get only the columns that were actually loaded (not full schema)

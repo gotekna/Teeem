@@ -14,8 +14,9 @@
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 #
 class WarehouseFolderDocumentType < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = [:warehouse_folder_id, :document_type_id]
 
   belongs_to :warehouse_folder
