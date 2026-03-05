@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "open3"
+require "timeout"
 
 # Automatically optimizes large PDFs after upload using Ghostscript.
 #
@@ -124,6 +125,8 @@ class OptimizePdfJob < ApplicationJob
     end
   end
 
+  GS_TIMEOUT = 120 # seconds - kill GS if it hangs on problematic PDFs
+
   def run_ghostscript(input_path)
     output_tempfile = Tempfile.new(["gs_optimized", ".pdf"], binmode: true)
     output_tempfile.close # GS writes to path directly
@@ -142,13 +145,19 @@ class OptimizePdfJob < ApplicationJob
 
     Rails.logger.info "[OptimizePdf] Running: #{gs_command.first(3).join(' ')} ... #{File.basename(input_path)}"
 
-    stdout, stderr, status = Open3.capture3(*gs_command)
+    stdout, stderr, status = nil
+    Timeout.timeout(GS_TIMEOUT) do
+      stdout, stderr, status = Open3.capture3(*gs_command)
+    end
 
     unless status.success?
       raise "Ghostscript failed (exit #{status.exitstatus}): #{stderr.first(500)}"
     end
 
     output_tempfile
+  rescue Timeout::Error
+    output_tempfile&.close! rescue nil
+    raise "Ghostscript timed out after #{GS_TIMEOUT}s"
   end
 
   def valid_pdf?(path)
