@@ -1,7 +1,7 @@
 module Api
   module V1
     class PropertiesController < ApplicationController
-      before_action :set_property, only: [:show, :update, :destroy, :tenancies, :bills, :inspections, :contacts, :financials]
+      before_action :set_property, only: [:show, :update, :destroy, :tenancies, :bills, :inspections, :contacts, :add_contact, :remove_contact, :financials]
 
       # GET /api/v1/properties
       def index
@@ -88,6 +88,32 @@ module Api
         render_success(contacts.as_json(include: {
           contact: { only: [:id, :display_name, :email, :phone] }
         }))
+      end
+
+      # POST /api/v1/properties/:id/contacts
+      def add_contact
+        pc = @property.property_contacts.new(
+          contact_id: params[:contact_id],
+          role: params[:role],
+          is_primary: params[:is_primary] || false
+        )
+
+        if pc.save
+          render_success(pc.as_json(include: {
+            contact: { only: [:id, :display_name, :email, :phone] }
+          }), status: :created)
+        else
+          render_validation_errors(pc)
+        end
+      end
+
+      # DELETE /api/v1/properties/:id/contacts/:contact_id
+      def remove_contact
+        pc = @property.property_contacts.find_by!(contact_id: params[:contact_id], role: params[:role])
+        pc.destroy
+        render_success
+      rescue ActiveRecord::RecordNotFound
+        render_error("Contact not found on this property", status: :not_found)
       end
 
       # GET /api/v1/properties/:id/financials

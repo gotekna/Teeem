@@ -52,20 +52,34 @@ module Api
 
       # PATCH /api/v1/tenancies/:id/activate
       def activate
-        if @tenancy.update(status: "active")
-          render_success(@tenancy)
-        else
-          render_validation_errors(@tenancy)
+        ActiveRecord::Base.transaction do
+          if @tenancy.update(status: "active")
+            TenancyBillingService.new(@tenancy).setup_billing!
+            render_success(@tenancy.as_json.merge(
+              billing_setup: @tenancy.rent_recurring_invoice_id.present?
+            ))
+          else
+            render_validation_errors(@tenancy)
+          end
         end
+      rescue => e
+        Rails.logger.error("Tenancy activation failed: #{e.message}")
+        render_error("Tenancy activated but billing setup failed: #{e.message}")
       end
 
       # PATCH /api/v1/tenancies/:id/terminate
       def terminate
-        if @tenancy.update(status: "terminated", end_date: params[:end_date] || Date.current)
-          render_success(@tenancy)
-        else
-          render_validation_errors(@tenancy)
+        ActiveRecord::Base.transaction do
+          if @tenancy.update(status: "terminated", end_date: params[:end_date] || Date.current)
+            TenancyBillingService.new(@tenancy).teardown_billing!
+            render_success(@tenancy)
+          else
+            render_validation_errors(@tenancy)
+          end
         end
+      rescue => e
+        Rails.logger.error("Tenancy termination failed: #{e.message}")
+        render_error("Tenancy terminated but billing teardown failed: #{e.message}")
       end
 
       private

@@ -54,11 +54,23 @@ module Api
 
       # PATCH /api/v1/property_bills/:id/approve
       def approve
-        if @bill.update(status: "approved")
-          render_success(@bill)
-        else
-          render_validation_errors(@bill)
+        ActiveRecord::Base.transaction do
+          unless @bill.update(status: "approved")
+            render_validation_errors(@bill) and return
+          end
+
+          invoice = generate_invoice_for_bill(@bill)
+          if invoice
+            @bill.update_columns(status: "invoiced", gl_invoice_id: invoice.id)
+          end
+
+          render_success(@bill.reload.as_json.merge(
+            gl_invoice_id: invoice&.id
+          ))
         end
+      rescue => e
+        Rails.logger.error("PropertyBill approve failed: #{e.message}")
+        render_error("Bill approved but invoice generation failed: #{e.message}")
       end
 
       private
@@ -74,6 +86,50 @@ module Api
           :bill_date, :due_date, :charge_to, :status,
           :supplier_contact_id, :notes
         )
+      end
+
+      def generate_invoice_for_bill(bill)
+        return nil unless defined?(Gl::Invoice)
+
+        contact = resolve_bill_contact(bill)
+        return nil unless contact
+
+        invoice_type = bill.charge_to == "owner" ? "bill" : "sales_invoice"
+
+        corporate = Corporate.first
+        return nil unless corporate
+
+        Gl::Invoice.create!(
+          corporate: corporate,
+          invoice_type: invoice_type,
+          status: "approved",
+          invoice_date: bill.bill_date,
+          due_date: bill.due_date || bill.bill_date + 30.days,
+          contact_id: contact.id,
+          description: "Property Bill: #{bill.bill_type.humanize} - #{bill.property.name || bill.property.property_code}",
+          subtotal: bill.amount,
+          total_tax: bill.tax_amount || 0,
+          total: bill.total_with_tax,
+          amount_due: bill.total_with_tax,
+          created_in_teeem: true
+        )
+      rescue ActiveRecord::RecordInvalid => e
+        Rails.logger.error("PropertyBill invoice generation failed: #{e.message}")
+        nil
+      end
+
+      def resolve_bill_contact(bill)
+        case bill.charge_to
+        when "tenant"
+          bill.tenancy&.property&.property_contacts&.find_by(role: "tenant", is_primary: true)&.contact
+        when "owner"
+          bill.property.owner_contact
+        when "government_ndis"
+          Contact.find_by(
+            tenant_id: current_tenant&.id,
+            display_name: ["NDIA", "National Disability Insurance Agency"]
+          )
+        end
       end
     end
   end

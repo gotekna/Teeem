@@ -1427,6 +1427,8 @@ Rails.application.routes.draw do
           get :bills
           get :inspections
           get :contacts
+          post :add_contact
+          delete :remove_contact
           get :financials
         end
       end
