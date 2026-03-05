@@ -17,6 +17,9 @@ import {
   Shield,
   ArrowRight,
   Info,
+  Eye,
+  User,
+  Users,
 } from "lucide-react";
 
 // ─── Copy helper ─────────────────────────────────────────────────────────────
@@ -178,6 +181,170 @@ function ApiReferenceCard({
   );
 }
 
+// ─── Portal Preview Section ──────────────────────────────────────────────────
+
+function PortalPreviewSection() {
+  const [portalType, setPortalType] = useState<"owner" | "tenant">("owner");
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Portal pages to preview — these show the portal experience directly
+  const portalPages = {
+    owner: [
+      { label: "Dashboard", path: "/portal/dashboard" },
+      { label: "Property", path: "/portal/property" },
+      { label: "Documents", path: "/portal/property/documents" },
+      { label: "Inspections", path: "/portal/property/inspections" },
+      { label: "Maintenance", path: "/portal/property/maintenance" },
+      { label: "Invoices", path: "/portal/invoices" },
+    ],
+    tenant: [
+      { label: "Dashboard", path: "/portal/dashboard" },
+      { label: "Property", path: "/portal/property" },
+      { label: "Maintenance", path: "/portal/property/maintenance" },
+      { label: "Documents", path: "/portal/property/documents" },
+      { label: "Inspections", path: "/portal/property/inspections" },
+    ],
+  };
+
+  const [activePage, setActivePage] = useState(portalPages.owner[0].path);
+  const pages = portalPages[portalType];
+
+  return (
+    <div>
+      <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+        <Eye className="h-4 w-4" />
+        Preview Portal
+      </h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Preview what the owner and tenant portals look like. These portals give property owners and SDA tenants
+        self-service access to documents, maintenance requests, inspections, and invoices.
+      </p>
+
+      <Card>
+        <CardContent className="pt-5 space-y-4">
+          {/* Controls */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Portal type toggle */}
+            <div className="flex rounded-md border border-input overflow-hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setPortalType("owner");
+                  setActivePage(portalPages.owner[0].path);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${
+                  portalType === "owner"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background hover:bg-secondary/50"
+                }`}
+              >
+                <User className="h-3.5 w-3.5" />
+                Owner Portal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPortalType("tenant");
+                  setActivePage(portalPages.tenant[0].path);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm border-l border-input transition-colors ${
+                  portalType === "tenant"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background hover:bg-secondary/50"
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Tenant Portal
+              </button>
+            </div>
+
+            {!showPreview ? (
+              <Button size="sm" onClick={() => setShowPreview(true)}>
+                <Eye className="h-3.5 w-3.5 mr-1.5" />
+                Load Preview
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={() => window.open(activePage, "_blank")}
+              >
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Open in New Tab
+              </Button>
+            )}
+          </div>
+
+          {/* Description of what each portal provides */}
+          <div className="p-3 rounded-md bg-secondary/50 border border-border">
+            {portalType === "owner" ? (
+              <div className="space-y-1">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <User className="h-3.5 w-3.5" />
+                  Owner Portal
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Property owners can view their SDA property details, download documents (certificates,
+                  insurance, compliance), track maintenance requests, view inspection reports, and access
+                  invoices and payment history.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Users className="h-3.5 w-3.5" />
+                  Tenant Portal
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  SDA tenants/participants can view their accommodation details, submit and track
+                  maintenance requests, access shared documents, view upcoming inspections, and
+                  communicate with the property manager.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {showPreview && (
+            <>
+              {/* Page tabs */}
+              <div className="flex flex-wrap gap-1 border-b border-border pb-2">
+                {pages.map((page) => (
+                  <button
+                    key={page.path}
+                    type="button"
+                    onClick={() => setActivePage(page.path)}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                      activePage === page.path
+                        ? "bg-primary text-primary-foreground font-medium"
+                        : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                    }`}
+                  >
+                    {page.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Iframe */}
+              <div
+                className="border rounded-lg overflow-hidden bg-white dark:bg-card"
+                style={{ height: "60vh", minHeight: "400px" }}
+              >
+                <iframe
+                  src={activePage}
+                  className="w-full h-full border-0"
+                  title={`${portalType} Portal Preview - ${activePage}`}
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                />
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function SdaSetupPage() {
@@ -197,6 +364,9 @@ export default function SdaSetupPage() {
           </p>
         </div>
       </div>
+
+      {/* ── Section: Portal Preview ─────────────────────────────────────── */}
+      <PortalPreviewSection />
 
       {/* ── Section: NDIA Contacts & Access ─────────────────────────────── */}
       <div>
