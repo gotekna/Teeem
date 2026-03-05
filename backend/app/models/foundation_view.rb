@@ -1,8 +1,12 @@
 class FoundationView < ApplicationRecord
   include ConfigSyncable
-  include GlobalConfigRecord
+  # NOT including GlobalConfigRecord — views are user-editable settings, not locked config.
+  # GlobalConfigRecord's belongs_to :tenant + acts_as_tenant double-registers a PresenceValidator
+  # that causes valid? to return false for global views (tenant_id=NULL) even with no errors.
+  # Views have their own guards: prevent_setup_view_rename, prevent_setup_view_deletion,
+  # prevent_foundation_id_change.
 
-  acts_as_tenant :tenant, has_global_records: true
+  acts_as_tenant :tenant, has_global_records: true, optional: true
 
   belongs_to :tenant, optional: true  # optional for global records (tenant_id = NULL)
   belongs_to :user, optional: true  # optional for global views (is_global = true)
@@ -70,6 +74,11 @@ class FoundationView < ApplicationRecord
   # Before saving, deduplicate column order to prevent React duplicate key errors
   before_save :deduplicate_column_order
 
+  # Required by CascadePushTableJob to skip globalized tables
+  def self.uses_global_records?
+    true
+  end
+
   # Override ConfigSyncable — sync_key must include foundation slug
   # because view names aren't unique across foundations (e.g. "Setup" on jobs AND contacts).
   # Key format: "jobs--setup", "sm-tasks--my-custom-view"
@@ -82,13 +91,6 @@ class FoundationView < ApplicationRecord
   end
 
   private
-
-  # Override GlobalConfigRecord write-protection guards.
-  # Views are user-editable settings, not locked config records.
-  # View-specific guards (prevent_setup_view_rename, prevent_setup_view_deletion,
-  # prevent_foundation_id_change) provide sufficient protection.
-  def prevent_non_master_edit_of_global_record; end
-  def prevent_non_master_destroy_of_global_record; end
 
   # Generate a URL-friendly slug from the view name
   def generate_slug
