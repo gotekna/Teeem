@@ -78,7 +78,8 @@ export default function SettingsLayout({
   // View paths (/settings/users/view/setup-2) are NOT detail pages - they're saved table views
   const sectionsWithSubTabs = ["company", "connections", "operations", "tables", "roles", "corporate", "developer", "system"];
   const isViewPath = pathParts[1] === "view";
-  const isDetailPage = pathParts.length >= 2 && !sectionsWithSubTabs.includes(pathParts[0]) && !isViewPath;
+  const hasEntityId = pathParts.length >= 3 && pathParts.some(part => /^\d+$/.test(part));
+  const isDetailPage = (pathParts.length >= 2 && !sectionsWithSubTabs.includes(pathParts[0]) && !isViewPath) || hasEntityId;
 
   const handleTabChange = (value: string) => {
     router.push(`/settings/${value}`);

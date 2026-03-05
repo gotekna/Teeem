@@ -17,6 +17,7 @@ class Property < ApplicationRecord
   has_many :tenancies, dependent: :destroy
   has_many :property_bills, dependent: :destroy
   has_many :property_inspections, dependent: :destroy
+  has_many :ndis_claims, dependent: :destroy
 
   # Validations
   validates :street_address, presence: true
@@ -27,12 +28,19 @@ class Property < ApplicationRecord
   # Scopes
   scope :with_lookups, -> { includes(:property_type, :property_status, :owner_contact) }
   scope :sda, -> { where(sda_enrolled: true) }
+  scope :sda_enrolled, -> { where(sda_enrolled: true) }
+  scope :sda_pending, -> { where.not(sda_category: nil).where(sda_enrolled: false) }
+  scope :by_sda_category, ->(cat) { where(sda_category: cat) }
   scope :vacant, -> { left_joins(:tenancies).where(tenancies: { id: nil }).or(left_joins(:tenancies).where.not(tenancies: { status: "active" })) }
 
-  # SDA categories as frozen constant
+  # SDA constants
   SDA_CATEGORIES = %w[improved_liveability fully_accessible robust high_physical_support].freeze
+  SDA_BUILDING_TYPES = %w[apartment duplex group_home house townhouse villa].freeze
+  SDA_ENROLMENT_STATUSES = %w[not_started in_progress submitted under_review info_requested approved enrolled rejected].freeze
 
   validates :sda_category, inclusion: { in: SDA_CATEGORIES, allow_nil: true }
+  validates :sda_building_type, inclusion: { in: SDA_BUILDING_TYPES, allow_nil: true }
+  validates :sda_enrolment_status, inclusion: { in: SDA_ENROLMENT_STATUSES, allow_nil: true }
 
   def full_address
     [street_address, suburb, state, postcode].compact_blank.join(", ")
@@ -44,6 +52,13 @@ class Property < ApplicationRecord
 
   def sda?
     sda_enrolled?
+  end
+
+  # Returns 0-100 percentage of how complete the SDA enrolment data is
+  def sda_enrolment_completeness
+    required_fields = %w[street_address suburb state postcode sda_category sda_building_type bedrooms sda_max_residents]
+    filled = required_fields.count { |f| send(f).present? }
+    ((filled.to_f / required_fields.length) * 100).round(0)
   end
 
   # ── Valuation Methods ──
