@@ -1,5 +1,7 @@
 # TEEEM SDA Dwelling Enrolment Package
 
+> **Detailed workflow spec:** See `SDA-ENROLMENT-WORKFLOW.md` for the complete BPMN workflow with every portal field mapped to TEEEM, single-click flow, and implementation details.
+
 ## Overview
 
 Streamline the NDIS Specialist Disability Accommodation (SDA) dwelling enrolment process by auto-generating enrolment forms, tracking approval status, and managing compliance documentation — all from existing TEEEM property data.
