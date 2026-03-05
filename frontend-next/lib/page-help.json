@@ -1391,6 +1391,36 @@
       "description": "Full detail view for a property including tenancy, financials, documents, and inspections.",
       "tips": ["Switch tabs to access tenancy, financial, and inspection information", "SDA tenancies show participant contribution and NDIA payment breakdown", "The financials tab shows rent income vs bills summary", "Documents tab holds lease agreements and compliance files"],
       "tasks": ["Edit property details", "View current tenancy", "Review bills and payments", "Schedule an inspection", "Upload documents"]
+    },
+    "/sda": {
+      "title": "SDA Management",
+      "description": "Specialist Disability Accommodation portfolio management hub showing key metrics, revenue breakdown, and enrolment pipeline.",
+      "tips": ["Stats cards link to the relevant sub-sections for quick navigation", "Revenue by SDA Category shows the breakdown across HPS, FA, IL, and Robust dwellings", "The enrolment pipeline shows how many properties are at each stage", "Use Quick Enrol to start a new SDA enrolment in under 2 minutes"],
+      "tasks": ["Review portfolio stats", "Quick enrol a property", "Submit monthly claims", "Download portfolio report"]
+    },
+    "/sda/properties": {
+      "title": "SDA Properties",
+      "description": "All SDA properties grouped by design category with occupancy, weekly rate, and enrolment status.",
+      "tips": ["Properties are grouped by SDA design category (HPS, FA, IL, Robust)", "Occupancy percentage shows how full each dwelling is", "Green badge means the property is enrolled with the NDIA", "Weekly rate shown is the SDA rental income per dwelling"],
+      "tasks": ["Browse SDA properties by category", "Check occupancy rates", "View enrolled vs pending properties", "Access property details"]
+    },
+    "/sda/enrolments": {
+      "title": "SDA Enrolments",
+      "description": "Kanban pipeline view showing properties at each stage of the NDIS SDA enrolment process.",
+      "tips": ["Each column represents a stage in the enrolment journey", "The completeness bar shows how much of the enrolment form is filled in", "Orange warnings indicate missing fields or documents", "Use Quick Enrol to add a new property to the pipeline"],
+      "tasks": ["Check enrolment progress for each property", "Quick enrol a new property", "Identify properties with missing documents", "Track days spent in each stage"]
+    },
+    "/sda/claims": {
+      "title": "SDA Claims",
+      "description": "NDIS SDA claim management with status tracking, bulk submission, and monthly claim generation.",
+      "tips": ["Filter claims by status to focus on what needs action", "Select draft claims and use Bulk Submit to submit multiple at once", "Generate Monthly creates claims for all eligible enrolled properties", "Summary cards at the top show total claimed, approved, pending, and paid amounts"],
+      "tasks": ["Generate monthly claims", "Review draft claims", "Bulk submit selected claims", "Filter by claim status", "Track payment status"]
+    },
+    "/sda/compliance": {
+      "title": "SDA Compliance",
+      "description": "Compliance matrix showing document status across all SDA properties for assessment, fire safety, building certs, occupancy, insurance, and photos.",
+      "tips": ["Green = valid, Amber = expiring soon, Red = expired, Grey = missing", "The portfolio score averages all property compliance scores", "Hover over a badge to see expiry or upload date", "Export the matrix for reporting or audit purposes"],
+      "tasks": ["Review portfolio compliance score", "Identify expired or missing documents", "Export compliance report", "Track document expiry dates"]
     }
   }
 }

@@ -31,27 +31,32 @@ module Api
           scope
         end
 
+        CATEGORY_ABBREV = {
+          "high_physical_support" => "HPS",
+          "fully_accessible" => "FA",
+          "improved_liveability" => "IL",
+          "robust" => "Robust"
+        }.freeze
+
         def serialize_sda_property(property)
           active_tenancy = property.tenancies.find { |t| t.status == "active" && t.tenancy_type == "sda" }
+          active_sda_count = property.tenancies.count { |t| t.tenancy_type == "sda" && t.status == "active" }
 
-          property.as_json(
-            only: [
-              :id, :property_code, :name, :street_address, :suburb, :state, :postcode,
-              :sda_category, :sda_enrolled, :sda_enrolment_date, :sda_dwelling_id,
-              :bedrooms, :bathrooms, :floor_area_sqm, :created_at, :updated_at
-            ],
-            include: {
-              property_type:   { only: [:id, :name] },
-              property_status: { only: [:id, :name, :color] },
-              owner_contact:   { only: [:id, :display_name, :email, :phone] }
-            }
-          ).merge(
-            activeSdaTenancy: active_tenancy&.as_json(
-              only: [:id, :status, :sda_plan_number, :sda_weekly_rate,
-                     :participant_rent_contribution, :ndia_payment_amount, :start_date]
-            ),
-            sdaTenancyCount: property.tenancies.count { |t| t.tenancy_type == "sda" }
-          )
+          {
+            id: property.id,
+            propertyCode: property.property_code,
+            address: property.street_address,
+            suburb: property.suburb,
+            state: property.state,
+            sdaCategory: CATEGORY_ABBREV[property.sda_category] || property.sda_category,
+            buildingType: property.try(:sda_building_type),
+            bedrooms: property.bedrooms,
+            maxResidents: property.try(:sda_max_residents),
+            currentResidents: active_sda_count,
+            enrolled: property.sda_enrolled?,
+            weeklyRate: active_tenancy&.sda_weekly_rate&.to_f,
+            enrolmentStatus: property.try(:sda_enrolment_status),
+          }
         end
       end
     end

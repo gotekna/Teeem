@@ -1454,6 +1454,41 @@ Rails.application.routes.draw do
       end
 
       # ============================================
+      # SDA Management Hub
+      # ============================================
+
+      namespace :sda do
+        get "dashboard", to: "dashboard#show"
+        get "properties", to: "properties#index"
+
+        resources :enrolments, only: [:index] do
+          collection do
+            post :quick_enrol
+          end
+          member do
+            patch :update_status
+            get  :preflight
+          end
+        end
+
+        get "compliance", to: "compliance#index"
+      end
+
+      resources :ndis_claims do
+        collection do
+          post :generate_monthly
+          post :bulk_submit
+          get  :summary
+        end
+      end
+
+      resources :ndis_price_guides, only: [:index] do
+        collection do
+          get :rate
+        end
+      end
+
+      # ============================================
       # SaaS Customer Management
       # ============================================
 

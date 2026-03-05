@@ -100,6 +100,13 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/properties": "Property Management",
   "/properties/list": "All Properties",
   "/properties/setup": "Setup",
+
+  // SDA Management
+  "/sda": "SDA Management",
+  "/sda/properties": "Properties",
+  "/sda/enrolments": "Enrolments",
+  "/sda/claims": "Claims",
+  "/sda/compliance": "Compliance",
 };
 
 /**
@@ -126,6 +133,7 @@ const ROUTE_ICONS: Record<string, string> = {
   "/xero": "Link",
   "/data-warehouse": "Database",
   "/training": "GraduationCap",
+  "/sda": "Accessibility",
 };
 
 /**
@@ -338,6 +346,10 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "job-types": "Job Types",
   "categories": "Categories",
   "statuses": "Statuses",
+
+  // SDA tabs
+  "enrolments": "Enrolments",
+  "compliance": "Compliance",
 };
 
 /**

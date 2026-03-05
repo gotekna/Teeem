@@ -17,27 +17,55 @@ module Api
         before_action :set_property, only: [:preflight, :update_status]
 
         # GET /api/v1/sda/enrolments
-        # Returns all SDA-eligible properties grouped by enrolment status.
+        # Returns all SDA-eligible properties grouped by enrolment status
+        # in the kanban format the frontend expects.
         def index
           sda_properties = Property
-            .includes(:property_type, :property_status, :owner_contact)
+            .includes(:property_type, :property_status, :owner_contact, :tenancies)
             .where.not(sda_category: nil)
             .order(:sda_category, :street_address)
 
-          grouped = sda_properties.group_by do |p|
-            p.sda_enrolled? ? "enrolled" : "pending"
+          category_abbrev = {
+            "high_physical_support" => "HPS",
+            "fully_accessible" => "FA",
+            "improved_liveability" => "IL",
+            "robust" => "Robust"
+          }
+
+          # Group by enrolment status for kanban columns
+          has_status_col = column_exists?(:properties, :sda_enrolment_status)
+
+          grouped = { "not_started" => [], "in_progress" => [], "submitted" => [], "under_review" => [], "enrolled" => [] }
+
+          sda_properties.each do |p|
+            status = if p.sda_enrolled?
+              "enrolled"
+            elsif has_status_col && p.sda_enrolment_status.present? && p.sda_enrolment_status != "not_started"
+              p.sda_enrolment_status
+            else
+              "not_started"
+            end
+
+            # Map to valid kanban column keys
+            status = "not_started" unless grouped.key?(status)
+
+            grouped[status] << {
+              id: p.id,
+              address: p.street_address,
+              suburb: p.suburb,
+              sdaCategory: category_abbrev[p.sda_category] || p.sda_category,
+              completenessPercent: p.respond_to?(:sda_enrolment_completeness) ? p.sda_enrolment_completeness : 0,
+              daysInStage: p.updated_at ? ((Time.current - p.updated_at) / 1.day).to_i : 0,
+              enrolmentId: p.id,
+              missingFields: [],
+              missingDocuments: []
+            }
           end
 
           render json: {
             success: true,
             data: {
-              enrolled: serialize_list(grouped["enrolled"] || []),
-              pending:  serialize_list(grouped["pending"] || []),
-              summary:  {
-                total:    sda_properties.count,
-                enrolled: (grouped["enrolled"] || []).count,
-                pending:  (grouped["pending"] || []).count
-              }
+              byStatus: grouped
             }
           }
         end
@@ -61,19 +89,43 @@ module Api
 
         # POST /api/v1/sda/enrolments/quick_enrol
         # Creates a property and marks it as SDA-eligible in one step.
+        # Accepts flat params from the QuickEnrolDialog frontend.
         def quick_enrol
-          property = Property.new(quick_enrol_params)
+          attrs = {
+            street_address: params[:address],
+            suburb: params[:suburb],
+            state: params[:state],
+            postcode: params[:postcode],
+            sda_category: map_sda_category(params[:sda_design_category]),
+            bedrooms: params[:bedrooms]
+          }
+
+          # Map new SDA fields if migration has run
+          if column_exists?(:properties, :sda_building_type)
+            attrs[:sda_building_type] = params[:building_type]
+            attrs[:sda_max_residents] = params[:max_residents]
+            attrs[:sda_assessor_name] = params[:assessor_name]
+            attrs[:sda_assessor_number] = params[:assessor_organisation]
+            attrs[:sda_assessment_date] = params[:assessment_date]
+            attrs[:sda_enrolment_status] = "not_started"
+          end
+
+          property = Property.new(attrs)
 
           if property.save
             render json: {
               success: true,
-              data:    property.as_json(
-                only: [:id, :property_code, :name, :street_address, :suburb, :state,
-                       :postcode, :sda_category, :sda_enrolled, :sda_dwelling_id]
-              )
+              data: {
+                id: property.id,
+                propertyCode: property.property_code,
+                address: property.street_address,
+                suburb: property.suburb,
+                sdaCategory: params[:sda_design_category],
+                enrolled: false
+              }
             }, status: :created
           else
-            render_validation_errors(property)
+            render json: { success: false, error: property.errors.full_messages.join(", ") }, status: :unprocessable_entity
           end
         end
 
@@ -112,15 +164,21 @@ module Api
           render_error("Property not found", status: :not_found)
         end
 
-        def quick_enrol_params
-          params.require(:property).permit(
-            :name, :street_address, :suburb, :state, :postcode, :country,
-            :property_type_id, :property_status_id,
-            :bedrooms, :bathrooms, :parking_spaces,
-            :floor_area_sqm, :land_area_sqm, :year_built,
-            :sda_category, :sda_enrolled, :sda_dwelling_id, :sda_enrolment_date,
-            :owner_contact_id, :description
-          )
+        # Maps frontend SDA category abbreviations to database values
+        def map_sda_category(frontend_value)
+          mapping = {
+            "HPS" => "high_physical_support",
+            "FA" => "fully_accessible",
+            "IL" => "improved_liveability",
+            "Robust" => "robust"
+          }
+          mapping[frontend_value] || frontend_value
+        end
+
+        def column_exists?(table, column)
+          ActiveRecord::Base.connection.column_exists?(table, column)
+        rescue
+          false
         end
 
         # Runs a set of preflight checks against a property before NDIS enrolment.
