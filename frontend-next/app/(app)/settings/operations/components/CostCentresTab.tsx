@@ -6,6 +6,13 @@ import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import { PoTaskPicker, type POTaskItem, type SmTemplate } from "@/components/settings/PoTaskPicker";
 import type { TableRow } from "@/components/table/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 /**
  * CostCentresTab - Global cost centre management
@@ -14,18 +21,55 @@ import type { TableRow } from "@/components/table/types";
  * Previously nested under Schedule Master > Tables, now promoted to
  * a top-level Operations tab alongside Profit Centres.
  *
- * Includes PO Task picker in edit/create dialogs for assigning
- * SM PO Tasks to cost centres.
+ * Includes:
+ * - Template dropdown (like Schedule Master Data View) to filter CCs by template
+ * - PO Task picker in edit/create dialogs for assigning SM PO Tasks to cost centres
  *
  * Part of Settings > Operations.
  */
 export function CostCentresTab() {
+  // Template dropdown state
+  const [templates, setTemplates] = React.useState<SmTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState<number | null>(null);
+
   // PO Task picker state - uses refs to avoid re-rendering TeeemTableView
   const poTasksRef = React.useRef<POTaskItem[]>([]);
   const poTasksLoadedRef = React.useRef(false);
   const selectedPoTaskIdsRef = React.useRef<number[]>([]);
   const editRecordIdRef = React.useRef<number | string | null>(null);
   const templatesRef = React.useRef<SmTemplate[]>([]);
+
+  // Load templates on mount
+  React.useEffect(() => {
+    async function loadTemplates() {
+      try {
+        const data = await api.get<{ sm_schedule_master_templates: SmTemplate[] }>(
+          "/api/v1/sm_schedule_master_templates"
+        );
+        if (data?.sm_schedule_master_templates) {
+          setTemplates(data.sm_schedule_master_templates);
+          templatesRef.current = data.sm_schedule_master_templates;
+        }
+      } catch (error) {
+        console.error("Failed to load templates:", error);
+      }
+    }
+    loadTemplates();
+  }, []);
+
+  // Template-based initial filters for TeeemTableView
+  const initialFilters = React.useMemo(() => {
+    if (!selectedTemplateId) return [];
+    return [
+      {
+        id: "template",
+        column: "sm_schedule_master_template_ids",
+        operator: "array_contains" as const,
+        value: String(selectedTemplateId),
+        label: `Template: ${templates.find(t => t.id === selectedTemplateId)?.name || "Selected"}`,
+      },
+    ];
+  }, [selectedTemplateId, templates]);
 
   const fetchPoTasks = React.useCallback(async () => {
     try {
@@ -132,11 +176,36 @@ export function CostCentresTab() {
     [fetchPoTasks]
   );
 
+  // Template dropdown (same pattern as Schedule Master Data View)
+  const templateDropdown = templates.length > 0 ? (
+    <Select
+      value={selectedTemplateId ? String(selectedTemplateId) : "all"}
+      onValueChange={(value) => {
+        setSelectedTemplateId(value === "all" ? null : parseInt(value));
+      }}
+    >
+      <SelectTrigger className="w-[260px] h-8 text-xs">
+        <SelectValue placeholder="All Cost Centres" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Cost Centres</SelectItem>
+        {templates.map((template) => (
+          <SelectItem key={template.id} value={String(template.id)}>
+            {template.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  ) : null;
+
   return (
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
+        key={`cost-centres-${selectedTemplateId || "all"}`}
         foundationId={FOUNDATION_SLUGS.COST_CENTRES}
         autoFetchRecords={true}
+        initialFilters={initialFilters}
+        leftActions={templateDropdown}
         createDialogRenderExtra={renderExtraForCreate}
         editDialogRenderExtra={renderExtraForEdit}
         createDialogOnAfterSave={handleAfterSave}
