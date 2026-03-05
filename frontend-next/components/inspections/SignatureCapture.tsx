@@ -57,8 +57,10 @@ export function SignatureCapture({
         isDrawingMode: true,
       });
 
-      canvas.freeDrawingBrush.color = "#1a1a1a";
-      canvas.freeDrawingBrush.width = 2;
+      if (canvas.freeDrawingBrush) {
+        canvas.freeDrawingBrush.color = "#1a1a1a";
+        canvas.freeDrawingBrush.width = 2;
+      }
 
       canvas.on("path:created", () => setHasDrawn(true));
 
