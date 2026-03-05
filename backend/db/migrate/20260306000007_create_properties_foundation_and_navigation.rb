@@ -14,9 +14,9 @@ class CreatePropertiesFoundationAndNavigation < ActiveRecord::Migration[8.0]
     # 1. Create Foundation for Properties
     # ═══════════════════════════════════════════════════════════════════════════
     foundation = Foundation.find_or_create_by!(slug: "properties") do |f|
-      f.name = "Properties"
+      f.name = "Property Management"
       f.singular_name = "Property"
-      f.plural_name = "Properties"
+      f.plural_name = "Property Management"
       f.database_table_name = "properties"
       f.table_type = "system"
       f.model_class = "Property"
@@ -171,7 +171,7 @@ class CreatePropertiesFoundationAndNavigation < ActiveRecord::Migration[8.0]
     # ═══════════════════════════════════════════════════════════════════════════
     if defined?(NavigationItem)
       NavigationItem.find_or_create_by!(href: "/properties") do |item|
-        item.name = "Properties"
+        item.name = "Property Management"
         item.icon = "Building2"
         item.position = 11
         item.is_active = true
