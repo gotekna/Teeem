@@ -590,34 +590,23 @@ function PortalEmbedTab({
     }
   }, [hasPortal, iframeUrl, loading, error, loadPortal]);
 
-  // No contact at all — show portal login page as a UI demo
+  // No contact at all — show helpful message
   if (!contact) {
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            Portal preview — {portalType === "owner"
-              ? "assign an owner contact to enable full access"
-              : "add a tenant contact to enable full access"}
-          </p>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            onClick={() => window.open(`${window.location.origin}/portal/login`, "_blank")}
-          >
-            <ExternalLink className="h-3 w-3 mr-1" />
-            Open in New Tab
-          </Button>
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="rounded-full bg-muted p-3 mb-4">
+          {portalType === "owner" ? <User className="h-6 w-6 text-muted-foreground" /> : <Users className="h-6 w-6 text-muted-foreground" />}
         </div>
-        <div className="border rounded-lg overflow-hidden bg-white dark:bg-card" style={{ height: "calc(100vh - 320px)", minHeight: "500px" }}>
-          <iframe
-            src={`${window.location.origin}/portal/login`}
-            className="w-full h-full border-0"
-            title={`${label} Portal Preview`}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-          />
-        </div>
+        <h3 className="text-lg font-semibold mb-1">No {label} Contact</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          {portalType === "owner"
+            ? "Assign an owner contact to this property to preview their portal."
+            : "Add a tenant contact to this property to preview their portal."}
+        </p>
+        <Button size="sm" variant="outline" onClick={onSwitchToSetup}>
+          <Shield className="h-3.5 w-3.5 mr-1.5" />
+          Go to Setup
+        </Button>
       </div>
     );
   }
