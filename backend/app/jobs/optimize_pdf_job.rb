@@ -45,6 +45,8 @@ class OptimizePdfJob < ApplicationJob
     Rails.logger.error "[OptimizePdf] Failed for blob #{storage_blob_id}: #{e.class} - #{e.message}"
     Rails.logger.error e.backtrace.first(5).join("\n")
     mark_status("failed", warehouse_document_id, error: e.message)
+    # Also mark all linked WDs so the blob isn't retried endlessly
+    mark_all_documents("failed", reason: e.message) if @blob
   end
 
   private
@@ -103,7 +105,7 @@ class OptimizePdfJob < ApplicationJob
 
         if reduction_percent < MINIMUM_REDUCTION_PERCENT
           Rails.logger.info "[OptimizePdf] Insufficient reduction (#{reduction_percent}%), keeping original"
-          mark_all_documents("skipped", reason: "insufficient_reduction", reduction: reduction_percent)
+          mark_all_documents("skipped", reason: "insufficient_reduction", reduction_percent: reduction_percent)
           return
         end
 
