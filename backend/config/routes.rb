@@ -4776,6 +4776,10 @@ Rails.application.routes.draw do
 
           resources :maintenance, controller: "maintenance_requests", only: [:index, :create]
 
+          # Documents
+          get "documents", to: "property_documents#index"
+          get "documents/:id/download", to: "property_documents#download"
+
           # Owner-only: Property valuations
           resources :valuations, controller: "property_valuations", only: [:index, :show] do
             member do

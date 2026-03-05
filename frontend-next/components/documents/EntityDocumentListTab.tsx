@@ -551,7 +551,7 @@ export default function EntityDocumentListTab({
         toast({ title: "Verified", description: "Document has been validated" });
         setDocuments(prev => prev.map(d =>
           d.id === doc.id
-            ? { ...d, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() }
+            ? { ...d, ...res.document, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() }
             : d
         ));
       }

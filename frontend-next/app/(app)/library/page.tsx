@@ -458,7 +458,7 @@ export default function LibraryPage() {
       const res = await api.post<{ success: boolean; document: LibraryDocument }>(`/api/v1/documents/${doc.id}/verify`);
       if (res?.success) {
         toast({ title: "Verified", description: "Document has been validated" });
-        setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() } : d));
+        setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, ...res.document, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() } : d));
       }
     } catch (error) {
       toast({ title: "Verify Failed", description: "Could not verify document", variant: "destructive" });

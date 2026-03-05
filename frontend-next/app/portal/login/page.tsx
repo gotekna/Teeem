@@ -47,7 +47,11 @@ function PortalLoginContent() {
 
         if (data?.success && data.user) {
           setStorageItem(STORAGE_KEYS.PORTAL_USER, data.user);
-          router.push("/portal/dashboard");
+          const portalType = data.user?.portal_type;
+          const redirectTo = (portalType === "tenant" || portalType === "owner")
+            ? "/portal/property"
+            : "/portal/dashboard";
+          router.push(redirectTo);
         } else {
           setError("Invalid or expired token");
           setLoading(false);
@@ -80,8 +84,12 @@ function PortalLoginContent() {
         setStorageItem(STORAGE_KEYS.PORTAL_TOKEN, data.token);
         setStorageItem(STORAGE_KEYS.PORTAL_USER, data.user);
 
-        // Redirect to dashboard
-        router.push("/portal/dashboard");
+        // Redirect based on portal type
+        const portalType = data.user?.portal_type;
+        const redirectTo = (portalType === "tenant" || portalType === "owner")
+          ? "/portal/property"
+          : "/portal/dashboard";
+        router.push(redirectTo);
       } else {
         setError(data.error || "Login failed");
       }
@@ -100,7 +108,7 @@ function PortalLoginContent() {
             TEEEM Portal
           </h1>
           <p className="mt-2 text-center text-sm text-muted-foreground dark:text-muted-foreground">
-            Subcontractor Access
+            Secure Portal Access
           </p>
         </div>
 
@@ -168,7 +176,7 @@ function PortalLoginContent() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground dark:text-muted-foreground">
-          This portal is for authorized subcontractors only
+          This portal is for authorized users only
         </p>
       </div>
     </div>
