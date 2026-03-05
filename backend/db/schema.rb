@@ -8177,6 +8177,16 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["tenant_id"], name: "index_property_inspections_on_tenant_id"
   end
 
+  create_table "property_settings", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "xero_credential_id"
+    t.string "trading_name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id"], name: "index_property_settings_on_tenant_id", unique: true
+    t.index ["xero_credential_id"], name: "index_property_settings_on_xero_credential_id"
+  end
+
   create_table "property_statuses", force: :cascade do |t|
     t.bigint "tenant_id", null: false
     t.string "name", null: false
@@ -12881,6 +12891,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "property_inspections", "contacts", column: "inspector_contact_id"
   add_foreign_key "property_inspections", "properties"
   add_foreign_key "property_inspections", "tenancies"
+  add_foreign_key "property_settings", "tenants"
+  add_foreign_key "property_settings", "xero_credentials"
   add_foreign_key "public_holidays", "tenants"
   add_foreign_key "purchase_order_documents", "document_tasks"
   add_foreign_key "purchase_order_documents", "purchase_orders"

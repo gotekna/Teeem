@@ -1418,6 +1418,8 @@ Rails.application.routes.draw do
       # ============================================
       # Property Management
       # ============================================
+      resource :property_settings, only: [:show, :update]
+
       resources :properties do
         collection do
           get :for_select

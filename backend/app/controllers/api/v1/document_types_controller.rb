@@ -483,6 +483,7 @@ module Api
           when 'job' then 'job'
           when 'contact' then 'contacts'
           when 'library' then 'library'
+          when 'property' then 'property'
           else 'company'
           end
         else
