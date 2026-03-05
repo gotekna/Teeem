@@ -77,8 +77,8 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   // e.g. /admin/system/warehouse-config/document_types/job -> "job"
   const pathParts = pathname.split("/");
   const lastPart = pathParts[pathParts.length - 1];
-  const validScopes = ["company", "job", "contacts", "library"];
-  const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" | "library" : "all";
+  const validScopes = ["company", "job", "contacts", "property", "library"];
+  const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" | "property" | "library" : "all";
 
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -99,6 +99,9 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
     }
     if (scopeFilter === "library") {
       return documentTypes.filter(dt => dt.scope === "library");
+    }
+    if (scopeFilter === "property") {
+      return documentTypes.filter(dt => dt.scope === "property");
     }
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
@@ -333,6 +336,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
             <SelectItem value="company">Corporate</SelectItem>
             <SelectItem value="job">Job</SelectItem>
             <SelectItem value="contacts">Contacts</SelectItem>
+            <SelectItem value="property">Property</SelectItem>
             <SelectItem value="library">Library</SelectItem>
             <SelectItem value="both">Both</SelectItem>
           </SelectContent>
@@ -473,13 +477,13 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       <div className="shrink-0 mb-4">
         <h2 className="text-lg font-semibold">Document Types & Naming Conventions</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Single source of truth for document types across Corporate, Jobs, Contacts, and Library. Click any cell to edit.
+          Single source of truth for document types across Corporate, Jobs, Contacts, Property, and Library. Click any cell to edit.
         </p>
       </div>
 
       {/* Scope Filter Tabs */}
       <Tabs expandKey="document-types-tabs" value={scopeFilter} onValueChange={handleScopeChange} className="flex flex-col flex-1 min-h-0">
-        <TabsList className="grid w-full grid-cols-5 max-w-3xl shrink-0">
+        <TabsList className="grid w-full grid-cols-6 max-w-4xl shrink-0">
           <TabsTrigger value="all">
             All ({documentTypes.length})
           </TabsTrigger>
@@ -491,6 +495,9 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           </TabsTrigger>
           <TabsTrigger value="contacts">
             Contacts ({documentTypes.filter(dt => dt.scope === "contacts").length})
+          </TabsTrigger>
+          <TabsTrigger value="property">
+            Property ({documentTypes.filter(dt => dt.scope === "property").length})
           </TabsTrigger>
           <TabsTrigger value="library">
             Library ({documentTypes.filter(dt => dt.scope === "library").length})
