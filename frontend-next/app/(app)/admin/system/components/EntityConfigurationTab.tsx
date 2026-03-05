@@ -106,6 +106,16 @@ const scopes = [
     isEntityTab: true,
     showTabGroups: false,
   },
+  {
+    id: "property",
+    label: "Property Management",
+    icon: Building2,
+    showEntityFilters: false,
+    showSharePointPaths: true,
+    showDocumentTypes: true,
+    isEntityTab: true,
+    showTabGroups: false,
+  },
   // SSoT: Email, Warehouse, Task scopes are configured in Storage Config, not here
   {
     id: "email_config",
@@ -148,6 +158,7 @@ const SCOPE_LABELS: Record<string, string> = {
   warehouse_folders: "Warehouse Folders",
   warehouse_tables: "Warehouse Tables",
   library: "Library",
+  property: "Property Management",
   email_config: "Email Config",
   sync: "Sync",
   tab_rules: "Tab Rules",
@@ -273,7 +284,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
                 <WarehouseFoldersConfig
-                  scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task" | "library"}
+                  scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task" | "library" | "property"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}
                   showDocumentTypes={scope.showDocumentTypes}
