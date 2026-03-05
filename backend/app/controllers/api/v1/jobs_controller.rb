@@ -592,46 +592,48 @@ module Api
           doc_children = parent_tab.children.where(enabled: true, tab_type: "document")
 
           # Photo sub-tab counts (e.g., Photo → Site (5), Slab (3))
+          # Counts by warehouse_folder_id (new uploads) AND folder_path matching
+          # (synced/older photos that only have folder_path set)
           if photo_children.any?
-            photo_folder_ids = photo_children.pluck(:id)
-            grandchild_ids = WarehouseFolder.where(parent_id: photo_folder_ids).pluck(:id)
-            all_folder_ids = photo_folder_ids + grandchild_ids
+            base_scope = WarehouseDocument.where(linkable_type: "Job", linkable_id: @job.id)
+            photo_total = 0
 
-            # Per-child counts for sub-tab badges
-            child_counts = WarehouseDocument.where(
-              warehouse_folder_id: photo_folder_ids,
-              linkable_type: "Job",
-              linkable_id: @job.id
-            ).group(:warehouse_folder_id).count
-            folder_id_to_tab_key = photo_children.pluck(:id, :tab_key).to_h
-            child_counts.each do |folder_id, c|
-              tab_key = folder_id_to_tab_key[folder_id]
-              counts[tab_key] = c if tab_key && c > 0
+            photo_children.each do |child|
+              child_folder_ids = [child.id] + WarehouseFolder.where(parent_id: child.id).pluck(:id)
+              name_pattern = "%#{WarehouseDocument.sanitize_sql_like(child.name.downcase)}%"
+
+              count = base_scope.where(
+                "warehouse_folder_id IN (?) OR (warehouse_folder_id IS NULL AND LOWER(folder_path) LIKE ?)",
+                child_folder_ids,
+                name_pattern
+              ).count
+
+              counts[child.tab_key] = count if count > 0
+              photo_total += count
             end
 
-            # Parent total (all photos including grandchildren)
-            total_count = WarehouseDocument.where(
-              warehouse_folder_id: all_folder_ids,
-              linkable_type: "Job",
-              linkable_id: @job.id
-            ).count
-            parent_counts[parent_tab.tab_key] = total_count if total_count > 0
+            parent_counts[parent_tab.tab_key] = photo_total if photo_total > 0
 
           # Document sub-tab counts (e.g., Documents → Plans (12), Contracts (3))
+          # Same dual-matching strategy: warehouse_folder_id OR folder_path fallback
           elsif doc_children.any?
-            doc_folder_ids = doc_children.pluck(:id)
-            doc_child_counts = WarehouseDocument.where(
-              warehouse_folder_id: doc_folder_ids,
-              linkable_type: "Job",
-              linkable_id: @job.id
-            ).group(:warehouse_folder_id).count
-            doc_folder_to_tab = doc_children.pluck(:id, :tab_key).to_h
+            base_scope = WarehouseDocument.where(linkable_type: "Job", linkable_id: @job.id)
             doc_total = 0
-            doc_child_counts.each do |folder_id, c|
-              tab_key = doc_folder_to_tab[folder_id]
-              counts[tab_key] = c if tab_key && c > 0
-              doc_total += c
+
+            doc_children.each do |child|
+              child_folder_ids = [child.id] + WarehouseFolder.where(parent_id: child.id).pluck(:id)
+              name_pattern = "%#{WarehouseDocument.sanitize_sql_like(child.name.downcase)}%"
+
+              count = base_scope.where(
+                "warehouse_folder_id IN (?) OR (warehouse_folder_id IS NULL AND LOWER(folder_path) LIKE ?)",
+                child_folder_ids,
+                name_pattern
+              ).count
+
+              counts[child.tab_key] = count if count > 0
+              doc_total += count
             end
+
             parent_counts[parent_tab.tab_key] = doc_total if doc_total > 0
           end
         end
