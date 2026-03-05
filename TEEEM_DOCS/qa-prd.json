@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260305",
     "started_at": "2026-03-05T12:10:35.189Z",
     "completed_at": null,
-    "last_updated": "2026-03-05T21:01:42.898Z",
-    "iteration": 3,
+    "last_updated": "2026-03-05T21:10:06.499Z",
+    "iteration": 4,
     "ship_ready": false,
     "total_pages": 199,
     "total_stories": 19
@@ -1051,7 +1051,7 @@
       "title": "Personal Settings",
       "icon": "save",
       "description": "Profile, Notifications, Security, Preferences",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/settings/profile",
         "/settings/notifications",
@@ -1066,14 +1066,67 @@
         "Security shows password and 2FA options",
         "Preferences loads"
       ],
-      "page_results": {}
+      "page_results": {
+        "/settings/profile": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsProfile",
+            "url": "/settings/profile",
+            "title": "Profile | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/notifications": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsNotifications",
+            "url": "/settings/notifications",
+            "title": "Notifications | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/security": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsSecurity",
+            "url": "/settings/security",
+            "title": "Security | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/preferences": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsPreferences",
+            "url": "/settings/preferences",
+            "title": "Preferences | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-SETTINGS-COMPANY",
       "title": "Company Settings",
       "icon": "save",
       "description": "Company settings with 9 tabs and their sub-tabs",
-      "status": "pending",
+      "status": "in_progress",
       "page_manifest": [
         "/settings/company",
         "/settings/company/info",
@@ -1129,7 +1182,216 @@
         "Warehouse Config sub-tabs load",
         "URL updates when clicking sub-tabs"
       ],
-      "page_results": {}
+      "page_results": {
+        "/settings/company": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyInfo",
+            "url": "/settings/company/info",
+            "title": "Info | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/info": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyInfo",
+            "url": "/settings/company/info",
+            "title": "Info | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/brand-colors": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyBrand Colors",
+            "url": "/settings/company/brand-colors",
+            "title": "Brand Colors | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/documents": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyDocumentsDocument Types",
+            "url": "/settings/company/documents/types",
+            "title": "Document Types | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/holidays": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyHolidays",
+            "url": "/settings/company/holidays",
+            "title": "Holidays | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/workflows": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyWorkflows",
+            "url": "/settings/company/workflows",
+            "title": "Workflows | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/job-setup": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyJob SetupLists",
+            "url": "/settings/company/job-setup/lists",
+            "title": "Lists | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/job-setup/types": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyJob SetupDocument Types",
+            "url": "/settings/company/job-setup/types",
+            "title": "Document Types | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/job-setup/statuses": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyJob SetupStatuses",
+            "url": "/settings/company/job-setup/statuses",
+            "title": "Statuses | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/job-setup/stages": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyJob SetupStages",
+            "url": "/settings/company/job-setup/stages",
+            "title": "Stages | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/job-setup/suburbs": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyJob SetupSuburbs",
+            "url": "/settings/company/job-setup/suburbs",
+            "title": "Suburbs | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/job-setup/workflow": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyJob SetupWorkflow",
+            "url": "/settings/company/job-setup/workflow",
+            "title": "Workflow | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/warehouse-config": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyWarehouse ConfigWarehouse Folders",
+            "url": "/settings/company/warehouse-config/warehouse_folders",
+            "title": "Warehouse Folders | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/warehouse-config/corporate": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyWarehouse ConfigCorporate",
+            "url": "/settings/company/warehouse-config/corporate",
+            "title": "Corporate | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/warehouse-config/jobs": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyWarehouse ConfigJobs",
+            "url": "/settings/company/warehouse-config/jobs",
+            "title": "Jobs | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/warehouse-config/contacts": {
+          "status": "passed",
+          "tested_at": "2026-03-05T21:10:06.499Z",
+          "iteration": 4,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyWarehouse ConfigContacts",
+            "url": "/settings/company/warehouse-config/contacts",
+            "title": "Contacts | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-SETTINGS-CONNECTIONS",

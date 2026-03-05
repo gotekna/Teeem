@@ -13,7 +13,6 @@ import {
   Shield,
   ShieldOff,
   KeyRound,
-  Link2,
   Copy,
   Eye,
   EyeOff,
@@ -196,12 +195,14 @@ function PortalAccountCard({
   const [showPassword, setShowPassword] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
 
-  // Pre-fill email when contact changes
+  // Pre-fill email when contact changes or when form opens
   useEffect(() => {
     if (contact?.email) {
       setEnableEmail(contact.email);
+    } else {
+      setEnableEmail("");
     }
-  }, [contact?.email]);
+  }, [contact?.email, contact?.id]);
 
   const hasPortal = contact?.portal_enabled && contact?.portal_active;
 
@@ -336,9 +337,9 @@ function PortalAccountCard({
         {/* Contact Info */}
         <div className="space-y-1">
           <p className="text-sm font-medium">{contact.display_name}</p>
-          {contact.email && (
-            <p className="text-xs text-muted-foreground">{contact.email}</p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            {contact.email || <span className="text-amber-600 dark:text-amber-400">No email on file</span>}
+          </p>
           {contact.last_login_at && (
             <p className="text-xs text-muted-foreground">
               Last login: {new Date(contact.last_login_at).toLocaleDateString("en-AU", {
@@ -389,9 +390,14 @@ function PortalAccountCard({
                 type="email"
                 value={enableEmail}
                 onChange={(e) => setEnableEmail(e.target.value)}
-                placeholder="email@example.com"
+                placeholder={contact?.email || "email@example.com"}
                 className="h-8 text-sm"
               />
+              {!contact?.email && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  No email on file for this contact. Enter an email address above.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -507,12 +513,13 @@ function PortalEmbedTab({
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [enabling, setEnabling] = useState(false);
 
   const label = portalType === "owner" ? "Owner" : "Tenant";
   const hasPortal = contact?.portal_enabled && contact?.portal_active;
 
   const loadPortal = useCallback(async () => {
-    if (!contact || !hasPortal) return;
+    if (!contact) return;
     setLoading(true);
     setError(null);
     try {
@@ -530,7 +537,51 @@ function PortalEmbedTab({
     } finally {
       setLoading(false);
     }
-  }, [contact, hasPortal]);
+  }, [contact]);
+
+  // Quick-enable portal and immediately load preview
+  const enableAndPreview = useCallback(async () => {
+    if (!contact) return;
+    setEnabling(true);
+    setError(null);
+    try {
+      // Generate a random password
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+      let pwd = "";
+      for (let i = 0; i < 12; i++) {
+        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      const email = contact.email || `${contact.display_name?.replace(/\s+/g, ".").toLowerCase()}@portal.teeem.au`;
+
+      const res = await api.post<{ success: boolean; portal_user?: unknown; error?: string }>(
+        `/api/v1/contacts/portal_users/${contact.id}`,
+        { portal_type: portalType, email, password: pwd }
+      );
+      if (res?.success) {
+        toast({
+          title: "Portal enabled",
+          description: `Portal access created for ${contact.display_name}. Loading preview...`,
+        });
+        // Now impersonate and show the portal
+        const impRes = await api.post<{ success: boolean; token?: string; error?: string }>(
+          `/api/v1/portal/auth/impersonate/${contact.id}`
+        );
+        if (impRes?.success && impRes.token) {
+          const url = `${window.location.origin}/portal/login?token=${impRes.token}&embed=1`;
+          setIframeUrl(url);
+        } else {
+          setError("Portal enabled but failed to load preview. Refresh the page and try again.");
+        }
+      } else {
+        setError(res?.error || "Failed to enable portal");
+      }
+    } catch {
+      setError("Failed to enable portal access");
+    } finally {
+      setEnabling(false);
+    }
+  }, [contact, portalType, toast]);
 
   // Auto-load on mount if portal is available
   useEffect(() => {
@@ -539,23 +590,49 @@ function PortalEmbedTab({
     }
   }, [hasPortal, iframeUrl, loading, error, loadPortal]);
 
+  // No contact at all — show portal login page as a UI demo
   if (!contact) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-muted p-3 mb-4">
-          {portalType === "owner" ? <User className="h-6 w-6 text-muted-foreground" /> : <Users className="h-6 w-6 text-muted-foreground" />}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Portal preview — {portalType === "owner"
+              ? "assign an owner contact to enable full access"
+              : "add a tenant contact to enable full access"}
+          </p>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => window.open(`${window.location.origin}/portal/login`, "_blank")}
+          >
+            <ExternalLink className="h-3 w-3 mr-1" />
+            Open in New Tab
+          </Button>
         </div>
-        <h3 className="text-lg font-semibold mb-1">No {label} Contact</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          {portalType === "owner"
-            ? "Assign an owner contact to this property first."
-            : "Add a tenant contact to this property first."}
-        </p>
+        <div className="border rounded-lg overflow-hidden bg-white dark:bg-card" style={{ height: "calc(100vh - 320px)", minHeight: "500px" }}>
+          <iframe
+            src={`${window.location.origin}/portal/login`}
+            className="w-full h-full border-0"
+            title={`${label} Portal Preview`}
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+          />
+        </div>
       </div>
     );
   }
 
+  // Contact exists but no portal account — offer Enable & Preview
   if (!hasPortal) {
+    if (enabling) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Spinner className="mb-4" />
+          <p className="text-sm text-muted-foreground">Enabling portal and loading preview...</p>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="rounded-full bg-muted p-3 mb-4">
@@ -565,10 +642,19 @@ function PortalEmbedTab({
         <p className="text-sm text-muted-foreground mb-4">
           {contact.display_name} doesn&apos;t have an active portal account yet.
         </p>
-        <Button size="sm" onClick={onSwitchToSetup}>
-          <Shield className="h-3.5 w-3.5 mr-1.5" />
-          Go to Setup
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={enableAndPreview}>
+            <Eye className="h-3.5 w-3.5 mr-1.5" />
+            Enable &amp; Preview
+          </Button>
+          <Button size="sm" variant="outline" onClick={onSwitchToSetup}>
+            <Shield className="h-3.5 w-3.5 mr-1.5" />
+            Setup Manually
+          </Button>
+        </div>
+        {error && (
+          <p className="text-sm text-destructive mt-4">{error}</p>
+        )}
       </div>
     );
   }
