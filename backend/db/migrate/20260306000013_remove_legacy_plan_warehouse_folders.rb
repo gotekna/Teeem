@@ -19,10 +19,12 @@ class RemoveLegacyPlanWarehouseFolders < ActiveRecord::Migration[8.0]
     end
 
     # 2. Remove FK columns from tables that reference plan_types/plan_categories
-    remove_column :job_plans, :plan_type_id, if_exists: true
-    remove_column :job_plan_tabs, :plan_category_id, if_exists: true
-    remove_column :sm_schedule_masters, :plan_type_ids, if_exists: true
-    remove_column :sm_template_rows, :plan_type_ids, if_exists: true
+    # Guard each with table_exists? — some tables may have been dropped by earlier migrations
+    remove_column :job_plans, :plan_type_id, if_exists: true if table_exists?(:job_plans)
+    remove_column :job_plan_tabs, :plan_category_id, if_exists: true if table_exists?(:job_plan_tabs)
+    remove_column :sm_schedule_masters, :plan_type_ids, if_exists: true if table_exists?(:sm_schedule_masters)
+    remove_column :sm_template_rows, :plan_type_ids, if_exists: true if table_exists?(:sm_template_rows)
+    remove_column :sm_tasks, :plan_type_ids, if_exists: true if table_exists?(:sm_tasks)
 
     # 3. Drop all legacy plan tables (order matters for FKs)
     drop_table :plan_identification_rules, if_exists: true
