@@ -1,7 +1,8 @@
 module Api
   module V1
     class PermissionsController < ApplicationController
-      before_action :require_admin
+      before_action :require_admin, except: [ :index, :sections, :user_permissions ]
+      before_action -> { require_permission("settings", :view_all) }, only: [ :index, :sections, :user_permissions ]
 
       # GET /api/v1/permissions
       # Returns section-based permission data from PermissionSection table (DB-driven)

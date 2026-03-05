@@ -1,6 +1,7 @@
 class ApplicationController < ActionController::API
   include ActionController::Cookies
   include SsotAuthorization
+  include Permissible
 
   # Multi-tenancy: Set up tenant scoping
   set_current_tenant_through_filter

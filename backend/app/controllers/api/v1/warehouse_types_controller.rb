@@ -368,19 +368,30 @@ module Api
         counts = {}
         parent_counts = {}
 
-        # Collect all child folder IDs for a single batched query
-        all_child_folders = []
-        parent_folders.each do |parent|
-          enabled_children = parent.children.select(&:enabled)
-          all_child_folders.concat(enabled_children)
-        end
+        if combined_ids.any?
+          # Collect all relevant folder IDs for a single batched query
+          all_child_folders = []
+          leaf_parent_ids = []  # Parent tabs with no children (act as leaf tabs)
 
-        if all_child_folders.any? && combined_ids.any?
+          parent_folders.each do |parent|
+            enabled_children = parent.children.select(&:enabled)
+            if enabled_children.any?
+              all_child_folders.concat(enabled_children)
+            else
+              # Parent tab with no children — count docs directly in this folder
+              leaf_parent_ids << parent.id
+            end
+          end
+
+          # Build complete list of folder IDs to query
           child_ids = all_child_folders.map(&:id)
+          sub_folder_ids = child_ids.any? ? WarehouseFolder.where(parent_id: child_ids).pluck(:id) : []
+          # Also get descendant folders of leaf parents (documents may be in sub-folders)
+          leaf_descendant_ids = leaf_parent_ids.any? ? WarehouseFolder.where(parent_id: leaf_parent_ids).pluck(:id) : []
+          # And one more level for deeply nested (e.g., contact financial → xero → bills)
+          deep_descendant_ids = leaf_descendant_ids.any? ? WarehouseFolder.where(parent_id: leaf_descendant_ids).pluck(:id) : []
 
-          # Also include sub-folders (grandchildren)
-          sub_folder_ids = WarehouseFolder.where(parent_id: child_ids).pluck(:id)
-          all_folder_ids = child_ids + sub_folder_ids
+          all_folder_ids = (child_ids + sub_folder_ids + leaf_parent_ids + leaf_descendant_ids + deep_descendant_ids).uniq
 
           # Single batched COUNT query
           folder_counts = WarehouseDocument
@@ -394,25 +405,53 @@ module Api
             .pluck(:id, :parent_id)
             .to_h
 
+          # Map leaf descendants back to their leaf parent
+          leaf_desc_to_parent = {}
+          WarehouseFolder.where(parent_id: leaf_parent_ids).pluck(:id, :parent_id).each do |id, pid|
+            leaf_desc_to_parent[id] = pid
+          end
+          WarehouseFolder.where(parent_id: leaf_descendant_ids).pluck(:id, :parent_id).each do |id, pid|
+            # Map deep descendants to the original leaf parent
+            leaf_desc_to_parent[id] = leaf_desc_to_parent[pid] || pid
+          end
+
           child_totals = Hash.new(0)
+          leaf_totals = Hash.new(0)
+
           folder_counts.each do |folder_id, count|
-            parent_id = sub_to_parent[folder_id] || folder_id
-            child_totals[parent_id] += count
+            if sub_to_parent[folder_id]
+              # Sub-folder of a child tab
+              child_totals[sub_to_parent[folder_id]] += count
+            elsif child_ids.include?(folder_id)
+              # Direct child folder
+              child_totals[folder_id] += count
+            elsif leaf_desc_to_parent[folder_id]
+              # Descendant of a leaf parent
+              leaf_totals[leaf_desc_to_parent[folder_id]] += count
+            elsif leaf_parent_ids.include?(folder_id)
+              # Direct leaf parent
+              leaf_totals[folder_id] += count
+            end
           end
 
           # Build counts keyed by tab_key, and parent totals
           parent_folders.each do |parent|
             enabled_children = parent.children.select(&:enabled)
-            tab_total = 0
-            enabled_children.each do |child|
-              count = child_totals[child.id]
-              counts[child.tab_key] = count  # Always include (even 0)
-              tab_total += count
+            if enabled_children.any?
+              tab_total = 0
+              enabled_children.each do |child|
+                count = child_totals[child.id]
+                counts[child.tab_key] = count  # Always include (even 0)
+                tab_total += count
+              end
+              parent_counts[parent.tab_key] = tab_total
+            else
+              # Leaf parent — total is docs in this folder and its descendants
+              parent_counts[parent.tab_key] = leaf_totals[parent.id]
             end
-            parent_counts[parent.tab_key] = tab_total
           end
         else
-          # No documents or no folders - still return 0s
+          # No documents — return 0s for all tabs
           parent_folders.each do |parent|
             enabled_children = parent.children.select(&:enabled)
             enabled_children.each do |child|

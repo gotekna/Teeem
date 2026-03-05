@@ -135,6 +135,8 @@ interface ContactTabsRendererProps {
   membershipsCount: number;
   caseRelationshipsCount: number;
   emailsCount?: number;
+  /** Document counts per tab_key from useDocumentCounts */
+  documentCounts?: Record<string, number>;
 }
 
 export function ContactTabsRenderer({
@@ -151,6 +153,7 @@ export function ContactTabsRenderer({
   membershipsCount,
   caseRelationshipsCount,
   emailsCount,
+  documentCounts,
 }: ContactTabsRendererProps) {
   // Build visibility data object
   const visibilityData: TabVisibilityData = {
@@ -178,6 +181,8 @@ export function ContactTabsRenderer({
         if (!isVisible) return null;
 
         const badgeCount = getTabBadgeCount(tab.tab_key, visibilityData);
+        // Check document counts for tabs that have warehouse folder documents
+        const docCount = documentCounts?.[tab.tab_key];
         const showLock = !contact.can_view_confidential && (tab.tab_key === "corporate" || tab.tab_key === "financial");
 
         // Get icon
@@ -193,6 +198,11 @@ export function ContactTabsRenderer({
               <Badge variant="secondary" className="ml-1.5">
                 {badgeCount}
               </Badge>
+            )}
+            {badgeCount === null && docCount != null && (
+              <span className="text-xs text-muted-foreground ml-0.5">
+                ({docCount})
+              </span>
             )}
             {showLock && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>

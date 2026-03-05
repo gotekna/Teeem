@@ -119,12 +119,14 @@ export default function ContactsPageClient({
   const leftActions = (
     <div className="flex items-center gap-2">
       <BackButton fallbackHref="/dashboard" />
-      <Button asChild data-tour="contacts-add">
-        <Link href="/contacts/new">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Contact
-        </Link>
-      </Button>
+      <PermissionGate permission="contacts" level={PERMISSION_LEVELS.EDIT}>
+        <Button asChild data-tour="contacts-add">
+          <Link href="/contacts/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Contact
+          </Link>
+        </Button>
+      </PermissionGate>
     </div>
   );
 
