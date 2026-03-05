@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260305",
     "started_at": "2026-03-05T12:10:35.189Z",
     "completed_at": null,
-    "last_updated": "2026-03-05T12:10:35.189Z",
-    "iteration": 0,
+    "last_updated": "2026-03-06T10:00:00.000Z",
+    "iteration": 1,
     "ship_ready": false,
     "total_pages": 199,
     "total_stories": 19
@@ -32,7 +32,7 @@
       "title": "Dashboard, Sidebar & Header",
       "icon": "layout-list",
       "description": "Core navigation shell: dashboard, sidebar links, header icons, modals",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/dashboard",
         "/tasks",
@@ -86,14 +86,67 @@
         "Sidebar navigation has all expected links",
         "Header bar has all 11 interactive elements"
       ],
-      "page_results": {}
+      "page_results": {
+        "/dashboard": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Dashboard > OverviewAi Joshua",
+            "url": "/dashboard/ai-joshua",
+            "title": "Ai Joshua | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/tasks": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Tasks",
+            "url": "/tasks",
+            "title": "Tasks | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/agent-tasks": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Agent Tasks",
+            "url": "/agent-tasks",
+            "title": "Agent Tasks | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/notebooks": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Notebooks",
+            "url": "/notebooks",
+            "title": "Notebooks | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-JOBS",
       "title": "Jobs List & Detail",
       "icon": "clipboard-check",
       "description": "Jobs list page and all job detail tabs",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/jobs",
         "/jobs/new",
@@ -106,14 +159,55 @@
         "Job detail tabs all load content",
         "New job form renders with required fields"
       ],
-      "page_results": {}
+      "page_results": {
+        "/jobs": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "JobsLive",
+            "url": "/jobs/view/live",
+            "title": "Jobs | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": false
+          }
+        },
+        "/jobs/new": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "JobsNew Job",
+            "url": "/jobs/new",
+            "title": "New Job | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/jobs/photos": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "JobsPhotos",
+            "url": "/jobs/photos",
+            "title": "Photos | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-CONTACTS",
       "title": "Contacts List & Detail",
       "icon": "clipboard-check",
       "description": "Contacts list, new contact, duplicates, quality review",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/contacts",
         "/contacts/new",
@@ -128,14 +222,68 @@
         "Duplicates page shows duplicate pairs",
         "Quality review page loads"
       ],
-      "page_results": {}
+      "page_results": {
+        "/contacts": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "ContactsAll 1",
+            "url": "/contacts/view/all-1",
+            "title": "Contacts | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": false
+          }
+        },
+        "/contacts/new": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "ContactsNew Contact",
+            "url": "/contacts/new",
+            "title": "New Contact | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/contacts/duplicates": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "ContactsDuplicates",
+            "url": "/contacts/duplicates",
+            "title": "Duplicates | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/contacts/quality-review": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "ContactsQuality Review",
+            "url": "/contacts/quality-review",
+            "title": "Quality Review | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-PO",
       "title": "Purchase Orders",
       "icon": "clipboard-check",
       "description": "PO list, new PO form",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/purchase_orders",
         "/purchase_orders/new"
@@ -146,14 +294,42 @@
         "PO list loads with records in TeeemTableView",
         "New PO form renders with required fields"
       ],
-      "page_results": {}
+      "page_results": {
+        "/purchase_orders": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Purchase OrdersAll Pos",
+            "url": "/purchase_orders/view/all-pos",
+            "title": "Purchase Orders | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": false
+          }
+        },
+        "/purchase_orders/new": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Purchase OrdersNew PO",
+            "url": "/purchase_orders/new",
+            "title": "New PO | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-PRICEBOOK",
       "title": "Pricebook, Recipes & Estimates",
       "icon": "database",
       "description": "Pricebook items, colour swatches, health, recipes, estimates, price histories",
-      "status": "pending",
+      "status": "in_progress",
       "page_manifest": [
         "/pricebook",
         "/pricebook/colour-swatches",
@@ -171,7 +347,95 @@
         "Estimates list loads",
         "Price histories loads"
       ],
-      "page_results": {}
+      "page_results": {
+        "/pricebook": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "PricebookCategory",
+            "url": "/pricebook/view/category",
+            "title": "Pricebook | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": false
+          }
+        },
+        "/pricebook/colour-swatches": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "PricebookColour Swatches",
+            "url": "/pricebook/colour-swatches",
+            "title": "Colour Swatches | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/pricebook/health": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "PricebookHealth",
+            "url": "/pricebook/health",
+            "title": "Health | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/recipes": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "RecipesSetup",
+            "url": "/recipes/view/setup",
+            "title": "Recipes | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": false
+          }
+        },
+        "/estimates": {
+          "status": "passed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "EstimatesSetup",
+            "url": "/estimates/view/setup",
+            "title": "Estimates | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": false
+          }
+        },
+        "/price_histories": {
+          "status": "failed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Price HistoriesSetup",
+            "url": "/price_histories/view/setup",
+            "title": "Price Histories | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": {
+              "rowCount": 30,
+              "scrollHeight": 574,
+              "clientHeight": 574
+            }
+          },
+          "finding_id": "finding-001"
+        }
+      }
     },
     {
       "id": "US-FINANCE",
@@ -624,5 +888,22 @@
       "page_results": {}
     }
   ],
-  "findings": []
+  "findings": [
+    {
+      "id": "finding-001",
+      "severity": "major",
+      "category": "scroll-blocked",
+      "user_story_id": "US-PRICEBOOK",
+      "page": "/price_histories",
+      "description": "Price Histories table has 30 rows but scroll container cannot scroll (scrollHeight=574, clientHeight=574). Users cannot access all rows.",
+      "console_errors": [],
+      "probable_file": "frontend-next/app/(app)/price_histories/page.tsx",
+      "fix_hint": "Missing min-h-0 on flex parent of TeeemTableView. CSS default min-height:auto on flex items prevents the scroll container from being bounded.",
+      "status": "open",
+      "found_at": "2026-03-06T10:00:00Z",
+      "found_iteration": 1,
+      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001-snapshot.txt",
+      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001.png"
+    }
+  ]
 }

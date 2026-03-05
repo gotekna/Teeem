@@ -3624,6 +3624,7 @@ Rails.application.routes.draw do
         end
         member do
           post :toggle
+          post :toggle_global
         end
       end
 

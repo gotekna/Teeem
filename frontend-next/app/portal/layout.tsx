@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   HomeIcon,
   DocumentTextIcon,
@@ -35,9 +35,25 @@ interface PortalUser {
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [portalUser, setPortalUser] = useState<PortalUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEmbedMode, setIsEmbedMode] = useState(false);
+
+  useEffect(() => {
+    // Check for embed mode from URL param or localStorage
+    const embedParam = searchParams.get("embed");
+    if (embedParam === "1") {
+      setIsEmbedMode(true);
+      // Persist so it survives navigation within the portal
+      try { sessionStorage.setItem("portal_embed", "1"); } catch {}
+    } else {
+      try {
+        setIsEmbedMode(sessionStorage.getItem("portal_embed") === "1");
+      } catch {}
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     // Load portal user from localStorage
@@ -90,6 +106,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   // Show loading state while checking auth
   if (isLoading || !portalUser) {
     return null;
+  }
+
+  // Embed mode: no sidebar/header, just content
+  if (isEmbedMode) {
+    return (
+      <ConfirmationProvider>
+        <div className="min-h-screen bg-muted dark:bg-background">
+          <main className="py-4 px-4 sm:px-6">
+            {children}
+          </main>
+          <Toaster />
+        </div>
+      </ConfirmationProvider>
+    );
   }
 
   return (

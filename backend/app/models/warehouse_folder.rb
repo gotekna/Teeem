@@ -584,6 +584,7 @@ class WarehouseFolder < ApplicationRecord
       uses_custom_path: uses_custom_path,
       warehouse_type_override: warehouse_type_override,
       path_preview: path_preview,
+      is_global: tenant_id.nil?,
       is_photo_category: is_photo_category,
       is_cad_category: is_cad_category,
       can_delete: can_delete?,

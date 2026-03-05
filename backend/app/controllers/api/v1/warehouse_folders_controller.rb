@@ -106,6 +106,28 @@ module Api
         }
       end
 
+      # POST /api/v1/warehouse_folders/:id/toggle_global
+      # Toggles between global (tenant_id=NULL) and tenant-specific
+      def toggle_global
+        @warehouse_folder = WarehouseFolder.find(params[:id])
+
+        unless current_user&.teeem_staff?
+          return render_error("Only Teeem staff can change global scope", status: :forbidden)
+        end
+
+        ActsAsTenant.without_tenant do
+          new_tenant_id = @warehouse_folder.tenant_id.nil? ? current_tenant.id : nil
+          @warehouse_folder.update_column(:tenant_id, new_tenant_id)
+          @warehouse_folder.reload
+        end
+
+        render json: {
+          success: true,
+          data: @warehouse_folder.as_nested_json,
+          message: "Folder is now #{@warehouse_folder.tenant_id.nil? ? 'global' : 'tenant-specific'}"
+        }
+      end
+
       # GET /api/v1/warehouse_folders/all_scopes
       # FRC (Feb 2026): Replaces 15 parallel GET /api/v1/warehouse_folders?scope=X requests
       # that were causing H12 timeouts on staging (single dyno overwhelmed).

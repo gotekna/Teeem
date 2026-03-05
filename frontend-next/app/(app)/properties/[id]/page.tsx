@@ -37,6 +37,7 @@ import {
   Save,
   X,
   ClipboardCheck,
+  ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -46,6 +47,7 @@ import { CreateBillDialog } from "@/components/properties/CreateBillDialog";
 import { CreateInspectionDialog } from "@/components/properties/CreateInspectionDialog";
 import { AddPropertyContactDialog } from "@/components/properties/AddPropertyContactDialog";
 import { PropertyInspectionsTab } from "@/components/properties/PropertyInspectionsTab";
+import { PropertyPortalTab } from "@/components/properties/PropertyPortalTab";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import EntityDocumentListTab from "@/components/documents/EntityDocumentListTab";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
@@ -74,7 +76,16 @@ interface Property {
   bond_amount: number | null;
   property_type?: { id: number; name: string } | null;
   property_status?: { id: number; name: string; color: string } | null;
-  owner_contact?: { id: number; display_name: string; email?: string; phone?: string } | null;
+  owner_contact?: {
+    id: number;
+    display_name: string;
+    email?: string;
+    phone?: string;
+    portal_enabled?: boolean;
+    portal_type?: string | null;
+    portal_active?: boolean | null;
+    last_login_at?: string | null;
+  } | null;
   managing_agent_contact?: { id: number; display_name: string; email?: string; phone?: string } | null;
 }
 
@@ -126,7 +137,16 @@ interface PropertyContact {
   is_primary: boolean;
   start_date: string | null;
   end_date: string | null;
-  contact: { id: number; display_name: string; email?: string; phone?: string };
+  contact: {
+    id: number;
+    display_name: string;
+    email?: string;
+    phone?: string;
+    portal_enabled?: boolean;
+    portal_type?: string | null;
+    portal_active?: boolean | null;
+    last_login_at?: string | null;
+  };
 }
 
 
@@ -442,8 +462,8 @@ export default function PropertyDetailPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
-        <div className="border-b px-6">
-          <TabsList className="h-10">
+        <div className="border-b px-6 overflow-x-auto">
+          <TabsList className="h-10 w-max">
             <TabsTrigger value="overview" className="gap-1.5">
               <Home className="h-3.5 w-3.5" />
               Overview
@@ -466,6 +486,10 @@ export default function PropertyDetailPage() {
                 {tab.name}
               </TabsTrigger>
             ))}
+            <TabsTrigger value="portal" className="gap-1.5">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Portal
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -1109,6 +1133,11 @@ export default function PropertyDetailPage() {
               />
             </TabsContent>
           ))}
+
+          {/* Portal Tab */}
+          <TabsContent value="portal" className="p-6 mt-0">
+            <PropertyPortalTab propertyId={id} property={property} contacts={contacts} />
+          </TabsContent>
         </div>
       </Tabs>
 
@@ -1140,3 +1169,4 @@ export default function PropertyDetailPage() {
     </div>
   );
 }
+

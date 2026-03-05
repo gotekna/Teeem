@@ -79,6 +79,7 @@ export interface WarehouseFolder {
     completedAt: string | null;
     status: string; // "not_started" | "started" | "waiting_for_response" | "waiting_for_info" | "completed"
   };
+  is_global?: boolean;  // SSoT: true = global (tenant_id=NULL), false = tenant-specific
   /** @deprecated Use tab_type === 'photo' instead */
   is_photo_category: boolean;
   /** @deprecated Use tab_type === 'revit' instead */

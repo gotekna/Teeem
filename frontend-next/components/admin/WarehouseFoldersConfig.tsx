@@ -1319,6 +1319,20 @@ export function WarehouseFoldersConfig({
               <Badge variant="outline" className="text-xs">
                 {tab.tab_key}
               </Badge>
+              {/* Global/Tenant scope indicator */}
+              {tab.is_global !== undefined && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-xs",
+                    tab.is_global
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300"
+                      : "bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300"
+                  )}
+                >
+                  {tab.is_global ? "Global" : "Tenant"}
+                </Badge>
+              )}
               {/* SSoT: Show folder path badge if tab has folder OR has children (children inherit parent path) */}
               {(tab.warehouse_enabled || hasChildren) && (
                 <TooltipProvider>
@@ -2287,6 +2301,44 @@ export function WarehouseFoldersConfig({
                 placeholder="Select an icon..."
                 showInheritedBadge={!!(formData.parent_id || editingTab?.parent_id) && !formData.icon_name}
               />
+
+              {/* Global/Tenant Scope Toggle (only in edit mode, only for root tabs) */}
+              {editingTab && !editingTab.parent_id && (
+                <div className="space-y-2">
+                  <Label>Scope</Label>
+                  <Select
+                    value={editingTab.is_global ? "global" : "tenant"}
+                    onValueChange={async (value) => {
+                      const makeGlobal = value === "global";
+                      if (makeGlobal === editingTab.is_global) return;
+                      try {
+                        const json = await api.post<{ success: boolean; message: string }>(
+                          `/api/v1/warehouse_folders/${editingTab.id}/toggle_global`
+                        );
+                        if (json?.success) {
+                          toast.success(json.message);
+                          refetch();  // Tabs re-derive editingTab from refreshed data
+                        }
+                      } catch {
+                        toast.error("Failed to change scope");
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="global">Global (all tenants)</SelectItem>
+                      <SelectItem value="tenant">This tenant only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {editingTab.is_global
+                      ? "This tab is shared across all tenants"
+                      : "This tab is only visible to the current tenant"}
+                  </p>
+                </div>
+              )}
 
               {/* Display Mode - SSoT: How tab renders (icon_only disabled for child tabs) */}
               <div className="space-y-2">

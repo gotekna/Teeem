@@ -1,16 +1,16 @@
 {
   "version": 3,
   "meta": {
-    "run_id": "ralph-v3-20260224",
-    "started_at": "2026-02-24T02:13:39Z",
-    "completed_at": "2026-02-28T12:36:58Z",
-    "last_updated": "2026-02-28T22:30:00Z",
-    "iteration": 19,
-    "ship_ready": true,
+    "run_id": "ralph-v3-20260305",
+    "started_at": "2026-03-05T12:10:35.189Z",
+    "completed_at": null,
+    "last_updated": "2026-03-06T10:00:00.000Z",
+    "iteration": 1,
+    "ship_ready": false,
     "total_pages": 199,
     "total_stories": 19
   },
-  "protocol_reminder": "1) navigate_page to URL. 2) Run ALL-IN-ONE evaluate_script (waits UP TO 15s for REAL content \u2014 detects and waits through spinners, 'Loading...' text, and skeletons). 3) hasContent is only true when REAL content loaded (not just a spinner). isStillLoading=true after 15s = STUCK page = major finding. 4) Breadcrumb REQUIRED: .backdrop-blur-sm nav must have text content \u2014 missing = minor finding. 5) If PASS: record js_check in page_results. 6) If FAIL: take_snapshot + take_screenshot to FILE, create finding. 7) NEVER call wait_for(). 8) After 20 pages, SAVE and yield.",
+  "protocol_reminder": "1) navigate_page to URL. 2) Run ALL-IN-ONE evaluate_script (waits UP TO 15s for REAL content — detects and waits through spinners, 'Loading...' text, and skeletons). 3) hasContent is only true when REAL content loaded (not just a spinner). isStillLoading=true after 15s = STUCK page = major finding. 4) Breadcrumb REQUIRED: .backdrop-blur-sm nav must have text content — missing = minor finding. 5) If PASS: record js_check in page_results. 6) If FAIL: take_snapshot + take_screenshot to FILE, create finding. 7) NEVER call wait_for(). 8) After 20 pages, SAVE and yield.",
   "anti_cheat": {
     "require_fresh_evidence": true,
     "max_pages_per_iteration": 20,
@@ -89,62 +89,54 @@
       "page_results": {
         "/dashboard": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "Dashboard > OverviewAi Joshua",
             "url": "/dashboard/ai-joshua",
             "title": "Ai Joshua | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         },
         "/tasks": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "Tasks",
             "url": "/tasks",
             "title": "Tasks | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         },
         "/agent-tasks": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "Agent Tasks",
             "url": "/agent-tasks",
             "title": "Agent Tasks | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         },
         "/notebooks": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "Notebooks",
             "url": "/notebooks",
             "title": "Notebooks | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         }
       }
@@ -170,11 +162,10 @@
       "page_results": {
         "/jobs": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "JobsLive",
             "url": "/jobs/view/live",
             "title": "Jobs | Teeem",
@@ -185,32 +176,28 @@
         },
         "/jobs/new": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "JobsNew Job",
             "url": "/jobs/new",
             "title": "New Job | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         },
         "/jobs/photos": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "JobsPhotos",
             "url": "/jobs/photos",
             "title": "Photos | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         }
       }
@@ -238,11 +225,10 @@
       "page_results": {
         "/contacts": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "ContactsAll 1",
             "url": "/contacts/view/all-1",
             "title": "Contacts | Teeem",
@@ -253,47 +239,41 @@
         },
         "/contacts/new": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "ContactsNew Contact",
             "url": "/contacts/new",
             "title": "New Contact | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         },
         "/contacts/duplicates": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "ContactsDuplicates",
             "url": "/contacts/duplicates",
             "title": "Duplicates | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         },
         "/contacts/quality-review": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "ContactsQuality Review",
             "url": "/contacts/quality-review",
             "title": "Quality Review | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         }
       }
@@ -317,11 +297,10 @@
       "page_results": {
         "/purchase_orders": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "Purchase OrdersAll Pos",
             "url": "/purchase_orders/view/all-pos",
             "title": "Purchase Orders | Teeem",
@@ -332,17 +311,15 @@
         },
         "/purchase_orders/new": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "Purchase OrdersNew PO",
             "url": "/purchase_orders/new",
             "title": "New PO | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         }
       }
@@ -352,7 +329,7 @@
       "title": "Pricebook, Recipes & Estimates",
       "icon": "database",
       "description": "Pricebook items, colour swatches, health, recipes, estimates, price histories",
-      "status": "completed",
+      "status": "in_progress",
       "page_manifest": [
         "/pricebook",
         "/pricebook/colour-swatches",
@@ -373,11 +350,10 @@
       "page_results": {
         "/pricebook": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "PricebookCategory",
             "url": "/pricebook/view/category",
             "title": "Pricebook | Teeem",
@@ -388,78 +364,76 @@
         },
         "/pricebook/colour-swatches": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "PricebookColour Swatches",
             "url": "/pricebook/colour-swatches",
             "title": "Colour Swatches | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         },
         "/pricebook/health": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "PricebookHealth",
             "url": "/pricebook/health",
             "title": "Health | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "bodyBg": "rgb(255, 255, 255)"
           }
         },
         "/recipes": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "Recipes",
-            "url": "/recipes",
+            "breadcrumb": "RecipesSetup",
+            "url": "/recipes/view/setup",
             "title": "Recipes | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "tableScrollBroken": false
           }
         },
         "/estimates": {
           "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "EstimatesSetup 4",
-            "url": "/estimates/view/setup-4",
-            "title": "Setup 4 | Teeem",
+            "breadcrumb": "EstimatesSetup",
+            "url": "/estimates/view/setup",
+            "title": "Estimates | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
+            "tableScrollBroken": false
           }
         },
         "/price_histories": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:05:14Z",
-          "iteration": 11,
+          "status": "failed",
+          "tested_at": "2026-03-06T10:00:00Z",
+          "iteration": 1,
           "js_check": {
             "hasContent": true,
-            "isStillLoading": false,
             "breadcrumb": "Price HistoriesSetup",
             "url": "/price_histories/view/setup",
             "title": "Price Histories | Teeem",
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
+            "tableScrollBroken": {
+              "rowCount": 30,
+              "scrollHeight": 574,
+              "clientHeight": 574
+            }
+          },
+          "finding_id": "finding-001"
         }
       }
     },
@@ -468,7 +442,7 @@
       "title": "Finance, Financial, Xero & Accounts",
       "icon": "database",
       "description": "Finance module pages, Xero integration, accounts",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/finance",
         "/finance/bills",
@@ -490,180 +464,14 @@
         "Xero dashboard shows sync status",
         "Accounts page shows chart of accounts"
       ],
-      "page_results": {
-        "/finance": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "Finance",
-            "url": "/finance",
-            "title": "Finance | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/finance/bills": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "FinanceBillsSetup",
-            "url": "/finance/bills/view/setup",
-            "title": "Bills | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/finance/payments": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "FinancePayments",
-            "url": "/finance/payments",
-            "title": "Payments | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/finance/settings": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "FinanceSettings",
-            "url": "/finance/settings",
-            "title": "Settings | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/financial": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "Financial",
-            "url": "/financial",
-            "title": "Financial | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/financial/reports": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "FinancialReportsBalance Sheet",
-            "url": "/financial/reports/balance_sheet",
-            "title": "Balance Sheet | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/financial/transactions": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "FinancialTransactionsXero",
-            "url": "/financial/transactions/xero",
-            "title": "Xero | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/financial/tas": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "FinancialTasCompanies",
-            "url": "/financial/tas/companies",
-            "title": "Companies | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/accounts": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "Accounts",
-            "url": "/accounts",
-            "title": "Accounts | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/xero": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "Xero",
-            "url": "/xero",
-            "title": "Xero | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/xero/sync": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "XeroSync",
-            "url": "/xero/sync",
-            "title": "Sync | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-CORPORATE",
       "title": "Corporate Module",
       "icon": "layout-list",
       "description": "All 17 corporate sub-pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/corporate",
         "/corporate/structure",
@@ -694,315 +502,14 @@
         "Companies list shows records",
         "Assets page loads"
       ],
-      "page_results": {
-        "/corporate": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "Corporate",
-            "url": "/corporate",
-            "title": "Corporate | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/structure": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateStructure",
-            "url": "/corporate/structure",
-            "title": "Structure | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/directors": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateDirectors",
-            "url": "/corporate/directors",
-            "title": "Directors | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/shareholders": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateShareholders",
-            "url": "/corporate/shareholders",
-            "title": "Shareholders | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/beneficiaries": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateBeneficiaries",
-            "url": "/corporate/beneficiaries",
-            "title": "Beneficiaries | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/memberships": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:08:34Z",
-          "iteration": 12,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateMemberships",
-            "url": "/corporate/memberships",
-            "title": "Memberships | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/charity-members": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateCharity Members",
-            "url": "/corporate/charity-members",
-            "title": "Charity Members | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/companies": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateCompaniesLive",
-            "url": "/corporate/companies/view/live",
-            "title": "Companies | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/companies/new": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateCompaniesNew",
-            "url": "/corporate/companies/new",
-            "title": "New | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/groups": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateGroups",
-            "url": "/corporate/groups",
-            "title": "Groups | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/people": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporatePeople",
-            "url": "/corporate/people",
-            "title": "People | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/compliance-calendar": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateCompliance Calendar",
-            "url": "/corporate/compliance-calendar",
-            "title": "Compliance Calendar | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/assets": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateAssetsSetup",
-            "url": "/corporate/assets/view/setup",
-            "title": "Assets | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/assets/new": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateAssetsNew",
-            "url": "/corporate/assets/new",
-            "title": "New | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/assets/reports": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateAssetsReportsSummary",
-            "url": "/corporate/assets/reports/summary",
-            "title": "Summary | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/asic-logins": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateASIC Logins",
-            "url": "/corporate/asic-logins",
-            "title": "ASIC Logins | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/minute-templates": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateMinute Templates",
-            "url": "/corporate/minute-templates",
-            "title": "Minute Templates | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/document-types": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateDocument TypesNo Primary",
-            "url": "/corporate/document-types/view/no-primary",
-            "title": "Document Types | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/consolidation": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateConsolidation",
-            "url": "/corporate/consolidation",
-            "title": "Consolidation | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/corporate/health": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:11:30Z",
-          "iteration": 13,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "CorporateHealth",
-            "url": "/corporate/health",
-            "title": "Health | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-WHS",
       "title": "WHS Module",
       "icon": "clipboard-check",
       "description": "Work Health & Safety pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/whs",
         "/whs/dashboard",
@@ -1019,120 +526,14 @@
         "Dashboard shows safety metrics",
         "Each sub-page renders"
       ],
-      "page_results": {
-        "/whs": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "WHS",
-            "url": "/whs",
-            "title": "WHS | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/whs/dashboard": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "WHSDashboard",
-            "url": "/whs/dashboard",
-            "title": "Dashboard | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/whs/incidents": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "WHSIncidentsSetup",
-            "url": "/whs/incidents/view/setup",
-            "title": "Incidents | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/whs/inspections": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "WHSInspectionsSetup",
-            "url": "/whs/inspections/view/setup",
-            "title": "Inspections | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/whs/inductions": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "WHSInductionsSetup",
-            "url": "/whs/inductions/view/setup",
-            "title": "Inductions | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/whs/swms": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "WHSSWMS",
-            "url": "/whs/swms",
-            "title": "SWMS | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/whs/action-items": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "WHSAction Items",
-            "url": "/whs/action-items",
-            "title": "Action Items | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-PERSONAL",
       "title": "Personal Settings",
       "icon": "save",
       "description": "Profile, Notifications, Security, Preferences",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/profile",
         "/settings/notifications",
@@ -1147,75 +548,14 @@
         "Security shows password and 2FA options",
         "Preferences loads"
       ],
-      "page_results": {
-        "/settings/profile": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsProfile",
-            "url": "/settings/profile",
-            "title": "Profile | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/notifications": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsNotifications",
-            "url": "/settings/notifications",
-            "title": "Notifications | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/security": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsSecurity",
-            "url": "/settings/security",
-            "title": "Security | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/preferences": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsPreferences",
-            "url": "/settings/preferences",
-            "title": "Preferences | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-COMPANY",
       "title": "Company Settings",
       "icon": "save",
       "description": "Company settings with 9 tabs and their sub-tabs",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/company",
         "/settings/company/info",
@@ -1271,293 +611,14 @@
         "Warehouse Config sub-tabs load",
         "URL updates when clicking sub-tabs"
       ],
-      "page_results": {
-        "/settings/company": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyInfo",
-            "url": "/settings/company/info",
-            "title": "Info | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/info": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyInfo",
-            "url": "/settings/company/info",
-            "title": "Info | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/brand-colors": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyBrand Colors",
-            "url": "/settings/company/brand-colors",
-            "title": "Brand Colors | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/documents": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyDocumentsDocument Types",
-            "url": "/settings/company/documents/types",
-            "title": "Document Types | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/holidays": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyHolidays",
-            "url": "/settings/company/holidays",
-            "title": "Holidays | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/workflows": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyWorkflows",
-            "url": "/settings/company/workflows",
-            "title": "Workflows | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/job-setup": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyJob SetupLists",
-            "url": "/settings/company/job-setup/lists",
-            "title": "Lists | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/job-setup/types": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyJob SetupDocument Types",
-            "url": "/settings/company/job-setup/types",
-            "title": "Document Types | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/job-setup/statuses": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyJob SetupStatuses",
-            "url": "/settings/company/job-setup/statuses",
-            "title": "Statuses | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/job-setup/stages": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyJob SetupStages",
-            "url": "/settings/company/job-setup/stages",
-            "title": "Stages | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/job-setup/suburbs": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyJob SetupSuburbs",
-            "url": "/settings/company/job-setup/suburbs",
-            "title": "Suburbs | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/job-setup/workflow": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyJob SetupWorkflow",
-            "url": "/settings/company/job-setup/workflow",
-            "title": "Workflow | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/warehouse-config": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyWarehouse ConfigWarehouse Folders",
-            "url": "/settings/company/warehouse-config/warehouse_folders",
-            "title": "Warehouse Folders | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/warehouse-config/corporate": {
-          "status": "passed",
-          "tested_at": "2026-02-28T15:10:00Z",
-          "iteration": 18,
-          "checks": ["js_check"],
-          "note": "Previously failed in iteration 14 (white screen) - passes on re-test. Finding-005 marked false_positive.",
-          "finding_id": "finding-005"
-        },
-        "/settings/company/warehouse-config/jobs": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyWarehouse ConfigJobs",
-            "url": "/settings/company/warehouse-config/jobs",
-            "title": "Jobs | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/warehouse-config/contacts": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyWarehouse ConfigContacts",
-            "url": "/settings/company/warehouse-config/contacts",
-            "title": "Contacts | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/warehouse-config/email-config": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyWarehouse ConfigEmail Config",
-            "url": "/settings/company/warehouse-config/email-config",
-            "title": "Email Config | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/warehouse-config/config-sync": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyWarehouse ConfigConfig Sync",
-            "url": "/settings/company/warehouse-config/config-sync",
-            "title": "Config Sync | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        },
-        "/settings/company/offline": {
-          "status": "passed",
-          "tested_at": "2026-02-28T13:18:12Z",
-          "iteration": 14,
-          "js_check": {
-            "hasContent": true,
-            "isStillLoading": false,
-            "breadcrumb": "SettingsCompanyOffline",
-            "url": "/settings/company/offline",
-            "title": "Offline | Teeem",
-            "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "tableScrollBroken": null
-          }
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-CONNECTIONS",
       "title": "Connections Settings",
       "icon": "save",
       "description": "Storage, Integrations, Migration, Costs, Backups",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/connections",
         "/settings/connections/provider",
@@ -1586,85 +647,14 @@
         "Xero integration shows sync status",
         "URL updates when clicking connection sub-tabs"
       ],
-      "page_results": {
-        "/settings/connections": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/connections/provider": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/connections/integrations": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/connections/migration": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/connections/costs": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/connections/backups": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/integrations": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/integrations/xero": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/integrations/microsoft": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/integrations/cloudflare": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-OPERATIONS",
       "title": "Operations Settings",
       "icon": "save",
       "description": "Schedule Master, SM Tasks, Contact Types, Meeting Types, etc.",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/operations",
         "/settings/operations/po-templates",
@@ -1682,64 +672,14 @@
         "Claim Templates page loads",
         "Tables settings shows lookup tables"
       ],
-      "page_results": {
-        "/settings/operations": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/operations/po-templates": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/operations/claim-templates": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/tables": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/training": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/meeting-types": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/public-holidays": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-OTHER",
       "title": "Access Control, System, Developer & Admin",
       "icon": "save",
       "description": "Roles, Users, Corporate, System, Developer settings and admin pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/users",
         "/settings/roles",
@@ -1770,155 +710,14 @@
         "System settings loads",
         "Developer settings shows tools"
       ],
-      "page_results": {
-        "/settings/users": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/roles": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/corporate": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/system": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/developer": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/documents": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/email-reseller": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/email-reseller/subscriptions": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/email-reseller/migrations": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/email-reseller/reports": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/settings/email-reseller/settings": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/admin/tenants": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/admin/referrers": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/admin/saas-customers": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/admin/support-tickets": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/admin/site-presence": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/admin/system/teeem-xl/list": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/admin/system/teeem-word/list": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/admin/system/teeem-powerpoint/list": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        },
-        "/admin/system/teeem-pdf/list": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 15
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-WAREHOUSE",
       "title": "File Warehouse",
       "icon": "database",
       "description": "Warehouse views and data warehouse",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/warehouse",
         "/data-warehouse",
@@ -1934,50 +733,14 @@
         "My Docs shows personal files",
         "DocSort shows classification UI"
       ],
-      "page_results": {
-        "/warehouse": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/data-warehouse": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/my-docs": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/docsort": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/import": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SM",
       "title": "Schedule Master & Calendar",
       "icon": "gauge",
       "description": "Schedule Master, templates, tasks, calendar",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/schedule-master",
         "/schedule-templates",
@@ -1993,57 +756,14 @@
         "Calendar renders with events",
         "SM Tasks shows task list"
       ],
-      "page_results": {
-        "/schedule-master": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/schedule-templates": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/sm_tasks": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/task-templates": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/calendar": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/site-presence/live": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-OTHER",
       "title": "Leads, Cases, Email, Meetings, Workflows & More",
       "icon": "clipboard-check",
       "description": "All remaining app pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/leads",
         "/leads/emails",
@@ -2084,204 +804,14 @@
         "System Health shows status",
         "Feature Requests loads"
       ],
-      "page_results": {
-        "/leads": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/leads/emails": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/quote-requests": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/cases": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/cases/new": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/email": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/email/rules": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/email/settings": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/meetings": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 16
-        },
-        "/meetings/new": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/chat": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/training": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/plans": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/workflows": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/workflows/processes": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/designer": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/designer/new": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/e-signature": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/e-signature/prepare": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/support": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/feature-requests": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/system-health": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/system-performance": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/design-system": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/missing": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/profile": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        },
-        "/company-groups": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 17
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-PORTAL",
       "title": "Customer Portal",
       "icon": "layout-list",
       "description": "Customer-facing portal pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/portal",
         "/portal/login",
@@ -2298,78 +828,14 @@
         "Portal login page loads",
         "Portal pages render for authenticated users"
       ],
-      "page_results": {
-        "/portal": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 18,
-          "note": "redirects to /portal/view/setup"
-        },
-        "/portal/login": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 18
-        },
-        "/portal/dashboard": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 18,
-          "note": "redirects to login"
-        },
-        "/portal/jobs": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 18,
-          "note": "redirects to login"
-        },
-        "/portal/invoices": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 18,
-          "note": "redirects to login"
-        },
-        "/portal/quotes": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 18,
-          "note": "redirects to login"
-        },
-        "/portal/schedule": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 18,
-          "note": "redirects to login"
-        },
-        "/portal/settings": {
-          "status": "passed",
-          "checks": [
-            "js_check"
-          ],
-          "iteration": 18,
-          "note": "redirects to login"
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-DARK",
       "title": "Dark Mode Sweep",
       "icon": "palette",
       "description": "Verify dark mode on key pages - no white backgrounds, readable text",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/dashboard",
         "/jobs",
@@ -2393,93 +859,14 @@
         "No elements with white/light hardcoded backgrounds",
         "Cards and panels use dark variants"
       ],
-      "page_results": {
-        "/dashboard": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/jobs": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/contacts": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/purchase_orders": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/pricebook": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/finance": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/settings/company": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/settings/connections": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/corporate": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/whs": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/email": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:15:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/warehouse": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:25:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        },
-        "/system-health": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:25:00Z",
-          "iteration": 19,
-          "dark_check": { "dark": true, "bg": "rgb(13, 13, 13)" }
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-RESPONSIVE",
       "title": "Responsive Layout Sweep",
       "icon": "gauge",
       "description": "Verify key pages at tablet (768px) and mobile (375px) viewports",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/dashboard",
         "/jobs",
@@ -2498,186 +885,25 @@
         "No horizontal overflow at narrow viewports",
         "Navigation adapts to mobile layout"
       ],
-      "page_results": {
-        "/dashboard": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:28:00Z",
-          "iteration": 19,
-          "responsive": {
-            "desktop_1440": { "content": true, "overflow": false },
-            "tablet_768": { "content": true, "overflow": false },
-            "mobile_375": { "content": true, "overflow": false }
-          }
-        },
-        "/jobs": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:28:00Z",
-          "iteration": 19,
-          "responsive": {
-            "desktop_1440": { "content": true, "overflow": false },
-            "tablet_768": { "content": true, "overflow": false },
-            "mobile_375": { "content": true, "overflow": false }
-          }
-        },
-        "/contacts": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:30:00Z",
-          "iteration": 19,
-          "responsive": {
-            "desktop_1440": { "content": true, "overflow": false },
-            "tablet_768": true,
-            "mobile_375": true
-          },
-          "note": "Desktop verified iter 19; tablet+mobile verified iter 10"
-        },
-        "/purchase_orders": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:30:00Z",
-          "iteration": 19,
-          "responsive": {
-            "desktop_1440": true,
-            "tablet_768": true,
-            "mobile_375": true
-          },
-          "note": "Verified iter 10, no code changes since"
-        },
-        "/settings/profile": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:30:00Z",
-          "iteration": 19,
-          "responsive": {
-            "desktop_1440": true,
-            "tablet_768": true,
-            "mobile_375": true
-          },
-          "note": "Verified iter 10, no code changes since"
-        },
-        "/settings/company": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:30:00Z",
-          "iteration": 19,
-          "responsive": {
-            "desktop_1440": true,
-            "tablet_768": true,
-            "mobile_375": true
-          },
-          "note": "Verified iter 10, no code changes since"
-        },
-        "/email": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:30:00Z",
-          "iteration": 19,
-          "responsive": {
-            "desktop_1440": true,
-            "tablet_768": true,
-            "mobile_375": true
-          },
-          "note": "Verified iter 10, no code changes since"
-        },
-        "/system-health": {
-          "status": "passed",
-          "tested_at": "2026-02-28T22:30:00Z",
-          "iteration": 19,
-          "responsive": {
-            "desktop_1440": true,
-            "tablet_768": true,
-            "mobile_375": true
-          },
-          "note": "Verified iter 10, no code changes since"
-        }
-      }
+      "page_results": {}
     }
   ],
   "findings": [
     {
       "id": "finding-001",
-      "severity": "false_positive",
-      "category": "scroll-blocked",
-      "user_story_id": "US-PO",
-      "page": "/purchase_orders",
-      "description": "Table scroll broken - 28 rows but scrollHeight equals clientHeight (502px). Users cannot scroll to see all purchase orders.",
-      "console_errors": [],
-      "probable_file": "frontend-next/app/(app)/purchase_orders/page.tsx",
-      "fix_hint": "Missing min-h-0 on flex parent of table scroll container. CSS default min-height:auto on flex items prevents bounded scrollable area.",
-      "status": "false_positive",
-      "resolution": "Virtual scroll active (600 of 2,692 records). VirtualizedFlatTable manages its own internal scroll container (parentRef) which is nested inside TeeemTableView's tableContainerRef. QA test measured scrollHeight on the outer container which doesn't overflow because the inner virtual container handles scrolling. Screenshot confirms table renders correctly with data visible.",
-      "resolved_at": "2026-02-24T03:30:00Z",
-      "found_at": "2026-02-24T02:19:52Z",
-      "found_iteration": 1,
-      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001-snapshot.txt",
-      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001.png"
-    },
-    {
-      "id": "finding-002",
-      "severity": "false_positive",
-      "category": "scroll-blocked",
-      "user_story_id": "US-PRICEBOOK",
-      "page": "/pricebook",
-      "description": "Table scroll broken - 29 rows but scrollHeight equals clientHeight (513px). Users cannot scroll to see all pricebook items.",
-      "console_errors": [],
-      "probable_file": "frontend-next/app/(app)/pricebook/page.tsx",
-      "fix_hint": "Missing min-h-0 on flex parent of table scroll container. CSS default min-height:auto on flex items prevents bounded scrollable area.",
-      "status": "false_positive",
-      "resolution": "Virtual scroll active (500 of 5,437 records). Same root cause as finding-001: VirtualizedFlatTable's internal parentRef handles scrolling, not TeeemTableView's tableContainerRef. Screenshot confirms table renders correctly.",
-      "resolved_at": "2026-02-24T03:30:00Z",
-      "found_at": "2026-02-24T02:19:52Z",
-      "found_iteration": 1,
-      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002-snapshot.txt",
-      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002.png"
-    },
-    {
-      "id": "finding-003",
-      "severity": "false_positive",
+      "severity": "major",
       "category": "scroll-blocked",
       "user_story_id": "US-PRICEBOOK",
       "page": "/price_histories",
-      "description": "Table scroll broken - 28 rows but scrollHeight equals clientHeight (513px). Users cannot scroll to see all price history entries.",
+      "description": "Price Histories table has 30 rows but scroll container cannot scroll (scrollHeight=574, clientHeight=574). Users cannot access all rows.",
       "console_errors": [],
       "probable_file": "frontend-next/app/(app)/price_histories/page.tsx",
-      "fix_hint": "Missing min-h-0 on flex parent of table scroll container. CSS default min-height:auto on flex items prevents bounded scrollable area.",
-      "status": "false_positive",
-      "resolution": "Virtual scroll active (600 of 12,961 records). Same root cause as finding-001: VirtualizedFlatTable's internal parentRef handles scrolling, not TeeemTableView's tableContainerRef. Screenshot confirms table renders correctly with totals footer visible.",
-      "resolved_at": "2026-02-24T03:30:00Z",
-      "found_at": "2026-02-24T02:19:52Z",
+      "fix_hint": "Missing min-h-0 on flex parent of TeeemTableView. CSS default min-height:auto on flex items prevents the scroll container from being bounded.",
+      "status": "open",
+      "found_at": "2026-03-06T10:00:00Z",
       "found_iteration": 1,
-      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-003-snapshot.txt",
-      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-003.png"
-    },
-    {
-      "id": "finding-004",
-      "severity": "false_positive",
-      "category": "scroll-blocked",
-      "user_story_id": "US-FINANCE",
-      "page": "/financial/transactions",
-      "description": "Table scroll broken - 51 rows but scrollHeight equals clientHeight (1429px). Users cannot scroll to see all financial transactions.",
-      "console_errors": [],
-      "probable_file": "frontend-next/app/(app)/financial/transactions/page.tsx",
-      "fix_hint": "Missing min-h-0 on flex parent of table scroll container. CSS default min-height:auto on flex items prevents bounded scrollable area.",
-      "status": "false_positive",
-      "resolution": "XeroStatementView (not TeeemTableView) shows 50 server-paginated records that fit within viewport. scrollHeight === clientHeight is correct behavior \u2014 user paginates to see more records, doesn't need to scroll. Screenshot confirms page renders correctly with Xero Bank Transactions tab active showing 50 of 1,864 records.",
-      "resolved_at": "2026-02-24T03:30:00Z",
-      "found_at": "2026-02-24T02:26:26Z",
-      "found_iteration": 2,
-      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-004-snapshot.txt",
-      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-004.png"
-    },
-    {
-      "id": "finding-005",
-      "severity": "critical",
-      "category": "render-error",
-      "user_story_id": "US-SETTINGS-COMPANY",
-      "page": "/settings/company/warehouse-config/corporate",
-      "description": "White screen - main element has 0 children after 25+ seconds. No spinners, no errors, just empty.",
-      "console_errors": [],
-      "probable_file": "frontend-next/app/(app)/settings/[...tab]/page.tsx",
-      "fix_hint": "Warehouse Config Corporate sub-tab component likely not rendering. Check if component is imported/exported correctly or if data fetch silently fails.",
-      "status": "false_positive",
-      "found_at": "2026-02-28T13:18:12Z",
-      "found_iteration": 14,
-      "resolved_iteration": 18,
-      "resolution": "Intermittent loading issue - page renders correctly on re-test with full content (22 tabs, entity types, document types). Likely a transient network/hydration delay.",
-      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-005-snapshot.txt",
-      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-005.png"
+      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001-snapshot.txt",
+      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001.png"
     }
   ]
 }

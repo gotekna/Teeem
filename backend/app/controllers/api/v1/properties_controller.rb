@@ -17,12 +17,23 @@ module Api
 
       # GET /api/v1/properties/:id
       def show
-        render_success(@property.as_json(include: {
+        property_json = @property.as_json(include: {
           property_type: { only: [:id, :name] },
           property_status: { only: [:id, :name, :color] },
           owner_contact: { only: [:id, :display_name, :email, :phone] },
           managing_agent_contact: { only: [:id, :display_name, :email, :phone] }
-        }))
+        })
+
+        # Add portal_enabled to owner_contact if present
+        if @property.owner_contact
+          oc = @property.owner_contact
+          property_json["owner_contact"]["portal_enabled"] = oc.portal_enabled
+          property_json["owner_contact"]["portal_type"] = oc.portal_user&.portal_type
+          property_json["owner_contact"]["portal_active"] = oc.portal_user&.active?
+          property_json["owner_contact"]["last_login_at"] = oc.portal_user&.last_login_at
+        end
+
+        render_success(property_json)
       end
 
       # POST /api/v1/properties
@@ -82,12 +93,22 @@ module Api
       # GET /api/v1/properties/:id/contacts
       def contacts
         contacts = @property.property_contacts
-                            .includes(:contact)
+                            .includes(contact: :portal_user)
                             .active
                             .order(:role)
-        render_success(contacts.as_json(include: {
-          contact: { only: [:id, :display_name, :email, :phone] }
-        }))
+        contacts_json = contacts.map do |pc|
+          pc_json = pc.as_json(include: {
+            contact: { only: [:id, :display_name, :email, :phone] }
+          })
+          # Add portal info to each contact
+          contact = pc.contact
+          pc_json["contact"]["portal_enabled"] = contact.portal_enabled
+          pc_json["contact"]["portal_type"] = contact.portal_user&.portal_type
+          pc_json["contact"]["portal_active"] = contact.portal_user&.active?
+          pc_json["contact"]["last_login_at"] = contact.portal_user&.last_login_at
+          pc_json
+        end
+        render_success(contacts_json)
       end
 
       # POST /api/v1/properties/:id/contacts

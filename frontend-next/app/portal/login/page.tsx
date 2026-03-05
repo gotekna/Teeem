@@ -31,6 +31,8 @@ function PortalLoginContent() {
     const token = searchParams.get("token");
     if (!token) return;
 
+    const embedParam = searchParams.get("embed");
+
     const autoLogin = async () => {
       setLoading(true);
       try {
@@ -48,9 +50,13 @@ function PortalLoginContent() {
         if (data?.success && data.user) {
           setStorageItem(STORAGE_KEYS.PORTAL_USER, data.user);
           const portalType = data.user?.portal_type;
-          const redirectTo = (portalType === "tenant" || portalType === "owner")
+          let redirectTo = (portalType === "tenant" || portalType === "owner")
             ? "/portal/property"
             : "/portal/dashboard";
+          // Preserve embed mode through redirect
+          if (embedParam === "1") {
+            redirectTo += "?embed=1";
+          }
           router.push(redirectTo);
         } else {
           setError("Invalid or expired token");
