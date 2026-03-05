@@ -955,19 +955,21 @@ class TenantConfigSyncService
 
   # Fix children whose parent_id points to a record in another tenant.
   # This happens when config sync creates children before the parent exists locally.
+  #
+  # ⚠️ DO NOT SIMPLIFY - Global records have tenant_id=NULL (Mar 2026)
+  # ════════════════════════════════════════════════════════════════
+  # Why: Global records (tenant_id=NULL) are valid parents for ALL tenants.
+  # ❌ WRONG: `current_parent.tenant_id != tenant.id` — nil != 2 is true, re-points children
+  # ✅ CORRECT: Skip global parents (tenant_id=NULL) — they're shared, not orphaned
+  # ════════════════════════════════════════════════════════════════
   def self.fix_orphaned_children(parent_folder, tenant)
     fixed = 0
 
-    # Find all folders in this tenant that SHOULD be children of this parent
-    # (same warehouse_type, matching parent sync_key pattern)
-    # Strategy: look for folders whose parent_id is non-nil but points to a record
-    # not in this tenant, AND whose tab_key suggests they belong under this parent.
     WarehouseFolder.where(warehouse_type_id: parent_folder.warehouse_type_id)
                    .where.not(parent_id: [nil, parent_folder.id])
                    .each do |candidate|
-      # Check if the candidate's current parent belongs to a different tenant
       current_parent = WarehouseFolder.unscoped.find_by(id: candidate.parent_id)
-      if current_parent.nil? || current_parent.tenant_id != tenant.id
+      if current_parent.nil? || (current_parent.tenant_id.present? && current_parent.tenant_id != tenant.id)
         candidate.update_columns(parent_id: parent_folder.id)
         fixed += 1
         Rails.logger.info "[ConfigSync] Fixed orphan: #{candidate.tab_key} parent_id -> #{parent_folder.id} (tenant #{tenant.name})"
