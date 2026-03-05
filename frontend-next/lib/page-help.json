@@ -1062,6 +1062,12 @@
       "tips": ["Each template defines stages with percentage splits that should total 100%", "Templates are applied on a job's Claims tab when no stages exist", "Duplicate templates to create variations for different project types", "Default retainage % applies to all stages unless overridden per stage"],
       "tasks": ["Create a claim template", "Edit template stages", "Duplicate a template", "Apply template to a job from the Claims tab"]
     },
+    "/settings/operations/properties": {
+      "title": "Property Settings",
+      "description": "Configure property types and statuses used across the Property Management module.",
+      "tips": ["Property Types categorize dwellings (House, Unit, SDA Dwelling, etc.)", "Property Statuses track occupancy (Vacant, Occupied, Under Maintenance)", "Status colors appear as badges on the property list page"],
+      "tasks": ["Add a new property type", "Configure property statuses with colors", "Reorder types and statuses"]
+    },
     "/settings/tables": {
       "title": "Tables",
       "description": "Manage lookup tables including Pricebook Categories, Brands, Ranges, PO Statuses, GST Codes, and Units of Measure.",

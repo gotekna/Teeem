@@ -8060,6 +8060,141 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["status"], name: "index_profit_loss_reports_on_status"
   end
 
+  create_table "properties", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "property_code"
+    t.string "name"
+    t.string "street_address", null: false
+    t.string "suburb"
+    t.string "state"
+    t.string "postcode"
+    t.string "country", default: "Australia"
+    t.bigint "property_type_id"
+    t.bigint "property_status_id"
+    t.integer "bedrooms"
+    t.integer "bathrooms"
+    t.integer "parking_spaces"
+    t.decimal "land_area_sqm", precision: 10, scale: 2
+    t.decimal "floor_area_sqm", precision: 10, scale: 2
+    t.integer "year_built"
+    t.text "description"
+    t.string "sda_category"
+    t.boolean "sda_enrolled", default: false, null: false
+    t.date "sda_enrolment_date"
+    t.string "sda_dwelling_id"
+    t.decimal "weekly_rent_amount", precision: 10, scale: 2
+    t.decimal "bond_amount", precision: 10, scale: 2
+    t.bigint "owner_contact_id"
+    t.bigint "managing_agent_contact_id"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["managing_agent_contact_id"], name: "index_properties_on_managing_agent_contact_id"
+    t.index ["owner_contact_id"], name: "index_properties_on_owner_contact_id"
+    t.index ["property_status_id"], name: "index_properties_on_property_status_id"
+    t.index ["property_type_id"], name: "index_properties_on_property_type_id"
+    t.index ["sda_category"], name: "index_properties_on_sda_category"
+    t.index ["sda_enrolled"], name: "index_properties_on_sda_enrolled"
+    t.index ["suburb"], name: "index_properties_on_suburb"
+    t.index ["tenant_id", "property_code"], name: "index_properties_on_tenant_id_and_property_code", unique: true
+    t.index ["tenant_id"], name: "index_properties_on_tenant_id"
+  end
+
+  create_table "property_bills", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "property_id", null: false
+    t.bigint "tenancy_id"
+    t.string "bill_type", null: false
+    t.string "description"
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.decimal "tax_amount", precision: 10, scale: 2, default: "0.0"
+    t.date "bill_date", null: false
+    t.date "due_date"
+    t.string "charge_to", default: "owner", null: false
+    t.string "status", default: "draft", null: false
+    t.bigint "gl_invoice_id"
+    t.bigint "supplier_contact_id"
+    t.text "notes"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bill_type"], name: "index_property_bills_on_bill_type"
+    t.index ["charge_to"], name: "index_property_bills_on_charge_to"
+    t.index ["property_id", "status"], name: "index_property_bills_on_property_id_and_status"
+    t.index ["property_id"], name: "index_property_bills_on_property_id"
+    t.index ["status"], name: "index_property_bills_on_status"
+    t.index ["supplier_contact_id"], name: "index_property_bills_on_supplier_contact_id"
+    t.index ["tenancy_id"], name: "index_property_bills_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_property_bills_on_tenant_id"
+  end
+
+  create_table "property_contacts", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "property_id", null: false
+    t.bigint "contact_id", null: false
+    t.string "role", null: false
+    t.boolean "is_primary", default: false, null: false
+    t.date "start_date"
+    t.date "end_date"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_property_contacts_on_contact_id"
+    t.index ["property_id", "contact_id", "role"], name: "idx_prop_contact_role_unique", unique: true
+    t.index ["property_id"], name: "index_property_contacts_on_property_id"
+    t.index ["role"], name: "index_property_contacts_on_role"
+    t.index ["tenant_id"], name: "index_property_contacts_on_tenant_id"
+  end
+
+  create_table "property_inspections", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "property_id", null: false
+    t.bigint "tenancy_id"
+    t.string "inspection_type", null: false
+    t.date "scheduled_date", null: false
+    t.date "completed_date"
+    t.bigint "inspector_contact_id"
+    t.string "status", default: "scheduled", null: false
+    t.text "notes"
+    t.string "overall_condition"
+    t.date "next_inspection_date"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["inspection_type"], name: "index_property_inspections_on_inspection_type"
+    t.index ["inspector_contact_id"], name: "index_property_inspections_on_inspector_contact_id"
+    t.index ["property_id", "status"], name: "index_property_inspections_on_property_id_and_status"
+    t.index ["property_id"], name: "index_property_inspections_on_property_id"
+    t.index ["scheduled_date"], name: "index_property_inspections_on_scheduled_date"
+    t.index ["status"], name: "index_property_inspections_on_status"
+    t.index ["tenancy_id"], name: "index_property_inspections_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_property_inspections_on_tenant_id"
+  end
+
+  create_table "property_statuses", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", null: false
+    t.string "color"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "name"], name: "index_property_statuses_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id"], name: "index_property_statuses_on_tenant_id"
+  end
+
+  create_table "property_types", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", null: false
+    t.string "description"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "name"], name: "index_property_types_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id"], name: "index_property_types_on_tenant_id"
+  end
+
   create_table "public_holidays", force: :cascade do |t|
     t.string "name"
     t.date "date"
@@ -10536,6 +10671,40 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["visibility"], name: "index_template_packs_on_visibility"
   end
 
+  create_table "tenancies", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "property_id", null: false
+    t.string "tenancy_type", default: "fixed_term", null: false
+    t.string "status", default: "draft", null: false
+    t.date "start_date", null: false
+    t.date "end_date"
+    t.integer "lease_term_months"
+    t.decimal "weekly_rent", precision: 10, scale: 2, null: false
+    t.string "rent_frequency", default: "weekly", null: false
+    t.decimal "bond_amount", precision: 10, scale: 2
+    t.boolean "bond_lodged", default: false, null: false
+    t.string "bond_reference"
+    t.bigint "sda_participant_contact_id"
+    t.string "sda_plan_number"
+    t.decimal "sda_weekly_rate", precision: 10, scale: 2
+    t.decimal "participant_rent_contribution", precision: 10, scale: 2
+    t.decimal "ndia_payment_amount", precision: 10, scale: 2
+    t.bigint "rent_recurring_invoice_id"
+    t.bigint "sda_recurring_invoice_id"
+    t.text "notes"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["end_date"], name: "index_tenancies_on_end_date"
+    t.index ["property_id", "status"], name: "index_tenancies_on_property_id_and_status"
+    t.index ["property_id"], name: "index_tenancies_on_property_id"
+    t.index ["sda_participant_contact_id"], name: "index_tenancies_on_sda_participant_contact_id"
+    t.index ["start_date"], name: "index_tenancies_on_start_date"
+    t.index ["status"], name: "index_tenancies_on_status"
+    t.index ["tenancy_type"], name: "index_tenancies_on_tenancy_type"
+    t.index ["tenant_id"], name: "index_tenancies_on_tenant_id"
+  end
+
   create_table "tenant_settings", force: :cascade do |t|
     t.bigint "company_group_id"
     t.string "company_name"
@@ -12691,6 +12860,18 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "profit_centres", "tenants"
   add_foreign_key "profit_loss_reports", "corporates", column: "company_id"
   add_foreign_key "profit_loss_reports", "document_types"
+  add_foreign_key "properties", "contacts", column: "managing_agent_contact_id"
+  add_foreign_key "properties", "contacts", column: "owner_contact_id"
+  add_foreign_key "properties", "property_statuses"
+  add_foreign_key "properties", "property_types"
+  add_foreign_key "property_bills", "contacts", column: "supplier_contact_id"
+  add_foreign_key "property_bills", "properties"
+  add_foreign_key "property_bills", "tenancies"
+  add_foreign_key "property_contacts", "contacts"
+  add_foreign_key "property_contacts", "properties"
+  add_foreign_key "property_inspections", "contacts", column: "inspector_contact_id"
+  add_foreign_key "property_inspections", "properties"
+  add_foreign_key "property_inspections", "tenancies"
   add_foreign_key "public_holidays", "tenants"
   add_foreign_key "purchase_order_documents", "document_tasks"
   add_foreign_key "purchase_order_documents", "purchase_orders"
@@ -12969,6 +13150,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "template_pack_items", "template_packs"
   add_foreign_key "template_packs", "company_groups", column: "source_tenant_id"
   add_foreign_key "template_packs", "users", column: "created_by_id"
+  add_foreign_key "tenancies", "contacts", column: "sda_participant_contact_id"
+  add_foreign_key "tenancies", "properties"
   add_foreign_key "tenant_settings", "company_groups"
   add_foreign_key "tenant_settings", "contacts", column: "saas_customer_contact_id"
   add_foreign_key "tenant_settings", "tenants"

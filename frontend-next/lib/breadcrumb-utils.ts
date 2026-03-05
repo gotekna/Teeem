@@ -295,6 +295,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "tender-documents": "Tender Documents",
   "profit-centres": "Profit Centres",
   "cost-centres": "Cost Centres",
+  "properties": "Properties",
 
   // Settings > System sub-tabs
   "navigation": "Navigation",
@@ -500,6 +501,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
   "corporate": ["groups", "companies", "company-tabs"],
   "tables": ["pricebook", "purchase-orders", "accounts"],
+  "properties": ["types", "statuses"],
 };
 
 /**
