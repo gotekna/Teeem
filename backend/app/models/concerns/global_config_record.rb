@@ -4,7 +4,8 @@
 #
 # Include this in any model that uses `acts_as_tenant :tenant, has_global_records: true`.
 # Records with tenant_id = NULL are "global" (shared) and visible to all tenants.
-# Only the master TEEEM tenant can create, edit, or delete global records.
+# Internal tenants (TEEEM, Tekna, Pilgrim) can edit/delete global records.
+# External (customer) tenants are blocked from modifying shared records.
 #
 # IMPORTANT: Must be included AFTER acts_as_tenant declaration so it can
 # override the belongs_to :tenant to be optional.
@@ -74,8 +75,8 @@ module GlobalConfigRecord
     return unless tenant_id.nil? && tenant_id_was.nil?
     # Allow unscoped context (migrations, console, background jobs without tenant)
     return if ActsAsTenant.current_tenant.nil?
-    # Master tenant can do anything
-    return if ActsAsTenant.current_tenant.respond_to?(:is_master_tenant?) && ActsAsTenant.current_tenant.is_master_tenant?
+    # Internal tenants (TEEEM, Tekna, Pilgrim) can edit shared records
+    return if ActsAsTenant.current_tenant.respond_to?(:internal_tenant?) && ActsAsTenant.current_tenant.internal_tenant?
 
     raise ActiveRecord::ReadOnlyRecord, "Cannot modify shared config record"
   end
@@ -83,7 +84,8 @@ module GlobalConfigRecord
   def prevent_non_master_destroy_of_global_record
     return unless tenant_id.nil?
     return if ActsAsTenant.current_tenant.nil?
-    return if ActsAsTenant.current_tenant.respond_to?(:is_master_tenant?) && ActsAsTenant.current_tenant.is_master_tenant?
+    # Internal tenants (TEEEM, Tekna, Pilgrim) can delete shared records
+    return if ActsAsTenant.current_tenant.respond_to?(:internal_tenant?) && ActsAsTenant.current_tenant.internal_tenant?
 
     raise ActiveRecord::ReadOnlyRecord, "Cannot delete shared config record"
   end

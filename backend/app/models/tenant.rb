@@ -138,6 +138,15 @@ class Tenant < ApplicationRecord
     is_master_tenant?
   end
 
+  # TEEEM, Tekna, and Pilgrim are all internal tenants that act as one.
+  # They can all edit/delete shared config records.
+  # External (customer) tenants cannot.
+  INTERNAL_SLUGS = %w[teeem tekna pilgrim].freeze
+
+  def internal_tenant?
+    is_master_tenant? || slug.in?(INTERNAL_SLUGS)
+  end
+
   # Get display name
   def display_name
     name

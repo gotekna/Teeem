@@ -167,7 +167,8 @@ export default function PropertyDetailPage() {
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Record<string, string | number | boolean | null>>({});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
   const [lookups, setLookups] = useState<{
     property_types: { id: number; name: string }[];
@@ -268,7 +269,8 @@ export default function PropertyDetailPage() {
     }
   }, [id, editForm, toast]);
 
-  const updateField = useCallback((field: string, value: string | number | boolean | null) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updateField = useCallback((field: string, value: any) => {
     setEditForm(prev => ({ ...prev, [field]: value }));
   }, []);
 
@@ -472,18 +474,133 @@ export default function PropertyDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="text-muted-foreground">Type</div>
-                    <div>{property.property_type?.name || "-"}</div>
-                    <div className="text-muted-foreground">Year Built</div>
-                    <div>{property.year_built || "-"}</div>
-                    <div className="text-muted-foreground">Land Area</div>
-                    <div>{property.land_area_sqm ? `${property.land_area_sqm} sqm` : "-"}</div>
-                    <div className="text-muted-foreground">Floor Area</div>
-                    <div>{property.floor_area_sqm ? `${property.floor_area_sqm} sqm` : "-"}</div>
-                  </div>
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Name</Label>
+                        <Input
+                          value={String(editForm.name ?? "")}
+                          onChange={e => updateField("name", e.target.value)}
+                          placeholder="Property name"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Type</Label>
+                        <Select
+                          value={String(editForm.property_type_id ?? "")}
+                          onValueChange={v => updateField("property_type_id", Number(v))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {lookups.property_types.map(t => (
+                              <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Status</Label>
+                        <Select
+                          value={String(editForm.property_status_id ?? "")}
+                          onValueChange={v => updateField("property_status_id", Number(v))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {lookups.property_statuses.map(s => (
+                              <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Year Built</Label>
+                        <Input
+                          type="number"
+                          value={editForm.year_built ?? ""}
+                          onChange={e => updateField("year_built", e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Land Area (sqm)</Label>
+                          <Input
+                            type="number"
+                            value={editForm.land_area_sqm ?? ""}
+                            onChange={e => updateField("land_area_sqm", e.target.value ? Number(e.target.value) : null)}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Floor Area (sqm)</Label>
+                          <Input
+                            type="number"
+                            value={editForm.floor_area_sqm ?? ""}
+                            onChange={e => updateField("floor_area_sqm", e.target.value ? Number(e.target.value) : null)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="text-muted-foreground">Type</div>
+                      <div>{property.property_type?.name || "-"}</div>
+                      <div className="text-muted-foreground">Year Built</div>
+                      <div>{property.year_built || "-"}</div>
+                      <div className="text-muted-foreground">Land Area</div>
+                      <div>{property.land_area_sqm ? `${property.land_area_sqm} sqm` : "-"}</div>
+                      <div className="text-muted-foreground">Floor Area</div>
+                      <div>{property.floor_area_sqm ? `${property.floor_area_sqm} sqm` : "-"}</div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+
+              {/* Address */}
+              {isEditing && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Address
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Street Address</Label>
+                      <Input
+                        value={String(editForm.street_address ?? "")}
+                        onChange={e => updateField("street_address", e.target.value)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Suburb</Label>
+                        <Input
+                          value={String(editForm.suburb ?? "")}
+                          onChange={e => updateField("suburb", e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">State</Label>
+                        <Input
+                          value={String(editForm.state ?? "")}
+                          onChange={e => updateField("state", e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Postcode</Label>
+                        <Input
+                          value={String(editForm.postcode ?? "")}
+                          onChange={e => updateField("postcode", e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Rooms & Parking */}
               <Card>
@@ -491,25 +608,66 @@ export default function PropertyDetailPage() {
                   <CardTitle className="text-sm font-medium">Features</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-6 text-sm">
-                    <div className="flex items-center gap-1.5">
-                      <Bed className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{property.bedrooms ?? "-"}</span>
-                      <span className="text-muted-foreground">Beds</span>
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Bedrooms</Label>
+                          <Input
+                            type="number"
+                            value={editForm.bedrooms ?? ""}
+                            onChange={e => updateField("bedrooms", e.target.value ? Number(e.target.value) : null)}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Bathrooms</Label>
+                          <Input
+                            type="number"
+                            value={editForm.bathrooms ?? ""}
+                            onChange={e => updateField("bathrooms", e.target.value ? Number(e.target.value) : null)}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Parking</Label>
+                          <Input
+                            type="number"
+                            value={editForm.parking_spaces ?? ""}
+                            onChange={e => updateField("parking_spaces", e.target.value ? Number(e.target.value) : null)}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Description</Label>
+                        <Textarea
+                          value={String(editForm.description ?? "")}
+                          onChange={e => updateField("description", e.target.value)}
+                          rows={3}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Bath className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{property.bathrooms ?? "-"}</span>
-                      <span className="text-muted-foreground">Baths</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Car className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{property.parking_spaces ?? "-"}</span>
-                      <span className="text-muted-foreground">Parking</span>
-                    </div>
-                  </div>
-                  {property.description && (
-                    <p className="text-sm text-muted-foreground mt-3">{property.description}</p>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-6 text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <Bed className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{property.bedrooms ?? "-"}</span>
+                          <span className="text-muted-foreground">Beds</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Bath className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{property.bathrooms ?? "-"}</span>
+                          <span className="text-muted-foreground">Baths</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Car className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{property.parking_spaces ?? "-"}</span>
+                          <span className="text-muted-foreground">Parking</span>
+                        </div>
+                      </div>
+                      {property.description && (
+                        <p className="text-sm text-muted-foreground mt-3">{property.description}</p>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -523,12 +681,35 @@ export default function PropertyDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="text-muted-foreground">Weekly Rent</div>
-                    <div className="font-medium">{formatCurrency(property.weekly_rent_amount)}</div>
-                    <div className="text-muted-foreground">Bond</div>
-                    <div>{formatCurrency(property.bond_amount)}</div>
-                  </div>
+                  {isEditing ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Weekly Rent</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={editForm.weekly_rent_amount ?? ""}
+                          onChange={e => updateField("weekly_rent_amount", e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Bond</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={editForm.bond_amount ?? ""}
+                          onChange={e => updateField("bond_amount", e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="text-muted-foreground">Weekly Rent</div>
+                      <div className="font-medium">{formatCurrency(property.weekly_rent_amount)}</div>
+                      <div className="text-muted-foreground">Bond</div>
+                      <div>{formatCurrency(property.bond_amount)}</div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -557,8 +738,8 @@ export default function PropertyDetailPage() {
               </Card>
 
               {/* SDA Info */}
-              {property.sda_enrolled && (
-                <Card className="border-purple-200 dark:border-purple-800">
+              {(property.sda_enrolled || isEditing) && (
+                <Card className={property.sda_enrolled ? "border-purple-200 dark:border-purple-800" : ""}>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2 text-purple-700 dark:text-purple-300">
                       <Shield className="h-4 w-4" />
@@ -566,14 +747,63 @@ export default function PropertyDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="text-muted-foreground">Category</div>
-                      <div>{formatSdaCategory(property.sda_category)}</div>
-                      <div className="text-muted-foreground">Dwelling ID</div>
-                      <div className="font-mono text-xs">{property.sda_dwelling_id || "-"}</div>
-                      <div className="text-muted-foreground">Enrolled Date</div>
-                      <div>{property.sda_enrolment_date || "-"}</div>
-                    </div>
+                    {isEditing ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={!!editForm.sda_enrolled}
+                            onChange={e => updateField("sda_enrolled", e.target.checked)}
+                            className="rounded border-input"
+                          />
+                          <Label className="text-sm">SDA Enrolled</Label>
+                        </div>
+                        {editForm.sda_enrolled && (
+                          <>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Category</Label>
+                              <Select
+                                value={String(editForm.sda_category ?? "")}
+                                onValueChange={v => updateField("sda_category", v)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {["improved_liveability", "fully_accessible", "robust", "high_physical_support"].map(c => (
+                                    <SelectItem key={c} value={c}>{formatSdaCategory(c)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Dwelling ID</Label>
+                              <Input
+                                value={String(editForm.sda_dwelling_id ?? "")}
+                                onChange={e => updateField("sda_dwelling_id", e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Enrolment Date</Label>
+                              <Input
+                                type="date"
+                                value={String(editForm.sda_enrolment_date ?? "")}
+                                onChange={e => updateField("sda_enrolment_date", e.target.value)}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="text-muted-foreground">Category</div>
+                        <div>{formatSdaCategory(property.sda_category)}</div>
+                        <div className="text-muted-foreground">Dwelling ID</div>
+                        <div className="font-mono text-xs">{property.sda_dwelling_id || "-"}</div>
+                        <div className="text-muted-foreground">Enrolled Date</div>
+                        <div>{property.sda_enrolment_date || "-"}</div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
