@@ -217,15 +217,16 @@ class UploadEmailsToStorageJob < ApplicationJob
           break
         end
 
-        # 5. Check if there are actually more processable emails — SSoT scope
-        remaining = SyncedEmail.pending_storage_upload.count
-
-        if remaining == 0
+        # 5. Check if there are actually more processable emails
+        # FRC (Mar 2026): Don't re-query pending_storage_upload.count every iteration.
+        # That scope runs an expensive multi-column filter (avg 2,239ms) and was responsible
+        # for 67+ slow queries per job run. Instead, trust the batch results: if the batch
+        # processed or skipped items, there may be more; if it hit zero uploads, the
+        # consecutive_zero_batches guard above handles it.
+        if uploaded == 0 && skipped == 0
           Rails.logger.info "[UploadEmailsToStorageJob] All processable emails migrated for tenant #{tenant.id}!"
           break
         end
-
-        Rails.logger.info "[UploadEmailsToStorageJob] #{remaining} emails remaining, continuing..."
       end
 
       Rails.logger.info "[UploadEmailsToStorageJob] Total for tenant #{tenant.id}: uploaded=#{total_uploaded}, skipped=#{total_skipped}, errors=#{total_errors.count}, batches=#{batch_number}"

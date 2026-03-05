@@ -1368,6 +1368,12 @@
       "tips": ["View total properties, active tenancies, and upcoming inspections at a glance", "Use 'View All' to access the full property table with filters and sorting", "Click a recent property to jump to its detail page", "Create properties from existing jobs for quick setup"],
       "tasks": ["Review portfolio overview", "Add a new property", "View all properties", "Create property from job"]
     },
+    "/properties/setup": {
+      "title": "Property Management Setup",
+      "description": "Setup checklist showing what needs to be configured before the property management module is fully operational.",
+      "tips": ["Each item shows whether it is complete or still needs attention", "Items link to the relevant settings page for configuration", "You can create your first property directly from an existing job", "Return to the dashboard once all items are complete"],
+      "tasks": ["Configure property types and statuses", "Set a trading name", "Connect a Xero organisation", "Create your first property"]
+    },
     "/properties/list": {
       "title": "All Properties",
       "description": "Full table of all properties with filtering, sorting, and saved views.",

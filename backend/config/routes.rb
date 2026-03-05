@@ -544,6 +544,8 @@ Rails.application.routes.draw do
           patch :link_to_task  # Re-link orphaned document to a task
           patch :set_expiry  # Set or clear expiry date
           post :verify   # Mark document as verified/validated
+          post :unverify # Remove verification from document
+          patch :change_document_type # Change document type assignment
           post :share_link  # Generate shareable link (presigned URL)
         end
         collection do

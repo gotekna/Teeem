@@ -3,7 +3,7 @@
 module Api
   module V1
     class DocumentsController < ApplicationController
-      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task, :verify, :share_link, :set_expiry ]
+      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task, :verify, :unverify, :change_document_type, :share_link, :set_expiry ]
 
       # GET /api/v1/documents/all
       # Returns file counts for the entire warehouse (fast)
@@ -968,6 +968,65 @@ module Api
 
         if @document.update(metadata: meta)
           render json: { success: true, document: warehouse_document_to_json(@document) }
+        else
+          render json: { success: false, errors: @document.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/documents/:id/unverify
+      # Remove verification from a document
+      def unverify
+        meta = @document.metadata || {}
+        meta.delete("verified")
+        meta.delete("verified_by")
+        meta.delete("verified_by_id")
+        meta.delete("verified_at")
+
+        if @document.update(metadata: meta)
+          render json: { success: true, document: warehouse_document_to_json(@document) }
+        else
+          render json: { success: false, errors: @document.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH /api/v1/documents/:id/change_document_type
+      # Change the document type assignment for a warehouse document
+      # Params: { document_type_id: 123 } or { document_type_id: null } to clear
+      def change_document_type
+        new_dt_id = params[:document_type_id]
+
+        if new_dt_id.present?
+          dt = DocumentType.find_by(id: new_dt_id)
+          return render json: { success: false, error: "Document type not found" }, status: :not_found unless dt
+
+          # Find the WFDT link for this document type in the document's current folder context
+          wfdt = if @document.warehouse_folder_document_type&.warehouse_folder_id
+            WarehouseFolderDocumentType.find_by(
+              warehouse_folder_id: @document.warehouse_folder_document_type.warehouse_folder_id,
+              document_type_id: dt.id
+            )
+          end
+
+          # If no WFDT in current folder, find any WFDT for this document type
+          wfdt ||= WarehouseFolderDocumentType.find_by(document_type_id: dt.id)
+
+          updates = { warehouse_folder_document_type_id: wfdt&.id }
+
+          # Also update metadata for backward compatibility
+          meta = @document.metadata || {}
+          meta["document_type_id"] = dt.id
+          meta["document_type"] = dt.name
+          updates[:metadata] = meta
+        else
+          updates = { warehouse_folder_document_type_id: nil }
+          meta = @document.metadata || {}
+          meta.delete("document_type_id")
+          meta.delete("document_type")
+          updates[:metadata] = meta
+        end
+
+        if @document.update(updates)
+          render json: { success: true, document: warehouse_document_to_json(@document.reload) }
         else
           render json: { success: false, errors: @document.errors.full_messages }, status: :unprocessable_entity
         end
@@ -2768,8 +2827,9 @@ module Api
           source: wd.source_type,
           documentableType: wd.documentable_type,
           documentableId: wd.documentable_id,
-          # Document type (for admin navigation)
+          # Document type
           documentTypeId: wd.warehouse_folder_document_type&.document_type_id,
+          documentTypeName: wd.warehouse_folder_document_type&.document_type&.name,
           # Names (SSoT from WarehouseDocument)
           displayName: wd.ui_name,
           sendName: wd.download_filename,  # Resolved via SendNameResolver

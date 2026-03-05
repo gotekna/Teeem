@@ -18,6 +18,7 @@ import {
   List,
   ArrowRight,
   AlertCircle,
+  Settings2,
 } from "lucide-react";
 
 interface PropertyStats {
@@ -198,6 +199,12 @@ export default function PropertiesDashboard() {
               <Link href="/properties/list">
                 <List className="h-3.5 w-3.5 mr-2" />
                 View All Properties
+              </Link>
+            </Button>
+            <Button variant="outline" className="w-full justify-start" size="sm" asChild>
+              <Link href="/properties/setup">
+                <Settings2 className="h-3.5 w-3.5 mr-2" />
+                Module Setup
               </Link>
             </Button>
           </CardContent>

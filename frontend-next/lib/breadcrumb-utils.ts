@@ -98,6 +98,7 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   // Properties
   "/properties": "Property Management",
   "/properties/list": "All Properties",
+  "/properties/setup": "Setup",
 };
 
 /**

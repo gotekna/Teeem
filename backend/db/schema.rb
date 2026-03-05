@@ -1789,9 +1789,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "role_ids", default: [], array: true
     t.index ["is_active"], name: "index_contact_relationships_on_is_active"
     t.index ["related_contact_id", "display_order"], name: "index_contact_relationships_on_company_and_order"
+    t.index ["related_contact_id", "is_active"], name: "idx_contact_rels_related_active"
     t.index ["related_contact_id"], name: "index_contact_relationships_on_related_contact_id"
     t.index ["relationship_type"], name: "index_contact_relationships_on_relationship_type"
     t.index ["role_ids"], name: "index_contact_relationships_on_role_ids", using: :gin
+    t.index ["source_contact_id", "is_active"], name: "idx_contact_rels_source_active"
     t.index ["source_contact_id", "related_contact_id", "relationship_type"], name: "index_contact_relationships_unique_by_type", unique: true
     t.index ["source_contact_id"], name: "index_contact_relationships_on_source_contact_id"
   end
@@ -1945,6 +1947,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["searchable"], name: "idx_contacts_searchable_gin", using: :gin
     t.index ["stripe_customer_id"], name: "index_contacts_on_stripe_customer_id", unique: true, where: "(stripe_customer_id IS NOT NULL)"
     t.index ["support_contact_id"], name: "index_contacts_on_support_contact_id"
+    t.index ["tenant_id", "is_active"], name: "idx_contacts_tenant_is_active"
     t.index ["tenant_id", "sync_key"], name: "idx_contacts_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_contacts_on_tenant_id"
     t.index ["upline_contact_id"], name: "index_contacts_on_upline_contact_id"
@@ -3382,6 +3385,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["sync_conflict"], name: "idx_external_invoices_conflicts", where: "(sync_conflict = true)"
     t.index ["sync_enabled"], name: "index_external_invoices_on_sync_enabled"
     t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_external_invoices_pending_sync"
+    t.index ["tenant_id", "status"], name: "idx_ext_inv_tenant_status"
     t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
     t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
     t.index ["xero_org_id", "invoice_type", "status"], name: "idx_ext_inv_xero_org_type_status"
@@ -10314,6 +10318,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["searchable"], name: "idx_email_warehouse_searchable_gin", using: :gin
     t.index ["storage_path"], name: "index_synced_emails_on_storage_path"
     t.index ["synced_by_user_id"], name: "idx_email_warehouse_synced_by_user"
+    t.index ["tenant_id", "content_unavailable"], name: "idx_synced_emails_tenant_content_unavail"
     t.index ["tenant_id"], name: "index_synced_emails_on_tenant_id"
     t.index ["to_emails"], name: "idx_email_warehouse_to_emails_gin", using: :gin
   end
@@ -11326,6 +11331,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
     t.index ["tenant_id", "expiry_date"], name: "idx_warehouse_docs_tenant_expiry", where: "(expiry_date IS NOT NULL)"
     t.index ["tenant_id", "folder_path"], name: "idx_wd_tenant_folder_path"
+    t.index ["tenant_id", "source_type", "documentable_type"], name: "idx_warehouse_docs_tenant_source_doctype"
     t.index ["tenant_id", "warehouse_type"], name: "idx_wd_tenant_warehouse_type"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"

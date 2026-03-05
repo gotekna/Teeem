@@ -1630,6 +1630,7 @@ module Api
                                             AND EXISTS (
                                               SELECT 1 FROM storage_blobs
                                               WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+                                              AND storage_blobs.tenant_id = warehouse_documents.tenant_id
                                               AND storage_blobs.content_hash IS NOT NULL
                                             ))
                                          SQL
