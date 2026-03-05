@@ -19,24 +19,29 @@ module GlobalConfigRecord
   extend ActiveSupport::Concern
 
   included do
-    # Override belongs_to :tenant (from acts_as_tenant) to allow NULL tenant_id
-    # for global/shared records. This MUST come after acts_as_tenant declaration.
-    #
-    # ⚠️ DO NOT SIMPLIFY - Rails belongs_to validator persistence (Mar 2026)
-    # ════════════════════════════════════════════════════════════════
-    # Why: acts_as_tenant declares `belongs_to :tenant` (required by default in Rails 8),
-    #      which registers a PresenceValidator. Re-declaring with `optional: true` updates
-    #      the association but does NOT remove the already-registered validator.
-    # ❌ WRONG: Just `belongs_to :tenant, optional: true` — old validator persists
-    # ❌ WRONG: `_validate_callbacks.each { delete }` — unreliable in production
-    # ✅ CORRECT: Re-declare as optional + after_validation safety net
-    # ════════════════════════════════════════════════════════════════
     belongs_to :tenant, optional: true
-
-    after_validation :clear_stale_tenant_errors
     before_create :auto_globalize_master_record
     before_save :prevent_non_master_edit_of_global_record
     before_destroy :prevent_non_master_destroy_of_global_record
+  end
+
+  # ⚠️ DO NOT SIMPLIFY - Override valid? for global records (Mar 2026)
+  # ════════════════════════════════════════════════════════════════
+  # Why: acts_as_tenant declares `belongs_to :tenant` (required by default in Rails 8),
+  #      which registers a PresenceValidator. Re-declaring with `optional: true` does NOT
+  #      remove the already-registered validator. The validator adds a :tenant error for
+  #      global records (tenant_id=NULL), causing valid? to return false.
+  # ❌ WRONG: `after_validation :clear_errors` — valid? captures false before after runs
+  # ❌ WRONG: `_validate_callbacks.delete` — fragile, depends on Rails internals
+  # ✅ CORRECT: Override valid? to strip the stale :tenant error for global records
+  # ════════════════════════════════════════════════════════════════
+  def valid?(context = nil)
+    result = super
+    if !result && tenant_id.nil?
+      errors.delete(:tenant)
+      result = errors.empty?
+    end
+    result
   end
 
   # Is this a shared/global record visible to all tenants?
@@ -52,14 +57,6 @@ module GlobalConfigRecord
   end
 
   private
-
-  # Clear stale PresenceValidator errors on :tenant for shared records.
-  # acts_as_tenant's belongs_to validator persists even after re-declaring
-  # with optional: true. This safely removes those errors for records
-  # that are intentionally global (tenant_id = NULL).
-  def clear_stale_tenant_errors
-    errors.delete(:tenant) if tenant_id.nil?
-  end
 
   # When master tenant creates a config record, auto-set tenant_id=NULL
   # so it's immediately shared globally. Customer tenants keep normal tenant_id.
