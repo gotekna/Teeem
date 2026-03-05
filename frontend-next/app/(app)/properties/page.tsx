@@ -1,4 +1,5 @@
-import { createFoundationMainPage } from "@/lib/create-foundation-view-page";
-import PropertiesPageClient from "./properties-page-client";
+import PropertiesDashboard from "./properties-dashboard";
 
-export default createFoundationMainPage("properties", "/properties", PropertiesPageClient, { includeGroupCounts: true });
+export default function PropertiesPage() {
+  return <PropertiesDashboard />;
+}

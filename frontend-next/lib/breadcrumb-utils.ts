@@ -94,6 +94,10 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/xero": "Xero",
   "/data-warehouse": "Data Warehouse",
   "/training": "Training",
+
+  // Properties
+  "/properties": "Property Management",
+  "/properties/list": "All Properties",
 };
 
 /**

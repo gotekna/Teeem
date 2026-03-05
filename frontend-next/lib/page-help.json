@@ -1364,9 +1364,15 @@
     },
     "/properties": {
       "title": "Property Management",
-      "description": "Manage all properties, tenancies, and SDA dwellings. Create properties from existing jobs or add new ones manually.",
+      "description": "Dashboard overview of your property portfolio with stats, breakdowns, and quick actions.",
+      "tips": ["View total properties, active tenancies, and upcoming inspections at a glance", "Use 'View All' to access the full property table with filters and sorting", "Click a recent property to jump to its detail page", "Create properties from existing jobs for quick setup"],
+      "tasks": ["Review portfolio overview", "Add a new property", "View all properties", "Create property from job"]
+    },
+    "/properties/list": {
+      "title": "All Properties",
+      "description": "Full table of all properties with filtering, sorting, and saved views.",
       "tips": ["Use 'Create from Job' to quickly set up a property with address and client pre-filled", "Use filters to find properties by status, type, or suburb", "Click a property to view full details and tenancy history", "SDA-enrolled properties are highlighted with a purple badge"],
-      "tasks": ["Create a property from an existing job", "Add a new property", "Manage tenancies and tenants", "Track SDA compliance"]
+      "tasks": ["Create a property from an existing job", "Add a new property", "Filter by status or type", "Export property data"]
     },
     "/properties/[id]": {
       "title": "Property Detail",
