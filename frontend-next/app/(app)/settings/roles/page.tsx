@@ -175,13 +175,37 @@ function InlineSectionGroup({
   group,
   permissions,
   onChange,
+  onBulkChange,
 }: {
   group: PermissionSectionGroup;
   permissions: Record<string, number>;
   onChange: (key: string, level: PermissionLevel) => void;
+  onBulkChange: (changes: Record<string, PermissionLevel>) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const hasSubFeatures = group.subFeatures.length > 0;
+
+  // When header is clicked, cascade to all children that support this level
+  const handleHeaderChange = (lvl: PermissionLevel) => {
+    const changes: Record<string, PermissionLevel> = {
+      [group.header.key]: lvl,
+    };
+    // Set children to the closest available level
+    for (const sf of group.subFeatures) {
+      if (sf.availableLevels.includes(lvl)) {
+        changes[sf.key] = lvl;
+      } else {
+        // Find the closest available level that doesn't exceed the header level
+        const closest = [...sf.availableLevels]
+          .filter((l) => l <= lvl)
+          .sort((a, b) => b - a)[0];
+        if (closest !== undefined) {
+          changes[sf.key] = closest as PermissionLevel;
+        }
+      }
+    }
+    onBulkChange(changes);
+  };
 
   return (
     <>
@@ -209,7 +233,7 @@ function InlineSectionGroup({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onChange(group.header.key, lvl);
+                  hasSubFeatures ? handleHeaderChange(lvl) : onChange(group.header.key, lvl);
                 }}
                 className={`w-5 h-5 rounded-full border-2 inline-flex items-center justify-center transition-colors ${
                   (permissions[group.header.key] ?? 0) === lvl
@@ -390,6 +414,13 @@ function PermissionsSubTab() {
   const handlePermissionChange = React.useCallback(
     (key: string, level: PermissionLevel) => {
       setPermissions((prev) => ({ ...prev, [key]: level }));
+    },
+    []
+  );
+
+  const handleBulkPermissionChange = React.useCallback(
+    (changes: Record<string, PermissionLevel>) => {
+      setPermissions((prev) => ({ ...prev, ...changes }));
     },
     []
   );
@@ -712,6 +743,7 @@ function PermissionsSubTab() {
                             group={group}
                             permissions={permissions}
                             onChange={handlePermissionChange}
+                            onBulkChange={handleBulkPermissionChange}
                           />
                         ))}
                       </tbody>

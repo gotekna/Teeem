@@ -107,6 +107,7 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/properties/sda/enrolments": "Enrolments",
   "/properties/sda/claims": "Claims",
   "/properties/sda/compliance": "Compliance",
+  "/properties/sda/setup": "Setup",
 };
 
 /**

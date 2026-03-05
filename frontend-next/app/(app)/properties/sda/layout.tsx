@@ -9,6 +9,7 @@ import {
   FileCheck2,
   Receipt,
   ShieldCheck,
+  Settings2,
 } from "lucide-react";
 
 const SDA_TABS = [
@@ -17,6 +18,7 @@ const SDA_TABS = [
   { value: "enrolments", label: "Enrolments", icon: FileCheck2, href: "/properties/sda/enrolments" },
   { value: "claims", label: "Claims", icon: Receipt, href: "/properties/sda/claims" },
   { value: "compliance", label: "Compliance", icon: ShieldCheck, href: "/properties/sda/compliance" },
+  { value: "setup", label: "Setup", icon: Settings2, href: "/properties/sda/setup" },
 ];
 
 export default function SdaLayout({ children }: { children: React.ReactNode }) {

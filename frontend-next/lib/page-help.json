@@ -1421,6 +1421,12 @@
       "description": "Compliance matrix showing document status across all SDA properties for assessment, fire safety, building certs, occupancy, insurance, and photos.",
       "tips": ["Green = valid, Amber = expiring soon, Red = expired, Grey = missing", "The portfolio score averages all property compliance scores", "Hover over a badge to see expiry or upload date", "Export the matrix for reporting or audit purposes"],
       "tasks": ["Review portfolio compliance score", "Identify expired or missing documents", "Export compliance report", "Track document expiry dates"]
+    },
+    "/properties/sda/setup": {
+      "title": "SDA Setup",
+      "description": "NDIS integration setup with email templates to request API access, dwelling enrolment guides, and useful SDA resources.",
+      "tips": ["Copy email templates to request NDIS API credentials", "Check API status badges to see what's available vs coming soon", "Use the resource links for official NDIS pricing and design standards", "PRODA registration is required for bulk claim API access"],
+      "tasks": ["Request NDIS API access", "Submit dwelling enrolment application", "Register for PRODA digital access", "Review current SDA price guide"]
     }
   }
 }
