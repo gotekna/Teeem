@@ -295,7 +295,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "tender-documents": "Tender Documents",
   "profit-centres": "Profit Centres",
   "cost-centres": "Cost Centres",
-  "properties": "Properties",
+  "properties": "Property Management",
 
   // Settings > System sub-tabs
   "navigation": "Navigation",

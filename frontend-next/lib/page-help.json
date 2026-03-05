@@ -1363,10 +1363,10 @@
       "tasks": ["Access dashboard", "Start training", "Invite team", "Begin using TEEEM"]
     },
     "/properties": {
-      "title": "Properties",
-      "description": "Manage all properties, tenancies, and SDA dwellings in one place.",
-      "tips": ["Use filters to find properties by status, type, or suburb", "Click a property to view full details and tenancy history", "SDA-enrolled properties are highlighted with a purple badge", "Export property data for reporting"],
-      "tasks": ["Add a new property", "View property details", "Manage tenancies", "Track SDA compliance"]
+      "title": "Property Management",
+      "description": "Manage all properties, tenancies, and SDA dwellings. Create properties from existing jobs or add new ones manually.",
+      "tips": ["Use 'Create from Job' to quickly set up a property with address and client pre-filled", "Use filters to find properties by status, type, or suburb", "Click a property to view full details and tenancy history", "SDA-enrolled properties are highlighted with a purple badge"],
+      "tasks": ["Create a property from an existing job", "Add a new property", "Manage tenancies and tenants", "Track SDA compliance"]
     },
     "/properties/[id]": {
       "title": "Property Detail",
