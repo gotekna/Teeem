@@ -28,7 +28,7 @@ class TakeoffTemplate < ApplicationRecord
   include ConfigSyncable
   include GlobalConfigRecord
 
-  belongs_to :tenant
+  belongs_to :tenant, optional: true  # optional for global records (tenant_id = NULL)
   belongs_to :created_by, class_name: "User", optional: true
 
   # Validations

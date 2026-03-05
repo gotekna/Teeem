@@ -4,7 +4,7 @@ class FoundationView < ApplicationRecord
 
   acts_as_tenant :tenant, has_global_records: true
 
-  belongs_to :tenant
+  belongs_to :tenant, optional: true  # optional for global records (tenant_id = NULL)
   belongs_to :user, optional: true  # optional for global views (is_global = true)
   belongs_to :foundation, optional: true  # optional because foundation_id might reference dynamic foundations
 

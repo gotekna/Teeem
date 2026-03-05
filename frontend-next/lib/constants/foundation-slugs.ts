@@ -238,6 +238,13 @@ export const FOUNDATION_SLUGS = {
   UNREAL_VARIABLES: 'unreal_variables',
   WAREHOUSE_DOCUMENTS: 'warehouse-documents',  // ⚠️ HYPHEN
   DESIGNS: 'designs',
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Property Management
+  // ═══════════════════════════════════════════════════════════════════════════
+  PROPERTIES: 'properties',
+  PROPERTY_TYPES: 'property_types',
+  PROPERTY_STATUSES: 'property_statuses',
 } as const;
 
 // Type for Foundation slug values

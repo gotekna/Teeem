@@ -1414,6 +1414,42 @@ Rails.application.routes.draw do
       post "sms/status", to: "sms_messages#status_webhook"
 
       # ============================================
+      # Property Management
+      # ============================================
+      resources :properties do
+        collection do
+          get :for_select
+          get :stats
+        end
+        member do
+          get :tenancies
+          get :bills
+          get :inspections
+          get :contacts
+          get :financials
+        end
+      end
+
+      resources :tenancies do
+        member do
+          patch :activate
+          patch :terminate
+        end
+      end
+
+      resources :property_bills do
+        member do
+          patch :approve
+        end
+      end
+
+      resources :property_inspections do
+        member do
+          patch :complete
+        end
+      end
+
+      # ============================================
       # SaaS Customer Management
       # ============================================
 

@@ -2,7 +2,7 @@
   "_meta": {
     "description": "SSoT for contextual page help. Claude updates this when screens change.",
     "lastUpdated": "2026-02-14",
-    "totalPages": 188,
+    "totalPages": 190,
     "format": "Each page has: title, description, tips (array), tasks (array)"
   },
   "pages": {
@@ -1355,6 +1355,18 @@
       "description": "Congratulations on completing setup!",
       "tips": ["Explore your new workspace", "Check out training resources", "Invite team members"],
       "tasks": ["Access dashboard", "Start training", "Invite team", "Begin using TEEEM"]
+    },
+    "/properties": {
+      "title": "Properties",
+      "description": "Manage all properties, tenancies, and SDA dwellings in one place.",
+      "tips": ["Use filters to find properties by status, type, or suburb", "Click a property to view full details and tenancy history", "SDA-enrolled properties are highlighted with a purple badge", "Export property data for reporting"],
+      "tasks": ["Add a new property", "View property details", "Manage tenancies", "Track SDA compliance"]
+    },
+    "/properties/[id]": {
+      "title": "Property Detail",
+      "description": "Full detail view for a property including tenancy, financials, documents, and inspections.",
+      "tips": ["Switch tabs to access tenancy, financial, and inspection information", "SDA tenancies show participant contribution and NDIA payment breakdown", "The financials tab shows rent income vs bills summary", "Documents tab holds lease agreements and compliance files"],
+      "tasks": ["Edit property details", "View current tenancy", "Review bills and payments", "Schedule an inspection", "Upload documents"]
     }
   }
 }
