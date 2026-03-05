@@ -12,7 +12,7 @@ module Api
     # SSoT: TenantConfigSyncService::CONFIG_TABLES for table metadata
     # SSoT: GlobalConfigRecord concern for uses_global_records? check
     class SharedConfigController < ApplicationController
-      before_action :require_admin!
+      before_action :require_admin
 
       # GET /api/v1/shared_config/tables
       def tables
