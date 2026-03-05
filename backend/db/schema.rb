@@ -9487,7 +9487,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "task_code", limit: 50
     t.integer "tender_id"
     t.bigint "warehouse_folder_id"
-    t.jsonb "plan_type_ids", default: "[]"
     t.jsonb "document_ref_type_ids", default: "[]"
     t.decimal "escalation_percent", precision: 5, scale: 2, default: "0.0"
     t.decimal "markup_percent", precision: 5, scale: 2, default: "0.0"

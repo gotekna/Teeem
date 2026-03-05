@@ -231,13 +231,6 @@ Rails.application.routes.draw do
         end
       end
 
-      # Batch Operations - Global routes for folder_scan, folder_process
-      # (Job-scoped routes are also nested under /jobs/:job_id/batch_operations)
-      resources :batch_operations, only: [ :create, :show ] do
-        collection do
-          get :active  # GET /api/v1/batch_operations/active
-        end
-      end
 
       # Document Standardization (Admin: batch rename documents to match naming conventions)
       # SSoT: DocumentType.naming_format defines the naming pattern
@@ -623,8 +616,6 @@ Rails.application.routes.draw do
           post :merge
           # Plan set management
           get :plan_set
-          post :upload_plan_set
-          post :rename_plans
           # Contract generation
           post :generate_contract
           post :save_contract
@@ -715,9 +706,6 @@ Rails.application.routes.draw do
             get :tabs                 # GET /api/v1/jobs/:job_id/job_plans/tabs
             get :suggested_recipients # GET /api/v1/jobs/:job_id/job_plans/suggested_recipients
             post :email               # POST /api/v1/jobs/:job_id/job_plans/email
-            post :upload_plan_set     # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set - AI split (legacy)
-            post :fix_categories      # POST /api/v1/jobs/:job_id/job_plans/fix_categories - Reassign to correct tabs
-            post :rerun_ai            # POST /api/v1/jobs/:job_id/job_plans/rerun_ai - Re-run AI analysis
           end
           member do
             post :add_revision    # POST /api/v1/jobs/:job_id/job_plans/:id/add_revision
@@ -727,12 +715,6 @@ Rails.application.routes.draw do
           resources :revisions, controller: "job_plan_revisions", only: [ :index, :show, :create, :update, :destroy ]
         end
 
-        # Batch operations - THE SSoT for all batch operation progress tracking
-        resources :batch_operations, only: [ :create, :show ] do
-          collection do
-            get :active  # GET /api/v1/jobs/:job_id/batch_operations/active
-          end
-        end
 
         # Meetings (nested under jobs)
         resources :meetings, only: [ :index, :create ]

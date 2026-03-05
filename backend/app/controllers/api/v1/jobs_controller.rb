@@ -1374,30 +1374,6 @@ module Api
         render_error(e.message, status: :internal_server_error)
       end
 
-      # POST /api/v1/jobs/:id/upload_plan_set
-      # Upload a PDF plan set, split into individual pages named by PDF page labels
-      def upload_plan_set
-        unless params[:file].present?
-          return render_error("No file provided", status: :unprocessable_entity)
-        end
-
-        service = PlanSetService.new(@job, params[:file])
-        result = service.process!
-
-        if result[:success]
-          render json: {
-            success: true,
-            data: {
-              all_plans: result[:all_plans],
-              pages: result[:pages],
-              total_pages: result[:total_pages]
-            }
-          }
-        else
-          render_error(result[:error], status: :unprocessable_entity)
-        end
-      end
-
       # GET /api/v1/jobs/:id/plan_set
       # Get the list of plans from WarehouseDocument (blob storage SSoT)
       def plan_set
@@ -1435,28 +1411,6 @@ module Api
         }
       rescue => e
         Rails.logger.error("plan_set error: #{e.message}")
-        render_error(e.message, status: :internal_server_error)
-      end
-
-      # POST /api/v1/jobs/:id/rename_plans
-      # Use AI to rename existing plans in 04 Plans folder
-      def rename_plans
-        result = PlanSetService.new(@job, nil).rename_existing_plans!
-
-        if result[:success]
-          render json: {
-            success: true,
-            data: {
-              renamed: result[:renamed],
-              skipped: result[:skipped],
-              errors: result[:errors]
-            }
-          }
-        else
-          render_error(result[:error], status: :unprocessable_entity)
-        end
-      rescue => e
-        Rails.logger.error("rename_plans error: #{e.message}")
         render_error(e.message, status: :internal_server_error)
       end
 
