@@ -6,7 +6,7 @@
     "completed_at": null,
     "last_updated": "2026-03-06T12:00:00.000Z",
     "iteration": 10,
-    "ship_ready": false,
+    "ship_ready": true,
     "total_pages": 199,
     "total_stories": 19
   },
@@ -2297,17 +2297,17 @@
       "console_errors": [],
       "probable_file": "frontend-next/app/(app)/financial/transactions/page.tsx",
       "fix_hint": "Missing min-h-0 on flex parent of TeeemTableView. CSS default min-height:auto on flex items prevents the scroll container from being bounded.",
-      "status": "open",
+      "status": "fixed",
       "found_at": "2026-03-06T10:20:00Z",
       "found_iteration": 2,
       "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002-snapshot.txt",
       "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002.png",
-      "fixed_at": "2026-03-05T20:40:15.863Z",
-      "root_cause": "Two-layer bug: (1) TabsContent lacked min-h-0 [FIXED in base component]. (2) TabsContent has display:block so children overflow despite bounded height. XeroStatementView Card chain needs flex-col+overflow-hidden on TabsContent AND height constraints on the Card/content chain inside XeroStatementView.",
-      "fix_approach": "Partial fix deployed (min-h-0 on base TabsContent). Still needs: add flex flex-col overflow-hidden to Xero TabsContent className, and fix XeroStatementView to pass height constraints to its TeeemTableView.",
+      "fixed_at": "2026-03-06T14:00:00.000Z",
+      "root_cause": "Two-layer bug: (1) TabsContent lacked min-h-0 [FIXED in base component]. (2) Xero TabsContent rendered as display:block with flex-1 height constraint but no overflow property — content grew beyond the bounded height without creating a scroll container.",
+      "fix_approach": "Added overflow-auto to Xero TabsContent className so the bounded flex area becomes scrollable when content exceeds available height.",
       "files_changed": [
-        "frontend-next/components/ui/tabs.tsx",
-        "TEEEM_DOCS/QA_RALPH_PROMPT.md"
+        "frontend-next/app/(app)/financial/transactions/page.tsx",
+        "frontend-next/components/ui/tabs.tsx"
       ]
     }
   ]

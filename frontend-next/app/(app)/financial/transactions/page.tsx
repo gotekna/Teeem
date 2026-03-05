@@ -285,7 +285,7 @@ export default function FinancialTransactionsPage() {
         </div>
 
         {/* Xero Bank Transactions Tab */}
-        <TabsContent value="xero" className="flex-1 px-4 mt-0">
+        <TabsContent value="xero" className="flex-1 overflow-auto px-4 mt-0">
           <XeroStatementView />
         </TabsContent>
 

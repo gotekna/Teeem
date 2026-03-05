@@ -12,11 +12,14 @@ module Api
                            .pluck(:navigation_item_id, :is_collapsed)
                            .to_h
 
+        # Get enabled modules for tenant (empty hash = all enabled)
+        @enabled_modules = TenantSetting.instance&.enabled_modules || {}
+
         # Get items from SSoT (NavigationItem), ordered by admin-set position
         # Eager load 2 levels of children to avoid N+1 queries
         items = NavigationItem.active.top_level.ordered
                   .includes(children: :children)
-                  .select { |item| item.visible_to?(current_user) }
+                  .select { |item| item.visible_to?(current_user, enabled_modules: @enabled_modules) }
 
         render json: {
           success: true,
@@ -131,7 +134,7 @@ module Api
       def item_with_children_json(item, collapse_prefs)
         # Get visible children, ordered by position
         # Filter in Ruby on preloaded association (avoids N+1 from .active.ordered scopes)
-        visible_children = item.children.select { |child| child.is_active }.sort_by(&:position).select { |child| child.visible_to?(current_user) }
+        visible_children = item.children.select { |child| child.is_active }.sort_by(&:position).select { |child| child.visible_to?(current_user, enabled_modules: @enabled_modules) }
 
         # User's collapse preference, or default from NavigationItem
         is_collapsed = collapse_prefs.key?(item.id) ? collapse_prefs[item.id] : item.is_collapsed_default
@@ -158,7 +161,7 @@ module Api
       def child_item_json(child, collapse_prefs)
         # Get visible grandchildren, ordered by position (supports 2 levels of nesting)
         # Filter in Ruby on preloaded association (avoids N+1 from .active.ordered scopes)
-        visible_grandchildren = child.children.select { |gc| gc.is_active }.sort_by(&:position).select { |gc| gc.visible_to?(current_user) }
+        visible_grandchildren = child.children.select { |gc| gc.is_active }.sort_by(&:position).select { |gc| gc.visible_to?(current_user, enabled_modules: @enabled_modules) }
         is_collapsed = collapse_prefs.key?(child.id) ? collapse_prefs[child.id] : child.is_collapsed_default
 
         {

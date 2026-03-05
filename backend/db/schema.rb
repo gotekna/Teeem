@@ -7165,6 +7165,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", default: -> { "now()" }, null: false
     t.datetime "updated_at", default: -> { "now()" }, null: false
     t.bigint "visible_to_tenant_ids", default: [], array: true
+    t.string "module_key"
     t.index ["visible_to_tenant_ids"], name: "index_navigation_items_on_visible_to_tenant_ids", using: :gin
   end
 
@@ -10740,6 +10741,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "assistant_enabled", default: false
     t.jsonb "po_conditions", comment: "Custom PO Conditions of Acceptance (array of strings)"
     t.jsonb "config_sync_table_modes", default: {}
+    t.jsonb "enabled_modules", default: {}, null: false
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"

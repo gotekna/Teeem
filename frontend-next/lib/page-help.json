@@ -1022,9 +1022,9 @@
     },
     "/settings/roles": {
       "title": "Access Control",
-      "description": "Configure roles, permissions, and access groups.",
-      "tips": ["Click a role card to configure its permissions", "Roles define what users can see and do", "Groups allow bulk permission assignment", "Use Copy From to quickly set up a new role"],
-      "tasks": ["Create custom role", "Configure role permissions", "Add users to groups", "Copy permissions between roles"]
+      "description": "Configure roles, permissions, features, and user access.",
+      "tips": ["Permissions tab: Click a role card to configure what each role can do", "Users tab: Assign roles to users with inline editing", "Features tab: Toggle entire modules on/off for your company", "Groups tab: Organize users into teams for bulk operations"],
+      "tasks": ["Create custom role", "Configure role permissions", "Assign roles to users", "Toggle company features", "Add users to groups"]
     },
     "/settings/roles/roles/[id]": {
       "title": "Role Permissions",
