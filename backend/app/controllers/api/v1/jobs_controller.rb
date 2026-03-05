@@ -160,7 +160,8 @@ module Api
           success: true,
           default_preview_job_id: default_preview_job,
           jobs: jobs.map do |job|
-            client = job.job_contacts.find { |jc| jc.role == "client" }&.contact
+            clients = job.job_contacts.select { |jc| jc.role == "client" }.filter_map(&:contact)
+            client = clients.first
             employees = job.job_contacts
                           .select { |jc| %w[coordinator estimator internal_sales site_coordinator supervisor].include?(jc.role) }
                           .map { |jc| jc.contact&.display_name || "#{jc.contact&.first_name} #{jc.contact&.last_name}".strip }
@@ -205,6 +206,7 @@ module Api
               id: job.id,
               name: job.name,
               client_name: client&.display_name || "#{client&.first_name} #{client&.last_name}".strip.presence,
+              client_names: clients.map { |c| c.display_name.presence || "#{c.first_name} #{c.last_name}".strip }.reject(&:blank?),
               employee_names: employees,
               matched_contact: matched_contact
             }
