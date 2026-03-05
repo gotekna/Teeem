@@ -20,6 +20,21 @@ module GlobalConfigRecord
   included do
     # Override belongs_to :tenant (from acts_as_tenant) to allow NULL tenant_id
     # for global/shared records. This MUST come after acts_as_tenant declaration.
+    #
+    # ⚠️ DO NOT SIMPLIFY - Rails belongs_to validator persistence (Mar 2026)
+    # ════════════════════════════════════════════════════════════════
+    # Why: acts_as_tenant declares `belongs_to :tenant` (required by default in Rails 8),
+    #      which registers a PresenceValidator. Re-declaring with `optional: true` updates
+    #      the association but does NOT remove the already-registered validator.
+    # ❌ WRONG: Just `belongs_to :tenant, optional: true` — old validator persists
+    # ✅ CORRECT: Remove old validator first, then re-declare as optional
+    # ════════════════════════════════════════════════════════════════
+    _validators.reject! { |key, _| key == :tenant }
+    _validate_callbacks.each do |callback|
+      if callback.filter.respond_to?(:attributes) && callback.filter.attributes.include?(:tenant)
+        _validate_callbacks.delete(callback)
+      end
+    end
     belongs_to :tenant, optional: true
 
     before_create :auto_globalize_master_record

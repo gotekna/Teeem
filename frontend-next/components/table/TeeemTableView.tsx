@@ -3193,11 +3193,14 @@ export default function TeeemTableView({
   // Handler for row double-click - uses parent handler if provided, else opens edit dialog (if available), else inline editing
   const handleRowDoubleClick = useCallback((row: TableRowType) => {
     if (editingRowIds.has(row.id)) return; // Already editing
-    // Shared/global records are read-only for non-master tenants
-    if (!isMasterTenant && (row as Record<string, unknown>).is_shared) return;
+    // If parent provides a navigation handler, always allow it (even for shared records)
     if (onRowDoubleClick) {
       onRowDoubleClick(row);
-    } else if (effectiveOnEdit) {
+      return;
+    }
+    // Shared/global records are read-only for non-master tenants (block editing only)
+    if (!isMasterTenant && (row as Record<string, unknown>).is_shared) return;
+    if (effectiveOnEdit) {
       effectiveOnEdit(row);
     } else {
       startEditing(row);
@@ -4935,7 +4938,7 @@ export default function TeeemTableView({
                 renderCellValue(row, column)
               ) : (
                 <div
-                  className="truncate"
+                  className="truncate text-[11px]"
                   title={getCellTooltip(row[column.key])}
                 >
                   {renderCellValue(row, column)}
@@ -5210,7 +5213,7 @@ export default function TeeemTableView({
                       ) : column.key === "actions" ? (
                         renderCellValue(companyRow, column)
                       ) : (
-                        <div className="truncate flex items-center gap-1.5">
+                        <div className="truncate text-[11px] flex items-center gap-1.5">
                           {isFirstDataColumn && (
                             <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                           )}
@@ -5504,7 +5507,7 @@ export default function TeeemTableView({
                       ) : column.key === "actions" ? (
                         renderCellValue(row, column)
                       ) : (
-                        <div className="truncate">
+                        <div className="truncate text-[11px]">
                           {renderCellValue(row, column)}
                         </div>
                       )}
