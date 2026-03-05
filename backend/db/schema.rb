@@ -8089,6 +8089,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "job_id"
+    t.index ["job_id"], name: "index_properties_on_job_id"
     t.index ["managing_agent_contact_id"], name: "index_properties_on_managing_agent_contact_id"
     t.index ["owner_contact_id"], name: "index_properties_on_owner_contact_id"
     t.index ["property_status_id"], name: "index_properties_on_property_status_id"
@@ -12862,6 +12864,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "profit_loss_reports", "document_types"
   add_foreign_key "properties", "contacts", column: "managing_agent_contact_id"
   add_foreign_key "properties", "contacts", column: "owner_contact_id"
+  add_foreign_key "properties", "jobs"
   add_foreign_key "properties", "property_statuses"
   add_foreign_key "properties", "property_types"
   add_foreign_key "property_bills", "contacts", column: "supplier_contact_id"

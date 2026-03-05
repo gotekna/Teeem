@@ -9,6 +9,7 @@ class Property < ApplicationRecord
   belongs_to :property_status, optional: true
   belongs_to :owner_contact, class_name: "Contact", optional: true
   belongs_to :managing_agent_contact, class_name: "Contact", optional: true
+  belongs_to :job, optional: true
 
   # Associations
   has_many :property_contacts, dependent: :destroy

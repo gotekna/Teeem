@@ -1420,6 +1420,7 @@ Rails.application.routes.draw do
         collection do
           get :for_select
           get :stats
+          post :from_job
         end
         member do
           get :tenancies

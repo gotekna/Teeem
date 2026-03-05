@@ -497,13 +497,13 @@ cleanup_temp_files:
 # CONFIG SYNC (Nightly Two-Way Auto-Sync)
 # ============================================
 
-# Auto-sync tables set to "two_way" mode from TEEEM master
-# Iterates non-master tenants, syncs tables where mode == "two_way"
-# Runs at 3am Brisbane time (off-peak, after backups)
-config_auto_sync:
-  class: ConfigAutoSyncJob
-  queue: low
-  schedule: at 3am every day
+# DISABLED (Mar 2026): Config sync replaced by global shared records (tenant_id=NULL).
+# The sync was re-corrupting warehouse_folder parent_ids after every run.
+# All config tables now use has_global_records: true — no sync needed.
+# config_auto_sync:
+#   class: ConfigAutoSyncJob
+#   queue: low
+#   schedule: at 3am every day
 
 # Weekly reconciliation of system warehouse tabs across all tenants
 # FRC (Mar 2026): Defence layer 2 (layer 1 = deploy:release).

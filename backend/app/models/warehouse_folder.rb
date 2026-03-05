@@ -29,6 +29,11 @@ class WarehouseFolder < ApplicationRecord
   include GlobalConfigRecord
   self.sync_key_source = [:warehouse_type_code, :tab_key]
 
+  # WarehouseFolder is per-tenant config that every tenant needs to customize.
+  # Override GlobalConfigRecord's write protection so any tenant can edit shared folders.
+  private def prevent_non_master_edit_of_global_record; end
+  private def prevent_non_master_destroy_of_global_record; end
+
   # Dynamic tokens that generate virtual folder structure from database
   DYNAMIC_TOKENS = {
     '{{Mailbox}}' => :mailbox

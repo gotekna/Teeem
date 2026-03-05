@@ -107,6 +107,62 @@ module Api
         })
       end
 
+      # POST /api/v1/properties/from_job
+      # Creates a property from an existing Job, copying address + client contact
+      def from_job
+        job = Job.find(params[:job_id])
+
+        # Build street_address from job address components
+        street_address = [job.street_number, job.street_name, job.street_type]
+                          .map(&:presence).compact.join(" ")
+        street_address = job.name if street_address.blank?
+
+        # Find default property type and status
+        default_type = PropertyType.find_by(name: "House")
+        default_status = PropertyStatus.find_by(name: "Vacant")
+
+        property = Property.new(
+          name: job.name,
+          street_address: street_address,
+          suburb: job.suburb,
+          state: job.state,
+          postcode: job.postcode,
+          property_type_id: default_type&.id,
+          property_status_id: default_status&.id,
+          job_id: job.id,
+          description: job.description
+        )
+
+        # Copy client contact as owner
+        client_jc = job.job_contacts.find_by(role: "client")
+        property.owner_contact_id = client_jc&.contact_id
+
+        if property.save
+          # Copy job contacts as property contacts
+          job.job_contacts.each do |jc|
+            next unless jc.contact_id.present?
+            role = case jc.role
+                   when "client" then "owner"
+                   else next # skip non-relevant job roles
+                   end
+            PropertyContact.create(
+              property: property,
+              contact_id: jc.contact_id,
+              role: role,
+              is_primary: jc.primary
+            )
+          end
+
+          render_success(property.as_json(include: {
+            property_type: { only: [:id, :name] },
+            property_status: { only: [:id, :name, :color] },
+            owner_contact: { only: [:id, :display_name] }
+          }), status: :created)
+        else
+          render_validation_errors(property)
+        end
+      end
+
       # GET /api/v1/properties/for_select
       def for_select
         properties = Property.select(:id, :name, :street_address, :property_code)
@@ -142,7 +198,8 @@ module Api
           :land_area_sqm, :floor_area_sqm, :year_built, :description,
           :sda_category, :sda_enrolled, :sda_enrolment_date, :sda_dwelling_id,
           :weekly_rent_amount, :bond_amount,
-          :owner_contact_id, :managing_agent_contact_id
+          :owner_contact_id, :managing_agent_contact_id,
+          :job_id
         )
       end
 
