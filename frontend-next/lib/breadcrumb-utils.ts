@@ -72,6 +72,7 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/settings/preferences": "Preferences",
   "/settings/users": "Users",
   "/settings/roles": "Access Control",
+  "/settings/roles/roles": "User Roles",
   "/settings/corporate": "Corporate",
   "/settings/company": "Company",
   "/settings/connections": "Connections",

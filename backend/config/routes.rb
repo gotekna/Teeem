@@ -2102,6 +2102,12 @@ Rails.application.routes.draw do
       get "permissions/user/:id", to: "permissions#user_permissions"
       post "permissions/grant", to: "permissions#grant"
 
+      # Section-level permissions (Mar 2026)
+      get "permissions/sections", to: "permissions#sections"
+      get "permissions/roles/:id/section_permissions", to: "permissions#role_section_permissions"
+      put "permissions/roles/:id/section_permissions", to: "permissions#update_section_permissions"
+      post "permissions/roles/:id/copy_from", to: "permissions#copy_from"
+
       # Contact types (full CRUD for admin management)
       resources :contact_types do
         collection do

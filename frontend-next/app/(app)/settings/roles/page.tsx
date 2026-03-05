@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePathTabs } from "@/hooks/usePathTabs";
@@ -422,6 +423,7 @@ function PermissionsSubTab() {
 // ============================================
 
 function UserRolesSubTab() {
+  const router = useRouter();
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [roles, setRoles] = useState<Role[]>([]);
@@ -581,25 +583,33 @@ function UserRolesSubTab() {
           <Card
             key={role.id}
             className="cursor-pointer hover:shadow-md transition-shadow"
-            onDoubleClick={() => handleViewRoleUsers(role)}
+            onClick={() => router.push(`/settings/roles/roles/${role.id}`)}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">{role.display_name || role.name}</CardTitle>
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                     <Button variant="ghost" size="icon">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEditRole(role)}>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/settings/roles/roles/${role.id}`); }}>
+                      <Shield className="h-4 w-4 mr-2" />
+                      Manage Permissions
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditRole(role); }}>
                       <Pencil className="h-4 w-4 mr-2" />
                       Edit
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewRoleUsers(role); }}>
+                      <Users className="h-4 w-4 mr-2" />
+                      View Users
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive"
-                      onClick={() => handleDeleteRole(role)}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteRole(role); }}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete

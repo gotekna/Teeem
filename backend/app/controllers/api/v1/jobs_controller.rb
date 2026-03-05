@@ -590,7 +590,8 @@ module Api
         # Also computes per-child counts for sub-tab badges
         parent_counts = {}
         parent_tabs.each do |parent_tab|
-          photo_children = parent_tab.children.where(enabled: true, tab_type: "photo")
+          # SSoT: Match frontend logic — check tab_type OR legacy is_photo_category boolean
+          photo_children = parent_tab.children.where(enabled: true).where("tab_type = 'photo' OR is_photo_category = TRUE")
           doc_children = parent_tab.children.where(enabled: true, tab_type: "document")
 
           # Photo sub-tab counts (e.g., Photo → Site (5), Slab (3))

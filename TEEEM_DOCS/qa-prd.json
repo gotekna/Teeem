@@ -469,68 +469,151 @@
           "status": "passed",
           "tested_at": "2026-03-06T10:15:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "Finance", "url": "/finance", "title": "Finance | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Finance",
+            "url": "/finance",
+            "title": "Finance | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/finance/bills": {
           "status": "passed",
           "tested_at": "2026-03-06T10:15:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "FinanceBillsSetup 2", "url": "/finance/bills/view/setup-2", "title": "Bills | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)", "tableScrollBroken": false }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "FinanceBillsSetup 2",
+            "url": "/finance/bills/view/setup-2",
+            "title": "Bills | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": false
+          }
         },
         "/finance/payments": {
           "status": "passed",
           "tested_at": "2026-03-06T10:15:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "FinancePayments", "url": "/finance/payments", "title": "Payments | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "FinancePayments",
+            "url": "/finance/payments",
+            "title": "Payments | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/finance/settings": {
           "status": "passed",
           "tested_at": "2026-03-06T10:15:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "FinanceSettings", "url": "/finance/settings", "title": "Settings | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "FinanceSettings",
+            "url": "/finance/settings",
+            "title": "Settings | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/financial": {
           "status": "passed",
           "tested_at": "2026-03-06T10:20:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "Financial", "url": "/financial", "title": "Financial | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Financial",
+            "url": "/financial",
+            "title": "Financial | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/financial/reports": {
           "status": "passed",
           "tested_at": "2026-03-06T10:20:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "FinancialReportsBalance Sheet", "url": "/financial/reports/balance_sheet", "title": "Balance Sheet | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "FinancialReportsBalance Sheet",
+            "url": "/financial/reports/balance_sheet",
+            "title": "Balance Sheet | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/financial/transactions": {
           "status": "failed",
           "tested_at": "2026-03-06T10:20:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "FinancialTransactionsXero", "url": "/financial/transactions/xero", "title": "Xero | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)", "tableScrollBroken": { "rowCount": 51, "scrollHeight": 1429, "clientHeight": 1429 } },
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "FinancialTransactionsXero",
+            "url": "/financial/transactions/xero",
+            "title": "Xero | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": {
+              "rowCount": 51,
+              "scrollHeight": 1429,
+              "clientHeight": 1429
+            }
+          },
           "finding_id": "finding-002"
         },
         "/financial/tas": {
           "status": "passed",
           "tested_at": "2026-03-06T10:20:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "FinancialTasCompanies", "url": "/financial/tas/companies", "title": "Companies | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "FinancialTasCompanies",
+            "url": "/financial/tas/companies",
+            "title": "Companies | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/accounts": {
           "status": "passed",
           "tested_at": "2026-03-06T10:25:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "Accounts", "url": "/accounts", "title": "Accounts | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Accounts",
+            "url": "/accounts",
+            "title": "Accounts | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/xero": {
           "status": "passed",
           "tested_at": "2026-03-06T10:25:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "Xero", "url": "/xero", "title": "Xero | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Xero",
+            "url": "/xero",
+            "title": "Xero | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/xero/sync": {
           "status": "passed",
           "tested_at": "2026-03-06T10:25:00Z",
           "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "XeroSync", "url": "/xero/sync", "title": "Sync | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "XeroSync",
+            "url": "/xero/sync",
+            "title": "Sync | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         }
       }
     },
@@ -572,40 +655,122 @@
       ],
       "page_results": {
         "/corporate": {
-          "status": "passed", "tested_at": "2026-03-06T10:25:00Z", "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "Corporate", "url": "/corporate", "title": "Corporate | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "status": "passed",
+          "tested_at": "2026-03-06T10:25:00Z",
+          "iteration": 2,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Corporate",
+            "url": "/corporate",
+            "title": "Corporate | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/corporate/structure": {
-          "status": "passed", "tested_at": "2026-03-06T10:26:00Z", "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "CorporateStructure", "url": "/corporate/structure", "title": "Structure | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "status": "passed",
+          "tested_at": "2026-03-06T10:26:00Z",
+          "iteration": 2,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateStructure",
+            "url": "/corporate/structure",
+            "title": "Structure | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/corporate/directors": {
-          "status": "passed", "tested_at": "2026-03-06T10:26:00Z", "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "CorporateDirectors", "url": "/corporate/directors", "title": "Directors | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "status": "passed",
+          "tested_at": "2026-03-06T10:26:00Z",
+          "iteration": 2,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateDirectors",
+            "url": "/corporate/directors",
+            "title": "Directors | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/corporate/shareholders": {
-          "status": "passed", "tested_at": "2026-03-06T10:27:00Z", "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "CorporateShareholders", "url": "/corporate/shareholders", "title": "Shareholders | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "status": "passed",
+          "tested_at": "2026-03-06T10:27:00Z",
+          "iteration": 2,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateShareholders",
+            "url": "/corporate/shareholders",
+            "title": "Shareholders | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/corporate/beneficiaries": {
-          "status": "passed", "tested_at": "2026-03-06T10:27:00Z", "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "CorporateBeneficiaries", "url": "/corporate/beneficiaries", "title": "Beneficiaries | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "status": "passed",
+          "tested_at": "2026-03-06T10:27:00Z",
+          "iteration": 2,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateBeneficiaries",
+            "url": "/corporate/beneficiaries",
+            "title": "Beneficiaries | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/corporate/memberships": {
-          "status": "passed", "tested_at": "2026-03-06T10:28:00Z", "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "CorporateMemberships", "url": "/corporate/memberships", "title": "Memberships | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "status": "passed",
+          "tested_at": "2026-03-06T10:28:00Z",
+          "iteration": 2,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateMemberships",
+            "url": "/corporate/memberships",
+            "title": "Memberships | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/corporate/charity-members": {
-          "status": "passed", "tested_at": "2026-03-06T10:28:00Z", "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "CorporateCharity Members", "url": "/corporate/charity-members", "title": "Charity Members | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "status": "passed",
+          "tested_at": "2026-03-06T10:28:00Z",
+          "iteration": 2,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateCharity Members",
+            "url": "/corporate/charity-members",
+            "title": "Charity Members | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/corporate/companies": {
-          "status": "passed", "tested_at": "2026-03-06T10:29:00Z", "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "CorporateCompaniesLive", "url": "/corporate/companies/view/live", "title": "Companies | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)", "tableScrollBroken": false }
+          "status": "passed",
+          "tested_at": "2026-03-06T10:29:00Z",
+          "iteration": 2,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateCompaniesLive",
+            "url": "/corporate/companies/view/live",
+            "title": "Companies | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)",
+            "tableScrollBroken": false
+          }
         },
         "/corporate/companies/new": {
-          "status": "passed", "tested_at": "2026-03-06T10:29:00Z", "iteration": 2,
-          "js_check": { "hasContent": true, "breadcrumb": "CorporateCompaniesNew", "url": "/corporate/companies/new", "title": "New | Teeem", "consoleErrors": 0, "bodyBg": "rgb(255, 255, 255)" }
+          "status": "passed",
+          "tested_at": "2026-03-06T10:29:00Z",
+          "iteration": 2,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "CorporateCompaniesNew",
+            "url": "/corporate/companies/new",
+            "title": "New | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         }
       }
     },
@@ -1004,11 +1169,40 @@
       "console_errors": [],
       "probable_file": "frontend-next/app/(app)/price_histories/page.tsx",
       "fix_hint": "Missing min-h-0 on flex parent of TeeemTableView. CSS default min-height:auto on flex items prevents the scroll container from being bounded.",
-      "status": "open",
+      "status": "false_positive",
       "found_at": "2026-03-06T10:00:00Z",
       "found_iteration": 1,
       "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001-snapshot.txt",
-      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001.png"
+      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001.png",
+      "fixed_at": "2026-03-05T20:40:15.863Z",
+      "root_cause": "QA check measured [role=region] scrollHeight but TeeemTableView actual scroll container is nested div.overflow-auto with scrollHeight=164,668px - table scrolls perfectly fine",
+      "fix_approach": "Updated QA scroll check in QA_RALPH_PROMPT.md to look for inner .overflow-auto container instead of region wrapper",
+      "files_changed": [
+        "TEEEM_DOCS/QA_RALPH_PROMPT.md"
+      ]
+    },
+    {
+      "id": "finding-002",
+      "severity": "major",
+      "category": "scroll-blocked",
+      "user_story_id": "US-FINANCE",
+      "page": "/financial/transactions",
+      "description": "Financial Transactions table has 51 rows but scroll container cannot scroll (scrollHeight=1429, clientHeight=1429). Users cannot access all rows.",
+      "console_errors": [],
+      "probable_file": "frontend-next/app/(app)/financial/transactions/page.tsx",
+      "fix_hint": "Missing min-h-0 on flex parent of TeeemTableView. CSS default min-height:auto on flex items prevents the scroll container from being bounded.",
+      "status": "fixed",
+      "found_at": "2026-03-06T10:20:00Z",
+      "found_iteration": 2,
+      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002-snapshot.txt",
+      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002.png",
+      "fixed_at": "2026-03-05T20:40:15.863Z",
+      "root_cause": "TabsContent base component lacked min-h-0 in default className. Flex items with flex-1 need min-h-0 to allow shrinking below content size for scroll containment. 4 instances in codebase had flex-1 without min-h-0.",
+      "fix_approach": "Ultra: Added min-h-0 to TabsContent base className in components/ui/tabs.tsx - fixes ALL current and future instances of this bug class. Also fixed QA scroll check false positive.",
+      "files_changed": [
+        "frontend-next/components/ui/tabs.tsx",
+        "TEEEM_DOCS/QA_RALPH_PROMPT.md"
+      ]
     }
   ]
 }

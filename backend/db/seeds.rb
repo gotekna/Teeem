@@ -214,6 +214,14 @@ end
 puts "Created #{JobDesign.count} designs"
 puts "Designs seed complete!"
 
+# Permission Sections Seed Data
+puts "\n" + "="*50
+puts "Seeding Permission Sections..."
+
+load Rails.root.join('db', 'seeds', 'permission_sections.rb')
+
+puts "Permission Sections seed complete!"
+
 # NOTE: FolderTemplate seeding removed - SSoT: WarehouseFolder is now the source of truth for folder structure
 # Folder structure is defined in WarehouseFolder hierarchy (Admin > System > Entity Tabs)
 

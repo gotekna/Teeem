@@ -51,6 +51,7 @@ import { PropertyPortalTab } from "@/components/properties/PropertyPortalTab";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import EntityDocumentListTab from "@/components/documents/EntityDocumentListTab";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { useExpandedState, ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
 
 interface Property {
   id: number;
@@ -198,6 +199,9 @@ export default function PropertyDetailPage() {
     property_types: { id: number; name: string }[];
     property_statuses: { id: number; name: string; color: string }[];
   }>({ property_types: [], property_statuses: [] });
+
+  // Expand/collapse state for tab content (matches Jobs pattern)
+  const [tabsExpanded, toggleTabsExpanded] = useExpandedState(`property-${id}-tabs`);
 
   // SSoT: Load warehouse folder tabs for property scope
   const { tabs: propertyTabs } = useWarehouseFolders({ scope: "property" });
@@ -409,8 +413,8 @@ export default function PropertyDetailPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
+      {/* Header — hidden when expanded */}
+      {!tabsExpanded && <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
         <div className="flex items-center gap-4">
           <BackButton fallbackHref="/properties" />
           <div>
@@ -458,41 +462,47 @@ export default function PropertyDetailPage() {
             Edit
           </Button>
         )}
-      </div>
+      </div>}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
-        <div className="border-b px-6 overflow-x-auto">
-          <TabsList className="h-10 w-max">
-            <TabsTrigger value="overview" className="gap-1.5">
-              <Home className="h-3.5 w-3.5" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="tenancy" className="gap-1.5">
-              <Users className="h-3.5 w-3.5" />
-              Tenancy
-            </TabsTrigger>
-            <TabsTrigger value="financials" className="gap-1.5">
-              <DollarSign className="h-3.5 w-3.5" />
-              Financials
-            </TabsTrigger>
-            <TabsTrigger value="inspections" className="gap-1.5">
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              Inspections
-            </TabsTrigger>
-            {/* SSoT: Document folder tabs from warehouse folders */}
-            {documentFolderTabs.map(tab => (
-              <TabsTrigger key={tab.id} value={tab.id}>
-                {tab.name}
+        {!tabsExpanded && (
+        <div className="border-b px-6 py-1">
+          <div className="flex items-center gap-2">
+            <TabsList className="h-auto flex-wrap gap-1">
+              <TabsTrigger value="overview" className="gap-1.5">
+                <Home className="h-3.5 w-3.5" />
+                Overview
               </TabsTrigger>
-            ))}
-            <TabsTrigger value="portal" className="gap-1.5">
-              <ExternalLink className="h-3.5 w-3.5" />
-              Portal
-            </TabsTrigger>
-          </TabsList>
+              <TabsTrigger value="tenancy" className="gap-1.5">
+                <Users className="h-3.5 w-3.5" />
+                Tenancy
+              </TabsTrigger>
+              <TabsTrigger value="financials" className="gap-1.5">
+                <DollarSign className="h-3.5 w-3.5" />
+                Financials
+              </TabsTrigger>
+              <TabsTrigger value="inspections" className="gap-1.5">
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                Inspections
+              </TabsTrigger>
+              {/* SSoT: Document folder tabs from warehouse folders */}
+              {documentFolderTabs.map(tab => (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  {tab.name}
+                </TabsTrigger>
+              ))}
+              <TabsTrigger value="portal" className="gap-1.5">
+                <ExternalLink className="h-3.5 w-3.5" />
+                Portal
+              </TabsTrigger>
+            </TabsList>
+            <ExpandButton expanded={false} onToggle={toggleTabsExpanded} />
+          </div>
         </div>
+        )}
 
+        <ExpandableSection expanded={tabsExpanded} onToggle={toggleTabsExpanded}>
         <div className="flex-1 overflow-auto">
           {/* Overview Tab */}
           <TabsContent value="overview" className="p-6 space-y-6 mt-0">
@@ -1139,6 +1149,7 @@ export default function PropertyDetailPage() {
             <PropertyPortalTab propertyId={id} property={property} contacts={contacts} />
           </TabsContent>
         </div>
+        </ExpandableSection>
       </Tabs>
 
       {/* Create Dialogs */}

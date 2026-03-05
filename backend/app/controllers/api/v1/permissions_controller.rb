@@ -227,21 +227,137 @@ module Api
 
       # POST /api/v1/permissions/grant
       def grant
-        # This is a placeholder for future implementation
-        # For now, permissions are role-based only
         render json: {
           success: false,
           message: "Individual permission overrides are not yet implemented. Permissions are currently role-based only."
         }, status: :not_implemented
       end
 
+      # =========================================================================
+      # Section-Level Permission Endpoints (Mar 2026)
+      # SSoT: DB-driven permission management via PermissionSection + RoleSectionPermission
+      # =========================================================================
+
+      # GET /api/v1/permissions/sections
+      # Returns all configurable permission sections grouped by section
+      def sections
+        sections_data = PermissionSection.ordered.map do |ps|
+          {
+            key: ps.key,
+            section: ps.section,
+            subFeature: ps.sub_feature,
+            displayName: ps.display_name,
+            description: ps.description,
+            position: ps.position,
+            isSectionHeader: ps.is_section_header,
+            availableLevels: ps.available_levels
+          }
+        end
+
+        render json: { success: true, sections: sections_data }
+      end
+
+      # GET /api/v1/permissions/roles/:id/section_permissions
+      # Returns permission levels for a specific role
+      def role_section_permissions
+        role = Role.find(params[:id])
+        perms = role.role_section_permissions.pluck(:permission_key, :level).to_h
+
+        render json: {
+          success: true,
+          role: {
+            id: role.id,
+            name: role.name,
+            displayName: role.display_name,
+            description: role.description,
+            godViewAccess: role.god_view_access,
+            canApprovePayments: role.can_approve_payments,
+            canViewConfidentialFields: role.can_view_confidential_fields
+          },
+          permissions: perms
+        }
+      rescue ActiveRecord::RecordNotFound
+        render_error("Role not found", status: :not_found)
+      end
+
+      # PUT /api/v1/permissions/roles/:id/section_permissions
+      # Save all permission levels for a role
+      def update_section_permissions
+        role = Role.find(params[:id])
+
+        # Prevent editing system admin role's core permissions
+        # (admin role always has full access via bypass)
+
+        ActiveRecord::Base.transaction do
+          # Update special permission flags on role
+          if params.key?(:godViewAccess)
+            role.god_view_access = params[:godViewAccess]
+          end
+          if params.key?(:canApprovePayments)
+            role.can_approve_payments = params[:canApprovePayments]
+          end
+          if params.key?(:canViewConfidentialFields)
+            role.can_view_confidential_fields = params[:canViewConfidentialFields]
+          end
+          role.save! if role.changed?
+
+          # Update section permissions
+          permissions = params[:permissions]
+          if permissions.present?
+            permissions.each do |key, level|
+              level_int = level.to_i
+
+              rsp = RoleSectionPermission.find_or_initialize_by(role: role, permission_key: key.to_s)
+              rsp.level = level_int
+              rsp.save!
+            end
+          end
+        end
+
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound
+        render_error("Role not found", status: :not_found)
+      rescue ActiveRecord::RecordInvalid => e
+        render_error(e.message, status: :unprocessable_entity)
+      end
+
+      # POST /api/v1/permissions/roles/:id/copy_from
+      # Copy permissions from a source role
+      def copy_from
+        target_role = Role.find(params[:id])
+        source_role = Role.find(params[:sourceRoleId])
+
+        ActiveRecord::Base.transaction do
+          # Delete existing permissions for target
+          target_role.role_section_permissions.delete_all
+
+          # Copy all permissions from source
+          source_role.role_section_permissions.each do |rsp|
+            RoleSectionPermission.create!(
+              role: target_role,
+              permission_key: rsp.permission_key,
+              level: rsp.level
+            )
+          end
+
+          # Copy special flags
+          target_role.update!(
+            god_view_access: source_role.god_view_access,
+            can_approve_payments: source_role.can_approve_payments,
+            can_view_confidential_fields: source_role.can_view_confidential_fields
+          )
+        end
+
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound
+        render_error("Role not found", status: :not_found)
+      rescue ActiveRecord::RecordInvalid => e
+        render_error(e.message, status: :unprocessable_entity)
+      end
+
       private
 
-      # Note: require_admin is inherited from ApplicationController
-
       def get_role_permissions(role_name)
-        # SSoT: Use User.permissions_for_role directly
-        # Base permissions + role-specific permissions
         base = [ "view_dashboard", "view_jobs", "view_contacts" ]
         base + User.new.permissions_for_role(role_name)
       end
