@@ -49,7 +49,7 @@ class Property < ApplicationRecord
   # ── Valuation Methods ──
 
   CONSTRUCTION_TYPES = %w[brick_veneer timber_frame concrete steel_frame double_brick weatherboard other].freeze
-  validates :construction_type, inclusion: { in: CONSTRUCTION_TYPES, allow_nil: true }
+  validates :construction_type, inclusion: { in: CONSTRUCTION_TYPES, allow_blank: true }
 
   # Annual gross rental income from active tenancy
   def annual_gross_rent
