@@ -83,6 +83,13 @@ class FoundationView < ApplicationRecord
 
   private
 
+  # Override GlobalConfigRecord write-protection guards.
+  # Views are user-editable settings, not locked config records.
+  # View-specific guards (prevent_setup_view_rename, prevent_setup_view_deletion,
+  # prevent_foundation_id_change) provide sufficient protection.
+  def prevent_non_master_edit_of_global_record; end
+  def prevent_non_master_destroy_of_global_record; end
+
   # Generate a URL-friendly slug from the view name
   def generate_slug
     return if name.blank?
