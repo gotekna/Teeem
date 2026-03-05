@@ -48,6 +48,7 @@ import { AddPropertyContactDialog } from "@/components/properties/AddPropertyCon
 import { PropertyInspectionsTab } from "@/components/properties/PropertyInspectionsTab";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import EntityDocumentListTab from "@/components/documents/EntityDocumentListTab";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 interface Property {
   id: number;
@@ -152,6 +153,7 @@ function formatSdaCategory(cat: string | null): string {
 }
 
 export default function PropertyDetailPage() {
+  useSetLayoutMode("full-height");
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -439,7 +441,7 @@ export default function PropertyDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
         <div className="border-b px-6">
           <TabsList className="h-10">
             <TabsTrigger value="overview" className="gap-1.5">
