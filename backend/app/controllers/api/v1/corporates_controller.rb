@@ -7,7 +7,10 @@ module Api
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
                                          :investments, :trust_roles, :data_stats, :warehouse_health, :health,
-                                         :director_changes ]
+                                         :director_changes,
+                                         :asic_credentials_index, :asic_credentials_create,
+                                         :asic_credentials_update, :asic_credentials_destroy,
+                                         :asic_credentials_reveal ]
 
       # GET /api/v1/companies
       # By default, only shows companies linked to a corporate group (have company_group_id)
@@ -79,6 +82,12 @@ module Api
         company_json["has_tfn"] = @company.tfn.present?
         company_json["has_asic_password"] = @company.encrypted_asic_password.present?
         company_json["has_recovery_answer"] = @company.encrypted_recovery_answer.present?
+
+        # Include ASIC portal credentials (multi-user)
+        company_json["asic_portal_credentials"] = @company.asic_portal_credentials
+          .includes(:contact)
+          .order(Arel.sql("CASE status WHEN 'active' THEN 0 WHEN 'resigned' THEN 1 WHEN 'expired' THEN 2 END"), :username)
+          .map { |cred| serialize_asic_credential(cred) }
 
         # Serialize current directors separately (corporate_directors returns CorporateDirector objects)
         company_json["current_directors"] = @company.corporate_directors.current.includes(:contact).map do |director|
@@ -935,12 +944,12 @@ module Api
 
       # GET /api/v1/companies/asic_logins
       # Returns all companies' ASIC login credentials for table view
+      # Uses new asic_portal_credentials table (multi-user)
       # Only shows entity_type = Company (excludes Person, Trust, Superfund)
       def asic_logins
-        # Performance: includes :company_group to avoid N+1 when accessing company_group_name
         @companies = Corporate.where(entity_type: [ "Company", "company" ])
-                                     .includes(:company_group)
-                                     .order(:name)
+                              .includes(:company_group, asic_portal_credentials: :contact)
+                              .order(:name)
 
         # Filter by company group
         if params[:company_group_id].present?
@@ -949,7 +958,7 @@ module Api
 
         # Only include companies with ASIC credentials
         if params[:with_credentials] == "true"
-          @companies = @companies.where.not(asic_username: [ nil, "" ])
+          @companies = @companies.joins(:asic_portal_credentials).distinct
         end
 
         render json: {
@@ -963,14 +972,97 @@ module Api
               company_group_id: company.company_group_id,
               company_group_name: company.company_group&.name,
               corporate_key: company.corporate_key,
-              asic_username: company.asic_username,
-              has_asic_password: company.encrypted_asic_password.present?,
-              recovery_question: company.recovery_question,
-              has_recovery_answer: company.encrypted_recovery_answer.present?,
-              has_credentials: company.asic_username.present?
+              has_credentials: company.asic_portal_credentials.any?,
+              credentials: company.asic_portal_credentials
+                .sort_by { |c| c.status == "active" ? 0 : 1 }
+                .map { |cred| serialize_asic_credential(cred) }
             }
           end,
           total: @companies.count
+        }
+      end
+
+      # ============================================
+      # ASIC Portal Credentials (Multi-User)
+      # ============================================
+
+      # GET /api/v1/companies/:id/asic_credentials
+      def asic_credentials_index
+        credentials = @company.asic_portal_credentials
+          .includes(:contact)
+          .order(Arel.sql("CASE status WHEN 'active' THEN 0 WHEN 'resigned' THEN 1 WHEN 'expired' THEN 2 END"), :username)
+
+        render json: {
+          success: true,
+          credentials: credentials.map { |cred| serialize_asic_credential(cred) }
+        }
+      end
+
+      # POST /api/v1/companies/:id/asic_credentials
+      def asic_credentials_create
+        credential = @company.asic_portal_credentials.build(asic_credential_params)
+        credential.tenant_id = current_tenant&.id
+
+        if credential.save
+          render json: {
+            success: true,
+            message: "ASIC credential created",
+            credential: serialize_asic_credential(credential)
+          }, status: :created
+        else
+          render_validation_errors(credential)
+        end
+      end
+
+      # PUT /api/v1/companies/:id/asic_credentials/:credential_id
+      def asic_credentials_update
+        credential = @company.asic_portal_credentials.find(params[:credential_id])
+
+        update_params = asic_credential_params.to_h
+        # Don't overwrite encrypted fields with blank values
+        update_params.delete("encrypted_password") if update_params["encrypted_password"].blank?
+        update_params.delete("encrypted_recovery_answer") if update_params["encrypted_recovery_answer"].blank?
+
+        if credential.update(update_params)
+          render json: {
+            success: true,
+            message: "ASIC credential updated",
+            credential: serialize_asic_credential(credential)
+          }
+        else
+          render_validation_errors(credential)
+        end
+      end
+
+      # DELETE /api/v1/companies/:id/asic_credentials/:credential_id
+      # Soft delete: sets status to "resigned" unless hard_delete=true
+      def asic_credentials_destroy
+        credential = @company.asic_portal_credentials.find(params[:credential_id])
+
+        if params[:hard_delete] == "true"
+          credential.destroy!
+          render json: { success: true, message: "ASIC credential permanently deleted" }
+        else
+          credential.update!(status: "resigned")
+          render json: { success: true, message: "ASIC credential marked as resigned" }
+        end
+      end
+
+      # POST /api/v1/companies/:id/asic_credentials/:credential_id/reveal
+      # Returns decrypted password/recovery answer after user password verification
+      def asic_credentials_reveal
+        unless current_user.authenticate(params[:password].to_s)
+          return render json: { success: false, error: "Invalid password" }, status: :unauthorized
+        end
+
+        credential = @company.asic_portal_credentials.find(params[:credential_id])
+
+        render json: {
+          success: true,
+          data: {
+            encrypted_password: credential.encrypted_password,
+            encrypted_recovery_answer: credential.encrypted_recovery_answer
+          }
         }
       end
 
@@ -1038,6 +1130,30 @@ module Api
 
       def director_params
         params.permit(:position, :appointment_date, :resignation_date, :notes)
+      end
+
+      def asic_credential_params
+        params.require(:credential).permit(
+          :contact_id, :username, :encrypted_password, :recovery_question,
+          :encrypted_recovery_answer, :status, :notes
+        )
+      end
+
+      def serialize_asic_credential(cred)
+        {
+          id: cred.id,
+          corporate_id: cred.corporate_id,
+          contact_id: cred.contact_id,
+          contact_name: cred.contact&.display_name,
+          username: cred.username,
+          has_password: cred.encrypted_password.present?,
+          recovery_question: cred.recovery_question,
+          has_recovery_answer: cred.encrypted_recovery_answer.present?,
+          status: cred.status,
+          notes: cred.notes,
+          created_at: cred.created_at&.iso8601,
+          updated_at: cred.updated_at&.iso8601
+        }
       end
 
       def serialize_company_brief(company)

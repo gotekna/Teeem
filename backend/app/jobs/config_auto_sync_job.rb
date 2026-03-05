@@ -70,6 +70,12 @@ class ConfigAutoSyncJob < ApplicationJob
         next unless config
 
         model = config[:model].constantize
+
+        # Skip tables using global records — they share data via tenant_id=NULL
+        if model.respond_to?(:uses_global_records?) && model.uses_global_records?
+          next
+        end
+
         pulled = 0
         pushed = 0
         skipped = 0

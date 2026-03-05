@@ -153,6 +153,9 @@ export function ScheduleMasterSyncTab() {
   // Expandable template breakdown rows
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
 
+  // Tables using global shared records (no sync needed)
+  const [globalRecordTables, setGlobalRecordTables] = useState<Set<string>>(new Set());
+
   // Sync coverage: linked vs local-only vs master-only per table
   // Non-master: { table: { linked, local_only, master_only } }
   // Master: { table: { tenantSlug: { linked, local_only, master_only } } }
@@ -215,6 +218,7 @@ export function ScheduleMasterSyncTab() {
         last_config_sync_at?: string | null;
         last_config_sync_by?: string | null;
         sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>>;
+        tables?: { key: string; uses_global_records?: boolean }[];
       }>("/api/v1/config_sync/tables");
 
       // Also fetch saved table modes
@@ -229,6 +233,15 @@ export function ScheduleMasterSyncTab() {
         setIsMasterTenant(response.is_master_tenant || false);
         if (response.sync_coverage) {
           setSyncCoverage(response.sync_coverage);
+        }
+
+        // Identify tables using global shared records (no sync needed)
+        if (response.tables) {
+          const globalSet = new Set<string>();
+          for (const t of response.tables) {
+            if (t.uses_global_records) globalSet.add(t.key);
+          }
+          setGlobalRecordTables(globalSet);
         }
 
         if (response.is_master_tenant && response.all_tenants && response.all_tenant_counts) {
@@ -606,6 +619,12 @@ export function ScheduleMasterSyncTab() {
       setCurrentTableIndex(i);
       setBatchProgress(null);
 
+      // Skip tables using global shared records (no sync needed)
+      if (globalRecordTables.has(table.key)) {
+        setTableStatus((prev) => ({ ...prev, [table.key]: "skipped" }));
+        continue;
+      }
+
       // Skip tables set to "independent" - they should not be synced
       const mode = getTableMode(table.key, table.defaultMode);
       if (mode === "independent") {
@@ -698,6 +717,12 @@ export function ScheduleMasterSyncTab() {
       const table = SM_SYNC_TABLES[i];
       setCurrentTableIndex(i);
       setBatchProgress(null);
+
+      // Skip tables using global shared records (no sync needed)
+      if (globalRecordTables.has(table.key)) {
+        setTableStatus((prev) => ({ ...prev, [table.key]: "skipped" }));
+        continue;
+      }
 
       const mode = getTableMode(table.key, table.defaultMode);
       if (mode === "independent") {
@@ -1251,6 +1276,11 @@ export function ScheduleMasterSyncTab() {
                                   return null;
                                 })()}
                                 <span className="text-xs font-medium truncate">{table.label}</span>
+                                {globalRecordTables.has(table.key) && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800 shrink-0">
+                                    Shared
+                                  </Badge>
+                                )}
                                 {isMasterTenant && !syncing && !cascading && (
                                   <button
                                     type="button"
@@ -1306,7 +1336,9 @@ export function ScheduleMasterSyncTab() {
                             )}
                             {/* Sync mode */}
                             <TableCell className="text-center py-1.5 px-0.5">
-                              {isMasterTenant && nonMasterTenants.length > 0 ? (
+                              {globalRecordTables.has(table.key) ? (
+                                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">Shared</span>
+                              ) : isMasterTenant && nonMasterTenants.length > 0 ? (
                                 <div className="flex flex-col items-center">
                                   {nonMasterTenants.map((t) => {
                                     const mode = getTenantTableMode(t.slug, table.key, table.defaultMode);

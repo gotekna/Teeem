@@ -501,6 +501,7 @@ Rails.application.routes.draw do
           post :toggle_template_sync  # Toggle SM template between synced/independent
           post :toggle_record_sync    # Toggle any ConfigSyncable record between synced/independent
           post :reconcile             # Verify/report/fix sync discrepancies across all tenants
+          post :promote_to_global     # TEEEM only — set tenant_id=NULL on a record to share globally
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
@@ -3292,6 +3293,13 @@ Rails.application.routes.draw do
           get :warehouse_health   # Data warehouse health checks for this company
           get :health   # Single company health score (fast - loads only this company)
           post :reveal_sensitive  # Returns TFN/ASIC credentials after password verification
+
+          # ASIC Portal Credentials (multi-user)
+          get :asic_credentials, action: :asic_credentials_index
+          post :asic_credentials, action: :asic_credentials_create
+          put "asic_credentials/:credential_id", action: :asic_credentials_update
+          delete "asic_credentials/:credential_id", action: :asic_credentials_destroy
+          post "asic_credentials/:credential_id/reveal", action: :asic_credentials_reveal
         end
 
         # Bank Accounts (nested under companies)

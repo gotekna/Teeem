@@ -15,6 +15,7 @@ module GlobalConfigRecord
   extend ActiveSupport::Concern
 
   included do
+    before_create :auto_globalize_master_record
     before_save :prevent_non_master_edit_of_global_record
     before_destroy :prevent_non_master_destroy_of_global_record
   end
@@ -24,7 +25,23 @@ module GlobalConfigRecord
     tenant_id.nil?
   end
 
+  class_methods do
+    # Check if this model uses global (shared) config records
+    def uses_global_records?
+      true
+    end
+  end
+
   private
+
+  # When master tenant creates a config record, auto-set tenant_id=NULL
+  # so it's immediately shared globally. Customer tenants keep normal tenant_id.
+  def auto_globalize_master_record
+    return if ActsAsTenant.current_tenant.nil?
+    return unless ActsAsTenant.current_tenant.is_master_tenant?
+
+    self.tenant_id = nil
+  end
 
   def prevent_non_master_edit_of_global_record
     # Only protect existing global records (tenant_id was already NULL)

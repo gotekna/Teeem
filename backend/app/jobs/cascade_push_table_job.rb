@@ -24,6 +24,15 @@ class CascadePushTableJob < ApplicationJob
 
     model = table_config[:model].constantize
     mode = mode.to_sym
+
+    # Skip tables using global records — they share data via tenant_id=NULL,
+    # no sync needed. TEEEM edits propagate instantly.
+    if model.respond_to?(:uses_global_records?) && model.uses_global_records?
+      Rails.logger.info "[ConfigSync] Skipping #{table} — uses global shared records (no sync needed)"
+      store_result(job_key, { status: "completed", table: table.to_s, skipped: "uses_global_records" })
+      return
+    end
+
     customer_tenants = Tenant.where(is_master_tenant: false).to_a
     has_sync_key = model.column_names.include?("sync_key")
 

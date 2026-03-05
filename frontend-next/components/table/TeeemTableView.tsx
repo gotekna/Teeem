@@ -4861,8 +4861,8 @@ export default function TeeemTableView({
         className={cn(
           selectedRows.has(row.id) && "bg-muted/50",
           isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
-          // Shared/global config records get a subtle tint
-          !!(row as Record<string, unknown>).is_shared && !isMasterTenant && "bg-sky-50/50 dark:bg-sky-950/20",
+          // Shared/global config records get a subtle tint (all tenants see it)
+          !!(row as Record<string, unknown>).is_shared && "bg-sky-50/50 dark:bg-sky-950/20",
           "hover:bg-muted/30 cursor-pointer"
         )}
         onClick={() => {

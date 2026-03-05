@@ -836,12 +836,15 @@ class TenantConfigSyncService
   # List all available config tables with counts
   def available_tables
     CONFIG_TABLES.map do |key, config|
+      model_class = config[:model].constantize rescue nil
+      uses_global = model_class&.respond_to?(:uses_global_records?) && model_class.uses_global_records?
       {
         key: key.to_s,
         model: config[:model],
         description: config[:description],
         name_field: config[:name_field].to_s,
-        group: config[:group]
+        group: config[:group],
+        uses_global_records: uses_global
       }
     end
   end
