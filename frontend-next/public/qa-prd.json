@@ -4,8 +4,8 @@
     "run_id": "ralph-v3-20260305",
     "started_at": "2026-03-05T12:10:35.189Z",
     "completed_at": null,
-    "last_updated": "2026-03-06T10:45:00.000Z",
-    "iteration": 7,
+    "last_updated": "2026-03-06T11:15:00.000Z",
+    "iteration": 8,
     "ship_ready": false,
     "total_pages": 199,
     "total_stories": 19
@@ -2079,7 +2079,7 @@
       "title": "Leads, Cases, Email, Meetings, Workflows & More",
       "icon": "clipboard-check",
       "description": "All remaining app pages",
-      "status": "in_progress",
+      "status": "completed",
       "page_manifest": [
         "/leads",
         "/leads/emails",
@@ -2129,7 +2129,25 @@
         "/email": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=4036, breadcrumb=Email, title=Email | Teeem" },
         "/email/rules": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=1138, breadcrumb=Email > Rules, title=Rules | Teeem" },
         "/email/settings": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=112215, breadcrumb=Email > Settings > Blacklist, title=Blacklist | Teeem" },
-        "/meetings": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=801, breadcrumb=Meetings > Upcoming, title=Upcoming | Teeem" }
+        "/meetings": { "status": "passed", "iteration": 7, "evidence": "js_check: hasContent=true, bodyLength=801, breadcrumb=Meetings > Upcoming, title=Upcoming | Teeem" },
+        "/meetings/new": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=1046, breadcrumb=Meetings > New, title=New | Teeem" },
+        "/chat": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=1237, breadcrumb=Chat, title=Chat | Teeem" },
+        "/training": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=638, breadcrumb=Training > All, title=All | Teeem" },
+        "/plans": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=892, breadcrumb=Plans, title=Plans | Teeem" },
+        "/workflows": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=910, breadcrumb=Workflows > Tasks, title=Tasks | Teeem" },
+        "/workflows/processes": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=1126, breadcrumb=Workflows > Processes, title=Processes | Teeem" },
+        "/designer": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=9343, breadcrumb=Designer, title=Designer | Teeem" },
+        "/designer/new": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=843, breadcrumb=Designer > New, title=New | Teeem" },
+        "/e-signature": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=1226, breadcrumb=E Signature, title=E Signature | Teeem" },
+        "/e-signature/prepare": { "status": "passed", "iteration": 8, "evidence": "js_check: empty state expected (requires document context), no console errors, title=Prepare | Teeem" },
+        "/support": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=776, breadcrumb=Support, title=Support | Teeem" },
+        "/feature-requests": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=893, breadcrumb=Feature Requests, title=Feature Requests | Teeem" },
+        "/system-health": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=1180, breadcrumb=System Health > Data Health, title=Data Health | Teeem" },
+        "/system-performance": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=637, breadcrumb=System Performance, title=System Performance | Teeem" },
+        "/design-system": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=2287, breadcrumb=Design System > Kanban, title=Kanban | Teeem" },
+        "/missing": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=764, breadcrumb=Missing, title=Missing | Teeem" },
+        "/profile": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=995, breadcrumb=Profile, title=Profile | Teeem" },
+        "/company-groups": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=922, breadcrumb=Company Groups, title=Company Groups | Teeem" }
       }
     },
     {
@@ -2137,7 +2155,7 @@
       "title": "Customer Portal",
       "icon": "layout-list",
       "description": "Customer-facing portal pages",
-      "status": "pending",
+      "status": "in_progress",
       "page_manifest": [
         "/portal",
         "/portal/login",
@@ -2154,7 +2172,10 @@
         "Portal login page loads",
         "Portal pages render for authenticated users"
       ],
-      "page_results": {}
+      "page_results": {
+        "/portal": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=1105, breadcrumb=Portal > Setup, title=Portal | Teeem" },
+        "/portal/login": { "status": "passed", "iteration": 8, "evidence": "js_check: hasContent=true, bodyLength=140, no breadcrumb (public login page), title=TEEEM" }
+      }
     },
     {
       "id": "US-DARK",
