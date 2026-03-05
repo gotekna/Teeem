@@ -2669,6 +2669,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "record_updated_at"
     t.boolean "updates_corporate_key", default: false, null: false
     t.boolean "updates_tax_file_number", default: false, null: false
+    t.boolean "updates_abn", default: false, null: false
+    t.boolean "updates_acn", default: false, null: false
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin

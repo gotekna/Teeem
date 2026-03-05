@@ -216,6 +216,8 @@ interface DocumentType {
   certificate_template?: string; // Template to use (e.g., "form_43")
   updates_corporate_key?: boolean; // Prompt to update corporate key when scanning
   updates_tax_file_number?: boolean; // Prompt to update tax file number when scanning
+  updates_abn?: boolean; // Prompt to update ABN when scanning
+  updates_acn?: boolean; // Prompt to update ACN when scanning
 }
 
 // Type definitions for tab/folder hierarchy
@@ -2125,6 +2127,42 @@ export default function DocumentTypeDetailPage() {
               </div>
               <p className="text-[10px] text-muted-foreground">
                 When scanning this document type, prompt to view and update the company&apos;s tax file number
+              </p>
+            </div>
+
+            {/* Update ABN */}
+            <div className="space-y-2">
+              <Label>ABN</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="updates_abn"
+                  checked={documentType.updates_abn || false}
+                  onCheckedChange={(checked) => updateField("updates_abn", checked)}
+                />
+                <Label htmlFor="updates_abn" className="text-xs cursor-pointer">
+                  Update ABN
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                When scanning this document type, prompt to view and update the company&apos;s ABN
+              </p>
+            </div>
+
+            {/* Update ACN */}
+            <div className="space-y-2">
+              <Label>ACN</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="updates_acn"
+                  checked={documentType.updates_acn || false}
+                  onCheckedChange={(checked) => updateField("updates_acn", checked)}
+                />
+                <Label htmlFor="updates_acn" className="text-xs cursor-pointer">
+                  Update ACN
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                When scanning this document type, prompt to view and update the company&apos;s ACN
               </p>
             </div>
 
