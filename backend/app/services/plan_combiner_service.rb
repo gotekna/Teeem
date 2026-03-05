@@ -8,21 +8,17 @@ require "hexapdf"
 # Combines all individual plans into one PDF, sorted by plan_type.code.
 # Called automatically after any plan is added/updated/deleted.
 #
-# SSoT:
-# - Uses PlanType templates for naming (same as individual plans)
-# - Uses HexaPDF for PDF merging (already used throughout codebase)
-# - Uses StorageUploadable for provider-agnostic storage operations
+# Blob-only storage (Mar 2026): Downloads plan content from StorageBlob,
+# creates combined PDF as a new StorageBlob + WarehouseDocument.
+# No legacy S3 folder structure used.
 # =============================================================================
 class PlanCombinerService
-  include StorageUploadable
-
   class CombineError < StandardError; end
 
   def initialize(job)
     @job = job
   end
 
-  # Combine all individual plans into one "All Plans" PDF
   def combine_all_plans!
     Rails.logger.info "[PlanCombinerService] Starting combine for job #{@job.id}"
 
@@ -33,13 +29,9 @@ class PlanCombinerService
     return nil unless combined_content
 
     all_plans_record = find_or_create_all_plans_record
-    folder_path = get_plans_folder_path
     filename = build_filename
 
-    result = upload_to_storage_path(folder_path, combined_content, filename, content_type: "application/pdf")
-    raise CombineError, "Failed to upload: #{result[:error]}" unless result[:success]
-
-    update_revision(all_plans_record, result[:raw], filename, combined_content)
+    update_revision(all_plans_record, filename, combined_content)
     all_plans_record.update!(display_name: build_display_name)
 
     Rails.logger.info "[PlanCombinerService] Completed combine for job #{@job.id}"
@@ -53,10 +45,10 @@ class PlanCombinerService
 
   def get_plans_to_combine
     @job.job_plans
-        .regular_plans # exclude existing combined PDF
+        .regular_plans
         .includes(:current_revision, :plan_type)
         .joins(:current_revision)
-        .where("job_plan_revisions.storage_blob_id IS NOT NULL OR job_plan_revisions.storage_file_id IS NOT NULL")
+        .where("job_plan_revisions.storage_blob_id IS NOT NULL")
         .sort_by { |p| p.plan_type&.code || "999" }
   end
 
@@ -66,13 +58,13 @@ class PlanCombinerService
 
     plans.each_with_index do |plan, index|
       revision = plan.current_revision
-      file_ref = revision&.storage_reference
-      next unless file_ref
+      blob = revision&.storage_blob
+      next unless blob
 
-      result = download_from_storage(file_ref)
-      next unless result[:success]
+      content = blob.download
+      next unless content.present?
 
-      source = HexaPDF::Document.new(io: StringIO.new(result[:content]))
+      source = HexaPDF::Document.new(io: StringIO.new(content))
       source.pages.each { |page| target.pages << target.import(page) }
       Rails.logger.info "[PlanCombinerService] Added plan #{index + 1}: #{plan.display_name} (#{source.pages.count} pages)"
     rescue => e
@@ -99,50 +91,37 @@ class PlanCombinerService
     )
   end
 
-  def update_revision(all_plans_record, upload_result, filename, combined_content)
-    # Create StorageBlob for Phase 3 blob storage (non-fatal if fails)
+  def update_revision(all_plans_record, filename, combined_content)
     blob = create_storage_blob(combined_content, filename)
 
     revision = all_plans_record.current_revision
 
     if revision
-      # Update existing revision
       revision.update!(
-        storage_file_id: upload_result[:id],
-        storage_web_url: upload_result[:web_url] || upload_result[:url],
         storage_blob: blob,
         file_name: filename
       )
     else
-      # Create new revision
       revision = all_plans_record.revisions.create!(
         revision: "A",
         revision_date: Date.current,
-        storage_file_id: upload_result[:id],
-        storage_web_url: upload_result[:web_url] || upload_result[:url],
         storage_blob: blob,
         file_name: filename
       )
       all_plans_record.update!(current_revision: revision)
     end
 
-    # Create/update WarehouseDocument for File Warehouse visibility (non-fatal)
     create_warehouse_document(blob, filename, combined_content.bytesize) if blob
   end
 
-  # Create StorageBlob from content (non-fatal)
   def create_storage_blob(content, filename)
     StorageBlob.find_or_create_for_content!(
       content,
       filename: filename,
       content_type: "application/pdf"
     )
-  rescue => e
-    Rails.logger.warn "[PlanCombinerService] Failed to create StorageBlob for #{filename}: #{e.message}"
-    nil
   end
 
-  # Create or update WarehouseDocument for File Warehouse visibility (non-fatal)
   def create_warehouse_document(blob, filename, file_size)
     plans_folder = WarehouseFolder.where(warehouse_type: "job", tab_key: "plans").enabled.first
 
@@ -165,11 +144,6 @@ class PlanCombinerService
     Rails.logger.info "[PlanCombinerService] Created/updated WarehouseDocument for #{filename}"
   rescue => e
     Rails.logger.warn "[PlanCombinerService] Failed to create WarehouseDocument for #{filename}: #{e.message}"
-  end
-
-  def get_plans_folder_path
-    raise CombineError, "Job has no storage folder" unless @job.storage_folder_path.present?
-    "#{@job.storage_folder_path}/#{WarehouseFolder.folder_name_for('job', 'plans', '04 Plans')}"
   end
 
   def build_filename

@@ -5,25 +5,12 @@ require "hexapdf"
 # =============================================================================
 # BatchPlanUploadJob - Background processing of plan set uploads
 # =============================================================================
-# ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Uploads to Wasabi, SharePoint, or S3 based on WarehouseProvider║
-# ╚═══════════════════════════════════════════════════════════════════╝
+# Blob-only storage (Mar 2026): All plans stored via StorageBlob +
+# WarehouseDocument. No legacy S3 folder structure created.
 #
 # Uses BatchOperation for progress tracking (SSoT for all batch operations).
 #
-# This job handles the complete plan upload workflow:
-# 1. Downloads staged PDF from storage
-# 2. Splits PDF into individual pages
-# 3. Uploads each page to job's Plans folder
-# 4. Creates JobPlan records for each page
-# 5. Queues AI analysis for identification
-#
-# Progress tracking via BatchOperation:
-# - total_items: number of pages in PDF
-# - processed_items: pages processed so far
-# - current_item_name: current page being processed
-# - items_completed: plan names created
+# DocumentProviderAware is retained solely for staging file download/cleanup.
 # =============================================================================
 class BatchPlanUploadJob < ApplicationJob
   include DocumentProviderAware
@@ -40,7 +27,6 @@ class BatchPlanUploadJob < ApplicationJob
 
     Rails.logger.info "[BatchPlanUploadJob] Starting upload for job #{@job.id}"
 
-    # SSoT: Setup document provider using WarehouseProvider
     begin
       setup_default_provider!
     rescue DocumentProviders::NotConnectedError => e
@@ -82,7 +68,7 @@ class BatchPlanUploadJob < ApplicationJob
     @file_content = download_from_provider(staging_file_id)
     raise "Failed to download staging file" unless @file_content
 
-    Rails.logger.info "[BatchPlanUploadJob] Downloaded #{@file_content.bytesize} bytes (provider: #{current_provider_type})"
+    Rails.logger.info "[BatchPlanUploadJob] Downloaded #{@file_content.bytesize} bytes"
   end
 
   def split_pdf!
@@ -99,7 +85,6 @@ class BatchPlanUploadJob < ApplicationJob
   end
 
   def process_pages!
-    @plans_folder_id = get_or_create_plans_folder!
     @used_filenames = Set.new(["All Plans.pdf"])
 
     @doc.pages.count.times do |index|
@@ -116,33 +101,20 @@ class BatchPlanUploadJob < ApplicationJob
       current_name: "Page #{page_number}"
     )
 
-    # Extract single page to new PDF
     page_content = extract_single_page(index)
 
-    # Determine filename
     filename = determine_filename(index)
     @used_filenames.add(filename)
 
-    # Upload to storage
-    result = upload_to_provider(
-      @plans_folder_id,
-      filename,
-      page_content,
-      content_type: "application/pdf"
-    )
-
-    # Create JobPlan record (pass page_content for blob creation)
     display_name = filename.sub(/\.pdf$/i, "")
-    create_job_plan!(display_name, result, page_content.bytesize, page_content: page_content)
+    create_job_plan!(display_name, page_content.bytesize, page_content: page_content)
 
-    # Track completed item
     @operation.add_completed_item!(display_name)
 
     Rails.logger.info "[BatchPlanUploadJob] Created plan: #{display_name}"
   end
 
   def create_all_plans_entry!
-    # Check if "All Plans" already exists
     existing = @job.job_plans.find_by(display_name: "All Plans")
     if existing
       Rails.logger.info "[BatchPlanUploadJob] All Plans entry already exists, skipping"
@@ -152,14 +124,6 @@ class BatchPlanUploadJob < ApplicationJob
     Rails.logger.info "[BatchPlanUploadJob] Creating All Plans entry..."
     @operation.update!(current_step: "Creating All Plans entry...")
 
-    result = upload_to_provider(
-      @plans_folder_id,
-      "All Plans.pdf",
-      @file_content,
-      content_type: "application/pdf"
-    )
-
-    # Create StorageBlob for Phase 3 blob storage (non-fatal if fails)
     blob = create_storage_blob(@file_content, "All Plans.pdf")
 
     plan = @job.job_plans.create!(
@@ -170,18 +134,14 @@ class BatchPlanUploadJob < ApplicationJob
     )
 
     plan.add_revision!(
-      storage_file_id: result[:id],
-      storage_web_url: result[:webUrl] || result[:web_url],
       storage_blob: blob,
       file_name: "All Plans.pdf",
       file_size: @file_content.bytesize,
       revision_date: Date.current
     )
 
-    # Create WarehouseDocument for File Warehouse visibility (non-fatal if fails)
-    create_warehouse_document(blob, "All Plans.pdf", @file_content.bytesize) if blob
+    create_warehouse_document(blob, "All Plans.pdf", @file_content.bytesize)
 
-    # Add at beginning of items_completed
     items = @operation.items_completed || []
     items.unshift("All Plans")
     @operation.update!(items_completed: items)
@@ -198,8 +158,6 @@ class BatchPlanUploadJob < ApplicationJob
       @operation.staging_file_id = nil
       @operation.save!
       Rails.logger.info "[BatchPlanUploadJob] Deleted staging file"
-    rescue DocumentProviders::Error => e
-      Rails.logger.warn "[BatchPlanUploadJob] Failed to delete staging file: #{e.message}"
     rescue => e
       Rails.logger.warn "[BatchPlanUploadJob] Failed to delete staging file: #{e.message}"
     end
@@ -219,7 +177,6 @@ class BatchPlanUploadJob < ApplicationJob
       end
     end
 
-    # Also generate thumbnail for "All Plans"
     all_plans = @job.job_plans.find_by(display_name: "All Plans")
     if all_plans&.current_revision&.storage_reference.present?
       GeneratePlanThumbnailJob.perform_later(all_plans.current_revision.id)
@@ -235,31 +192,6 @@ class BatchPlanUploadJob < ApplicationJob
   def job_plan_tab_id
     @operation.metadata&.dig("job_plan_tab_id") ||
       @job.job_plan_tabs.root_tabs.ordered.first&.id
-  end
-
-  def get_or_create_plans_folder!
-    # SSoT: Use DocumentProviderAware to get/create job folder path
-    job_folder_path = get_or_create_folder_path(:job, @job)
-    raise "Job folder not found in storage" unless job_folder_path
-
-    # SSoT (Feb 2026): Get plans folder name from WarehouseFolder
-    plans_folder_name = WarehouseFolder.folder_name_for("job", "plans", "04 Plans")
-
-    # Get or create plans subfolder
-    plans_folder_path = "#{job_folder_path}/#{plans_folder_name}"
-
-    begin
-      # Check if plans folder exists
-      unless folder_exists_in_provider?(plans_folder_path)
-        create_folder_in_provider(plans_folder_path)
-      end
-
-      # Return the path/id for uploads
-      plans_folder_path
-    rescue DocumentProviders::Error => e
-      Rails.logger.error "[BatchPlanUploadJob] Error with plans folder: #{e.message}"
-      raise "Failed to access plans folder: #{e.message}"
-    end
   end
 
   def extract_single_page(page_index)
@@ -319,19 +251,14 @@ class BatchPlanUploadJob < ApplicationJob
     Warehouse::FilenameSanitizer.sanitize(filename)
   end
 
-  # Create StorageBlob from content (non-fatal - plan upload continues even if blob creation fails)
   def create_storage_blob(content, filename)
     StorageBlob.find_or_create_for_content!(
       content,
       filename: filename,
       content_type: "application/pdf"
     )
-  rescue => e
-    Rails.logger.warn "[BatchPlanUploadJob] Failed to create StorageBlob for #{filename}: #{e.message}"
-    nil
   end
 
-  # Create WarehouseDocument for File Warehouse visibility (non-fatal)
   def create_warehouse_document(blob, filename, file_size)
     plans_folder = WarehouseFolder.where(warehouse_type: "job", tab_key: "plans").enabled.first
 
@@ -350,14 +277,13 @@ class BatchPlanUploadJob < ApplicationJob
     Rails.logger.warn "[BatchPlanUploadJob] Failed to create WarehouseDocument for #{filename}: #{e.message}"
   end
 
-  def create_job_plan!(display_name, storage_result, file_size, page_content: nil)
+  def create_job_plan!(display_name, file_size, page_content: nil)
     existing = @job.job_plans.find_by(display_name: display_name)
     if existing
       Rails.logger.info "[BatchPlanUploadJob] Plan '#{display_name}' already exists, skipping"
       return existing
     end
 
-    # Create StorageBlob for Phase 3 blob storage (non-fatal if fails)
     blob = create_storage_blob(page_content, "#{display_name}.pdf") if page_content
 
     plan = @job.job_plans.create!(
@@ -367,15 +293,12 @@ class BatchPlanUploadJob < ApplicationJob
     )
 
     plan.add_revision!(
-      storage_file_id: storage_result[:id],
-      storage_web_url: storage_result[:webUrl] || storage_result[:web_url],
       storage_blob: blob,
       file_name: "#{display_name}.pdf",
       file_size: file_size,
       revision_date: Date.current
     )
 
-    # Create WarehouseDocument for File Warehouse visibility (non-fatal if fails)
     create_warehouse_document(blob, "#{display_name}.pdf", file_size) if blob
 
     plan

@@ -586,22 +586,55 @@ module Api
         end
 
         # Parent-level badge counts (e.g., total photos across all photo sub-tabs)
+        # Also computes per-child counts for sub-tab badges
         parent_counts = {}
         parent_tabs.each do |parent_tab|
           photo_children = parent_tab.children.where(enabled: true, tab_type: "photo")
-          next unless photo_children.any?
+          doc_children = parent_tab.children.where(enabled: true, tab_type: "document")
 
-          photo_folder_ids = photo_children.pluck(:id)
-          # Include grandchildren (sub-sub folders) if any
-          grandchild_ids = WarehouseFolder.where(parent_id: photo_folder_ids).pluck(:id)
-          all_folder_ids = photo_folder_ids + grandchild_ids
+          # Photo sub-tab counts (e.g., Photo → Site (5), Slab (3))
+          if photo_children.any?
+            photo_folder_ids = photo_children.pluck(:id)
+            grandchild_ids = WarehouseFolder.where(parent_id: photo_folder_ids).pluck(:id)
+            all_folder_ids = photo_folder_ids + grandchild_ids
 
-          count = WarehouseDocument.where(
-            warehouse_folder_id: all_folder_ids,
-            linkable_type: "Job",
-            linkable_id: @job.id
-          ).count
-          parent_counts[parent_tab.tab_key] = count if count > 0
+            # Per-child counts for sub-tab badges
+            child_counts = WarehouseDocument.where(
+              warehouse_folder_id: photo_folder_ids,
+              linkable_type: "Job",
+              linkable_id: @job.id
+            ).group(:warehouse_folder_id).count
+            folder_id_to_tab_key = photo_children.pluck(:id, :tab_key).to_h
+            child_counts.each do |folder_id, c|
+              tab_key = folder_id_to_tab_key[folder_id]
+              counts[tab_key] = c if tab_key && c > 0
+            end
+
+            # Parent total (all photos including grandchildren)
+            total_count = WarehouseDocument.where(
+              warehouse_folder_id: all_folder_ids,
+              linkable_type: "Job",
+              linkable_id: @job.id
+            ).count
+            parent_counts[parent_tab.tab_key] = total_count if total_count > 0
+
+          # Document sub-tab counts (e.g., Documents → Plans (12), Contracts (3))
+          elsif doc_children.any?
+            doc_folder_ids = doc_children.pluck(:id)
+            doc_child_counts = WarehouseDocument.where(
+              warehouse_folder_id: doc_folder_ids,
+              linkable_type: "Job",
+              linkable_id: @job.id
+            ).group(:warehouse_folder_id).count
+            doc_folder_to_tab = doc_children.pluck(:id, :tab_key).to_h
+            doc_total = 0
+            doc_child_counts.each do |folder_id, c|
+              tab_key = doc_folder_to_tab[folder_id]
+              counts[tab_key] = c if tab_key && c > 0
+              doc_total += c
+            end
+            parent_counts[parent_tab.tab_key] = doc_total if doc_total > 0
+          end
         end
 
         render json: { success: true, counts: counts, parentCounts: parent_counts }
@@ -1363,57 +1396,38 @@ module Api
       end
 
       # GET /api/v1/jobs/:id/plan_set
-      # Get the list of plans in the 04 Plans folder
-      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
+      # Get the list of plans from WarehouseDocument (blob storage SSoT)
       def plan_set
-        begin
-          setup_default_provider!
-        rescue DocumentProviders::NotConnectedError => e
-          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
-        end
+        plans_folder = WarehouseFolder.where(warehouse_type: "job", tab_key: "plans").enabled.first
 
-        # Build job folder path
-        job_folder_path = build_job_folder_path(@job)
+        documents = WarehouseDocument
+          .where(linkable: @job, source_type: "job")
+          .where(warehouse_folder_id: plans_folder&.id)
+          .where.not(storage_blob_id: nil)
+          .includes(:storage_blob)
+          .order(created_at: :desc)
 
-        # Check if job folder exists
-        unless folder_exists_in_provider?(job_folder_path)
-          return render json: { success: true, data: { plans: [], folder_exists: false } }
-        end
-
-        # SSoT (Feb 2026): Get plans folder name from WarehouseFolder
-        plans_folder_name = WarehouseFolder.folder_name_for("job", "plans", "04 Plans")
-        plans_folder_path = "#{job_folder_path}/#{plans_folder_name}"
-
-        # Check if plans folder exists
-        unless folder_exists_in_provider?(plans_folder_path)
-          return render json: { success: true, data: { plans: [], folder_exists: false } }
-        end
-
-        # List files in 04 Plans
-        items = list_folder_in_provider(plans_folder_path, recursive: false)
-        pdf_files = items.select { |f| f[:type] == :file && f[:name]&.end_with?(".pdf") }
-
-        plans = pdf_files.map do |f|
+        plans = documents.map do |doc|
+          blob = doc.storage_blob
           {
-            id: f[:id],
-            name: f[:name],
-            web_url: f[:web_url] || f[:path],
-            size: f[:size],
-            modified: f[:modified_at]&.iso8601,
-            is_all_plans: f[:name] == "All Plans.pdf"
+            id: doc.id,
+            name: doc.ui_name || doc.original_filename,
+            size: blob&.file_size || doc.file_size,
+            created_at: doc.created_at,
+            type: :file,
+            content_type: blob&.content_type || "application/pdf",
+            is_all_plans: (doc.ui_name || doc.original_filename)&.start_with?("All Plans")
           }
         end
 
         # Sort: All Plans first, then alphabetically
-        plans.sort_by! { |p| [ p[:is_all_plans] ? 0 : 1, p[:name] ] }
+        plans.sort_by! { |p| [p[:is_all_plans] ? 0 : 1, p[:name].to_s] }
 
         render json: {
           success: true,
           data: {
             plans: plans,
-            folder_exists: true,
-            folder_path: plans_folder_path,
-            provider: current_provider_type.to_s
+            folder_exists: plans.any?
           }
         }
       rescue => e

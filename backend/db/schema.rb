@@ -179,6 +179,24 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "asic_portal_credentials", force: :cascade do |t|
+    t.bigint "corporate_id", null: false
+    t.bigint "contact_id"
+    t.bigint "tenant_id"
+    t.string "username"
+    t.text "encrypted_password"
+    t.string "recovery_question"
+    t.text "encrypted_recovery_answer"
+    t.string "status", default: "active", null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_asic_portal_credentials_on_contact_id"
+    t.index ["corporate_id", "status"], name: "index_asic_portal_credentials_on_corporate_id_and_status"
+    t.index ["corporate_id"], name: "index_asic_portal_credentials_on_corporate_id"
+    t.index ["tenant_id"], name: "index_asic_portal_credentials_on_tenant_id"
+  end
+
   create_table "asset_depreciation_profiles", force: :cascade do |t|
     t.bigint "asset_id", null: false
     t.decimal "depreciable_cost", precision: 14, scale: 2, null: false
@@ -2649,6 +2667,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "warehouse_type_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
+    t.boolean "updates_corporate_key", default: false, null: false
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
@@ -11907,6 +11926,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "ai_timesheet_suggestions", "labour_cost_entries", on_delete: :nullify
   add_foreign_key "ai_timesheet_suggestions", "users", column: "actioned_by_id", on_delete: :nullify
   add_foreign_key "ai_timesheet_suggestions", "worker_profiles"
+  add_foreign_key "asic_portal_credentials", "contacts"
+  add_foreign_key "asic_portal_credentials", "corporates"
   add_foreign_key "asset_depreciation_profiles", "assets"
   add_foreign_key "asset_depreciation_schedules", "assets"
   add_foreign_key "asset_depreciation_schedules", "users", column: "finalized_by_id"

@@ -214,6 +214,7 @@ interface DocumentType {
   form_number_mapping?: Record<string, string>; // Dwelling type -> Form number mapping
   generates_certificate?: boolean; // Auto-generate certificate on task completion
   certificate_template?: string; // Template to use (e.g., "form_43")
+  updates_corporate_key?: boolean; // Prompt to update corporate key when scanning
 }
 
 // Type definitions for tab/folder hierarchy
@@ -2087,6 +2088,24 @@ export default function DocumentTypeDetailPage() {
               )}
               <p className="text-[10px] text-muted-foreground">
                 Auto-generate signed PDF certificate when task completes (uses job supervisor's signature)
+              </p>
+            </div>
+
+            {/* Update Corporate Key */}
+            <div className="space-y-2">
+              <Label>Corporate Key</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="updates_corporate_key"
+                  checked={documentType.updates_corporate_key || false}
+                  onCheckedChange={(checked) => updateField("updates_corporate_key", checked)}
+                />
+                <Label htmlFor="updates_corporate_key" className="text-xs cursor-pointer">
+                  Update Corporate Key
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                When scanning this document type, prompt to view and update the company&apos;s corporate key
               </p>
             </div>
 
