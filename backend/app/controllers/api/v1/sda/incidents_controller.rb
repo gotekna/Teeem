@@ -134,7 +134,14 @@ module Api
             :reported_by_user_id,
             :investigated_by_user_id,
             :resolved_date,
-            :review_date
+            :review_date,
+            :five_day_form_due_date,
+            :five_day_form_submitted,
+            :five_day_form_submitted_date,
+            :five_day_form_submitted_by_user_id,
+            :ndis_commission_portal_ref,
+            :ri_approver_user_id,
+            :ri_notifier_user_id
           )
         end
 

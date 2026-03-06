@@ -1428,6 +1428,12 @@
       "tips": ["Red alert banner appears when incidents are overdue for NDIS Commission reporting", "Serious and critical incidents, plus specific types (restraint, abuse, death, injury) are auto-flagged as NDIS reportable", "The 24-hour reporting deadline starts from the incident time, not when it was logged", "Expand a row to see full details including root cause analysis and corrective actions"],
       "tasks": ["Log new incident", "Report incident to NDIS Commission", "Review overdue reports", "Document corrective actions", "Track incident trends by type and severity"]
     },
+    "/properties/sda/restrictive-practices": {
+      "title": "Restrictive Practices Register",
+      "description": "Track authorized and unauthorized use of restrictive practices on NDIS participants. Unauthorized practices must be reported to NDIS within 5 business days.",
+      "tips": ["Red overdue banner appears when unauthorized practices have passed the 5 business day NDIS reporting deadline", "Unauthorized practices are highlighted in red — authorized practices backed by a Behaviour Support Plan are shown in green", "Expand a row to see reason, description, participant response, debrief notes, and BSP details", "Filter by practice type (chemical, mechanical, physical, seclusion, environmental) or authorization status"],
+      "tasks": ["Record new restrictive practice", "Report unauthorized practice to NDIS", "Review overdue NDIS reports", "Check BSP reference and review dates", "Track authorized vs unauthorized practice counts"]
+    },
     "/properties/sda/participants": {
       "title": "Participant Outcomes",
       "description": "Track SDA participant satisfaction, wellbeing, and goal progress through regular assessments across 6 rating dimensions.",
@@ -1445,6 +1451,30 @@
       "description": "Manage Supported Independent Living providers linked to SDA properties, including service agreements, satisfaction ratings, and review schedules.",
       "tips": ["Three service types: SIL, In-Home Support, and Respite", "Satisfaction ratings (1-5 stars) help track provider performance", "Incident counts link to the Incidents tab for detailed investigation", "Set review dates to ensure regular provider performance reviews"],
       "tasks": ["Add new SIL provider", "Review provider agreements", "Track satisfaction ratings", "Schedule provider reviews", "Monitor incident counts"]
+    },
+    "/properties/sda/restrictive-practices": {
+      "title": "Restrictive Practices Register",
+      "description": "Track authorized and unauthorized use of restrictive practices on NDIS participants. Unauthorized practices must be reported to the NDIS Commission within 5 business days.",
+      "tips": ["Five practice types: Chemical, Mechanical, Physical, Seclusion, Environmental", "Unauthorized practices are auto-flagged as NDIS reportable", "The 5 business day reporting deadline is tracked automatically", "Link practices to Behaviour Support Plans (BSP) with practitioner details", "Red banner appears when any practices are overdue for NDIS reporting"],
+      "tasks": ["Record restrictive practice use", "Report unauthorized practice to NDIS", "Review overdue reports", "Link to Behaviour Support Plan", "Track authorized vs unauthorized usage"]
+    },
+    "/properties/sda/conflict-of-interest": {
+      "title": "Conflict of Interest Register",
+      "description": "Track COI declarations for staff, SIL providers, contractors, and board members with management plans and review schedules.",
+      "tips": ["Four declarant types: Staff, SIL Provider, Contractor, Board Member", "Severity levels (Low, Medium, High, Critical) help prioritize management", "Set review dates to ensure regular re-assessment of managed conflicts", "Yellow banner appears when any COIs are overdue for review"],
+      "tasks": ["Record new COI declaration", "Review declared conflicts", "Create management plan", "Schedule COI reviews", "Resolve managed conflicts"]
+    },
+    "/properties/sda/policies": {
+      "title": "Policies & Procedures",
+      "description": "Policy and procedure register tracking document versions, review dates, and NDIS Practice Standards compliance.",
+      "tips": ["14 policy categories covering all NDIS Practice Standards", "Review intervals auto-calculate next review dates", "NDIS Required badge shows which policies are mandatory for compliance", "Approve workflow moves policies from Draft to Active with proper audit trail", "Amber banner appears when policies are due for review"],
+      "tasks": ["Create new policy", "Approve draft policies", "Review due policies", "Track NDIS compliance", "Update policy versions"]
+    },
+    "/properties/sda/notifications": {
+      "title": "SDA Notification Log",
+      "description": "Track all NDIS-related notifications sent and received across the SDA system including vacancy notices, incident reports, and compliance alerts.",
+      "tips": ["12 notification types covering all NDIS compliance requirements", "Five channels: Email, SMS, In-App, NDIS Portal, SDA Finder", "Overdue notifications highlight compliance risks", "Failed notifications can be retried with one click", "Priority levels help triage urgent compliance notifications"],
+      "tasks": ["Review pending notifications", "Retry failed notifications", "Acknowledge received notifications", "Track overdue compliance notifications", "Monitor notification delivery status"]
     }
   }
 }

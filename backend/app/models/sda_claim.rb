@@ -21,6 +21,19 @@ class SdaClaim < ApplicationRecord
   scope :paid, -> { where(status: "paid") }
   scope :for_period, ->(start_date, end_date) { where("period_start >= ? AND period_end <= ?", start_date, end_date) }
 
+  def proda_submitted?
+    proda_submitted_at.present?
+  end
+
+  def submit_to_proda!(service_booking_id:, claim_reference:)
+    update!(
+      proda_service_booking_id: service_booking_id,
+      proda_claim_reference: claim_reference,
+      proda_submitted_at: Time.current,
+      status: "submitted"
+    )
+  end
+
   def calculate_variance
     return nil unless claimed_amount && paid_amount
     (claimed_amount - paid_amount).round(2)

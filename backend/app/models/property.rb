@@ -28,6 +28,8 @@ class Property < ApplicationRecord
   has_many :sda_design_assessments, dependent: :destroy
   has_many :sda_rent_ledger_entries, dependent: :destroy
   has_many :sda_owner_statements, dependent: :destroy
+  has_many :sda_restrictive_practices, dependent: :destroy
+  has_many :sda_notifications, dependent: :destroy
 
   # Validations
   validates :street_address, presence: true

@@ -137,7 +137,11 @@ module Api
             :payment_date,
             :submitted_date,
             :reference_number,
-            :notes
+            :notes,
+            :proda_service_booking_id,
+            :proda_claim_reference,
+            :proda_submitted_at,
+            :ndia_payment_request_id
           )
         end
 

@@ -66,6 +66,7 @@ type NdisRoleKey = (typeof NDIS_ROLES)[number]["key"];
 interface SdaConfig {
   ndis_registration_number?: string;
   proda_ra_number?: string;
+  real_estate_licence_number?: string;
   contacts?: Record<string, { id: number; display_name: string; email?: string | null } | null>;
 }
 
@@ -359,6 +360,7 @@ export default function SdaSetupPage() {
   // NDIS registration fields (local state for editing)
   const [ndisRegNumber, setNdisRegNumber] = useState("");
   const [prodaRaNumber, setProdaRaNumber] = useState("");
+  const [realEstateLicence, setRealEstateLicence] = useState("");
 
   // Load contacts for picker
   const { contacts: allContacts, loading: contactsLoading } = useContacts({ mode: "select" });
@@ -375,6 +377,7 @@ export default function SdaSetupPage() {
         setSdaConfig(sdaRes.data);
         setNdisRegNumber(sdaRes.data.ndis_registration_number || "");
         setProdaRaNumber(sdaRes.data.proda_ra_number || "");
+        setRealEstateLicence(sdaRes.data.real_estate_licence_number || "");
       }
     } catch {
       // Silently fail - fields will show placeholders
@@ -392,6 +395,7 @@ export default function SdaSetupPage() {
       const res = await api.patch<{ success: boolean }>("/api/v1/tenant_settings/sda_config", {
         ndis_registration_number: ndisRegNumber,
         proda_ra_number: prodaRaNumber,
+        real_estate_licence_number: realEstateLicence,
       });
       if (res?.success) {
         toast({ title: "Saved", description: "NDIS registration details updated." });
@@ -532,6 +536,16 @@ export default function SdaSetupPage() {
                   placeholder="e.g. RA-123456"
                   value={prodaRaNumber}
                   onChange={(e) => setProdaRaNumber(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="real-estate" className="text-xs">Real Estate Licence Number</Label>
+                <Input
+                  id="real-estate"
+                  placeholder="e.g. 1234567"
+                  value={realEstateLicence}
+                  onChange={(e) => setRealEstateLicence(e.target.value)}
                   className="h-8 text-sm"
                 />
               </div>

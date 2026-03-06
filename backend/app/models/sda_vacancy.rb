@@ -42,6 +42,22 @@ class SdaVacancy < ApplicationRecord
     )
   end
 
+  def list_on_housing_hub!(listing_id)
+    update!(
+      housing_hub_listing_id: listing_id,
+      housing_hub_listed_date: Date.current,
+      status: "listed"
+    )
+  end
+
+  def list_on_gonest!(listing_id)
+    update!(
+      gonest_listing_id: listing_id,
+      gonest_listed_date: Date.current,
+      status: "listed"
+    )
+  end
+
   def overdue_notification?
     return false unless status == "open"
     return false unless vacancy_start_date

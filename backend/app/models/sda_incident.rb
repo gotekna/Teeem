@@ -6,6 +6,11 @@ class SdaIncident < ApplicationRecord
   belongs_to :contact, optional: true
   belongs_to :reported_by_user, class_name: "User", optional: true
   belongs_to :investigated_by_user, class_name: "User", optional: true
+  belongs_to :five_day_form_submitted_by_user, class_name: "User", optional: true
+  belongs_to :ri_approver_user, class_name: "User", optional: true
+  belongs_to :ri_notifier_user, class_name: "User", optional: true
+
+  has_many :sda_restrictive_practices, dependent: :nullify
 
   INCIDENT_TYPES = %w[
     property_damage participant_safety medication_error unauthorized_restraint
@@ -32,6 +37,24 @@ class SdaIncident < ApplicationRecord
 
   def ndis_reportable?
     incident_type.in?(NDIS_REPORTABLE_TYPES) || severity.in?(%w[serious critical])
+  end
+
+  def set_five_day_due_date!
+    return unless incident_datetime
+    due = incident_datetime.to_date
+    days_added = 0
+    while days_added < 5
+      due += 1.day
+      days_added += 1 unless due.saturday? || due.sunday?
+    end
+    update!(five_day_form_due_date: due)
+  end
+
+  def five_day_form_overdue?
+    return false if five_day_form_submitted
+    return false unless five_day_form_due_date
+
+    Date.current > five_day_form_due_date
   end
 
   def overdue_for_reporting?

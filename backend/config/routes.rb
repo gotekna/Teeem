@@ -1460,6 +1460,45 @@ Rails.application.routes.draw do
           patch "arrears/:id", to: "rent_ledger#update_arrears"
         end
 
+        resources :restrictive_practices do
+          collection do
+            get :overdue
+          end
+          member do
+            post :report_to_ndis
+          end
+        end
+
+        resources :conflict_of_interests do
+          collection do
+            get :needs_review
+          end
+          member do
+            post :review
+          end
+        end
+
+        resources :policies do
+          collection do
+            get :due_for_review
+            get :dashboard
+          end
+          member do
+            post :approve
+          end
+        end
+
+        resources :notifications, controller: "notifications" do
+          collection do
+            get :overdue
+            get :dashboard
+          end
+          member do
+            post :acknowledge
+            post :retry_send
+          end
+        end
+
         resources :owner_statements do
           member do
             post :generate

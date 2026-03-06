@@ -16,6 +16,10 @@ import {
   Heart,
   Landmark,
   HandHelping,
+  ShieldAlert,
+  Scale,
+  BookOpen,
+  Bell,
 } from "lucide-react";
 
 const SDA_TABS = [
@@ -30,6 +34,10 @@ const SDA_TABS = [
   { value: "participants", label: "Participants", icon: Heart, href: "/properties/sda/participants" },
   { value: "finance", label: "Finance", icon: Landmark, href: "/properties/sda/finance" },
   { value: "sil", label: "SIL", icon: HandHelping, href: "/properties/sda/sil" },
+  { value: "restrictive-practices", label: "Restrictive", icon: ShieldAlert, href: "/properties/sda/restrictive-practices" },
+  { value: "conflict-of-interest", label: "COI", icon: Scale, href: "/properties/sda/conflict-of-interest" },
+  { value: "policies", label: "Policies", icon: BookOpen, href: "/properties/sda/policies" },
+  { value: "notifications", label: "Notifications", icon: Bell, href: "/properties/sda/notifications" },
   { value: "setup", label: "Setup", icon: Settings2, href: "/properties/sda/setup" },
 ];
 

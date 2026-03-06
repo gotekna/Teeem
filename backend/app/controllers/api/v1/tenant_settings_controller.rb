@@ -271,6 +271,7 @@ module Api
           data: {
             ndis_registration_number: config["ndis_registration_number"],
             proda_ra_number: config["proda_ra_number"],
+            real_estate_licence_number: config["real_estate_licence_number"],
             contacts: contacts_data
           }
         }
@@ -283,6 +284,7 @@ module Api
 
         current["ndis_registration_number"] = params[:ndis_registration_number] if params.key?(:ndis_registration_number)
         current["proda_ra_number"] = params[:proda_ra_number] if params.key?(:proda_ra_number)
+        current["real_estate_licence_number"] = params[:real_estate_licence_number] if params.key?(:real_estate_licence_number)
 
         if params[:contacts].present?
           current["contacts"] ||= {}
