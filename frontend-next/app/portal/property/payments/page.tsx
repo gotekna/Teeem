@@ -84,8 +84,8 @@ export default function PaymentsPage() {
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
   if (!data) return <p className="text-center py-10 text-muted-foreground">No payment data available</p>;
 
-  const rentPayments = rentPayments || [];
-  const sdaPayments = sdaPayments || [];
+  const rentPayments = data.rent_payments || [];
+  const sdaPayments = data.sda_payments || [];
   const allPayments = [...rentPayments, ...sdaPayments].sort(
     (a, b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime()
   );
