@@ -769,10 +769,10 @@
       "tasks": ["View account balances", "Search accounts", "View transactions", "Export report"]
     },
     "/xero": {
-      "title": "Xero Dashboard",
-      "description": "View Xero sync status and manage integration.",
-      "tips": ["Sync runs automatically via webhooks", "Review pending contacts before syncing", "Check sync logs for errors"],
-      "tasks": ["View sync status", "Review pending contacts", "Trigger manual sync", "View sync history"]
+      "title": "Xero",
+      "description": "View invoices, payments, reports, and manage Xero sync from one place.",
+      "tips": ["Sync runs automatically via webhooks", "Use the Sync tab for manual sync and history", "Review pending contacts before syncing", "Check sync logs for errors"],
+      "tasks": ["View invoices and bills", "Check payment status", "View reports", "Trigger manual sync", "View sync history"]
     },
     "/xero/callback": {
       "title": "Xero Callback",

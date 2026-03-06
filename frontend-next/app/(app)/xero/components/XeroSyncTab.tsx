@@ -20,14 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-import { formatDate, formatDateTime } from "@/utils/formatters";
-
-// Types
-interface ConnectionStatus {
-  loading: boolean;
-  connected: boolean;
-  organizationName?: string;
-}
+import { formatDate } from "@/utils/formatters";
 
 interface SyncStatus {
   contacts_synced?: number;
@@ -43,13 +36,14 @@ interface SyncHistoryEntry {
   timestamp: string;
 }
 
-export default function XeroSyncPage() {
+interface XeroSyncTabProps {
+  connected: boolean;
+  organizationName?: string;
+}
+
+export function XeroSyncTab({ connected, organizationName }: XeroSyncTabProps) {
   const { toast } = useToast();
   const { confirm } = useConfirm();
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
-    loading: true,
-    connected: false,
-  });
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [syncHistory, setSyncHistory] = useState<SyncHistoryEntry[]>([]);
   const [syncing, setSyncing] = useState({ contacts: false, invoices: false });
@@ -57,31 +51,14 @@ export default function XeroSyncPage() {
 
   useEffect(() => {
     loadData();
-     
   }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      await Promise.all([loadConnectionStatus(), loadSyncStatus(), loadSyncHistory()]);
+      await Promise.all([loadSyncStatus(), loadSyncHistory()]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadConnectionStatus = async () => {
-    try {
-      const response = await api.get<{ data: { connected: boolean; tenant_name?: string } }>(
-        "/api/v1/xero/status"
-      );
-      setConnectionStatus({
-        loading: false,
-        connected: response?.data?.connected || false,
-        organizationName: response?.data?.tenant_name,
-      });
-    } catch (err) {
-      console.error("Failed to load Xero status:", err);
-      setConnectionStatus({ loading: false, connected: false });
     }
   };
 
@@ -168,58 +145,42 @@ export default function XeroSyncPage() {
     );
   }
 
-  if (!connectionStatus.connected) {
+  if (!connected) {
     return (
-      <div className="container max-w-4xl py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold">Xero Integration</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Connect your Xero account to sync contacts, invoices, and payments automatically.
+      <Card>
+        <CardContent className="py-12 text-center">
+          <p className="text-muted-foreground">
+            Xero is not connected. Please connect your Xero account in{" "}
+            <Link href="/settings/integrations/xero" className="text-primary hover:underline">
+              Settings &rarr; Integrations &rarr; Xero
+            </Link>
           </p>
-        </div>
-
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">
-              Xero is not connected. Please connect your Xero account in{" "}
-              <Link href="/settings/integrations/xero" className="text-primary hover:underline">
-                Settings → Integrations → Xero
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="container py-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Xero Sync</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Manage your Xero integration and sync data between TEEEM and Xero.
-          </p>
-        </div>
-        <Button onClick={loadData}>
-          <ArrowPathIcon className="mr-2 h-5 w-5" />
-          Refresh
-        </Button>
-      </div>
-
+    <div className="space-y-6">
       {/* Connection Status */}
-      <Card className="mb-8">
+      <Card>
         <CardHeader>
-          <CardTitle>Connection Status</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Connection Status</CardTitle>
+            <Button variant="outline" size="sm" onClick={loadData}>
+              <ArrowPathIcon className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3">
             <CheckCircleIcon className="h-6 w-6 text-green-500 dark:text-green-400" />
             <div>
               <p className="font-medium">Connected to Xero</p>
-              {connectionStatus.organizationName && (
+              {organizationName && (
                 <p className="text-sm text-muted-foreground">
-                  Organization: {connectionStatus.organizationName}
+                  Organization: {organizationName}
                 </p>
               )}
             </div>
@@ -228,65 +189,62 @@ export default function XeroSyncPage() {
       </Card>
 
       {/* Sync Stats */}
-      <div className="mb-8">
-        <h2 className="mb-4 text-lg font-semibold">Sync Overview</h2>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <UserGroupIcon className="h-8 w-8 text-indigo-600" />
-                <div className="ml-5">
-                  <p className="text-sm font-medium text-muted-foreground">Contacts Synced</p>
-                  <p className="mt-1 text-3xl font-semibold">{syncStatus?.contacts_synced || 0}</p>
-                </div>
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <UserGroupIcon className="h-8 w-8 text-indigo-600" />
+              <div className="ml-5">
+                <p className="text-sm font-medium text-muted-foreground">Contacts Synced</p>
+                <p className="mt-1 text-3xl font-semibold">{syncStatus?.contacts_synced || 0}</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <DocumentTextIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
-                <div className="ml-5">
-                  <p className="text-sm font-medium text-muted-foreground">Invoices Matched</p>
-                  <p className="mt-1 text-3xl font-semibold">{syncStatus?.invoices_matched || 0}</p>
-                </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <DocumentTextIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
+              <div className="ml-5">
+                <p className="text-sm font-medium text-muted-foreground">Invoices Matched</p>
+                <p className="mt-1 text-3xl font-semibold">{syncStatus?.invoices_matched || 0}</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <BanknotesIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                <div className="ml-5">
-                  <p className="text-sm font-medium text-muted-foreground">Payments Synced</p>
-                  <p className="mt-1 text-3xl font-semibold">{syncStatus?.payments_synced || 0}</p>
-                </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <BanknotesIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              <div className="ml-5">
+                <p className="text-sm font-medium text-muted-foreground">Payments Synced</p>
+                <p className="mt-1 text-3xl font-semibold">{syncStatus?.payments_synced || 0}</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <ChartBarIcon className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-                <div className="ml-5">
-                  <p className="text-sm font-medium text-muted-foreground">Last Sync</p>
-                  <p className="mt-1 text-sm font-semibold">
-                    {syncStatus?.last_sync
-                      ? formatDate(syncStatus.last_sync).split(",")[0]
-                      : "Never"}
-                  </p>
-                </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <ChartBarIcon className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+              <div className="ml-5">
+                <p className="text-sm font-medium text-muted-foreground">Last Sync</p>
+                <p className="mt-1 text-sm font-semibold">
+                  {syncStatus?.last_sync
+                    ? formatDate(syncStatus.last_sync).split(",")[0]
+                    : "Never"}
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Quick Actions */}
-      <div className="mb-8">
+      <div>
         <h2 className="mb-4 text-lg font-semibold">Quick Actions</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Button
@@ -337,7 +295,7 @@ export default function XeroSyncPage() {
       </div>
 
       {/* Sync History */}
-      <div className="mb-8">
+      <div>
         <h2 className="mb-4 text-lg font-semibold">Sync History</h2>
         <Card>
           {syncHistory.length === 0 ? (
@@ -403,8 +361,8 @@ export default function XeroSyncPage() {
             <li>Payments recorded in TEEEM sync to Xero automatically</li>
             <li>
               Visit the{" "}
-              <Link href="/settings" className="font-medium underline">
-                Settings page
+              <Link href="/settings/integrations/xero" className="font-medium underline">
+                Settings &rarr; Integrations &rarr; Xero
               </Link>{" "}
               for advanced configuration
             </li>
