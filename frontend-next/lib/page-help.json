@@ -2,7 +2,7 @@
   "_meta": {
     "description": "SSoT for contextual page help. Claude updates this when screens change.",
     "lastUpdated": "2026-02-14",
-    "totalPages": 190,
+    "totalPages": 197,
     "format": "Each page has: title, description, tips (array), tasks (array)"
   },
   "pages": {
@@ -1409,6 +1409,42 @@
       "description": "NDIS integration setup with email templates to request API access, dwelling enrolment guides, and useful SDA resources.",
       "tips": ["Copy email templates to request NDIS API credentials", "Check API status badges to see what's available vs coming soon", "Use the resource links for official NDIS pricing and design standards", "PRODA registration is required for bulk claim API access"],
       "tasks": ["Request NDIS API access", "Submit dwelling enrolment application", "Register for PRODA digital access", "Review current SDA price guide"]
+    },
+    "/properties/sda/vacancies": {
+      "title": "SDA Vacancies",
+      "description": "Track vacant SDA dwellings, notify NDIA within 5 business days via SDA Finder, and match eligible participants to vacancies.",
+      "tips": ["NDIA must be notified within 5 business days of a vacancy - overdue notifications are highlighted in red", "Daily lost income is calculated automatically based on the property's SDA rate", "Use Match Participants to find eligible NDIS participants for vacant properties", "SDA Finder listing IDs link directly to the NDIA vacancy register"],
+      "tasks": ["Report new vacancy", "Notify NDIA via SDA Finder", "Match participants to vacancies", "Track lost income from vacant dwellings"]
+    },
+    "/properties/sda/agreements": {
+      "title": "SDA Agreements",
+      "description": "Manage SDA accommodation agreements, service agreements, and SIL agreements with expiry tracking and renewal reminders.",
+      "tips": ["Agreements expiring within 30 days are highlighted with an amber warning", "Three agreement types: SDA Accommodation, Service Agreement, and SIL Agreement", "Attach signed agreement documents via the document blob reference", "Set renewal reminder dates to get notified before agreements expire"],
+      "tasks": ["Create new agreement", "Review expiring agreements", "Renew expired agreements", "Track agreement status across portfolio"]
+    },
+    "/properties/sda/incidents": {
+      "title": "SDA Incidents",
+      "description": "SDA incident management with NDIS Commission reporting compliance. Serious incidents must be reported within 24 hours.",
+      "tips": ["Red alert banner appears when incidents are overdue for NDIS Commission reporting", "Serious and critical incidents, plus specific types (restraint, abuse, death, injury) are auto-flagged as NDIS reportable", "The 24-hour reporting deadline starts from the incident time, not when it was logged", "Expand a row to see full details including root cause analysis and corrective actions"],
+      "tasks": ["Log new incident", "Report incident to NDIS Commission", "Review overdue reports", "Document corrective actions", "Track incident trends by type and severity"]
+    },
+    "/properties/sda/participants": {
+      "title": "Participant Outcomes",
+      "description": "Track SDA participant satisfaction, wellbeing, and goal progress through regular assessments across 6 rating dimensions.",
+      "tips": ["Six rating dimensions: Overall Satisfaction, Housing Quality, Maintenance Response, Safety, Independence, Community Access", "Goals status shows whether participants are on track, at risk, or behind on their NDIS plan goals", "Use the Needs Attention filter to quickly find participants requiring follow-up", "Average scores help identify properties or areas needing improvement"],
+      "tasks": ["Record new assessment", "Review participant goals", "Identify participants needing attention", "Track satisfaction trends", "Document action items from assessments"]
+    },
+    "/properties/sda/finance": {
+      "title": "SDA Finance",
+      "description": "Complete SDA financial management with rent ledger, trust accounting, arrears tracking, and owner statement generation.",
+      "tips": ["Rent Ledger tracks all money in (rent, NDIA payments, participant contributions) and money out (disbursements, fees)", "Trust account entries are separated for regulatory compliance", "Arrears automatically escalate through stages: current, reminder, notice, breach, referred", "Owner statements can be auto-generated from ledger data for any period"],
+      "tasks": ["Record rent payment", "Reconcile ledger entries", "Generate owner statement", "Review arrears", "Disburse funds to owner", "Track trust account balance"]
+    },
+    "/properties/sda/sil": {
+      "title": "SIL Providers",
+      "description": "Manage Supported Independent Living providers linked to SDA properties, including service agreements, satisfaction ratings, and review schedules.",
+      "tips": ["Three service types: SIL, In-Home Support, and Respite", "Satisfaction ratings (1-5 stars) help track provider performance", "Incident counts link to the Incidents tab for detailed investigation", "Set review dates to ensure regular provider performance reviews"],
+      "tasks": ["Add new SIL provider", "Review provider agreements", "Track satisfaction ratings", "Schedule provider reviews", "Monitor incident counts"]
     }
   }
 }
