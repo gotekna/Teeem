@@ -510,155 +510,157 @@ function PortalEmbedTab({
   onSwitchToSetup: () => void;
 }) {
   const { toast } = useToast();
-  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
+  const [portalToken, setPortalToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [enabling, setEnabling] = useState(false);
 
   const label = portalType === "owner" ? "Owner" : "Tenant";
   const hasPortal = contact?.portal_enabled && contact?.portal_active;
 
-  const loadPortal = useCallback(async () => {
+  // Get impersonate token (for contacts with portal enabled)
+  const getToken = useCallback(async (): Promise<string | null> => {
+    if (!contact) return null;
+    const res = await api.post<{ success: boolean; token?: string; error?: string }>(
+      `/api/v1/portal/auth/impersonate/${contact.id}`
+    );
+    if (res?.success && res.token) return res.token;
+    return null;
+  }, [contact]);
+
+  // Enable portal + get token (for contacts WITHOUT portal enabled)
+  const enableAndGetToken = useCallback(async (): Promise<string | null> => {
+    if (!contact) return null;
+
+    // Generate a random password
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    let pwd = "";
+    for (let i = 0; i < 12; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    const email = contact.email || `${contact.display_name?.replace(/\s+/g, ".").toLowerCase()}@portal.teeem.au`;
+
+    const res = await api.post<{ success: boolean; portal_user?: unknown; error?: string }>(
+      `/api/v1/contacts/portal_users/${contact.id}`,
+      { portal_type: portalType, email, password: pwd }
+    );
+
+    if (!res?.success) throw new Error(res?.error || "Failed to enable portal");
+
+    toast({
+      title: "Portal enabled",
+      description: `Portal access created for ${contact.display_name}.`,
+    });
+
+    // Now impersonate
+    const impRes = await api.post<{ success: boolean; token?: string; error?: string }>(
+      `/api/v1/portal/auth/impersonate/${contact.id}`
+    );
+    if (impRes?.success && impRes.token) return impRes.token;
+    throw new Error("Portal enabled but failed to generate session.");
+  }, [contact, portalType, toast]);
+
+  // Open a portal page in a new window (handles enable + impersonate automatically)
+  const openPortalPage = useCallback(async (pagePath: string) => {
     if (!contact) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await api.post<{ success: boolean; token?: string; error?: string }>(
-        `/api/v1/portal/auth/impersonate/${contact.id}`
-      );
-      if (res?.success && res.token) {
-        const url = `${window.location.origin}/portal/login?token=${res.token}&embed=1`;
-        setIframeUrl(url);
-      } else {
-        setError(res?.error || "Failed to generate portal session");
+      let token = portalToken;
+
+      if (!token) {
+        // Get or create token
+        token = hasPortal ? await getToken() : await enableAndGetToken();
+        if (token) setPortalToken(token);
       }
-    } catch {
-      setError("Failed to load portal. The contact may not have an active portal account.");
+
+      if (token) {
+        const url = `${window.location.origin}/portal/login?token=${token}&redirect=${encodeURIComponent(pagePath)}`;
+        window.open(url, "_blank");
+      } else {
+        setError("Failed to generate portal session. Try refreshing the page.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to open portal");
     } finally {
       setLoading(false);
     }
-  }, [contact]);
+  }, [contact, portalToken, hasPortal, getToken, enableAndGetToken]);
 
-  // Quick-enable portal and immediately load preview
-  const enableAndPreview = useCallback(async () => {
-    if (!contact) return;
-    setEnabling(true);
-    setError(null);
-    try {
-      // Generate a random password
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-      let pwd = "";
-      for (let i = 0; i < 12; i++) {
-        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
+  const pages = PORTAL_PAGES[portalType];
 
-      const email = contact.email || `${contact.display_name?.replace(/\s+/g, ".").toLowerCase()}@portal.teeem.au`;
-
-      const res = await api.post<{ success: boolean; portal_user?: unknown; error?: string }>(
-        `/api/v1/contacts/portal_users/${contact.id}`,
-        { portal_type: portalType, email, password: pwd }
-      );
-      if (res?.success) {
-        toast({
-          title: "Portal enabled",
-          description: `Portal access created for ${contact.display_name}. Loading preview...`,
-        });
-        // Now impersonate and show the portal
-        const impRes = await api.post<{ success: boolean; token?: string; error?: string }>(
-          `/api/v1/portal/auth/impersonate/${contact.id}`
-        );
-        if (impRes?.success && impRes.token) {
-          const url = `${window.location.origin}/portal/login?token=${impRes.token}&embed=1`;
-          setIframeUrl(url);
-        } else {
-          setError("Portal enabled but failed to load preview. Refresh the page and try again.");
-        }
-      } else {
-        setError(res?.error || "Failed to enable portal");
-      }
-    } catch {
-      setError("Failed to enable portal access");
-    } finally {
-      setEnabling(false);
-    }
-  }, [contact, portalType, toast]);
-
-  // Auto-load on mount if portal is available
-  useEffect(() => {
-    if (hasPortal && !iframeUrl && !loading && !error) {
-      loadPortal();
-    }
-  }, [hasPortal, iframeUrl, loading, error, loadPortal]);
-
-  // ── Demo preview mode (no contact or no portal account) ──────────────
-  // Show the portal pages directly so the user can see the portal design
-  const showDemoPreview = !contact || !hasPortal;
-
-  if (showDemoPreview) {
-    return (
-      <DemoPortalPreview
-        portalType={portalType}
-        label={label}
-        contact={contact}
-        hasPortal={!!hasPortal}
-        enabling={enabling}
-        error={error}
-        onEnableAndPreview={contact ? enableAndPreview : undefined}
-        onSwitchToSetup={onSwitchToSetup}
-      />
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <Spinner className="mb-4" />
-        <p className="text-sm text-muted-foreground">Loading {label.toLowerCase()} portal...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-sm text-destructive mb-4">{error}</p>
-        <Button size="sm" variant="outline" onClick={loadPortal}>
-          Try Again
-        </Button>
-      </div>
-    );
-  }
-
-  if (iframeUrl) {
-    const portalUrl = iframeUrl.replace("&embed=1", "");
+  // No contact — can't preview
+  if (!contact) {
     return (
       <div className="space-y-4">
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-          <Shield className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <ShieldOff className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-green-900 dark:text-green-100">
-              Portal active for {contact.display_name}
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+              No {label.toLowerCase()} contact assigned
             </p>
-            <p className="text-xs text-green-700 dark:text-green-300 mt-0.5">
-              Open the portal in a new window to see it as the {label.toLowerCase()} would.
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+              {portalType === "owner"
+                ? "Assign an owner contact in the Overview tab to preview their portal."
+                : "Add a tenant contact in the Tenancy tab to preview their portal."}
             </p>
           </div>
-          <Button
-            size="sm"
-            onClick={() => window.open(portalUrl, "_blank")}
-          >
-            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-            Open {label} Portal
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onSwitchToSetup}>
+            <Shield className="h-3 w-3 mr-1" />
+            Setup
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Status banner */}
+      <div className={`flex items-start gap-3 p-3 rounded-lg border ${
+        hasPortal
+          ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+          : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+      }`}>
+        {hasPortal
+          ? <Shield className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+          : <ShieldOff className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+        }
+        <div className="flex-1">
+          <p className={`text-sm font-medium ${hasPortal ? "text-green-900 dark:text-green-100" : "text-amber-900 dark:text-amber-100"}`}>
+            {contact.display_name} — {hasPortal ? "portal active" : "portal not enabled"}
+          </p>
+          <p className={`text-xs mt-0.5 ${hasPortal ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
+            {hasPortal
+              ? `Click any page below to open the portal in a new window as ${contact.display_name}.`
+              : "Clicking a page below will auto-enable portal access and open it in a new window."}
+          </p>
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {loading && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Spinner className="h-4 w-4" /> {hasPortal ? "Opening portal..." : "Enabling portal and opening..."}
+        </div>
+      )}
+
+      {/* Portal page buttons — each opens in a new window */}
+      <div>
+        <h3 className="text-base font-semibold mb-1">Open {label} Portal</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Each button opens that portal page in a new window as {contact.display_name}.
+        </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {PORTAL_PAGES[portalType].map((page) => (
+          {pages.map((page) => (
             <button
               key={page.path}
               type="button"
-              onClick={() => window.open(portalUrl.split("/portal/")[0] + page.path + "?token=" + new URL(portalUrl).searchParams.get("token"), "_blank")}
-              className="group flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-secondary/30 transition-colors text-left"
+              disabled={loading}
+              onClick={() => openPortalPage(page.path)}
+              className="group flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-secondary/30 transition-colors text-left disabled:opacity-50"
             >
               <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0" />
               <span className="text-sm font-medium group-hover:text-primary transition-colors">{page.label}</span>
@@ -666,14 +668,12 @@ function PortalEmbedTab({
           ))}
         </div>
       </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────
-// Demo Portal Preview (no contact or no portal)
+// Portal page definitions
 // ─────────────────────────────────────────────
 
 const PORTAL_PAGES = {
@@ -693,93 +693,3 @@ const PORTAL_PAGES = {
     { label: "Inspections", path: "/portal/property/inspections" },
   ],
 };
-
-function DemoPortalPreview({
-  portalType,
-  label,
-  contact,
-  hasPortal,
-  enabling,
-  error,
-  onEnableAndPreview,
-  onSwitchToSetup,
-}: {
-  portalType: "owner" | "tenant";
-  label: string;
-  contact: PortalContact | null;
-  hasPortal: boolean;
-  enabling: boolean;
-  error: string | null;
-  onEnableAndPreview?: () => void;
-  onSwitchToSetup: () => void;
-}) {
-  const pages = PORTAL_PAGES[portalType];
-
-  if (enabling) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <Spinner className="mb-4" />
-        <p className="text-sm text-muted-foreground">Enabling portal and loading preview...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Status banner */}
-      <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-        <ShieldOff className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-        <div className="flex-1">
-          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-            {!contact
-              ? `No ${label.toLowerCase()} contact assigned`
-              : `${contact.display_name} — portal not enabled`}
-          </p>
-          <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-            {!contact
-              ? `Assign a ${label.toLowerCase()} contact in the Overview tab, or open the portal preview below.`
-              : "Enable portal access in the Setup tab, or open the portal preview below."}
-          </p>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          {onEnableAndPreview && (
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onEnableAndPreview}>
-              <Eye className="h-3 w-3 mr-1" />
-              Enable &amp; Preview
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onSwitchToSetup}>
-            <Shield className="h-3 w-3 mr-1" />
-            Setup
-          </Button>
-        </div>
-      </div>
-
-      {error && (
-        <p className="text-sm text-destructive">{error}</p>
-      )}
-
-      {/* Portal preview — opens in new window */}
-      <div>
-        <h3 className="text-base font-semibold mb-1">{label} Portal Preview</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Open portal pages in a new window to see the {label.toLowerCase()} experience.
-        </p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {pages.map((page) => (
-            <button
-              key={page.path}
-              type="button"
-              onClick={() => window.open(page.path, "_blank")}
-              className="group flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-secondary/30 transition-colors text-left"
-            >
-              <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0" />
-              <span className="text-sm font-medium group-hover:text-primary transition-colors">{page.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
