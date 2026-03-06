@@ -38,6 +38,7 @@ import {
   X,
   ClipboardCheck,
   ExternalLink,
+  Wallet,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -48,6 +49,7 @@ import { CreateInspectionDialog } from "@/components/properties/CreateInspection
 import { AddPropertyContactDialog } from "@/components/properties/AddPropertyContactDialog";
 import { PropertyInspectionsTab } from "@/components/properties/PropertyInspectionsTab";
 import { PropertyPortalTab } from "@/components/properties/PropertyPortalTab";
+import { PropertyRentTab } from "@/components/properties/PropertyRentTab";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { useDocumentCounts } from "@/lib/hooks/useDocumentCounts";
 import EntityDocumentListTab from "@/components/documents/EntityDocumentListTab";
@@ -489,6 +491,10 @@ export default function PropertyDetailPage() {
               <TabsTrigger value="financials" className="gap-1.5">
                 <DollarSign className="h-3.5 w-3.5" />
                 Financials
+              </TabsTrigger>
+              <TabsTrigger value="rent" className="gap-1.5">
+                <Wallet className="h-3.5 w-3.5" />
+                Rent
               </TabsTrigger>
               <TabsTrigger value="inspections" className="gap-1.5">
                 <ClipboardCheck className="h-3.5 w-3.5" />
@@ -1132,6 +1138,11 @@ export default function PropertyDetailPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Rent Tab */}
+          <TabsContent value="rent" className="p-6 space-y-6 mt-0">
+            <PropertyRentTab property={property} tenancies={tenancies} />
           </TabsContent>
 
           {/* Inspections Tab */}

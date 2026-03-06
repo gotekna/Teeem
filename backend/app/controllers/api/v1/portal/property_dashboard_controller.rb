@@ -21,14 +21,30 @@ module Api
         # GET /api/v1/portal/property/payments
         def payments
           properties = current_portal_user.accessible_properties
-          property = properties.first
-          return render json: { success: true, data: { payments: [] } } unless property
+                        .includes(:property_type, :owner_contact, tenancies: [:sda_participant_contact])
+
+          if current_portal_user.owner?
+            render json: { success: true, data: owner_payments(properties) }
+          else
+            render json: { success: true, data: tenant_payments(properties.first) }
+          end
+        end
+
+        private
+
+        def require_property_portal
+          unless current_portal_user&.property_portal?
+            render json: { success: false, error: "Property portal access required" }, status: :forbidden
+          end
+        end
+
+        def tenant_payments(property)
+          return { rent_payments: [], sda_payments: [], properties: [] } unless property
 
           tenancy = property.active_tenancy
           result = { rent_payments: [], sda_payments: [], next_payment: nil, rent: nil, is_sda: false, sda_breakdown: nil }
 
           if tenancy
-            # Rent summary (always present if tenancy exists)
             result[:rent] = {
               weekly_rent: tenancy.weekly_rent,
               rent_frequency: tenancy.rent_frequency,
@@ -46,45 +62,113 @@ module Api
               total_weekly: (tenancy.participant_rent_contribution || 0) + (tenancy.ndia_payment_amount || 0),
             } : nil
 
-            # Get rent payment history from recurring invoice
             if tenancy.rent_recurring_invoice_id
-              rent_invoices = Gl::Invoice
+              result[:rent_payments] = Gl::Invoice
                 .where(recurring_invoice_id: tenancy.rent_recurring_invoice_id)
-                .order(invoice_date: :desc)
-                .limit(50)
-              result[:rent_payments] = rent_invoices.map { |inv| payment_summary(inv, "rent") }
+                .order(invoice_date: :desc).limit(50)
+                .map { |inv| payment_summary(inv, "rent") }
 
-              # Next payment due
               recurring = tenancy.rent_recurring_invoice
               if recurring&.next_generation_date
                 result[:next_payment] = {
-                  type: "rent",
-                  amount: tenancy.weekly_rent,
-                  frequency: tenancy.rent_frequency,
-                  next_due: recurring.next_generation_date,
+                  type: "rent", amount: tenancy.weekly_rent,
+                  frequency: tenancy.rent_frequency, next_due: recurring.next_generation_date,
                 }
               end
             end
 
-            # Get SDA payment history from recurring invoice
             if tenancy.sda_recurring_invoice_id
-              sda_invoices = Gl::Invoice
+              result[:sda_payments] = Gl::Invoice
                 .where(recurring_invoice_id: tenancy.sda_recurring_invoice_id)
-                .order(invoice_date: :desc)
-                .limit(50)
-              result[:sda_payments] = sda_invoices.map { |inv| payment_summary(inv, "sda") }
+                .order(invoice_date: :desc).limit(50)
+                .map { |inv| payment_summary(inv, "sda") }
             end
           end
 
-          render json: { success: true, data: result }
+          result
         end
 
-        private
+        def owner_payments(properties)
+          total_potential_weekly = 0
+          total_actual_weekly = 0
 
-        def require_property_portal
-          unless current_portal_user&.property_portal?
-            render json: { success: false, error: "Property portal access required" }, status: :forbidden
+          property_data = properties.map do |property|
+            tenancy = property.active_tenancy
+            is_sda = property.sda?
+
+            # Potential income = SDA rate registered for OR weekly rent set on property
+            potential_weekly = if is_sda && tenancy&.sda?
+              tenancy.sda_weekly_rate || property.weekly_rent_amount || 0
+            else
+              property.weekly_rent_amount || tenancy&.weekly_rent || 0
+            end
+
+            # Actual income = what tenancy is actually generating
+            actual_weekly = tenancy&.weekly_rent || 0
+            actual_sda_weekly = tenancy&.sda? ? (tenancy.ndia_payment_amount || 0) + (tenancy.participant_rent_contribution || 0) : 0
+
+            total_potential_weekly += potential_weekly
+            total_actual_weekly += (is_sda && tenancy&.sda? ? actual_sda_weekly : actual_weekly)
+
+            tenant_info = if tenancy
+              participant = tenancy.sda_participant_contact
+              {
+                name: participant&.display_name || "Tenant",
+                status: tenancy.status,
+                lease_type: tenancy.tenancy_type,
+                lease_start: tenancy.start_date,
+                lease_end: tenancy.end_date,
+                days_remaining: tenancy.days_remaining,
+                weekly_rent: tenancy.weekly_rent,
+                rent_frequency: tenancy.rent_frequency,
+                sda: tenancy.sda? ? {
+                  sda_weekly_rate: tenancy.sda_weekly_rate,
+                  ndia_payment: tenancy.ndia_payment_amount,
+                  participant_contribution: tenancy.participant_rent_contribution,
+                  participant_name: participant&.display_name,
+                  plan_number: tenancy.sda_plan_number,
+                } : nil,
+              }
+            end
+
+            {
+              id: property.id,
+              property_code: property.property_code,
+              address: property.street_address,
+              suburb: property.suburb,
+              bedrooms: property.bedrooms,
+              bathrooms: property.bathrooms,
+              property_type: property.property_type&.name,
+              is_sda: is_sda,
+              sda_category: property.sda_category,
+              sda_building_type: property.sda_building_type,
+              sda_enrolled: property.sda_enrolled?,
+              vacant: tenancy.nil?,
+              potential_weekly_income: potential_weekly,
+              actual_weekly_income: is_sda && tenancy&.sda? ? actual_sda_weekly : actual_weekly,
+              occupancy_rate: potential_weekly > 0 ? ((is_sda && tenancy&.sda? ? actual_sda_weekly : actual_weekly).to_f / potential_weekly * 100).round(0) : 0,
+              valuation: property.effective_value,
+              gross_yield: property.gross_rental_yield,
+              net_yield: property.net_rental_yield,
+              tenant: tenant_info,
+            }
           end
+
+          {
+            summary: {
+              total_properties: properties.size,
+              occupied: properties.count { |p| p.active_tenancy.present? },
+              vacant: properties.count { |p| p.active_tenancy.nil? },
+              sda_properties: properties.count(&:sda?),
+              total_potential_weekly: total_potential_weekly,
+              total_actual_weekly: total_actual_weekly,
+              total_potential_annual: total_potential_weekly * 52,
+              total_actual_annual: total_actual_weekly * 52,
+              income_gap_weekly: total_potential_weekly - total_actual_weekly,
+              portfolio_value: properties.sum(&:effective_value),
+            },
+            properties: property_data,
+          }
         end
 
         def tenant_dashboard(properties)

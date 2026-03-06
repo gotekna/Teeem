@@ -24,16 +24,7 @@ interface ConnectionsResponse {
   onedrive: ConnectionInfo;
 }
 
-function OpenInTabView({ url, name, icon: Icon, autoOpen }: { url: string; name: string; icon: React.ComponentType<{ className?: string }>; autoOpen?: boolean }) {
-  const opened = useRef(false);
-
-  useEffect(() => {
-    if (autoOpen && !opened.current) {
-      opened.current = true;
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-  }, [autoOpen, url]);
-
+function OpenedView({ url, name, icon: Icon }: { url: string; name: string; icon: React.ComponentType<{ className?: string }> }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4">
       <Icon className="h-16 w-16 text-muted-foreground" />
@@ -71,6 +62,7 @@ export default function SharePointPage() {
   const [connections, setConnections] = useState<ConnectionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const opened = useRef(false);
 
   useEffect(() => {
     const loadConnections = async () => {
@@ -86,6 +78,22 @@ export default function SharePointPage() {
     };
     loadConnections();
   }, []);
+
+  // Auto-open both SharePoint and OneDrive in new tabs once data loads
+  useEffect(() => {
+    if (!connections || opened.current) return;
+    opened.current = true;
+
+    const sp = connections.sharepoint;
+    const od = connections.onedrive;
+
+    if (sp.connected && sp.url) {
+      window.open(sp.url, "_blank", "noopener,noreferrer");
+    }
+    if (od.connected && od.url) {
+      window.open(od.url, "_blank", "noopener,noreferrer");
+    }
+  }, [connections]);
 
   if (loading) {
     return (
@@ -133,7 +141,7 @@ export default function SharePointPage() {
 
         <TabsContent value="sharepoint" className="flex-1 px-4">
           {sp.connected && sp.url ? (
-            <OpenInTabView url={sp.url} name={sp.name || "SharePoint"} icon={Cloud} autoOpen />
+            <OpenedView url={sp.url} name={sp.name || "SharePoint"} icon={Cloud} />
           ) : sp.connected ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <Cloud className="h-16 w-16 text-muted-foreground" />
@@ -149,7 +157,7 @@ export default function SharePointPage() {
 
         <TabsContent value="onedrive" className="flex-1 px-4">
           {od.connected && od.url ? (
-            <OpenInTabView url={od.url} name={od.name || "OneDrive"} icon={HardDrive} />
+            <OpenedView url={od.url} name={od.name || "OneDrive"} icon={HardDrive} />
           ) : od.connected ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <HardDrive className="h-16 w-16 text-muted-foreground" />
