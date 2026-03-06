@@ -3,6 +3,8 @@ class Tenancy < ApplicationRecord
 
   belongs_to :property
   belongs_to :sda_participant_contact, class_name: "Contact", optional: true
+  belongs_to :rent_recurring_invoice, class_name: "Gl::RecurringInvoice", optional: true
+  belongs_to :sda_recurring_invoice, class_name: "Gl::RecurringInvoice", optional: true
 
   has_many :property_bills, dependent: :nullify
   has_many :property_inspections, dependent: :nullify
