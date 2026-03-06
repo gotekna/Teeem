@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,13 +24,22 @@ interface ConnectionsResponse {
   onedrive: ConnectionInfo;
 }
 
-function OpenInTabView({ url, name, icon: Icon }: { url: string; name: string; icon: React.ComponentType<{ className?: string }> }) {
+function OpenInTabView({ url, name, icon: Icon, autoOpen }: { url: string; name: string; icon: React.ComponentType<{ className?: string }>; autoOpen?: boolean }) {
+  const opened = useRef(false);
+
+  useEffect(() => {
+    if (autoOpen && !opened.current) {
+      opened.current = true;
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }, [autoOpen, url]);
+
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4">
       <Icon className="h-16 w-16 text-muted-foreground" />
       <p className="text-lg font-medium">{name}</p>
       <p className="text-sm text-muted-foreground text-center max-w-md">
-        {name} opens in a new browser tab for the best experience.
+        {name} has been opened in a new tab. Click below to open again.
       </p>
       <a href={url} target="_blank" rel="noopener noreferrer">
         <Button size="lg">
@@ -124,7 +133,7 @@ export default function SharePointPage() {
 
         <TabsContent value="sharepoint" className="flex-1 px-4">
           {sp.connected && sp.url ? (
-            <OpenInTabView url={sp.url} name={sp.name || "SharePoint"} icon={Cloud} />
+            <OpenInTabView url={sp.url} name={sp.name || "SharePoint"} icon={Cloud} autoOpen />
           ) : sp.connected ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <Cloud className="h-16 w-16 text-muted-foreground" />
