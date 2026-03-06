@@ -30,6 +30,7 @@ class Property < ApplicationRecord
   has_many :sda_owner_statements, dependent: :destroy
   has_many :sda_restrictive_practices, dependent: :destroy
   has_many :sda_notifications, dependent: :destroy
+  has_many :sda_enquiries, dependent: :destroy
 
   # Validations
   validates :street_address, presence: true
@@ -44,6 +45,9 @@ class Property < ApplicationRecord
   scope :sda_pending, -> { where.not(sda_category: nil).where(sda_enrolled: false) }
   scope :by_sda_category, ->(cat) { where(sda_category: cat) }
   scope :vacant, -> { left_joins(:tenancies).where(tenancies: { id: nil }).or(left_joins(:tenancies).where.not(tenancies: { status: "active" })) }
+  scope :publicly_listed, -> { where(publicly_listed: true) }
+  scope :public_vacancies, -> { publicly_listed.where(public_listing_type: "vacancy") }
+  scope :public_for_sale, -> { publicly_listed.where(public_listing_type: "for_sale") }
 
   # SDA constants
   SDA_CATEGORIES = %w[improved_liveability fully_accessible robust high_physical_support].freeze
@@ -53,6 +57,10 @@ class Property < ApplicationRecord
   validates :sda_category, inclusion: { in: SDA_CATEGORIES, allow_nil: true }
   validates :sda_building_type, inclusion: { in: SDA_BUILDING_TYPES, allow_nil: true }
   validates :sda_enrolment_status, inclusion: { in: SDA_ENROLMENT_STATUSES, allow_nil: true }
+  validates :public_listing_type, inclusion: { in: %w[vacancy for_sale], allow_nil: true }
+  validates :public_slug, uniqueness: true, allow_nil: true
+
+  before_save :generate_public_slug, if: -> { publicly_listed? && public_slug.blank? }
 
   def full_address
     [street_address, suburb, state, postcode].compact_blank.join(", ")
@@ -249,5 +257,48 @@ class Property < ApplicationRecord
   def generate_property_code
     max_num = Property.where(tenant_id: tenant_id).maximum(:id) || 0
     self.property_code = "P-#{max_num + 1}"
+  end
+
+  def generate_public_slug
+    base = [suburb, sda_category, sda_building_type, bedrooms&.to_s].compact_blank.join("-").parameterize
+    base = "sda-property" if base.blank?
+    slug = base
+    counter = 1
+    while Property.where(public_slug: slug).where.not(id: id).exists?
+      slug = "#{base}-#{counter}"
+      counter += 1
+    end
+    self.public_slug = slug
+  end
+
+  # Safe serialization for public API — excludes sensitive data
+  def public_listing_json
+    {
+      slug: public_slug,
+      headline: public_headline,
+      description: public_description,
+      listingType: public_listing_type,
+      priceDisplay: listing_price_display,
+      heroImage: hero_image_url,
+      galleryImages: gallery_image_urls || [],
+      suburb: suburb,
+      state: state,
+      postcode: postcode,
+      address: public_listing_type == "for_sale" ? street_address : nil,
+      fullAddress: public_listing_type == "for_sale" ? full_address : [suburb, state, postcode].compact_blank.join(", "),
+      latitude: latitude&.to_f,
+      longitude: longitude&.to_f,
+      bedrooms: bedrooms,
+      bathrooms: bathrooms,
+      parking: parking_spaces,
+      floorArea: floor_area_sqm&.to_f,
+      sdaCategory: sda_category,
+      buildingType: sda_building_type,
+      maxResidents: sda_max_residents,
+      sdaFeatures: sda_features || {},
+      providerName: tenant&.name,
+      enquiryEmail: enquiry_email,
+      enquiryPhone: enquiry_phone,
+    }
   end
 end

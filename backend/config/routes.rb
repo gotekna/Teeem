@@ -5175,6 +5175,23 @@ Rails.application.routes.draw do
     end
   end
 
+  # Public API (no authentication required)
+  namespace :api do
+    namespace :v1 do
+      namespace :public do
+        resources :sda_listings, only: [:index, :show], param: :slug do
+          collection do
+            get :featured
+            get :filters
+          end
+          member do
+            post :enquire
+          end
+        end
+      end
+    end
+  end
+
   # Defines the root path route ("/")
   # root "posts#index"
 end

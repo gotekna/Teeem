@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- House shape -->
+  <path d="M32 6L6 28V58H24V42H40V58H58V28L32 6Z" fill="#0E7490" stroke="#0E7490" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Roof accent -->
+  <path d="M32 6L6 28H58L32 6Z" fill="#0891B2"/>
+  <!-- Door -->
+  <rect x="26" y="42" width="12" height="16" rx="1" fill="white" opacity="0.9"/>
+  <!-- Windows -->
+  <rect x="38" y="30" width="10" height="10" rx="1" fill="white" opacity="0.7"/>
+  <rect x="16" y="30" width="10" height="10" rx="1" fill="white" opacity="0.7"/>
+  <!-- Accessibility icon -->
+  <circle cx="32" cy="48" r="4" fill="#0E7490" stroke="white" stroke-width="1.5"/>
+  <circle cx="32" cy="46" r="1.2" fill="white"/>
+  <path d="M31 47.5V50H33.5L34.8 52" stroke="white" stroke-width="1" stroke-linecap="round" fill="none"/>
+</svg>
