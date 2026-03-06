@@ -714,8 +714,6 @@ function DemoPortalPreview({
   onEnableAndPreview?: () => void;
   onSwitchToSetup: () => void;
 }) {
-  const [showPreview, setShowPreview] = useState(false);
-  const [activePage, setActivePage] = useState(PORTAL_PAGES[portalType][0].path);
   const pages = PORTAL_PAGES[portalType];
 
   if (enabling) {
@@ -740,8 +738,8 @@ function DemoPortalPreview({
           </p>
           <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
             {!contact
-              ? `Assign a ${label.toLowerCase()} contact in the Overview tab, or preview the portal layout below.`
-              : "Enable portal access in the Setup tab, or preview the portal layout below."}
+              ? `Assign a ${label.toLowerCase()} contact in the Overview tab, or open the portal preview below.`
+              : "Enable portal access in the Setup tab, or open the portal preview below."}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -762,67 +760,27 @@ function DemoPortalPreview({
         <p className="text-sm text-destructive">{error}</p>
       )}
 
-      {/* Portal preview */}
-      {!showPreview ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <div className="rounded-full bg-muted p-3 mb-4">
-            {portalType === "owner" ? <User className="h-6 w-6 text-muted-foreground" /> : <Users className="h-6 w-6 text-muted-foreground" />}
-          </div>
-          <h3 className="text-base font-semibold mb-1">{label} Portal Preview</h3>
-          <p className="text-sm text-muted-foreground mb-4 max-w-md">
-            Preview what the {label.toLowerCase()} portal looks like. This loads the portal pages
-            in preview mode so you can see the layout and design.
-          </p>
-          <Button size="sm" onClick={() => setShowPreview(true)}>
-            <Eye className="h-3.5 w-3.5 mr-1.5" />
-            Load Preview
-          </Button>
-        </div>
-      ) : (
-        <>
-          {/* Page tabs */}
-          <div className="flex items-center justify-between">
-            <div className="flex flex-wrap gap-1">
-              {pages.map((page) => (
-                <button
-                  key={page.path}
-                  type="button"
-                  onClick={() => setActivePage(page.path)}
-                  className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                    activePage === page.path
-                      ? "bg-primary text-primary-foreground font-medium"
-                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                  }`}
-                >
-                  {page.label}
-                </button>
-              ))}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => window.open(activePage, "_blank")}
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Open in New Tab
-            </Button>
-          </div>
+      {/* Portal preview — opens in new window */}
+      <div>
+        <h3 className="text-base font-semibold mb-1">{label} Portal Preview</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Open portal pages in a new window to see the {label.toLowerCase()} experience.
+        </p>
 
-          {/* Iframe */}
-          <div
-            className="border rounded-lg overflow-hidden bg-white dark:bg-card"
-            style={{ height: "calc(100vh - 380px)", minHeight: "400px" }}
-          >
-            <iframe
-              src={activePage}
-              className="w-full h-full border-0"
-              title={`${label} Portal Preview`}
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-            />
-          </div>
-        </>
-      )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {pages.map((page) => (
+            <button
+              key={page.path}
+              type="button"
+              onClick={() => window.open(page.path, "_blank")}
+              className="group flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-secondary/30 transition-colors text-left"
+            >
+              <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0" />
+              <span className="text-sm font-medium group-hover:text-primary transition-colors">{page.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

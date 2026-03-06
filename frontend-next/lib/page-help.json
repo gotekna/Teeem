@@ -793,10 +793,10 @@
       "tasks": ["Connect Outlook", "Sync emails", "Manage settings", "View sync status"]
     },
     "/sharepoint": {
-      "title": "SharePoint",
-      "description": "SharePoint integration for document management.",
-      "tips": ["Connect to SharePoint sites", "Sync document libraries", "Access files in TEEEM"],
-      "tasks": ["Connect SharePoint", "Select libraries", "Sync documents", "Manage connection"]
+      "title": "SharePoint & OneDrive",
+      "description": "Access your organization's SharePoint and personal OneDrive storage.",
+      "tips": ["SharePoint tab opens your company document library", "OneDrive tab opens your personal cloud storage", "Requires Microsoft 365 connection"],
+      "tasks": ["Open SharePoint", "Open OneDrive", "View connection status", "Access File Warehouse"]
     },
     "/whs": {
       "title": "WHS (Work Health & Safety)",
