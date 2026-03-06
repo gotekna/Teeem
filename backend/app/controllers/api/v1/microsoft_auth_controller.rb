@@ -694,7 +694,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     {
       connected: true,
       name: display_name,  # SSoT: Dynamic from company settings (Jan 2026)
-      url: documents_url,
+      url: documents_url || site_url,
       document_library: drive_name,
       root_folder: storage_config&.root_path,
       authenticated_as: authenticated_as,

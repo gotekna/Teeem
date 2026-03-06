@@ -560,17 +560,32 @@ function PortalEmbedTab({
     throw new Error("Portal enabled but failed to generate session.");
   }, [contact, portalType, toast]);
 
+  // Get a preview token using admin preview endpoint (no specific contact needed)
+  const getAdminPreviewToken = useCallback(async (): Promise<string | null> => {
+    const res = await api.post<{ success: boolean; token?: string; error?: string }>(
+      "/api/v1/portal/auth/admin_preview",
+      { portal_type: portalType }
+    );
+    if (res?.success && res.token) return res.token;
+    return null;
+  }, [portalType]);
+
   // Open a portal page in a new window (handles enable + impersonate automatically)
   const openPortalPage = useCallback(async (pagePath: string) => {
-    if (!contact) return;
     setLoading(true);
     setError(null);
     try {
       let token = portalToken;
 
       if (!token) {
-        // Get or create token
-        token = hasPortal ? await getToken() : await enableAndGetToken();
+        if (contact && hasPortal) {
+          token = await getToken();
+        } else if (contact) {
+          token = await enableAndGetToken();
+        } else {
+          // No contact — use admin preview
+          token = await getAdminPreviewToken();
+        }
         if (token) setPortalToken(token);
       }
 
@@ -585,34 +600,9 @@ function PortalEmbedTab({
     } finally {
       setLoading(false);
     }
-  }, [contact, portalToken, hasPortal, getToken, enableAndGetToken]);
+  }, [contact, portalToken, hasPortal, getToken, enableAndGetToken, getAdminPreviewToken]);
 
   const pages = PORTAL_PAGES[portalType];
-
-  // No contact — can't preview
-  if (!contact) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-          <ShieldOff className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-              No {label.toLowerCase()} contact assigned
-            </p>
-            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-              {portalType === "owner"
-                ? "Assign an owner contact in the Overview tab to preview their portal."
-                : "Add a tenant contact in the Tenancy tab to preview their portal."}
-            </p>
-          </div>
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onSwitchToSetup}>
-            <Shield className="h-3 w-3 mr-1" />
-            Setup
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
@@ -620,20 +610,34 @@ function PortalEmbedTab({
       <div className={`flex items-start gap-3 p-3 rounded-lg border ${
         hasPortal
           ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-          : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+          : !contact
+            ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+            : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
       }`}>
         {hasPortal
           ? <Shield className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
-          : <ShieldOff className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          : <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
         }
         <div className="flex-1">
-          <p className={`text-sm font-medium ${hasPortal ? "text-green-900 dark:text-green-100" : "text-amber-900 dark:text-amber-100"}`}>
-            {contact.display_name} — {hasPortal ? "portal active" : "portal not enabled"}
+          <p className={`text-sm font-medium ${
+            hasPortal ? "text-green-900 dark:text-green-100"
+              : !contact ? "text-blue-900 dark:text-blue-100"
+              : "text-amber-900 dark:text-amber-100"
+          }`}>
+            {!contact
+              ? `${label} Portal Preview`
+              : `${contact.display_name} — ${hasPortal ? "portal active" : "portal not enabled"}`}
           </p>
-          <p className={`text-xs mt-0.5 ${hasPortal ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
-            {hasPortal
-              ? `Click any page below to open the portal in a new window as ${contact.display_name}.`
-              : "Clicking a page below will auto-enable portal access and open it in a new window."}
+          <p className={`text-xs mt-0.5 ${
+            hasPortal ? "text-green-700 dark:text-green-300"
+              : !contact ? "text-blue-700 dark:text-blue-300"
+              : "text-amber-700 dark:text-amber-300"
+          }`}>
+            {!contact
+              ? `No ${label.toLowerCase()} contact assigned. Click any page below to preview the portal as an admin.`
+              : hasPortal
+                ? `Click any page below to open the portal in a new window as ${contact.display_name}.`
+                : "Clicking a page below will auto-enable portal access and open it in a new window."}
           </p>
         </div>
       </div>
@@ -650,7 +654,9 @@ function PortalEmbedTab({
       <div>
         <h3 className="text-base font-semibold mb-1">Open {label} Portal</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Each button opens that portal page in a new window as {contact.display_name}.
+          {contact
+            ? `Each button opens that portal page in a new window as ${contact.display_name}.`
+            : "Each button opens that portal page in a new window using an admin preview session."}
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
