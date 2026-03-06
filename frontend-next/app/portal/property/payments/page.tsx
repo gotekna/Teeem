@@ -84,7 +84,9 @@ export default function PaymentsPage() {
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
   if (!data) return <p className="text-center py-10 text-muted-foreground">No payment data available</p>;
 
-  const allPayments = [...data.rent_payments, ...data.sda_payments].sort(
+  const rentPayments = rentPayments || [];
+  const sdaPayments = sdaPayments || [];
+  const allPayments = [...rentPayments, ...sdaPayments].sort(
     (a, b) => new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime()
   );
   const totalPaid = allPayments.filter(p => p.status === "paid").reduce((sum, p) => sum + p.amount_paid, 0);
@@ -187,14 +189,14 @@ export default function PaymentsPage() {
             <PaymentList payments={allPayments} />
           </TabsContent>
           <TabsContent value="rent">
-            <PaymentList payments={data.rent_payments} />
+            <PaymentList payments={rentPayments} />
           </TabsContent>
           <TabsContent value="sda">
-            <PaymentList payments={data.sda_payments} />
+            <PaymentList payments={sdaPayments} />
           </TabsContent>
         </Tabs>
       ) : (
-        <PaymentList payments={data.rent_payments} title="Payment History" />
+        <PaymentList payments={rentPayments} title="Payment History" />
       )}
     </div>
   );
