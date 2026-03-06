@@ -630,41 +630,40 @@ function PortalEmbedTab({
   }
 
   if (iframeUrl) {
+    const portalUrl = iframeUrl.replace("&embed=1", "");
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            Viewing portal as <span className="font-medium">{contact.display_name}</span> ({label.toLowerCase()})
-          </p>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs"
-              onClick={() => {
-                window.open(iframeUrl.replace("&embed=1", ""), "_blank");
-              }}
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Open in New Tab
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs"
-              onClick={loadPortal}
-            >
-              Refresh
-            </Button>
+      <div className="space-y-4">
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+          <Shield className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-900 dark:text-green-100">
+              Portal active for {contact.display_name}
+            </p>
+            <p className="text-xs text-green-700 dark:text-green-300 mt-0.5">
+              Open the portal in a new window to see it as the {label.toLowerCase()} would.
+            </p>
           </div>
+          <Button
+            size="sm"
+            onClick={() => window.open(portalUrl, "_blank")}
+          >
+            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+            Open {label} Portal
+          </Button>
         </div>
-        <div className="border rounded-lg overflow-hidden bg-white dark:bg-card" style={{ height: "calc(100vh - 320px)", minHeight: "500px" }}>
-          <iframe
-            src={iframeUrl}
-            className="w-full h-full border-0"
-            title={`${label} Portal Preview`}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-          />
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {PORTAL_PAGES[portalType].map((page) => (
+            <button
+              key={page.path}
+              type="button"
+              onClick={() => window.open(portalUrl.split("/portal/")[0] + page.path + "?token=" + new URL(portalUrl).searchParams.get("token"), "_blank")}
+              className="group flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-secondary/30 transition-colors text-left"
+            >
+              <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0" />
+              <span className="text-sm font-medium group-hover:text-primary transition-colors">{page.label}</span>
+            </button>
+          ))}
         </div>
       </div>
     );
