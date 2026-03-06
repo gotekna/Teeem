@@ -80,7 +80,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   const propertyNavigation = [
     { name: "Dashboard", href: ROUTES.PORTAL.PROPERTY_DASHBOARD, icon: HomeIcon },
-    { name: "Payments", href: ROUTES.PORTAL.PROPERTY_PAYMENTS, icon: CurrencyDollarIcon },
+    { name: "Rent", href: ROUTES.PORTAL.PROPERTY_PAYMENTS, icon: CurrencyDollarIcon },
     { name: "Inspections", href: ROUTES.PORTAL.PROPERTY_INSPECTIONS, icon: ClipboardDocumentCheckIcon },
     { name: "Maintenance", href: ROUTES.PORTAL.PROPERTY_MAINTENANCE, icon: WrenchScrewdriverIcon },
     { name: "Documents", href: ROUTES.PORTAL.PROPERTY_DOCUMENTS, icon: DocumentTextIcon },
