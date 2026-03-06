@@ -2,9 +2,16 @@
 
 # PolarisMailService - API client for PolarisMail/EmailArray reseller integration
 #
-# API discovered via reverse-engineering the admin panel:
-# - Endpoint: https://cfcp.emailarray.com/admin/json.php
-# - Auth: Session-based (username/password login, CSRF token per request)
+# API: https://cfcp.emailarray.com/admin/json.php
+# Auth: Session-based (username/password login, CSRF token per request)
+# Admin panel: https://admin.emailarray.com (Vue.js SPA using same API)
+#
+# Action names discovered by reverse-engineering the admin panel JS (Mar 2026):
+#   Domains: getAllDomains, addDomain (param: newdomain), removeDomain, updateDomain,
+#            getDomainHealth, dnsCheckNext, getDomainVerification, getDomainInfo
+#   Users:   getAllUsersDomain, addUser, removeUser, updateUser, getUserInfo
+#   Aliases: addAlias, removeAlias, updateAlias
+#   Admin:   getAdminInfo, getPermissions, logout
 #
 # Usage:
 #   service = PolarisMailService.new
@@ -40,10 +47,15 @@ class PolarisMailService
   # CONNECTION
   # ====================
 
-  # Test connection by attempting login
+  # Test connection by attempting login and calling getAdminInfo
   def test_connection
     authenticate!
-    true
+    response = post_form("json.php", {
+      action: "getAdminInfo",
+      token: @csrf_token
+    })
+    body = response.parse rescue {}
+    body["returncode"] == 1
   rescue AuthenticationError, ApiError => e
     Rails.logger.warn "[PolarisMailService] Connection test failed: #{e.message}"
     false
@@ -89,7 +101,7 @@ class PolarisMailService
     ensure_authenticated!
 
     response = post_form("json.php", {
-      action: "deleteUser",
+      action: "removeUser",
       token: @csrf_token,
       domain: domain,
       username: username
@@ -98,7 +110,7 @@ class PolarisMailService
     handle_response(response, "delete_mailbox")
   end
 
-  # Update mailbox quota
+  # Update mailbox
   # @param domain [String] Domain name
   # @param username [String] Local part of email
   # @param quota_gb [Integer] New quota in GB
@@ -124,7 +136,7 @@ class PolarisMailService
     ensure_authenticated!
 
     response = post_form("json.php", {
-      action: "updatePassword",
+      action: "updateUser",
       token: @csrf_token,
       domain: domain,
       username: username,
@@ -141,9 +153,15 @@ class PolarisMailService
     ensure_authenticated!
 
     response = post_form("json.php", {
-      action: "getUsers",
+      action: "getAllUsersDomain",
       token: @csrf_token,
-      domain: domain
+      domain: domain,
+      offset: 0,
+      limit: 0,
+      sorting: 0,
+      slicing: 0,
+      getOTPAndToken: 0,
+      showQuota: 0
     })
 
     handle_response(response, "list_mailboxes")
@@ -153,18 +171,33 @@ class PolarisMailService
   # DOMAIN MANAGEMENT
   # ====================
 
-  # Add a domain
+  # Add a domain (requires DNS TXT verification after)
   # @param domain [String] Domain name
+  # @return [Hash] Response including verification code
   def add_domain(domain:)
     ensure_authenticated!
 
     response = post_form("json.php", {
       action: "addDomain",
       token: @csrf_token,
-      domain: domain
+      newdomain: domain
     })
 
     handle_response(response, "add_domain")
+  end
+
+  # Remove a domain
+  # @param domain [String] Domain name
+  def remove_domain(domain:)
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "removeDomain",
+      token: @csrf_token,
+      domain: domain
+    })
+
+    handle_response(response, "remove_domain")
   end
 
   # List all domains
@@ -173,14 +206,29 @@ class PolarisMailService
     ensure_authenticated!
 
     response = post_form("json.php", {
-      action: "getDomains",
+      action: "getAllDomains",
       token: @csrf_token
     })
 
     handle_response(response, "list_domains")
   end
 
-  # Get domain health status
+  # Get domain verification code
+  # @param domain [String] Domain name
+  # @return [String] Verification TXT record value
+  def get_verification_code(domain:)
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "getDomainVerification",
+      token: @csrf_token,
+      domain: domain
+    })
+
+    handle_response(response, "get_verification_code")
+  end
+
+  # Get domain health status (only works for verified domains)
   # @param domain [String] Domain name
   # @return [Hash] Domain health info
   def domain_health(domain:)
@@ -193,6 +241,20 @@ class PolarisMailService
     })
 
     handle_response(response, "domain_health")
+  end
+
+  # Trigger DNS health check for domain
+  # @param domain [String] Domain name
+  def trigger_dns_check(domain:)
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "dnsCheckNext",
+      token: @csrf_token,
+      domain: domain
+    })
+
+    handle_response(response, "trigger_dns_check")
   end
 
   # ====================
