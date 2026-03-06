@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { Search, X, SlidersHorizontal } from "lucide-react";
 import { SDA_CATEGORY_LABELS, BUILDING_TYPE_LABELS } from "@/lib/types";
 import type { FiltersResponse } from "@/lib/types";
@@ -35,6 +35,7 @@ export function PropertyFilters({ filters, open, onToggle }: PropertyFiltersProp
   }, [router]);
 
   const hasFilters = searchParams.toString().length > 0;
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   return (
     <>
@@ -91,9 +92,8 @@ export function PropertyFilters({ filters, open, onToggle }: PropertyFiltersProp
                   defaultValue={searchParams.get("suburb") || ""}
                   onChange={(e) => {
                     const v = e.target.value;
-                    // Debounce — only filter after user stops typing
-                    clearTimeout((window as Record<string, unknown>).__filterTimeout as number);
-                    (window as Record<string, unknown>).__filterTimeout = setTimeout(() => setFilter("suburb", v), 400);
+                    if (debounceRef.current) clearTimeout(debounceRef.current);
+                    debounceRef.current = setTimeout(() => setFilter("suburb", v), 400);
                   }}
                   className="w-full rounded-lg border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500"
                 />
