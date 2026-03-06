@@ -25,9 +25,27 @@ module Api
           return render json: { success: true, data: { payments: [] } } unless property
 
           tenancy = property.active_tenancy
-          result = { rent_payments: [], sda_payments: [], next_payment: nil }
+          result = { rent_payments: [], sda_payments: [], next_payment: nil, rent: nil, is_sda: false, sda_breakdown: nil }
 
           if tenancy
+            # Rent summary (always present if tenancy exists)
+            result[:rent] = {
+              weekly_rent: tenancy.weekly_rent,
+              rent_frequency: tenancy.rent_frequency,
+              annual_rent: tenancy.weekly_rent * 52,
+              lease_start: tenancy.start_date,
+              lease_end: tenancy.end_date,
+              lease_type: tenancy.tenancy_type,
+            }
+
+            result[:is_sda] = tenancy.sda?
+            result[:sda_breakdown] = tenancy.sda? ? {
+              sda_weekly_rate: tenancy.sda_weekly_rate,
+              participant_contribution: tenancy.participant_rent_contribution,
+              ndia_payment: tenancy.ndia_payment_amount,
+              total_weekly: (tenancy.participant_rent_contribution || 0) + (tenancy.ndia_payment_amount || 0),
+            } : nil
+
             # Get rent payment history from recurring invoice
             if tenancy.rent_recurring_invoice_id
               rent_invoices = Gl::Invoice
@@ -56,13 +74,6 @@ module Api
                 .limit(50)
               result[:sda_payments] = sda_invoices.map { |inv| payment_summary(inv, "sda") }
             end
-
-            result[:is_sda] = tenancy.sda?
-            result[:sda_breakdown] = tenancy.sda? ? {
-              sda_weekly_rate: tenancy.sda_weekly_rate,
-              participant_contribution: tenancy.participant_rent_contribution,
-              ndia_payment: tenancy.ndia_payment_amount,
-            } : nil
           end
 
           render json: { success: true, data: result }

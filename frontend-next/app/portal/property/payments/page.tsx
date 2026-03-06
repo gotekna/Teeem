@@ -12,18 +12,34 @@ import {
   CalendarClock,
   Receipt,
   TrendingUp,
+  Building2,
+  Landmark,
+  Wallet,
 } from "lucide-react";
 
 interface PaymentsData {
-  rent_payments: PaymentRecord[];
-  sda_payments: PaymentRecord[];
-  next_payment: NextPayment | null;
-  is_sda: boolean;
-  sda_breakdown: {
-    sda_weekly_rate: number;
-    participant_contribution: number;
-    ndia_payment: number;
-  } | null;
+  rent_payments?: PaymentRecord[];
+  sda_payments?: PaymentRecord[];
+  next_payment?: NextPayment | null;
+  rent?: RentInfo | null;
+  is_sda?: boolean;
+  sda_breakdown?: SdaBreakdown | null;
+}
+
+interface RentInfo {
+  weekly_rent: number;
+  rent_frequency: string;
+  annual_rent: number;
+  lease_start: string;
+  lease_end: string | null;
+  lease_type: string;
+}
+
+interface SdaBreakdown {
+  sda_weekly_rate: number;
+  participant_contribution: number;
+  ndia_payment: number;
+  total_weekly: number;
 }
 
 interface PaymentRecord {
@@ -55,7 +71,7 @@ function portalFetch(path: string) {
 }
 
 function formatCurrency(amount: number | null | undefined) {
-  if (amount == null) return "$0";
+  if (amount == null) return "$0.00";
   return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
 }
 
@@ -84,6 +100,9 @@ export default function PaymentsPage() {
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
   if (!data) return <p className="text-center py-10 text-muted-foreground">No payment data available</p>;
 
+  const rent = data.rent;
+  const sda = data.sda_breakdown;
+  const isSda = !!data.is_sda;
   const rentPayments = data.rent_payments || [];
   const sdaPayments = data.sda_payments || [];
   const allPayments = [...rentPayments, ...sdaPayments].sort(
@@ -96,7 +115,88 @@ export default function PaymentsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">Rent & Payments</h1>
 
-      {/* Summary Cards */}
+      {/* Rent Summary - always show if tenancy exists */}
+      {rent && (
+        <Card>
+          <CardContent className="pt-6">
+            {isSda && sda ? (
+              <>
+                {/* SDA Property - show full breakdown */}
+                <div className="flex items-center gap-2 mb-4">
+                  <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                    SDA Property
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    Specialist Disability Accommodation
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Total Weekly */}
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-medium text-muted-foreground">Total Weekly Rent</p>
+                    </div>
+                    <p className="text-2xl font-bold">{formatCurrency(sda.total_weekly)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatCurrency((sda.total_weekly || 0) * 52)} / year
+                    </p>
+                  </div>
+
+                  {/* NDIA / Government Payment */}
+                  <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Landmark className="h-4 w-4 text-emerald-600" />
+                      <p className="text-sm font-medium text-muted-foreground">NDIA Payment</p>
+                    </div>
+                    <p className="text-2xl font-bold text-emerald-600">{formatCurrency(sda.ndia_payment)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">per week (government funded)</p>
+                  </div>
+
+                  {/* Participant Contribution */}
+                  <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Wallet className="h-4 w-4 text-blue-600" />
+                      <p className="text-sm font-medium text-muted-foreground">Your Contribution</p>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-600">{formatCurrency(sda.participant_contribution)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">per week (rent subsidy)</p>
+                  </div>
+
+                  {/* SDA Rate */}
+                  <div className="p-4 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm font-medium text-muted-foreground">SDA Weekly Rate</p>
+                    </div>
+                    <p className="text-2xl font-bold">{formatCurrency(sda.sda_weekly_rate)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">approved SDA rate</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Standard rental - simple summary */}
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <DollarSign className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Weekly Rent</p>
+                    <p className="text-3xl font-bold">{formatCurrency(rent.weekly_rent)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatCurrency(rent.annual_rent)} / year &middot; {rent.rent_frequency}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Next Payment */}
         <Card>
@@ -149,36 +249,8 @@ export default function PaymentsPage() {
         </Card>
       </div>
 
-      {/* SDA Breakdown */}
-      {data.is_sda && data.sda_breakdown && (
-        <Card>
-          <CardHeader>
-            <CardTitle>SDA Payment Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-lg bg-muted/50">
-                <p className="text-sm text-muted-foreground">SDA Weekly Rate</p>
-                <p className="text-xl font-bold">{formatCurrency(data.sda_breakdown.sda_weekly_rate)}</p>
-                <p className="text-xs text-muted-foreground">per week</p>
-              </div>
-              <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
-                <p className="text-sm text-muted-foreground">NDIA Payment</p>
-                <p className="text-xl font-bold text-emerald-600">{formatCurrency(data.sda_breakdown.ndia_payment)}</p>
-                <p className="text-xs text-muted-foreground">per week (government)</p>
-              </div>
-              <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                <p className="text-sm text-muted-foreground">Your Contribution</p>
-                <p className="text-xl font-bold text-blue-600">{formatCurrency(data.sda_breakdown.participant_contribution)}</p>
-                <p className="text-xs text-muted-foreground">per week (rent subsidy)</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Payment History */}
-      {data.is_sda ? (
+      {isSda ? (
         <Tabs defaultValue="all">
           <TabsList>
             <TabsTrigger value="all">All Payments</TabsTrigger>
@@ -208,7 +280,8 @@ function PaymentList({ payments, title }: { payments: PaymentRecord[]; title?: s
       <Card>
         <CardContent className="pt-6 text-center">
           <Receipt className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-muted-foreground">No payment records found</p>
+          <p className="text-muted-foreground">No payment records yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Payment history will appear here once invoices are generated</p>
         </CardContent>
       </Card>
     );
