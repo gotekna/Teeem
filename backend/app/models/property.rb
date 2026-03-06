@@ -18,6 +18,16 @@ class Property < ApplicationRecord
   has_many :property_bills, dependent: :destroy
   has_many :property_inspections, dependent: :destroy
   has_many :ndis_claims, dependent: :destroy
+  has_many :sda_vacancies, dependent: :destroy
+  has_many :sda_agreements, dependent: :destroy
+  has_many :sda_claims, dependent: :destroy
+  has_many :sda_sil_providers, dependent: :destroy
+  has_many :sda_compliance_items, dependent: :destroy
+  has_many :sda_incidents, dependent: :destroy
+  has_many :sda_participant_outcomes, dependent: :destroy
+  has_many :sda_design_assessments, dependent: :destroy
+  has_many :sda_rent_ledger_entries, dependent: :destroy
+  has_many :sda_owner_statements, dependent: :destroy
 
   # Validations
   validates :street_address, presence: true

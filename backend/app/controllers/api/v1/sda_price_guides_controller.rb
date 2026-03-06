@@ -1,6 +1,6 @@
 module Api
   module V1
-    class SdaPriceGuidesController < BaseController
+    class SdaPriceGuidesController < ApplicationController
       # GET /api/v1/sda_price_guide
       def show
         guide = SdaPriceGuide.current_guide

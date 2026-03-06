@@ -96,6 +96,11 @@ class Contact < ApplicationRecord
   has_one :portal_user, dependent: :destroy
   has_many :maintenance_requests, foreign_key: :supplier_contact_id, dependent: :destroy
 
+  # SDA participant associations
+  has_many :sda_participant_matches, dependent: :destroy
+  has_many :sda_agreements, dependent: :destroy
+  has_many :sda_participant_outcomes, dependent: :destroy
+
   # Subcontractor-related associations
   has_one :subcontractor_account, through: :portal_user
   has_many :quote_responses, dependent: :destroy

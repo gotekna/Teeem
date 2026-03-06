@@ -1394,6 +1394,80 @@ Rails.application.routes.draw do
         get :location_factors
       end
 
+      # SDA Management
+      namespace :sda do
+        resources :vacancies do
+          member do
+            post :notify_ndia
+            get :matches
+            post :add_match
+            patch :update_match
+          end
+        end
+
+        resources :agreements do
+          collection do
+            get :expiring_soon
+          end
+        end
+
+        resources :claims do
+          collection do
+            get :stats
+          end
+          member do
+            post :submit
+          end
+        end
+
+        resources :sil_providers
+
+        resources :compliance, controller: "compliance" do
+          collection do
+            get :overdue
+            get :due_soon
+            get :dashboard
+          end
+        end
+
+        resources :incidents do
+          collection do
+            get :overdue_reports
+          end
+          member do
+            post :report_to_ndis
+          end
+        end
+
+        resources :outcomes do
+          collection do
+            get :summary
+          end
+        end
+
+        resources :design_assessments
+
+        # Rent Ledger & Trust Accounting
+        scope :rent_ledger do
+          get "/", to: "rent_ledger#entries"
+          post "/", to: "rent_ledger#create_entry"
+          patch "/:id", to: "rent_ledger#update_entry"
+          delete "/:id", to: "rent_ledger#destroy_entry"
+          get :balance, to: "rent_ledger#balance"
+          post :reconcile, to: "rent_ledger#reconcile"
+          get :arrears, to: "rent_ledger#arrears"
+          post :arrears, to: "rent_ledger#create_arrears"
+          patch "arrears/:id", to: "rent_ledger#update_arrears"
+        end
+
+        resources :owner_statements do
+          member do
+            post :generate
+            post :send_statement
+          end
+        end
+      end
+
       resources :properties do
         collection do
           get :for_select

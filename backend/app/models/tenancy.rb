@@ -8,6 +8,11 @@ class Tenancy < ApplicationRecord
 
   has_many :property_bills, dependent: :nullify
   has_many :property_inspections, dependent: :nullify
+  has_many :sda_agreements, dependent: :nullify
+  has_many :sda_claims, dependent: :nullify
+  has_many :sda_incidents, dependent: :nullify
+  has_many :sda_rent_ledger_entries, dependent: :nullify
+  has_many :sda_arrears, dependent: :destroy
 
   # Validations
   validates :tenancy_type, presence: true, inclusion: { in: %w[fixed_term periodic sda] }
