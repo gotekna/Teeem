@@ -282,6 +282,7 @@ export const ROUTES = {
     PROPERTY_INSPECTIONS: "/portal/property/inspections",
     PROPERTY_MAINTENANCE: "/portal/property/maintenance",
     PROPERTY_DOCUMENTS: "/portal/property/documents",
+    PROPERTY_PAYMENTS: "/portal/property/payments",
     PROPERTY_VALUATIONS: "/portal/property/valuations",
   },
 

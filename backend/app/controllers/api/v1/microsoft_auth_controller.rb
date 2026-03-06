@@ -712,27 +712,32 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def build_onedrive_connection_info(microsoft_token, user_email)
-    connected = microsoft_token&.status == "connected"
+    personal_connected = microsoft_token&.status == "connected"
+
+    # OneDrive URL can be derived from org credential + user email,
+    # even if user hasn't personally connected M365
+    org_credential = MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
+                     MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first
+    org_connected = org_credential.present?
+
+    # Consider OneDrive "connected" if either personal or org credential works
+    connected = personal_connected || org_connected
 
     # Build personal OneDrive URL from email
     # Format: gotekna-my.sharepoint.com/personal/robert_tekna_com_au
     onedrive_url = nil
 
-    if user_email.present?
+    if user_email.present? && connected
       # Get tenant prefix from WarehouseProvider site_url or Graph API
       site_url = (WarehouseProvider.instance.site_url rescue nil)
 
       # If no site_url in WarehouseProvider (e.g., using S3/Wasabi),
       # try to get it from Graph API root site
-      if site_url.blank? && microsoft_token&.status == "connected"
+      if site_url.blank? && org_credential
         begin
-          org_credential = MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
-                          MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first
-          if org_credential
-            client = MicrosoftGraphClient.new(org_credential)
-            root_site = client.get("/sites/root")
-            site_url = root_site["webUrl"] if root_site
-          end
+          client = MicrosoftGraphClient.new(org_credential)
+          root_site = client.get("/sites/root")
+          site_url = root_site["webUrl"] if root_site
         rescue StandardError => e
           Rails.logger.warn "[Connections] Failed to get root site for OneDrive URL: #{e.message}"
         end
@@ -751,7 +756,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       connected: connected,
       name: "Personal OneDrive",
       url: onedrive_url,
-      authenticated_as: connected ? user_email : nil,
+      authenticated_as: user_email,
       auth_type: "personal"
     }
   end

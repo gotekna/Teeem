@@ -16,13 +16,20 @@ import {
   Shield,
   Wrench,
   ClipboardCheck,
-  AlertTriangle,
   TrendingUp,
   Clock,
   ChevronRight,
+  Building2,
+  Phone,
+  Mail,
+  Globe,
+  CalendarClock,
+  ArrowUpRight,
+  Receipt,
 } from "lucide-react";
 
 interface DashboardData {
+  company?: CompanyInfo;
   portfolio?: {
     property_count: number;
     total_value: number;
@@ -37,9 +44,20 @@ interface DashboardData {
   lease?: LeaseSummary | null;
   rent?: RentSummary | null;
   bond?: BondSummary | null;
+  next_payment?: NextPayment | null;
+  recent_payments?: PaymentRecord[];
   inspections?: InspectionSummary[];
   maintenance?: BillSummary[];
   bills?: BillSummary[];
+}
+
+interface CompanyInfo {
+  name: string;
+  logo_url: string | null;
+  logo_dark: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
 }
 
 interface PropertyData {
@@ -72,6 +90,7 @@ interface LeaseSummary {
   end_date: string;
   days_remaining: number | null;
   expired: boolean;
+  is_sda?: boolean;
 }
 
 interface RentSummary {
@@ -85,6 +104,26 @@ interface BondSummary {
   amount: number;
   lodged: boolean;
   reference: string | null;
+}
+
+interface NextPayment {
+  type: string;
+  amount: number;
+  frequency: string;
+  next_due: string;
+}
+
+interface PaymentRecord {
+  id: number;
+  payment_type: string;
+  invoice_number: string;
+  amount: number;
+  amount_paid: number;
+  amount_due: number;
+  status: string;
+  invoice_date: string;
+  due_date: string;
+  description: string;
 }
 
 interface InspectionSummary {
@@ -124,14 +163,6 @@ function formatDate(dateStr: string | null) {
   return new Date(dateStr).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
 
-const conditionColors: Record<string, string> = {
-  new: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
-  good: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  fair: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  poor: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
-  damaged: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-};
-
 export default function PropertyDashboard() {
   const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -161,9 +192,54 @@ function TenantDashboard({ data }: { data: DashboardData }) {
   const lease = data.lease;
   const rent = data.rent;
   const bond = data.bond;
+  const company = data.company;
 
   return (
     <div className="space-y-6">
+      {/* Company Branding Header */}
+      {company?.name && (
+        <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              {company.logo_url ? (
+                <img
+                  src={company.logo_url}
+                  alt={company.name}
+                  className="h-12 w-auto max-w-[160px] object-contain dark:hidden"
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Building2 className="h-6 w-6 text-primary" />
+                </div>
+              )}
+              {company.logo_dark && (
+                <img
+                  src={company.logo_dark}
+                  alt={company.name}
+                  className="h-12 w-auto max-w-[160px] object-contain hidden dark:block"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-semibold text-foreground">{company.name}</h2>
+                <p className="text-sm text-muted-foreground">Property Management</p>
+              </div>
+              <div className="hidden sm:flex flex-col items-end gap-1 text-sm text-muted-foreground">
+                {company.phone && (
+                  <a href={`tel:${company.phone}`} className="flex items-center gap-1.5 hover:text-foreground">
+                    <Phone className="h-3.5 w-3.5" /> {company.phone}
+                  </a>
+                )}
+                {company.email && (
+                  <a href={`mailto:${company.email}`} className="flex items-center gap-1.5 hover:text-foreground">
+                    <Mail className="h-3.5 w-3.5" /> {company.email}
+                  </a>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <h1 className="text-2xl font-bold text-foreground">My Property</h1>
 
       {/* Property Card */}
@@ -259,20 +335,151 @@ function TenantDashboard({ data }: { data: DashboardData }) {
           </CardContent>
         </Card>
 
-        {/* Inspections */}
-        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => router.push(ROUTES.PORTAL.PROPERTY_INSPECTIONS)}>
+        {/* Next Payment */}
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => router.push(ROUTES.PORTAL.PROPERTY_PAYMENTS)}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <ClipboardCheck className="h-5 w-5 text-amber-600" />
+              <CalendarClock className="h-5 w-5 text-emerald-600" />
               <div>
-                <p className="text-sm text-muted-foreground">Inspections</p>
-                <p className="text-2xl font-bold">{data.inspections?.length || 0}</p>
-                <p className="text-xs text-muted-foreground">upcoming</p>
+                <p className="text-sm text-muted-foreground">Next Payment</p>
+                {data.next_payment ? (
+                  <>
+                    <p className="text-2xl font-bold">{formatCurrency(data.next_payment.amount)}</p>
+                    <p className="text-xs text-muted-foreground">Due {formatDate(data.next_payment.next_due)}</p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-sm">No upcoming payments</p>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Lease Management */}
+      {lease && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Lease Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Type</span>
+                  <Badge variant="outline">{lease.type === "sda" ? "SDA" : lease.type === "fixed_term" ? "Fixed Term" : "Periodic"}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Start Date</span>
+                  <span className="text-sm font-medium">{formatDate(lease.start_date)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">End Date</span>
+                  <span className="text-sm font-medium">{lease.end_date ? formatDate(lease.end_date) : "Ongoing"}</span>
+                </div>
+                {lease.days_remaining != null && lease.days_remaining > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Remaining</span>
+                    <span className={`text-sm font-medium ${lease.days_remaining < 60 ? "text-amber-600" : ""}`}>
+                      {lease.days_remaining} days
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {/* Lease Actions */}
+                {lease.expired && (
+                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-300">Your lease has expired</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">Please contact your property manager to discuss options.</p>
+                  </div>
+                )}
+                {lease.days_remaining != null && lease.days_remaining > 0 && lease.days_remaining <= 90 && (
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Lease expiring soon</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Your lease expires in {lease.days_remaining} days.</p>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1" disabled>
+                    <ArrowUpRight className="h-4 w-4 mr-1" /> Request Extension
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1" disabled>
+                    End Lease
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">Contact your property manager for lease changes</p>
+              </div>
+            </div>
+
+            {/* SDA Payment Breakdown */}
+            {lease.is_sda && rent?.sda && (
+              <div className="mt-4 pt-4 border-t">
+                <h4 className="text-sm font-medium mb-3">SDA Payment Breakdown</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <p className="text-xs text-muted-foreground">SDA Weekly Rate</p>
+                    <p className="text-lg font-semibold">{formatCurrency(rent.sda.sda_weekly_rate)}</p>
+                    <p className="text-xs text-muted-foreground">per week</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+                    <p className="text-xs text-muted-foreground">NDIA Payment</p>
+                    <p className="text-lg font-semibold text-emerald-600">{formatCurrency(rent.sda.ndia_payment)}</p>
+                    <p className="text-xs text-muted-foreground">per week</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <p className="text-xs text-muted-foreground">Your Contribution</p>
+                    <p className="text-lg font-semibold text-blue-600">{formatCurrency(rent.sda.participant_contribution)}</p>
+                    <p className="text-xs text-muted-foreground">per week</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Payments */}
+      {data.recent_payments && data.recent_payments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Receipt className="h-5 w-5" />
+                Recent Payments
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => router.push(ROUTES.PORTAL.PROPERTY_PAYMENTS)}>
+                View All <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {data.recent_payments.map((payment) => (
+                <div key={payment.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div>
+                    <p className="font-medium">
+                      {payment.payment_type === "sda" ? "SDA Payment" : "Rent Payment"}
+                      {payment.invoice_number && <span className="text-muted-foreground ml-2">#{payment.invoice_number}</span>}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{formatDate(payment.invoice_date)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">{formatCurrency(payment.amount)}</p>
+                    <Badge variant={payment.status === "paid" ? "default" : payment.status === "authorised" ? "outline" : "secondary"}>
+                      {payment.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Upcoming Inspections */}
       {data.inspections && data.inspections.length > 0 && (
@@ -443,7 +650,6 @@ function OwnerDashboard({ data }: { data: DashboardData }) {
 }
 
 function PropertyCard({ data }: { data: PropertyData }) {
-  const router = useRouter();
   const { property, lease, rent, bond, valuations } = data;
 
   return (

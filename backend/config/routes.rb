@@ -4819,6 +4819,7 @@ Rails.application.routes.draw do
         # Property Management Portal (tenant/owner access)
         scope :property do
           get "dashboard", to: "property_dashboard#show"
+          get "payments", to: "property_dashboard#payments"
 
           resources :inspections, controller: "property_inspections", only: [:index, :show] do
             member do

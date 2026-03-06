@@ -18,6 +18,56 @@ module Api
           end
         end
 
+        # GET /api/v1/portal/property/payments
+        def payments
+          properties = current_portal_user.accessible_properties
+          property = properties.first
+          return render json: { success: true, data: { payments: [] } } unless property
+
+          tenancy = property.active_tenancy
+          result = { rent_payments: [], sda_payments: [], next_payment: nil }
+
+          if tenancy
+            # Get rent payment history from recurring invoice
+            if tenancy.rent_recurring_invoice_id
+              rent_invoices = Gl::Invoice
+                .where(recurring_invoice_id: tenancy.rent_recurring_invoice_id)
+                .order(invoice_date: :desc)
+                .limit(50)
+              result[:rent_payments] = rent_invoices.map { |inv| payment_summary(inv, "rent") }
+
+              # Next payment due
+              recurring = tenancy.rent_recurring_invoice
+              if recurring&.next_generation_date
+                result[:next_payment] = {
+                  type: "rent",
+                  amount: tenancy.weekly_rent,
+                  frequency: tenancy.rent_frequency,
+                  next_due: recurring.next_generation_date,
+                }
+              end
+            end
+
+            # Get SDA payment history from recurring invoice
+            if tenancy.sda_recurring_invoice_id
+              sda_invoices = Gl::Invoice
+                .where(recurring_invoice_id: tenancy.sda_recurring_invoice_id)
+                .order(invoice_date: :desc)
+                .limit(50)
+              result[:sda_payments] = sda_invoices.map { |inv| payment_summary(inv, "sda") }
+            end
+
+            result[:is_sda] = tenancy.sda?
+            result[:sda_breakdown] = tenancy.sda? ? {
+              sda_weekly_rate: tenancy.sda_weekly_rate,
+              participant_contribution: tenancy.participant_rent_contribution,
+              ndia_payment: tenancy.ndia_payment_amount,
+            } : nil
+          end
+
+          render json: { success: true, data: result }
+        end
+
         private
 
         def require_property_portal
@@ -38,11 +88,24 @@ module Api
             .where(property_id: property.id, charge_to: "tenant")
             .order(bill_date: :desc).limit(10)
 
+          # Company branding from tenant settings
+          settings = TenantSetting.instance
+
           {
+            company: {
+              name: settings.company_name,
+              logo_url: settings.effective_logo_url,
+              logo_dark: settings.logo_dark,
+              phone: settings.phone,
+              email: settings.email,
+              website: settings.website,
+            },
             property: property_summary(property),
             lease: tenancy ? lease_summary(tenancy) : nil,
             rent: tenancy ? rent_summary(tenancy, property) : nil,
             bond: tenancy ? bond_summary(tenancy) : nil,
+            next_payment: tenancy ? next_payment_info(tenancy) : nil,
+            recent_payments: tenancy ? recent_payment_history(tenancy, 5) : [],
             inspections: upcoming_inspections.map { |i| inspection_summary(i) },
             maintenance: recent_bills.where(bill_type: "maintenance").map { |b| bill_summary(b) },
             bills: recent_bills.map { |b| bill_summary(b) },
@@ -200,6 +263,48 @@ module Api
             status: bill.status,
             supplier: bill.supplier_contact&.display_name,
           }
+        end
+
+        def payment_summary(invoice, payment_type)
+          {
+            id: invoice.id,
+            payment_type: payment_type,
+            invoice_number: invoice.invoice_number,
+            amount: invoice.total,
+            amount_paid: invoice.amount_paid,
+            amount_due: invoice.amount_due,
+            status: invoice.status,
+            invoice_date: invoice.invoice_date,
+            due_date: invoice.due_date,
+            description: invoice.description,
+          }
+        end
+
+        def next_payment_info(tenancy)
+          recurring = tenancy.rent_recurring_invoice
+          return nil unless recurring&.next_generation_date
+
+          {
+            type: "rent",
+            amount: tenancy.weekly_rent,
+            frequency: tenancy.rent_frequency,
+            next_due: recurring.next_generation_date,
+          }
+        end
+
+        def recent_payment_history(tenancy, limit)
+          invoice_ids = [tenancy.rent_recurring_invoice_id, tenancy.sda_recurring_invoice_id].compact
+          return [] if invoice_ids.empty?
+
+          invoices = Gl::Invoice
+            .where(recurring_invoice_id: invoice_ids)
+            .order(invoice_date: :desc)
+            .limit(limit)
+
+          invoices.map do |inv|
+            ptype = inv.recurring_invoice_id == tenancy.sda_recurring_invoice_id ? "sda" : "rent"
+            payment_summary(inv, ptype)
+          end
         end
       end
     end
