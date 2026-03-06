@@ -560,6 +560,23 @@ class Contact < ApplicationRecord
   validates :team_size, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :daily_rate_per_person, numericality: { greater_than: 0 }, allow_nil: true
 
+  # SDA/NDIS participant eligibility
+  SDA_FUNDING_STATUSES = %w[not_funded pending approved expired].freeze
+  validates :sda_funding_status, inclusion: { in: SDA_FUNDING_STATUSES }, allow_nil: true
+  validates :sda_approved_category, inclusion: { in: Property::SDA_CATEGORIES }, allow_nil: true
+
+  def sda_participant?
+    sda_funding_status == "approved"
+  end
+
+  def ndis_plan_expiring_soon?(days: 30)
+    ndis_plan_review_date.present? && ndis_plan_review_date <= Date.current + days
+  end
+
+  def ndis_plan_expired?
+    ndis_plan_review_date.present? && ndis_plan_review_date < Date.current
+  end
+
   # Callbacks
   # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types
   before_validation :auto_fix_website_url, prepend: true  # Auto-fix website URLs without protocol (MUST run before column type validation)

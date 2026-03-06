@@ -10,7 +10,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
-import { Plus } from "lucide-react";
+import { Plus, MoreHorizontal, Users2, ShieldCheck } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PermissionGate } from "@/components/ui/permission-gate";
 import { PERMISSION_LEVELS } from "@/lib/constants/permission-levels";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
@@ -127,6 +133,23 @@ export default function ContactsPageClient({
           </Link>
         </Button>
       </PermissionGate>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onClick={() => router.push("/contacts/duplicates")}>
+            <Users2 className="h-4 w-4 mr-2" />
+            Find Duplicates
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/contacts/quality-review")}>
+            <ShieldCheck className="h-4 w-4 mr-2" />
+            Quality Review
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 

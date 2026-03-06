@@ -1393,10 +1393,18 @@ function ReportsTab() {
           <h2 className="text-xl font-semibold">Financial Reports</h2>
           <p className="text-sm text-muted-foreground">Generate and export reports</p>
         </div>
-        <Button variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Accountant Package
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/financial/reports">
+            <Button variant="default" size="sm">
+              <FileText className="h-4 w-4 mr-2" />
+              Open Reports
+            </Button>
+          </Link>
+          <Button variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            Accountant Package
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

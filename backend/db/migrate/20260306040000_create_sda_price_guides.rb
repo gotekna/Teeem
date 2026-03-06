@@ -75,5 +75,27 @@ class CreateSdaPriceGuides < ActiveRecord::Migration[7.1]
       t.boolean :sda_fire_sprinklers, default: false
       t.string :sda_location_sa4                       # SA4 region for location factor lookup
     end
+
+    # SDA participant eligibility — what the participant's NDIS plan approves them for
+    # Lives on contacts because eligibility exists independently of which property they're in
+    change_table :contacts do |t|
+      t.string  :ndis_number                           # NDIS participant number
+      t.string  :ndis_plan_number                      # Current plan number
+      t.date    :ndis_plan_start_date                  # Plan start date
+      t.date    :ndis_plan_review_date                 # Plan review/expiry date
+      t.string  :sda_funding_status                    # not_funded, pending, approved, expired
+      t.string  :sda_approved_category                 # improved_liveability, fully_accessible, robust, high_physical_support
+      t.string  :sda_approved_building_type            # apartment, villa, house, group_home (what they're approved for)
+      t.boolean :sda_approved_ooa, default: false      # Approved for On-site Overnight Assistance
+      t.decimal :sda_approved_annual_budget, precision: 12, scale: 2  # Total annual SDA $ in plan
+      t.string  :sda_support_coordinator               # Name of their support coordinator
+      t.string  :sda_support_coordinator_phone         # SC phone
+      t.string  :sda_support_coordinator_email         # SC email
+      t.text    :sda_notes                             # Special requirements, preferences, etc.
+    end
+
+    add_index :contacts, :ndis_number
+    add_index :contacts, :sda_funding_status
+    add_index :contacts, :ndis_plan_review_date
   end
 end

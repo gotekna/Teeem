@@ -127,6 +127,22 @@ module Api
                   participant_contribution: tenancy.participant_rent_contribution,
                   participant_name: participant&.display_name,
                   plan_number: tenancy.sda_plan_number,
+                  # Participant's NDIS plan eligibility
+                  participant_plan: participant ? {
+                    ndis_number: participant.ndis_number,
+                    plan_number: participant.ndis_plan_number,
+                    plan_start: participant.ndis_plan_start_date,
+                    plan_review_date: participant.ndis_plan_review_date,
+                    plan_expired: participant.ndis_plan_expired?,
+                    plan_expiring_soon: participant.ndis_plan_expiring_soon?,
+                    funding_status: participant.sda_funding_status,
+                    approved_category: participant.sda_approved_category,
+                    approved_building_type: participant.sda_approved_building_type,
+                    approved_ooa: participant.sda_approved_ooa,
+                    approved_annual_budget: participant.sda_approved_annual_budget,
+                    support_coordinator: participant.sda_support_coordinator,
+                    support_coordinator_phone: participant.sda_support_coordinator_phone,
+                  } : nil,
                 } : nil,
               }
             end

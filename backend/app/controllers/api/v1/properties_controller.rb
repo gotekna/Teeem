@@ -64,9 +64,12 @@ module Api
 
       # GET /api/v1/properties/:id/tenancies
       def tenancies
-        tenancies = @property.tenancies.order(start_date: :desc)
+        tenancies = @property.tenancies.includes(:sda_participant_contact).order(start_date: :desc)
         render_success(tenancies.as_json(include: {
-          sda_participant_contact: { only: [:id, :display_name] }
+          sda_participant_contact: { only: [:id, :display_name, :ndis_number, :ndis_plan_number,
+            :ndis_plan_start_date, :ndis_plan_review_date, :sda_funding_status,
+            :sda_approved_category, :sda_approved_building_type, :sda_approved_ooa,
+            :sda_approved_annual_budget, :sda_support_coordinator, :sda_support_coordinator_phone] }
         }))
       end
 

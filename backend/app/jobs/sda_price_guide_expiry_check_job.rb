@@ -2,6 +2,11 @@ class SdaPriceGuideExpiryCheckJob < ApplicationJob
   queue_as :default
 
   def perform
+    check_price_guide_expiry
+    check_participant_plan_expiry
+  end
+
+  def check_price_guide_expiry
     guide = SdaPriceGuide.current_guide
     return unless guide
 
@@ -13,6 +18,28 @@ class SdaPriceGuideExpiryCheckJob < ApplicationJob
       elsif days_until_expiry <= 30
         notify_expiring_soon(guide, days_until_expiry)
       end
+    end
+  end
+
+  def check_participant_plan_expiry
+    # Find SDA participants with plans expiring within 30 days
+    expiring = Contact.where(sda_funding_status: "approved")
+      .where("ndis_plan_review_date <= ?", Date.current + 30)
+      .where("ndis_plan_review_date > ?", Date.current)
+
+    expiring.find_each do |contact|
+      days = (contact.ndis_plan_review_date - Date.current).to_i
+      Rails.logger.info(
+        "NDIS plan for #{contact.display_name} (#{contact.ndis_number}) expires in #{days} days (#{contact.ndis_plan_review_date})"
+      )
+    end
+
+    # Mark expired plans
+    newly_expired = Contact.where(sda_funding_status: "approved")
+      .where("ndis_plan_review_date < ?", Date.current)
+    if newly_expired.any?
+      count = newly_expired.update_all(sda_funding_status: "expired")
+      Rails.logger.warn("Marked #{count} NDIS participant plans as expired")
     end
   end
 
