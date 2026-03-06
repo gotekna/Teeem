@@ -3,8 +3,8 @@ module Api
     module Public
       class SdaListingsController < ApplicationController
         # No authentication required — public API
-        skip_before_action :authenticate_user!, raise: false
-        skip_before_action :set_tenant, raise: false
+        skip_before_action :authorize_request
+        skip_before_action :set_tenant
 
         # GET /api/v1/public/sda_listings
         def index
