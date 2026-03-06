@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ExternalLink, Cloud, HardDrive, XCircle, FolderOpen } from "lucide-react";
+import { ExternalLink, Cloud, HardDrive, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import Link from "next/link";
 
@@ -66,10 +66,10 @@ function EmbeddedView({ url, name }: { url: string; name: string }) {
               Open {name}
             </Button>
           </a>
-          <Link href="/warehouse">
+          <Link href="/settings/connections">
             <Button variant="outline" size="lg">
-              <FolderOpen className="h-4 w-4 mr-2" />
-              File Warehouse
+              <Cloud className="h-4 w-4 mr-2" />
+              Check Settings
             </Button>
           </Link>
         </div>
@@ -183,17 +183,9 @@ export default function SharePointPage() {
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <Cloud className="h-16 w-16 text-muted-foreground" />
               <p className="text-muted-foreground">SharePoint URL not configured.</p>
-              <div className="flex gap-3">
-                <Link href="/settings/connections">
-                  <Button variant="outline">Configure in Settings</Button>
-                </Link>
-                <Link href="/warehouse">
-                  <Button variant="outline">
-                    <FolderOpen className="h-4 w-4 mr-2" />
-                    File Warehouse
-                  </Button>
-                </Link>
-              </div>
+              <Link href="/settings/connections">
+                <Button variant="outline">Configure in Settings</Button>
+              </Link>
             </div>
           ) : (
             <NotConnectedView label="SharePoint" />
