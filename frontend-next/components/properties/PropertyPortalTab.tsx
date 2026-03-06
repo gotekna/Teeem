@@ -295,10 +295,17 @@ function PortalAccountCard({
   };
 
   const generateRandomPassword = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    let pwd = "";
-    for (let i = 0; i < 12; i++) {
-      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const lower = "abcdefghjkmnpqrstuvwxyz";
+    const digits = "23456789";
+    const special = "!@#$%&*";
+    const all = upper + lower + digits + special;
+    let pwd = upper[Math.floor(Math.random() * upper.length)]
+      + lower[Math.floor(Math.random() * lower.length)]
+      + digits[Math.floor(Math.random() * digits.length)]
+      + special[Math.floor(Math.random() * special.length)];
+    for (let i = 0; i < 10; i++) {
+      pwd += all[Math.floor(Math.random() * all.length)];
     }
     setEnablePassword(pwd);
     setShowPassword(true);
@@ -531,11 +538,19 @@ function PortalEmbedTab({
   const enableAndGetToken = useCallback(async (): Promise<string | null> => {
     if (!contact) return null;
 
-    // Generate a random password
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    let pwd = "";
-    for (let i = 0; i < 12; i++) {
-      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    // Generate a random password meeting complexity requirements
+    const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const lower = "abcdefghjkmnpqrstuvwxyz";
+    const digits = "23456789";
+    const special = "!@#$%&*";
+    const all = upper + lower + digits + special;
+    // Ensure at least one of each required type
+    let pwd = upper[Math.floor(Math.random() * upper.length)]
+      + lower[Math.floor(Math.random() * lower.length)]
+      + digits[Math.floor(Math.random() * digits.length)]
+      + special[Math.floor(Math.random() * special.length)];
+    for (let i = 0; i < 10; i++) {
+      pwd += all[Math.floor(Math.random() * all.length)];
     }
 
     const email = contact.email || `${contact.display_name?.replace(/\s+/g, ".").toLowerCase()}@portal.teeem.au`;
