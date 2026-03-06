@@ -1387,6 +1387,13 @@ Rails.application.routes.draw do
       # ============================================
       resource :property_settings, only: [:show, :update]
 
+      # SDA Price Guide
+      resource :sda_price_guide, only: [:show] do
+        get :rates
+        get :calculate
+        get :location_factors
+      end
+
       resources :properties do
         collection do
           get :for_select

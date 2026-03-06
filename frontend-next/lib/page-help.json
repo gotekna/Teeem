@@ -366,12 +366,6 @@
       "tips": ["Update task details", "Set dependencies", "Track progress"],
       "tasks": ["Edit task details", "Set dates", "Assign resources", "Update status"]
     },
-    "/task-templates": {
-      "title": "Task Templates",
-      "description": "Create reusable task templates for common workflows.",
-      "tips": ["Build templates for recurring tasks", "Include default assignees", "Set standard durations"],
-      "tasks": ["Create task template", "Edit template details", "Apply to tasks", "Manage templates"]
-    },
     "/calendar": {
       "title": "Calendar",
       "description": "Calendar view of tasks, meetings, and deadlines.",
@@ -929,12 +923,6 @@
       "description": "View and edit your personal profile.",
       "tips": ["Keep your contact details current", "Set your timezone for accurate scheduling", "Add a profile photo for team recognition"],
       "tasks": ["Update personal info", "Change password", "Set preferences", "Upload photo"]
-    },
-    "/public-holidays": {
-      "title": "Public Holidays",
-      "description": "Manage public holidays that affect scheduling.",
-      "tips": ["Holidays exclude dates from schedule calculations", "Set by region for multi-location teams", "Import standard holiday lists"],
-      "tasks": ["Add public holiday", "Import holiday list", "Set holiday region", "Remove holiday"]
     },
     "/missing": {
       "title": "Missing Items",

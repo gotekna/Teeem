@@ -54,6 +54,33 @@ class Property < ApplicationRecord
     sda_enrolled?
   end
 
+  # Map property building type to SDA price guide building type key
+  def sda_price_building_type
+    return nil unless sda_building_type && bedrooms && sda_max_residents
+
+    case sda_building_type
+    when "apartment"
+      case [bedrooms, sda_max_residents]
+      when [1, 1] then "apartment_1br_1res"
+      when [2, 1] then "apartment_2br_1res"
+      when [2, 2] then "apartment_2br_2res"
+      when [3, 2] then "apartment_3br_2res"
+      else "apartment_#{bedrooms}br_#{sda_max_residents}res"
+      end
+    when "villa", "duplex", "townhouse"
+      "villa_#{sda_max_residents}res"
+    when "house"
+      "house_#{sda_max_residents}res"
+    when "group_home"
+      "group_home_#{sda_max_residents}res"
+    end
+  end
+
+  # Which stock category for the SDA price guide lookup
+  def sda_enrolled_as
+    sda_new_or_existing == "new_build" ? "post_2023_new_build" : "existing_stock"
+  end
+
   # Returns 0-100 percentage of how complete the SDA enrolment data is
   def sda_enrolment_completeness
     required_fields = %w[street_address suburb state postcode sda_category sda_building_type bedrooms sda_max_residents]

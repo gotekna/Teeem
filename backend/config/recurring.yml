@@ -677,6 +677,16 @@ daily_digest:
   queue: default
   schedule: every day at 6:30am Australia/Brisbane
 
+# ============================================
+# SDA PRICE GUIDE
+# ============================================
+# Daily check if the current SDA Price Guide has expired.
+# Logs warning and broadcasts to admin notifications channel.
+sda_price_guide_expiry:
+  class: SdaPriceGuideExpiryCheckJob
+  queue: default
+  schedule: every day at 7am Australia/Brisbane
+
 # FRC (Feb 2026): Disabled - Signal not configured on production (no SIGNAL_CLI_PATH).
 # Was running every 30s for nothing, wasting a job slot on 1-thread worker.
 # Re-enable when Signal is actually deployed.

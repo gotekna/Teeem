@@ -131,6 +131,11 @@ module Api
               }
             end
 
+            # NDIS Price Guide rate (if available)
+            ndis_annual = is_sda ? SdaPriceGuide.lookup_rate(property) : nil
+            ndis_weekly = ndis_annual ? (ndis_annual / 52.0).round(2) : nil
+            mrrc_annual = is_sda ? SdaPriceGuide.mrrc_annual : nil
+
             {
               id: property.id,
               property_code: property.property_code,
@@ -147,12 +152,28 @@ module Api
               potential_weekly_income: potential_weekly,
               actual_weekly_income: is_sda && tenancy&.sda? ? actual_sda_weekly : actual_weekly,
               occupancy_rate: potential_weekly > 0 ? ((is_sda && tenancy&.sda? ? actual_sda_weekly : actual_weekly).to_f / potential_weekly * 100).round(0) : 0,
+              ndis_guide: ndis_annual ? {
+                annual_sda: ndis_annual,
+                weekly_sda: ndis_weekly,
+                mrrc_annual: mrrc_annual,
+                mrrc_weekly: mrrc_annual ? (mrrc_annual / 52.0).round(2) : nil,
+                total_annual: mrrc_annual ? ndis_annual + mrrc_annual : ndis_annual,
+              } : nil,
               valuation: property.effective_value,
               gross_yield: property.gross_rental_yield,
               net_yield: property.net_rental_yield,
               tenant: tenant_info,
             }
           end
+
+          # SDA Price Guide status
+          guide = SdaPriceGuide.current_guide
+          price_guide_info = guide ? {
+            financial_year: guide.financial_year,
+            version: guide.version,
+            valid_to: guide.valid_to,
+            expired: SdaPriceGuide.expired?,
+          } : nil
 
           {
             summary: {
@@ -167,6 +188,7 @@ module Api
               income_gap_weekly: total_potential_weekly - total_actual_weekly,
               portfolio_value: properties.sum(&:effective_value),
             },
+            sda_price_guide: price_guide_info,
             properties: property_data,
           }
         end

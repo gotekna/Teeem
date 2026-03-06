@@ -242,7 +242,6 @@ export const ROUTES = {
   DESIGN_SYSTEM: "/design-system",
   DESIGN_SYSTEM_KANBAN: "/design-system/kanban",
 
-  TASK_TEMPLATES: "/task-templates", // Redirects to /schedule-templates
   SCHEDULE_TEMPLATES: "/schedule-templates",
 
   // ===== Data & System =====
