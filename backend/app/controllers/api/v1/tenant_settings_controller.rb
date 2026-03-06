@@ -81,6 +81,11 @@ module Api
           update_attrs[:config_links] = (storage_config.config_links || {}).merge(sp[:config_links].to_h).compact_blank
         end
 
+        # Also save sharepoint_default_url to TenantSetting if provided
+        if sp.key?(:sharepoint_default_url)
+          TenantSetting.instance.update(sharepoint_default_url: sp[:sharepoint_default_url].presence)
+        end
+
         if storage_config.update(update_attrs)
           render json: { success: true, data: storage_config.to_config_hash }
         else
@@ -345,7 +350,7 @@ module Api
           :provider_type,
           :sharepoint_site_url, :sharepoint_site_id, :sharepoint_drive_id, :sharepoint_drive_name,
           :s3_endpoint, :s3_bucket, :s3_region,
-          :sharepoint_root_path,
+          :sharepoint_root_path, :sharepoint_default_url,
           scope_folders: {},
           # NOTE (Feb 2026): download_name_templates REMOVED - now per-tab in warehouse_folders.download_name
           config_links: {}

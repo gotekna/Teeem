@@ -698,8 +698,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       Rails.logger.warn "[Connections] Failed to get SharePoint site URL: #{e.message}"
     end
 
-    # Try WarehouseProvider first (has drive_name for direct doc library link),
-    # fall back to Graph API root site URL
+    # URL priority: 1) TenantSetting default URL (admin-configured),
+    # 2) WarehouseProvider doc library, 3) Graph API root site
+    configured_url = TenantSetting.instance.sharepoint_default_url.presence
+
     storage_config = WarehouseProvider.instance rescue nil
     wp_site_url = storage_config&.site_url.presence
     drive_name = storage_config&.drive_name.presence
@@ -710,7 +712,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     {
       connected: true,
       name: display_name,
-      url: documents_url || site_url,
+      url: configured_url || documents_url || site_url,
       document_library: drive_name,
       root_folder: storage_config&.root_path,
       authenticated_as: authenticated_as,
