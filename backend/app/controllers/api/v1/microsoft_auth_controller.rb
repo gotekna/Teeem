@@ -675,19 +675,27 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     return { connected: false, name: display_name, auth_type: "organization" } unless org_credential
 
     # Get the actual authenticated user and SharePoint root site from Graph API
+    # ⚠️ /me only works with delegated auth (user tokens), NOT app credentials.
+    # /sites/root works with both. Keep them in SEPARATE begin/rescue blocks
+    # so a /me failure doesn't prevent getting the site URL.
     authenticated_as = nil
     graph_site_url = nil
+    client = MicrosoftGraphClient.new(org_credential)
+
+    # Try /me for authenticated user info (delegated credentials only)
     begin
-      client = MicrosoftGraphClient.new(org_credential)
       me = client.get("/me")
       authenticated_as = me["mail"] || me["userPrincipalName"]
+    rescue StandardError => e
+      Rails.logger.info "[Connections] /me not available (app credential): #{e.message}"
+    end
 
-      # Get the root SharePoint site URL from Graph API
-      # This works even when WarehouseProvider uses S3/Wasabi
+    # Get SharePoint root site URL (works with both app and delegated credentials)
+    begin
       root_site = client.get("/sites/root")
       graph_site_url = root_site["webUrl"] if root_site
     rescue StandardError => e
-      Rails.logger.warn "[Connections] Failed to get SharePoint info: #{e.message}"
+      Rails.logger.warn "[Connections] Failed to get SharePoint site URL: #{e.message}"
     end
 
     # Try WarehouseProvider first (has drive_name for direct doc library link),

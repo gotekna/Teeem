@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,74 +24,20 @@ interface ConnectionsResponse {
   onedrive: ConnectionInfo;
 }
 
-function EmbeddedView({ url, name }: { url: string; name: string }) {
-  const [iframeBlocked, setIframeBlocked] = useState(false);
-  const [iframeLoading, setIframeLoading] = useState(true);
-
-  // Microsoft blocks iframes with X-Frame-Options. We try it, and if it
-  // fails to load (onError or timeout), we show the "open in new tab" view.
-  useEffect(() => {
-    // Give iframe 4 seconds to load before assuming it's blocked
-    const timeout = setTimeout(() => {
-      if (iframeLoading) {
-        setIframeBlocked(true);
-        setIframeLoading(false);
-      }
-    }, 4000);
-    return () => clearTimeout(timeout);
-  }, [iframeLoading]);
-
-  const handleIframeLoad = useCallback(() => {
-    setIframeLoading(false);
-    // If it loaded, the iframe worked (rare for SharePoint but possible for some configs)
-  }, []);
-
-  const handleIframeError = useCallback(() => {
-    setIframeBlocked(true);
-    setIframeLoading(false);
-  }, []);
-
-  if (iframeBlocked) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 gap-4">
-        <Cloud className="h-16 w-16 text-muted-foreground" />
-        <p className="text-lg font-medium">{name}</p>
-        <p className="text-sm text-muted-foreground text-center max-w-md">
-          {name} opens in a new browser tab for the best experience.
-        </p>
-        <div className="flex gap-3">
-          <a href={url} target="_blank" rel="noopener noreferrer">
-            <Button size="lg">
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Open {name}
-            </Button>
-          </a>
-          <Link href="/settings/connections">
-            <Button variant="outline" size="lg">
-              <Cloud className="h-4 w-4 mr-2" />
-              Check Settings
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
+function OpenInTabView({ url, name, icon: Icon }: { url: string; name: string; icon: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="relative w-full" style={{ height: "calc(100vh - 220px)" }}>
-      {iframeLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
-          <Spinner size={32} className="text-muted-foreground" />
-        </div>
-      )}
-      <iframe
-        src={url}
-        className="w-full h-full border-0 rounded-lg"
-        title={name}
-        onLoad={handleIframeLoad}
-        onError={handleIframeError}
-        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-      />
+    <div className="flex flex-col items-center justify-center py-16 gap-4">
+      <Icon className="h-16 w-16 text-muted-foreground" />
+      <p className="text-lg font-medium">{name}</p>
+      <p className="text-sm text-muted-foreground text-center max-w-md">
+        {name} opens in a new browser tab for the best experience.
+      </p>
+      <a href={url} target="_blank" rel="noopener noreferrer">
+        <Button size="lg">
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Open {name}
+        </Button>
+      </a>
     </div>
   );
 }
@@ -178,7 +124,7 @@ export default function SharePointPage() {
 
         <TabsContent value="sharepoint" className="flex-1 px-4">
           {sp.connected && sp.url ? (
-            <EmbeddedView url={sp.url} name={sp.name || "SharePoint"} />
+            <OpenInTabView url={sp.url} name={sp.name || "SharePoint"} icon={Cloud} />
           ) : sp.connected ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <Cloud className="h-16 w-16 text-muted-foreground" />
@@ -194,7 +140,7 @@ export default function SharePointPage() {
 
         <TabsContent value="onedrive" className="flex-1 px-4">
           {od.connected && od.url ? (
-            <EmbeddedView url={od.url} name={od.name || "OneDrive"} />
+            <OpenInTabView url={od.url} name={od.name || "OneDrive"} icon={HardDrive} />
           ) : od.connected ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <HardDrive className="h-16 w-16 text-muted-foreground" />
