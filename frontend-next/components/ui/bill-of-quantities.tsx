@@ -14,16 +14,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp, Trash2 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp, Trash2, Check } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { STATUS_OPTIONS, STATUS_BADGE_VARIANTS } from "@/lib/constants/purchase-order-constants";
 import { SearchInput } from "@/components/ui/search-input";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
@@ -135,7 +132,9 @@ export interface BillOfQuantitiesProps {
   /** Called when user toggles a line item's exclude checkbox */
   onToggleExclude?: (lineKey: string, excluded: boolean) => void;
   /** Called when user changes a PO's status from the inline dropdown */
-  onStatusChange?: (groupId: number | string, action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => Promise<void>;
+  onStatusChange?: (groupId: number | string, newStatus: string) => Promise<void>;
+  /** Called when user changes a PO's supplier inline */
+  onSupplierChange?: (groupId: number | string, supplier: Supplier | null) => Promise<void>;
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -189,6 +188,7 @@ export function BillOfQuantities({
   excludedIds,
   onToggleExclude,
   onStatusChange,
+  onSupplierChange,
 }: BillOfQuantitiesProps) {
   const [changes, setChanges] = useState<BOQChanges>(new Map());
   const [pcChanges, setPcChanges] = useState<BOQProfitCentreChanges>(new Map());
@@ -196,6 +196,8 @@ export function BillOfQuantities({
   const [newLines, setNewLines] = useState<BOQNewLine[]>([]);
   const [deletedLines, setDeletedLines] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [supplierPopoverOpen, setSupplierPopoverOpen] = useState<string | number | null>(null);
+  const [supplierSaving, setSupplierSaving] = useState<string | number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   // PO/Task is always the primary grouping; optionally sort groups by a secondary dimension
   const [groupSortBy, setGroupSortBy] = useState<GroupSortBy | null>(defaultSortBy ?? null);
@@ -1182,6 +1184,11 @@ export function BillOfQuantities({
                                 deletedLines={deletedLines}
                                 onGroupClick={onGroupClick}
                                 onStatusChange={onStatusChange}
+                                onSupplierChange={onSupplierChange}
+                                supplierPopoverOpen={supplierPopoverOpen}
+                                setSupplierPopoverOpen={setSupplierPopoverOpen}
+                                supplierSaving={supplierSaving}
+                                setSupplierSaving={setSupplierSaving}
                                 excludeMode={excludeMode}
                                 excludedIds={excludedIds}
                                 onToggleExclude={onToggleExclude}
@@ -1214,6 +1221,11 @@ export function BillOfQuantities({
                         deletedLines={deletedLines}
                         onGroupClick={onGroupClick}
                         onStatusChange={onStatusChange}
+                        onSupplierChange={onSupplierChange}
+                        supplierPopoverOpen={supplierPopoverOpen}
+                        setSupplierPopoverOpen={setSupplierPopoverOpen}
+                        supplierSaving={supplierSaving}
+                        setSupplierSaving={setSupplierSaving}
                         excludeMode={excludeMode}
                         excludedIds={excludedIds}
                         onToggleExclude={onToggleExclude}
@@ -1247,6 +1259,11 @@ export function BillOfQuantities({
                   deletedLines={deletedLines}
                   onGroupClick={onGroupClick}
                   onStatusChange={onStatusChange}
+                  onSupplierChange={onSupplierChange}
+                  supplierPopoverOpen={supplierPopoverOpen}
+                  setSupplierPopoverOpen={setSupplierPopoverOpen}
+                  supplierSaving={supplierSaving}
+                  setSupplierSaving={setSupplierSaving}
                   excludeMode={excludeMode}
                   excludedIds={excludedIds}
                   onToggleExclude={onToggleExclude}
@@ -1282,6 +1299,11 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   deletedLines,
   onGroupClick,
   onStatusChange,
+  onSupplierChange,
+  supplierPopoverOpen,
+  setSupplierPopoverOpen,
+  supplierSaving,
+  setSupplierSaving,
   excludeMode,
   excludedIds,
   onToggleExclude,
@@ -1325,7 +1347,12 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   onDeleteLine: (key: string) => void;
   deletedLines: Set<string>;
   onGroupClick?: (groupId: number | string) => void;
-  onStatusChange?: (groupId: number | string, action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => Promise<void>;
+  onStatusChange?: (groupId: number | string, newStatus: string) => Promise<void>;
+  onSupplierChange?: (groupId: number | string, supplier: Supplier | null) => Promise<void>;
+  supplierPopoverOpen: string | number | null;
+  setSupplierPopoverOpen: (id: string | number | null) => void;
+  supplierSaving: string | number | null;
+  setSupplierSaving: (id: string | number | null) => void;
   excludeMode?: boolean;
   excludedIds?: Set<string>;
   onToggleExclude?: (lineKey: string, excluded: boolean) => void;
@@ -1369,15 +1396,15 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 ) : (
                   group.name
                 )}
-                {group.poStatusName && (
+                {(group.poStatus || group.poStatusName) && (
                   onStatusChange ? (
                     <POStatusDropdown
                       group={group}
                       onStatusChange={onStatusChange}
                     />
                   ) : (
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${group.poStatusColor || ""}`}>
-                      {group.poStatusName}
+                    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 border", STATUS_BADGE_VARIANTS[group.poStatus ?? ""] || group.poStatusColor || "")}>
+                      {group.poStatusName || STATUS_OPTIONS.find((s) => s.value === group.poStatus)?.label || group.poStatus}
                     </Badge>
                   )
                 )}
@@ -1392,8 +1419,33 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
           </TableCell>
           <TableCell className={cn("align-top text-sm text-muted-foreground border-r", color.bg)}>
             <div className="sticky top-10">
-              {group.supplierName || (
-                <span className="italic text-xs">No supplier</span>
+              {onSupplierChange ? (
+                <Popover open={supplierPopoverOpen === group.id} onOpenChange={(open) => setSupplierPopoverOpen(open ? group.id : null)}>
+                  <PopoverTrigger asChild>
+                    <button className="text-left hover:text-foreground hover:underline underline-offset-2 transition-colors">
+                      {supplierSaving === group.id ? (
+                        <span className="italic text-xs opacity-60">Saving…</span>
+                      ) : group.supplierName ? (
+                        group.supplierName
+                      ) : (
+                        <span className="italic text-xs text-muted-foreground/60">No supplier</span>
+                      )}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-2" align="start">
+                    <SupplierPicker
+                      value={group.supplierId ? { id: group.supplierId, name: group.supplierName || "", display_name: group.supplierName || "" } : null}
+                      onSelect={async (supplier) => {
+                        setSupplierPopoverOpen(null);
+                        setSupplierSaving(group.id);
+                        await onSupplierChange(group.id, supplier);
+                        setSupplierSaving(null);
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                group.supplierName || <span className="italic text-xs">No supplier</span>
               )}
             </div>
           </TableCell>
@@ -1455,10 +1507,17 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                     ) : (
                       group.name
                     )}
-                    {group.poStatusName && (
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${group.poStatusColor || ""}`}>
-                        {group.poStatusName}
-                      </Badge>
+                    {(group.poStatus || group.poStatusName) && (
+                      onStatusChange ? (
+                        <POStatusDropdown
+                          group={group}
+                          onStatusChange={onStatusChange}
+                        />
+                      ) : (
+                        <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 border", STATUS_BADGE_VARIANTS[group.poStatus ?? ""] || group.poStatusColor || "")}>
+                          {group.poStatusName || STATUS_OPTIONS.find((s) => s.value === group.poStatus)?.label || group.poStatus}
+                        </Badge>
+                      )
                     )}
                   </div>
                   {(group.stageName || group.tradeName) && (
@@ -1476,8 +1535,33 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 className={cn("align-top text-sm text-muted-foreground border-r", color.bg)}
               >
                 <div className="sticky top-10">
-                  {group.supplierName || (
-                    <span className="italic text-xs">No supplier</span>
+                  {onSupplierChange ? (
+                    <Popover open={supplierPopoverOpen === group.id} onOpenChange={(open) => setSupplierPopoverOpen(open ? group.id : null)}>
+                      <PopoverTrigger asChild>
+                        <button className="text-left hover:text-foreground hover:underline underline-offset-2 transition-colors">
+                          {supplierSaving === group.id ? (
+                            <span className="italic text-xs opacity-60">Saving…</span>
+                          ) : group.supplierName ? (
+                            group.supplierName
+                          ) : (
+                            <span className="italic text-xs text-muted-foreground/60">No supplier</span>
+                          )}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-2" align="start">
+                        <SupplierPicker
+                          value={group.supplierId ? { id: group.supplierId, name: group.supplierName || "", display_name: group.supplierName || "" } : null}
+                          onSelect={async (supplier) => {
+                            setSupplierPopoverOpen(null);
+                            setSupplierSaving(group.id);
+                            await onSupplierChange(group.id, supplier);
+                            setSupplierSaving(null);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    group.supplierName || <span className="italic text-xs">No supplier</span>
                   )}
                 </div>
               </TableCell>
@@ -1767,75 +1851,74 @@ function QtyInput({
   );
 }
 
-// Status actions available per PO status
-const STATUS_ACTIONS: Record<string, Array<{ action: "approve" | "send_to_supplier" | "mark_received" | "cancel"; label: string }>> = {
-  draft:         [{ action: "approve", label: "Approve" }, { action: "cancel", label: "Cancel" }],
-  pending:       [{ action: "approve", label: "Approve" }, { action: "cancel", label: "Cancel" }],
-  pending_quote: [{ action: "approve", label: "Approve" }, { action: "cancel", label: "Cancel" }],
-  approved:      [{ action: "send_to_supplier", label: "Mark Sent" }, { action: "cancel", label: "Cancel" }],
-  sent:          [{ action: "mark_received", label: "Mark Received" }, { action: "cancel", label: "Cancel" }],
-  received:      [{ action: "cancel", label: "Cancel" }],
-  invoiced:      [{ action: "cancel", label: "Cancel" }],
-  paid:          [],
-  cancelled:     [],
-};
-
 function POStatusDropdown({
   group,
   onStatusChange,
 }: {
   group: BOQGroup;
-  onStatusChange: (groupId: number | string, action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => Promise<void>;
+  onStatusChange: (groupId: number | string, newStatus: string) => Promise<void>;
 }) {
   const [loading, setLoading] = useState(false);
-  const actions = STATUS_ACTIONS[group.poStatus ?? ""] ?? [];
+  const [open, setOpen] = useState(false);
+  const statusKey = group.poStatus ?? "draft";
+  // Use po_status record name if available, fall back to STATUS_OPTIONS label
+  const displayName = group.poStatusName
+    || STATUS_OPTIONS.find((s) => s.value === statusKey)?.label
+    || statusKey;
+  const badgeClass = STATUS_BADGE_VARIANTS[statusKey] || STATUS_BADGE_VARIANTS.draft;
 
-  const handleAction = async (action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => {
+  const handleSelect = async (newStatus: string) => {
+    if (newStatus === statusKey) { setOpen(false); return; }
+    setOpen(false);
     setLoading(true);
     try {
-      await onStatusChange(group.id, action);
+      await onStatusChange(group.id, newStatus);
     } finally {
       setLoading(false);
     }
   };
 
-  if (actions.length === 0) {
-    return (
-      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${group.poStatusColor || ""}`}>
-        {group.poStatusName}
-      </Badge>
-    );
-  }
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={loading}>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <button
           className={cn(
-            "inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0 text-[10px] font-medium transition-colors hover:opacity-80",
-            group.poStatusColor || "border-border"
+            "inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0 text-[10px] font-medium transition-colors hover:opacity-80 focus:outline-none",
+            badgeClass
           )}
+          disabled={loading}
           title="Change status"
         >
           {loading ? <Spinner size={10} className="mr-0.5" /> : null}
-          {group.poStatusName}
-          <ChevronDown className="h-2.5 w-2.5 opacity-60" />
+          {displayName}
+          <ChevronsUpDown className="h-2.5 w-2.5 opacity-50 ml-0.5" />
         </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[140px]">
-        {actions.map((item, idx) => (
-          <React.Fragment key={item.action}>
-            {item.action === "cancel" && idx > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              onClick={() => handleAction(item.action)}
-              className={cn(item.action === "cancel" && "text-destructive focus:text-destructive")}
-            >
-              {item.label}
-            </DropdownMenuItem>
-          </React.Fragment>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverTrigger>
+      <PopoverContent className="w-[180px] p-0" align="start">
+        <Command>
+          <CommandList>
+            <CommandGroup>
+              {STATUS_OPTIONS.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => handleSelect(option.value)}
+                  className="gap-2"
+                >
+                  <Check className={cn("h-3.5 w-3.5 shrink-0", statusKey === option.value ? "opacity-100" : "opacity-0")} />
+                  <Badge
+                    variant="outline"
+                    className={cn("border text-[10px] px-1.5 py-0", STATUS_BADGE_VARIANTS[option.value])}
+                  >
+                    {option.label}
+                  </Badge>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 

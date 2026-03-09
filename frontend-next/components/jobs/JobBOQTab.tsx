@@ -257,23 +257,12 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
     router.push(`/purchase_orders/${groupId}`);
   }, [router]);
 
-  const handleStatusChange = useCallback(async (groupId: number | string, action: "approve" | "send_to_supplier" | "mark_received" | "cancel") => {
-    const endpoint = action === "cancel"
-      ? `/api/v1/purchase_orders/${groupId}`
-      : `/api/v1/purchase_orders/${groupId}/${action}`;
-
+  const handleStatusChange = useCallback(async (groupId: number | string, newStatus: string) => {
     try {
-      if (action === "cancel") {
-        await api.delete(endpoint);
-      } else {
-        await api.post(endpoint, {});
-      }
-      toast.success(
-        action === "approve" ? "PO approved" :
-        action === "send_to_supplier" ? "PO marked as sent" :
-        action === "mark_received" ? "PO marked as received" :
-        "PO cancelled"
-      );
+      await api.patch(`/api/v1/purchase_orders/${groupId}`, {
+        purchase_order: { status: newStatus },
+      });
+      toast.success("PO status updated");
       // Reload inline - avoids stale loadBOQData ref in useCallback deps
       setLoading(true);
       setError(null);
@@ -284,8 +273,29 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
         setLoading(false);
       }
     } catch (err) {
-      console.error(`Failed to update PO status (${action}):`, err);
+      console.error(`Failed to update PO status (${newStatus}):`, err);
       toast.error("Failed to update PO status");
+    }
+  }, [jobId]);
+
+  const handleSupplierChange = useCallback(async (groupId: number | string, supplier: Supplier | null) => {
+    try {
+      await api.patch(`/api/v1/purchase_orders/${groupId}`, {
+        purchase_order: { supplier_id: supplier?.id ?? null },
+      });
+      toast.success(supplier ? `Supplier set to ${supplier.display_name || supplier.name}` : "Supplier cleared");
+      // Reload BOQ data
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await api.get<BOQData>(`/api/v1/jobs/${jobId}/boq`);
+        if (response?.success) setBOQData(response);
+      } finally {
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error("Failed to update supplier:", err);
+      toast.error("Failed to update supplier");
     }
   }, [jobId]);
 
@@ -506,6 +516,7 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
           onGroupClick={handleGroupClick}
           onAddPO={handleAddPO}
           onStatusChange={handleStatusChange}
+          onSupplierChange={handleSupplierChange}
           profitCentres={boqData.profitCentres?.map((pc) => ({ id: pc.id, label: pc.label })) ?? []}
           loading={loading}
         />

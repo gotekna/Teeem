@@ -339,11 +339,6 @@ module Api
 
       # POST /api/v1/purchase_orders/:id/approve
       def approve
-        unless @purchase_order.can_approve?
-          render json: { error: "Purchase order cannot be approved in current status" }, status: :unprocessable_entity
-          return
-        end
-
         if @purchase_order.approve!
           render json: @purchase_order
         else
