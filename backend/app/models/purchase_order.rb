@@ -160,7 +160,7 @@ class PurchaseOrder < ApplicationRecord
   # Dual-column sync: po_status_id ↔ status string
   # Keeps both columns in sync during migration period (42+ existing status references)
   before_save :sync_status_from_po_status, if: :po_status_id_changed?
-  after_save :sync_po_status_from_status, if: :saved_change_to_status?
+  after_save :sync_po_status_from_status, if: -> { saved_change_to_status? || (id_previously_changed? && po_status_id.nil?) }
 
   # SSoT: Update contact's cached supplier flag when PO changes
   after_commit :refresh_supplier_cached_flag, on: [:create, :destroy]
@@ -565,10 +565,16 @@ class PurchaseOrder < ApplicationRecord
 
   # Dual-column sync: status string → po_status_id
   # When status changes (e.g., via approve!, send_to_supplier!), update po_status_id
+  # Also runs on create since DB default ('draft') means saved_change_to_status? is false on new records
   def sync_po_status_from_status
     return unless status.present?
+    return if po_status_id.present? # already set (e.g., via po_status_id= directly)
     new_id = PoStatus.id_for_slug(status)
-    update_column(:po_status_id, new_id) if new_id && po_status_id != new_id
+    if new_record?
+      self.po_status_id = new_id
+    else
+      update_column(:po_status_id, new_id) if new_id && po_status_id != new_id
+    end
   end
 
   # Callback condition helpers

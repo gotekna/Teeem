@@ -1143,6 +1143,53 @@ export default function PurchaseOrderDetailPage() {
             <h1 className="text-2xl font-bold tracking-tight font-serif">
               {purchaseOrder.purchase_order_number}
             </h1>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "border cursor-pointer hover:opacity-80 transition-opacity",
+                      STATUS_BADGE_VARIANTS[status] || STATUS_BADGE_VARIANTS.draft
+                    )}
+                  >
+                    {STATUS_OPTIONS.find((s) => s.value === status)?.label || "Draft"}
+                    <ChevronsUpDown className="ml-1 h-3 w-3 opacity-50" />
+                  </Badge>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandGroup>
+                      {STATUS_OPTIONS.map((option) => (
+                        <CommandItem
+                          key={option.value}
+                          value={option.value}
+                          onSelect={() => setStatus(option.value)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              status === option.value ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "border",
+                              STATUS_BADGE_VARIANTS[option.value]
+                            )}
+                          >
+                            {option.label}
+                          </Badge>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             <span className="text-muted-foreground">-</span>
             <div className="min-w-[300px]">
               <ComboboxDropdown<TaskComboboxItem>
@@ -1194,61 +1241,6 @@ export default function PurchaseOrderDetailPage() {
                   Documents
                 </Button>
               </>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 mt-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md">
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "border cursor-pointer hover:opacity-80 transition-opacity",
-                      STATUS_BADGE_VARIANTS[status] || STATUS_BADGE_VARIANTS.draft
-                    )}
-                  >
-                    {STATUS_OPTIONS.find((s) => s.value === status)?.label || "Draft"}
-                    <ChevronsUpDown className="ml-1 h-3 w-3 opacity-50" />
-                  </Badge>
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
-                  <CommandList>
-                    <CommandGroup>
-                      {STATUS_OPTIONS.map((option) => (
-                        <CommandItem
-                          key={option.value}
-                          value={option.value}
-                          onSelect={() => setStatus(option.value)}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              status === option.value ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "border",
-                              STATUS_BADGE_VARIANTS[option.value]
-                            )}
-                          >
-                            {option.label}
-                          </Badge>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            {purchaseOrder.job?.site_supervisor_info?.display_name && (
-              <span className="text-sm text-muted-foreground">
-                Site Supervisor: {purchaseOrder.job.site_supervisor_info.display_name}
-              </span>
             )}
           </div>
         </div>

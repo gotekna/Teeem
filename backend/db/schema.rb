@@ -1918,6 +1918,19 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "emergency_contact_phone"
     t.string "emergency_contact_relationship"
     t.datetime "record_updated_at"
+    t.string "ndis_number"
+    t.string "ndis_plan_number"
+    t.date "ndis_plan_start_date"
+    t.date "ndis_plan_review_date"
+    t.string "sda_funding_status"
+    t.string "sda_approved_category"
+    t.string "sda_approved_building_type"
+    t.boolean "sda_approved_ooa", default: false
+    t.decimal "sda_approved_annual_budget", precision: 12, scale: 2
+    t.string "sda_support_coordinator"
+    t.string "sda_support_coordinator_phone"
+    t.string "sda_support_coordinator_email"
+    t.text "sda_notes"
     t.index "tenant_id, lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1938,12 +1951,15 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["is_team_contact"], name: "index_contacts_on_is_team_contact"
     t.index ["is_user_cached"], name: "index_contacts_on_is_user_cached"
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
+    t.index ["ndis_number"], name: "index_contacts_on_ndis_number"
+    t.index ["ndis_plan_review_date"], name: "index_contacts_on_ndis_plan_review_date"
     t.index ["parent_company_contact_id"], name: "idx_contacts_with_parent_company", where: "(parent_company_contact_id IS NOT NULL)"
     t.index ["parent_company_contact_id"], name: "index_contacts_on_parent_company_contact_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
     t.index ["referrer_status"], name: "index_contacts_on_referrer_status"
     t.index ["saas_status"], name: "index_contacts_on_saas_status"
+    t.index ["sda_funding_status"], name: "index_contacts_on_sda_funding_status"
     t.index ["searchable"], name: "idx_contacts_searchable_gin", using: :gin
     t.index ["stripe_customer_id"], name: "index_contacts_on_stripe_customer_id", unique: true, where: "(stripe_customer_id IS NOT NULL)"
     t.index ["support_contact_id"], name: "index_contacts_on_support_contact_id"
@@ -7181,6 +7197,57 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["document_type"], name: "index_ndis_addendums_on_document_type"
   end
 
+  create_table "ndis_claims", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "property_id", null: false
+    t.bigint "tenancy_id", null: false
+    t.bigint "contact_id"
+    t.string "ndis_participant_number"
+    t.string "service_booking_number"
+    t.date "claim_period_start", null: false
+    t.date "claim_period_end", null: false
+    t.string "support_item_number"
+    t.decimal "quantity", precision: 6, scale: 2
+    t.decimal "unit_price", precision: 10, scale: 2
+    t.decimal "total_amount", precision: 10, scale: 2
+    t.decimal "gst_amount", precision: 10, scale: 2
+    t.string "status", default: "draft"
+    t.string "ndia_reference"
+    t.text "rejection_reason"
+    t.string "rejection_code"
+    t.datetime "submitted_at"
+    t.datetime "approved_at"
+    t.datetime "paid_at"
+    t.decimal "paid_amount", precision: 10, scale: 2
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_ndis_claims_on_contact_id"
+    t.index ["ndia_reference"], name: "index_ndis_claims_on_ndia_reference", unique: true, where: "(ndia_reference IS NOT NULL)"
+    t.index ["property_id", "claim_period_start"], name: "index_ndis_claims_on_property_id_and_claim_period_start"
+    t.index ["property_id"], name: "index_ndis_claims_on_property_id"
+    t.index ["status"], name: "index_ndis_claims_on_status"
+    t.index ["tenancy_id"], name: "index_ndis_claims_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_ndis_claims_on_tenant_id"
+  end
+
+  create_table "ndis_price_guides", force: :cascade do |t|
+    t.string "design_category", null: false
+    t.string "building_type"
+    t.integer "resident_count", null: false
+    t.decimal "daily_rate", precision: 10, scale: 2, null: false
+    t.date "effective_from", null: false
+    t.date "effective_to"
+    t.string "support_item_number"
+    t.string "financial_year"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_category", "resident_count", "effective_from"], name: "idx_price_guides_category_residents_date", unique: true
+    t.index ["design_category"], name: "index_ndis_price_guides_on_design_category"
+    t.index ["effective_from"], name: "index_ndis_price_guides_on_effective_from"
+  end
+
   create_table "notebook_activities", force: :cascade do |t|
     t.bigint "notebook_id", null: false
     t.bigint "user_id", null: false
@@ -7518,8 +7585,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "performance_requests", force: :cascade do |t|
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -7597,8 +7663,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "performance_vitals", force: :cascade do |t|
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -8014,13 +8079,45 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.decimal "cost_base_legal_fees", precision: 10, scale: 2, default: "0.0"
     t.decimal "cost_base_other", precision: 10, scale: 2, default: "0.0"
     t.decimal "capital_improvements_total", precision: 12, scale: 2, default: "0.0"
+    t.string "sda_building_type"
+    t.string "sda_enrolment_status", default: "not_started"
+    t.integer "sda_max_residents"
+    t.string "sda_new_or_existing"
+    t.string "sda_assessor_name"
+    t.string "sda_assessor_number"
+    t.date "sda_assessment_date"
+    t.boolean "sda_gst_credits_claimed", default: false
+    t.decimal "sda_gst_amount_claimed", precision: 12, scale: 2
+    t.jsonb "sda_features", default: {}
+    t.date "sda_enrolled_date"
+    t.date "completion_date"
+    t.string "lot_number"
+    t.boolean "sda_fire_sprinklers", default: false
+    t.string "sda_location_sa4"
+    t.boolean "publicly_listed", default: false, null: false
+    t.string "public_listing_type"
+    t.string "public_headline"
+    t.text "public_description"
+    t.string "listing_price_display"
+    t.string "hero_image_url"
+    t.jsonb "gallery_image_urls", default: []
+    t.decimal "latitude", precision: 10, scale: 7
+    t.decimal "longitude", precision: 10, scale: 7
+    t.string "enquiry_email"
+    t.string "enquiry_phone"
+    t.string "public_slug"
     t.index ["job_id"], name: "index_properties_on_job_id"
     t.index ["managing_agent_contact_id"], name: "index_properties_on_managing_agent_contact_id"
     t.index ["owner_contact_id"], name: "index_properties_on_owner_contact_id"
     t.index ["property_status_id"], name: "index_properties_on_property_status_id"
     t.index ["property_type_id"], name: "index_properties_on_property_type_id"
+    t.index ["public_listing_type"], name: "index_properties_on_public_listing_type"
+    t.index ["public_slug"], name: "index_properties_on_public_slug", unique: true
+    t.index ["publicly_listed"], name: "index_properties_on_publicly_listed"
+    t.index ["sda_building_type"], name: "index_properties_on_sda_building_type"
     t.index ["sda_category"], name: "index_properties_on_sda_category"
     t.index ["sda_enrolled"], name: "index_properties_on_sda_enrolled"
+    t.index ["sda_enrolment_status"], name: "index_properties_on_sda_enrolment_status"
     t.index ["suburb"], name: "index_properties_on_suburb"
     t.index ["tenant_id", "property_code"], name: "index_properties_on_tenant_id_and_property_code", unique: true
     t.index ["tenant_id"], name: "index_properties_on_tenant_id"
@@ -8745,6 +8842,609 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["imap_credential_id"], name: "index_scheduled_emails_on_imap_credential_id"
     t.index ["scheduled_for"], name: "index_scheduled_emails_on_scheduled_for"
     t.index ["status", "scheduled_for"], name: "idx_scheduled_emails_due"
+  end
+
+  create_table "sda_agreements", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "tenancy_id"
+    t.bigint "contact_id", null: false
+    t.bigint "tenant_id", null: false
+    t.string "agreement_type", null: false
+    t.string "agreement_number"
+    t.string "status", default: "draft", null: false
+    t.date "start_date"
+    t.date "end_date"
+    t.date "signed_date"
+    t.date "renewal_reminder_date"
+    t.string "sda_design_category"
+    t.string "sda_building_type"
+    t.decimal "agreed_weekly_rate", precision: 10, scale: 2
+    t.decimal "agreed_participant_contribution", precision: 10, scale: 2
+    t.text "special_conditions"
+    t.text "house_rules"
+    t.bigint "document_blob_id"
+    t.bigint "created_by_user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_sda_agreements_on_contact_id"
+    t.index ["created_by_user_id"], name: "index_sda_agreements_on_created_by_user_id"
+    t.index ["document_blob_id"], name: "index_sda_agreements_on_document_blob_id"
+    t.index ["end_date"], name: "index_sda_agreements_on_end_date"
+    t.index ["property_id", "status"], name: "index_sda_agreements_on_property_id_and_status"
+    t.index ["property_id"], name: "index_sda_agreements_on_property_id"
+    t.index ["status"], name: "index_sda_agreements_on_status"
+    t.index ["tenancy_id"], name: "index_sda_agreements_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_sda_agreements_on_tenant_id"
+  end
+
+  create_table "sda_arrears", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "tenancy_id", null: false
+    t.bigint "contact_id"
+    t.bigint "tenant_id", null: false
+    t.string "status", default: "current", null: false
+    t.decimal "amount_overdue", precision: 12, scale: 2, null: false
+    t.integer "days_overdue", null: false
+    t.date "first_missed_date"
+    t.date "reminder_sent_date"
+    t.date "notice_issued_date"
+    t.date "breach_notice_date"
+    t.date "resolved_date"
+    t.string "resolution"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_sda_arrears_on_contact_id"
+    t.index ["property_id"], name: "index_sda_arrears_on_property_id"
+    t.index ["status"], name: "index_sda_arrears_on_status"
+    t.index ["tenancy_id", "status"], name: "index_sda_arrears_on_tenancy_id_and_status"
+    t.index ["tenancy_id"], name: "index_sda_arrears_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_sda_arrears_on_tenant_id"
+  end
+
+  create_table "sda_benchmark_rates", force: :cascade do |t|
+    t.bigint "sda_price_guide_id", null: false
+    t.string "dwelling_stock_type", null: false
+    t.string "building_type", null: false
+    t.integer "max_residents", null: false
+    t.string "design_category", null: false
+    t.boolean "fire_sprinklers", default: false
+    t.boolean "gst_credits_claimed", default: true
+    t.boolean "onsite_overnight_assistance", default: false
+    t.integer "annual_base_price", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sda_price_guide_id", "dwelling_stock_type", "building_type", "design_category", "fire_sprinklers", "gst_credits_claimed", "onsite_overnight_assistance"], name: "idx_sda_rates_unique_combo", unique: true
+    t.index ["sda_price_guide_id"], name: "index_sda_benchmark_rates_on_sda_price_guide_id"
+  end
+
+  create_table "sda_claims", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "tenancy_id"
+    t.bigint "contact_id"
+    t.bigint "tenant_id", null: false
+    t.string "claim_type", null: false
+    t.string "claim_reference"
+    t.string "status", default: "draft", null: false
+    t.string "period_type", default: "monthly"
+    t.date "period_start", null: false
+    t.date "period_end", null: false
+    t.date "submitted_date"
+    t.date "paid_date"
+    t.decimal "claimed_amount", precision: 12, scale: 2, null: false
+    t.decimal "approved_amount", precision: 12, scale: 2
+    t.decimal "paid_amount", precision: 12, scale: 2
+    t.decimal "variance", precision: 12, scale: 2
+    t.string "rejection_reason"
+    t.text "notes"
+    t.jsonb "line_items", default: []
+    t.bigint "submitted_by_user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "proda_service_booking_id"
+    t.string "proda_claim_reference"
+    t.datetime "proda_submitted_at"
+    t.jsonb "proda_response", default: {}
+    t.string "ndia_payment_request_id"
+    t.index ["claim_reference"], name: "index_sda_claims_on_claim_reference"
+    t.index ["contact_id"], name: "index_sda_claims_on_contact_id"
+    t.index ["period_start", "period_end"], name: "index_sda_claims_on_period_start_and_period_end"
+    t.index ["proda_claim_reference"], name: "index_sda_claims_on_proda_claim_reference"
+    t.index ["proda_service_booking_id"], name: "index_sda_claims_on_proda_service_booking_id"
+    t.index ["property_id", "status"], name: "index_sda_claims_on_property_id_and_status"
+    t.index ["property_id"], name: "index_sda_claims_on_property_id"
+    t.index ["status"], name: "index_sda_claims_on_status"
+    t.index ["submitted_by_user_id"], name: "index_sda_claims_on_submitted_by_user_id"
+    t.index ["tenancy_id"], name: "index_sda_claims_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_sda_claims_on_tenant_id"
+  end
+
+  create_table "sda_compliance_items", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "tenant_id", null: false
+    t.string "category", null: false
+    t.string "item_type", null: false
+    t.string "item_name", null: false
+    t.string "location"
+    t.string "status", default: "compliant", null: false
+    t.date "installed_date"
+    t.date "last_service_date"
+    t.date "next_service_date"
+    t.date "expiry_date"
+    t.integer "service_interval_months"
+    t.string "service_provider_name"
+    t.string "service_provider_phone"
+    t.string "certificate_number"
+    t.bigint "certificate_blob_id"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["certificate_blob_id"], name: "index_sda_compliance_items_on_certificate_blob_id"
+    t.index ["next_service_date"], name: "index_sda_compliance_items_on_next_service_date"
+    t.index ["property_id", "category"], name: "index_sda_compliance_items_on_property_id_and_category"
+    t.index ["property_id"], name: "index_sda_compliance_items_on_property_id"
+    t.index ["status"], name: "index_sda_compliance_items_on_status"
+    t.index ["tenant_id"], name: "index_sda_compliance_items_on_tenant_id"
+  end
+
+  create_table "sda_conflict_of_interests", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "declarant_type", null: false
+    t.bigint "declarant_user_id"
+    t.bigint "declarant_contact_id"
+    t.string "declarant_name"
+    t.string "conflict_type", null: false
+    t.string "status", default: "declared", null: false
+    t.string "severity", default: "low", null: false
+    t.text "description", null: false
+    t.text "parties_involved"
+    t.bigint "related_property_id"
+    t.bigint "related_contact_id"
+    t.text "management_plan"
+    t.text "mitigation_actions"
+    t.date "review_date"
+    t.date "resolved_date"
+    t.bigint "reviewed_by_user_id"
+    t.date "reviewed_date"
+    t.text "reviewer_notes"
+    t.date "declaration_date", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["declarant_contact_id"], name: "index_sda_conflict_of_interests_on_declarant_contact_id"
+    t.index ["declarant_type"], name: "index_sda_conflict_of_interests_on_declarant_type"
+    t.index ["declarant_user_id"], name: "index_sda_conflict_of_interests_on_declarant_user_id"
+    t.index ["related_contact_id"], name: "index_sda_conflict_of_interests_on_related_contact_id"
+    t.index ["related_property_id"], name: "index_sda_conflict_of_interests_on_related_property_id"
+    t.index ["review_date"], name: "index_sda_conflict_of_interests_on_review_date"
+    t.index ["reviewed_by_user_id"], name: "index_sda_conflict_of_interests_on_reviewed_by_user_id"
+    t.index ["status"], name: "index_sda_conflict_of_interests_on_status"
+    t.index ["tenant_id"], name: "index_sda_conflict_of_interests_on_tenant_id"
+  end
+
+  create_table "sda_design_assessments", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "tenant_id", null: false
+    t.string "design_standard_version"
+    t.date "assessment_date"
+    t.string "assessor_name"
+    t.string "assessor_registration_number"
+    t.string "status", default: "pending", null: false
+    t.jsonb "room_assessments", default: {}
+    t.integer "total_items_assessed", default: 0
+    t.integer "compliant_items", default: 0
+    t.integer "non_compliant_items", default: 0
+    t.decimal "compliance_percentage", precision: 5, scale: 2
+    t.jsonb "required_modifications", default: []
+    t.decimal "estimated_modification_cost", precision: 12, scale: 2
+    t.date "modification_deadline"
+    t.bigint "certificate_blob_id"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["certificate_blob_id"], name: "index_sda_design_assessments_on_certificate_blob_id"
+    t.index ["property_id", "status"], name: "index_sda_design_assessments_on_property_id_and_status"
+    t.index ["property_id"], name: "index_sda_design_assessments_on_property_id"
+    t.index ["tenant_id"], name: "index_sda_design_assessments_on_tenant_id"
+  end
+
+  create_table "sda_enquiries", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.string "name", null: false
+    t.string "email", null: false
+    t.string "phone"
+    t.text "message"
+    t.string "ndis_number"
+    t.string "enquiry_type", default: "general"
+    t.string "status", default: "new", null: false
+    t.string "ip_address"
+    t.text "staff_notes"
+    t.datetime "responded_at"
+    t.bigint "assigned_to_user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assigned_to_user_id"], name: "index_sda_enquiries_on_assigned_to_user_id"
+    t.index ["email"], name: "index_sda_enquiries_on_email"
+    t.index ["ip_address", "created_at"], name: "idx_sda_enquiries_rate_limit"
+    t.index ["property_id"], name: "index_sda_enquiries_on_property_id"
+    t.index ["status"], name: "index_sda_enquiries_on_status"
+  end
+
+  create_table "sda_incidents", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "tenancy_id"
+    t.bigint "contact_id"
+    t.bigint "tenant_id", null: false
+    t.string "incident_number", null: false
+    t.string "incident_type", null: false
+    t.string "severity", null: false
+    t.string "status", default: "reported", null: false
+    t.datetime "incident_datetime", null: false
+    t.string "location"
+    t.text "description", null: false
+    t.text "immediate_action_taken"
+    t.text "root_cause"
+    t.text "corrective_actions"
+    t.text "preventive_measures"
+    t.boolean "ndis_reportable", default: false
+    t.boolean "ndis_reported", default: false
+    t.date "ndis_reported_date"
+    t.string "ndis_report_reference"
+    t.boolean "reported_within_24hrs"
+    t.string "reported_by_name"
+    t.string "witnesses"
+    t.bigint "reported_by_user_id"
+    t.bigint "investigated_by_user_id"
+    t.date "resolved_date"
+    t.date "review_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.date "five_day_form_due_date"
+    t.boolean "five_day_form_submitted", default: false
+    t.date "five_day_form_submitted_date"
+    t.bigint "five_day_form_submitted_by_user_id"
+    t.string "ndis_commission_portal_ref"
+    t.bigint "ri_approver_user_id"
+    t.bigint "ri_notifier_user_id"
+    t.index ["contact_id"], name: "index_sda_incidents_on_contact_id"
+    t.index ["incident_number"], name: "index_sda_incidents_on_incident_number", unique: true
+    t.index ["investigated_by_user_id"], name: "index_sda_incidents_on_investigated_by_user_id"
+    t.index ["ndis_reportable"], name: "index_sda_incidents_on_ndis_reportable"
+    t.index ["property_id", "status"], name: "index_sda_incidents_on_property_id_and_status"
+    t.index ["property_id"], name: "index_sda_incidents_on_property_id"
+    t.index ["reported_by_user_id"], name: "index_sda_incidents_on_reported_by_user_id"
+    t.index ["severity"], name: "index_sda_incidents_on_severity"
+    t.index ["tenancy_id"], name: "index_sda_incidents_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_sda_incidents_on_tenant_id"
+  end
+
+  create_table "sda_location_factors", force: :cascade do |t|
+    t.bigint "sda_price_guide_id", null: false
+    t.string "sa4_region", null: false
+    t.string "stock_type", null: false
+    t.string "building_type", null: false
+    t.decimal "factor", precision: 4, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sda_price_guide_id", "sa4_region", "stock_type", "building_type"], name: "idx_sda_location_unique", unique: true
+    t.index ["sda_price_guide_id"], name: "index_sda_location_factors_on_sda_price_guide_id"
+  end
+
+  create_table "sda_mrrc_rates", force: :cascade do |t|
+    t.bigint "sda_price_guide_id", null: false
+    t.string "participant_type", null: false
+    t.string "payment_type", null: false
+    t.decimal "dsp_rate", precision: 10, scale: 2
+    t.decimal "pension_supplement", precision: 10, scale: 2
+    t.decimal "cra_rate", precision: 10, scale: 2
+    t.decimal "energy_supplement", precision: 10, scale: 2
+    t.decimal "total_fortnightly", precision: 10, scale: 2
+    t.decimal "total_annual", precision: 10, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sda_price_guide_id", "participant_type", "payment_type"], name: "idx_sda_mrrc_unique", unique: true
+    t.index ["sda_price_guide_id"], name: "index_sda_mrrc_rates_on_sda_price_guide_id"
+  end
+
+  create_table "sda_notifications", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "property_id"
+    t.string "notification_type", null: false
+    t.string "channel", null: false
+    t.string "status", default: "pending", null: false
+    t.string "priority", default: "normal"
+    t.string "notifiable_type"
+    t.bigint "notifiable_id"
+    t.bigint "recipient_user_id"
+    t.bigint "recipient_contact_id"
+    t.string "recipient_email"
+    t.string "recipient_phone"
+    t.string "subject"
+    t.text "body"
+    t.jsonb "metadata", default: {}
+    t.datetime "sent_at"
+    t.datetime "delivered_at"
+    t.datetime "acknowledged_at"
+    t.string "delivery_error"
+    t.integer "retry_count", default: 0
+    t.datetime "due_at"
+    t.boolean "overdue", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["due_at"], name: "index_sda_notifications_on_due_at"
+    t.index ["notifiable_type", "notifiable_id"], name: "idx_sda_notif_polymorphic"
+    t.index ["notification_type", "status"], name: "index_sda_notifications_on_notification_type_and_status"
+    t.index ["overdue"], name: "index_sda_notifications_on_overdue"
+    t.index ["property_id"], name: "index_sda_notifications_on_property_id"
+    t.index ["recipient_contact_id"], name: "index_sda_notifications_on_recipient_contact_id"
+    t.index ["recipient_user_id"], name: "index_sda_notifications_on_recipient_user_id"
+    t.index ["tenant_id"], name: "index_sda_notifications_on_tenant_id"
+  end
+
+  create_table "sda_owner_statements", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "tenant_id", null: false
+    t.bigint "owner_contact_id", null: false
+    t.string "statement_type", null: false
+    t.string "period_label"
+    t.date "period_start", null: false
+    t.date "period_end", null: false
+    t.string "status", default: "draft", null: false
+    t.decimal "gross_income", precision: 12, scale: 2, default: "0.0"
+    t.decimal "sda_income", precision: 12, scale: 2, default: "0.0"
+    t.decimal "participant_income", precision: 12, scale: 2, default: "0.0"
+    t.decimal "other_income", precision: 12, scale: 2, default: "0.0"
+    t.decimal "management_fees", precision: 12, scale: 2, default: "0.0"
+    t.decimal "maintenance_costs", precision: 12, scale: 2, default: "0.0"
+    t.decimal "insurance", precision: 12, scale: 2, default: "0.0"
+    t.decimal "council_rates", precision: 12, scale: 2, default: "0.0"
+    t.decimal "water_rates", precision: 12, scale: 2, default: "0.0"
+    t.decimal "body_corporate", precision: 12, scale: 2, default: "0.0"
+    t.decimal "other_expenses", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_expenses", precision: 12, scale: 2, default: "0.0"
+    t.decimal "net_income", precision: 12, scale: 2, default: "0.0"
+    t.decimal "amount_disbursed", precision: 12, scale: 2, default: "0.0"
+    t.decimal "depreciation", precision: 12, scale: 2, default: "0.0"
+    t.decimal "interest_expense", precision: 12, scale: 2, default: "0.0"
+    t.decimal "capital_works_deduction", precision: 12, scale: 2, default: "0.0"
+    t.jsonb "income_items", default: []
+    t.jsonb "expense_items", default: []
+    t.bigint "statement_blob_id"
+    t.date "sent_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["owner_contact_id"], name: "index_sda_owner_statements_on_owner_contact_id"
+    t.index ["property_id", "period_start"], name: "index_sda_owner_statements_on_property_id_and_period_start"
+    t.index ["property_id"], name: "index_sda_owner_statements_on_property_id"
+    t.index ["statement_blob_id"], name: "index_sda_owner_statements_on_statement_blob_id"
+    t.index ["status"], name: "index_sda_owner_statements_on_status"
+    t.index ["tenant_id"], name: "index_sda_owner_statements_on_tenant_id"
+  end
+
+  create_table "sda_participant_matches", force: :cascade do |t|
+    t.bigint "sda_vacancy_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "tenant_id", null: false
+    t.string "status", default: "suggested", null: false
+    t.string "match_reason"
+    t.integer "match_score"
+    t.text "notes"
+    t.date "contacted_date"
+    t.date "response_date"
+    t.bigint "matched_by_user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_sda_participant_matches_on_contact_id"
+    t.index ["matched_by_user_id"], name: "index_sda_participant_matches_on_matched_by_user_id"
+    t.index ["sda_vacancy_id", "contact_id"], name: "idx_sda_match_unique", unique: true
+    t.index ["sda_vacancy_id"], name: "index_sda_participant_matches_on_sda_vacancy_id"
+    t.index ["tenant_id"], name: "index_sda_participant_matches_on_tenant_id"
+  end
+
+  create_table "sda_participant_outcomes", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "tenancy_id"
+    t.bigint "tenant_id", null: false
+    t.string "outcome_type", null: false
+    t.date "assessment_date", null: false
+    t.string "period"
+    t.integer "overall_satisfaction"
+    t.integer "housing_quality_rating"
+    t.integer "maintenance_response_rating"
+    t.integer "safety_rating"
+    t.integer "independence_rating"
+    t.integer "community_access_rating"
+    t.text "participant_goals"
+    t.text "goals_progress"
+    t.string "goals_status"
+    t.text "participant_feedback"
+    t.text "sil_provider_feedback"
+    t.text "family_feedback"
+    t.text "action_items"
+    t.bigint "assessed_by_user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assessed_by_user_id"], name: "index_sda_participant_outcomes_on_assessed_by_user_id"
+    t.index ["contact_id", "assessment_date"], name: "idx_on_contact_id_assessment_date_f5048b391c"
+    t.index ["contact_id"], name: "index_sda_participant_outcomes_on_contact_id"
+    t.index ["property_id"], name: "index_sda_participant_outcomes_on_property_id"
+    t.index ["tenancy_id"], name: "index_sda_participant_outcomes_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_sda_participant_outcomes_on_tenant_id"
+  end
+
+  create_table "sda_policies", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "policy_type", null: false
+    t.string "category", null: false
+    t.string "title", null: false
+    t.string "reference_number"
+    t.string "status", default: "draft", null: false
+    t.string "version", default: "1.0"
+    t.date "effective_date"
+    t.date "review_date"
+    t.date "last_reviewed_date"
+    t.date "expiry_date"
+    t.integer "review_interval_months", default: 12
+    t.text "summary"
+    t.text "content"
+    t.bigint "document_blob_id"
+    t.bigint "owner_user_id"
+    t.bigint "approved_by_user_id"
+    t.date "approved_date"
+    t.string "ndis_practice_standard"
+    t.boolean "ndis_required", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_user_id"], name: "index_sda_policies_on_approved_by_user_id"
+    t.index ["category", "status"], name: "index_sda_policies_on_category_and_status"
+    t.index ["document_blob_id"], name: "index_sda_policies_on_document_blob_id"
+    t.index ["owner_user_id"], name: "index_sda_policies_on_owner_user_id"
+    t.index ["review_date"], name: "index_sda_policies_on_review_date"
+    t.index ["status"], name: "index_sda_policies_on_status"
+    t.index ["tenant_id"], name: "index_sda_policies_on_tenant_id"
+  end
+
+  create_table "sda_price_guides", force: :cascade do |t|
+    t.string "financial_year", null: false
+    t.string "version", null: false
+    t.date "valid_from", null: false
+    t.date "valid_to"
+    t.boolean "current", default: false, null: false
+    t.string "source_url"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["current"], name: "index_sda_price_guides_on_current"
+    t.index ["financial_year"], name: "index_sda_price_guides_on_financial_year"
+  end
+
+  create_table "sda_rent_ledger_entries", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "tenancy_id"
+    t.bigint "contact_id"
+    t.bigint "tenant_id", null: false
+    t.string "entry_type", null: false
+    t.date "entry_date", null: false
+    t.string "reference"
+    t.string "description"
+    t.decimal "debit_amount", precision: 12, scale: 2, default: "0.0"
+    t.decimal "credit_amount", precision: 12, scale: 2, default: "0.0"
+    t.decimal "running_balance", precision: 12, scale: 2
+    t.boolean "trust_account", default: false
+    t.string "trust_reference"
+    t.boolean "reconciled", default: false
+    t.date "reconciled_date"
+    t.boolean "is_bond_transaction", default: false
+    t.string "bond_lodgement_number"
+    t.string "payment_method"
+    t.bigint "gl_invoice_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_sda_rent_ledger_entries_on_contact_id"
+    t.index ["entry_type"], name: "index_sda_rent_ledger_entries_on_entry_type"
+    t.index ["gl_invoice_id"], name: "index_sda_rent_ledger_entries_on_gl_invoice_id"
+    t.index ["property_id", "entry_date"], name: "index_sda_rent_ledger_entries_on_property_id_and_entry_date"
+    t.index ["property_id"], name: "index_sda_rent_ledger_entries_on_property_id"
+    t.index ["tenancy_id", "entry_date"], name: "index_sda_rent_ledger_entries_on_tenancy_id_and_entry_date"
+    t.index ["tenancy_id"], name: "index_sda_rent_ledger_entries_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_sda_rent_ledger_entries_on_tenant_id"
+    t.index ["trust_account"], name: "index_sda_rent_ledger_entries_on_trust_account"
+  end
+
+  create_table "sda_restrictive_practices", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "tenant_id", null: false
+    t.bigint "sda_incident_id"
+    t.string "practice_type", null: false
+    t.string "status", default: "active", null: false
+    t.boolean "authorized", default: false, null: false
+    t.string "authorization_source"
+    t.string "bsp_reference"
+    t.date "bsp_start_date"
+    t.date "bsp_end_date"
+    t.string "bsp_practitioner_name"
+    t.string "bsp_practitioner_number"
+    t.datetime "used_at", null: false
+    t.integer "duration_minutes"
+    t.text "reason", null: false
+    t.text "description"
+    t.text "participant_response"
+    t.text "debrief_notes"
+    t.boolean "ndis_reportable", default: false
+    t.boolean "ndis_reported", default: false
+    t.date "ndis_reported_date"
+    t.string "ndis_report_reference"
+    t.boolean "reported_within_5_days"
+    t.bigint "recorded_by_user_id"
+    t.bigint "approved_by_user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_user_id"], name: "index_sda_restrictive_practices_on_approved_by_user_id"
+    t.index ["authorized"], name: "index_sda_restrictive_practices_on_authorized"
+    t.index ["contact_id", "practice_type"], name: "idx_on_contact_id_practice_type_22367a3171"
+    t.index ["contact_id"], name: "index_sda_restrictive_practices_on_contact_id"
+    t.index ["property_id"], name: "index_sda_restrictive_practices_on_property_id"
+    t.index ["recorded_by_user_id"], name: "index_sda_restrictive_practices_on_recorded_by_user_id"
+    t.index ["sda_incident_id"], name: "index_sda_restrictive_practices_on_sda_incident_id"
+    t.index ["status"], name: "index_sda_restrictive_practices_on_status"
+    t.index ["tenant_id"], name: "index_sda_restrictive_practices_on_tenant_id"
+  end
+
+  create_table "sda_sil_providers", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "tenant_id", null: false
+    t.string "status", default: "active", null: false
+    t.date "agreement_start_date"
+    t.date "agreement_end_date"
+    t.string "agreement_reference"
+    t.bigint "agreement_blob_id"
+    t.string "service_type"
+    t.integer "staff_ratio"
+    t.boolean "provides_overnight", default: false
+    t.boolean "provides_24hr", default: false
+    t.decimal "satisfaction_rating", precision: 3, scale: 1
+    t.integer "incident_count", default: 0
+    t.date "last_review_date"
+    t.date "next_review_date"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["agreement_blob_id"], name: "index_sda_sil_providers_on_agreement_blob_id"
+    t.index ["contact_id"], name: "index_sda_sil_providers_on_contact_id"
+    t.index ["property_id", "status"], name: "index_sda_sil_providers_on_property_id_and_status"
+    t.index ["property_id"], name: "index_sda_sil_providers_on_property_id"
+    t.index ["tenant_id"], name: "index_sda_sil_providers_on_tenant_id"
+  end
+
+  create_table "sda_vacancies", force: :cascade do |t|
+    t.bigint "property_id", null: false
+    t.bigint "tenancy_id"
+    t.bigint "tenant_id", null: false
+    t.date "vacancy_start_date", null: false
+    t.date "vacancy_end_date"
+    t.string "status", default: "open", null: false
+    t.string "vacancy_reason"
+    t.boolean "ndia_notified", default: false
+    t.date "ndia_notified_date"
+    t.string "sda_finder_listing_id"
+    t.date "sda_finder_listed_date"
+    t.date "sda_finder_expiry_date"
+    t.decimal "daily_lost_income", precision: 10, scale: 2
+    t.decimal "total_lost_income", precision: 12, scale: 2
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "housing_hub_listing_id"
+    t.date "housing_hub_listed_date"
+    t.string "gonest_listing_id"
+    t.date "gonest_listed_date"
+    t.index ["property_id", "status"], name: "index_sda_vacancies_on_property_id_and_status"
+    t.index ["property_id"], name: "index_sda_vacancies_on_property_id"
+    t.index ["status"], name: "index_sda_vacancies_on_status"
+    t.index ["tenancy_id"], name: "index_sda_vacancies_on_tenancy_id"
+    t.index ["tenant_id"], name: "index_sda_vacancies_on_tenant_id"
   end
 
   create_table "share_transfers", force: :cascade do |t|
@@ -10742,6 +11442,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "po_conditions", comment: "Custom PO Conditions of Acceptance (array of strings)"
     t.jsonb "config_sync_table_modes", default: {}
     t.jsonb "enabled_modules", default: {}, null: false
+    t.string "ndis_registration_number"
+    t.jsonb "sda_config", default: {}, null: false
+    t.string "sharepoint_default_url", comment: "Default SharePoint URL opened from nav (e.g., https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents)"
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
@@ -12714,6 +13417,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "microsoft_credentials", "users", column: "setup_by_id"
   add_foreign_key "navigation_items", "navigation_groups", name: "navigation_items_navigation_group_id_fkey"
   add_foreign_key "navigation_items", "navigation_items", column: "parent_id", name: "fk_navigation_items_parent"
+  add_foreign_key "ndis_claims", "contacts"
+  add_foreign_key "ndis_claims", "properties"
+  add_foreign_key "ndis_claims", "tenancies"
   add_foreign_key "notebook_activities", "notebook_pages", column: "page_id"
   add_foreign_key "notebook_activities", "notebook_sections", column: "section_id"
   add_foreign_key "notebook_activities", "notebooks"
@@ -12875,6 +13581,86 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "saas_billing_records", "gl_invoices"
   add_foreign_key "scheduled_emails", "imap_credentials"
   add_foreign_key "scheduled_emails", "users", column: "created_by_id"
+  add_foreign_key "sda_agreements", "contacts"
+  add_foreign_key "sda_agreements", "properties"
+  add_foreign_key "sda_agreements", "storage_blobs", column: "document_blob_id"
+  add_foreign_key "sda_agreements", "tenancies"
+  add_foreign_key "sda_agreements", "tenants"
+  add_foreign_key "sda_agreements", "users", column: "created_by_user_id"
+  add_foreign_key "sda_arrears", "contacts"
+  add_foreign_key "sda_arrears", "properties"
+  add_foreign_key "sda_arrears", "tenancies"
+  add_foreign_key "sda_arrears", "tenants"
+  add_foreign_key "sda_benchmark_rates", "sda_price_guides"
+  add_foreign_key "sda_claims", "contacts"
+  add_foreign_key "sda_claims", "properties"
+  add_foreign_key "sda_claims", "tenancies"
+  add_foreign_key "sda_claims", "tenants"
+  add_foreign_key "sda_claims", "users", column: "submitted_by_user_id"
+  add_foreign_key "sda_compliance_items", "properties"
+  add_foreign_key "sda_compliance_items", "storage_blobs", column: "certificate_blob_id"
+  add_foreign_key "sda_compliance_items", "tenants"
+  add_foreign_key "sda_conflict_of_interests", "contacts", column: "declarant_contact_id"
+  add_foreign_key "sda_conflict_of_interests", "contacts", column: "related_contact_id"
+  add_foreign_key "sda_conflict_of_interests", "properties", column: "related_property_id"
+  add_foreign_key "sda_conflict_of_interests", "tenants"
+  add_foreign_key "sda_conflict_of_interests", "users", column: "declarant_user_id"
+  add_foreign_key "sda_conflict_of_interests", "users", column: "reviewed_by_user_id"
+  add_foreign_key "sda_design_assessments", "properties"
+  add_foreign_key "sda_design_assessments", "storage_blobs", column: "certificate_blob_id"
+  add_foreign_key "sda_design_assessments", "tenants"
+  add_foreign_key "sda_enquiries", "properties"
+  add_foreign_key "sda_enquiries", "users", column: "assigned_to_user_id"
+  add_foreign_key "sda_incidents", "contacts"
+  add_foreign_key "sda_incidents", "properties"
+  add_foreign_key "sda_incidents", "tenancies"
+  add_foreign_key "sda_incidents", "tenants"
+  add_foreign_key "sda_incidents", "users", column: "five_day_form_submitted_by_user_id"
+  add_foreign_key "sda_incidents", "users", column: "investigated_by_user_id"
+  add_foreign_key "sda_incidents", "users", column: "reported_by_user_id"
+  add_foreign_key "sda_incidents", "users", column: "ri_approver_user_id"
+  add_foreign_key "sda_incidents", "users", column: "ri_notifier_user_id"
+  add_foreign_key "sda_location_factors", "sda_price_guides"
+  add_foreign_key "sda_mrrc_rates", "sda_price_guides"
+  add_foreign_key "sda_notifications", "contacts", column: "recipient_contact_id"
+  add_foreign_key "sda_notifications", "properties"
+  add_foreign_key "sda_notifications", "tenants"
+  add_foreign_key "sda_notifications", "users", column: "recipient_user_id"
+  add_foreign_key "sda_owner_statements", "contacts", column: "owner_contact_id"
+  add_foreign_key "sda_owner_statements", "properties"
+  add_foreign_key "sda_owner_statements", "storage_blobs", column: "statement_blob_id"
+  add_foreign_key "sda_owner_statements", "tenants"
+  add_foreign_key "sda_participant_matches", "contacts"
+  add_foreign_key "sda_participant_matches", "sda_vacancies"
+  add_foreign_key "sda_participant_matches", "tenants"
+  add_foreign_key "sda_participant_matches", "users", column: "matched_by_user_id"
+  add_foreign_key "sda_participant_outcomes", "contacts"
+  add_foreign_key "sda_participant_outcomes", "properties"
+  add_foreign_key "sda_participant_outcomes", "tenancies"
+  add_foreign_key "sda_participant_outcomes", "tenants"
+  add_foreign_key "sda_participant_outcomes", "users", column: "assessed_by_user_id"
+  add_foreign_key "sda_policies", "storage_blobs", column: "document_blob_id"
+  add_foreign_key "sda_policies", "tenants"
+  add_foreign_key "sda_policies", "users", column: "approved_by_user_id"
+  add_foreign_key "sda_policies", "users", column: "owner_user_id"
+  add_foreign_key "sda_rent_ledger_entries", "contacts"
+  add_foreign_key "sda_rent_ledger_entries", "gl_invoices"
+  add_foreign_key "sda_rent_ledger_entries", "properties"
+  add_foreign_key "sda_rent_ledger_entries", "tenancies"
+  add_foreign_key "sda_rent_ledger_entries", "tenants"
+  add_foreign_key "sda_restrictive_practices", "contacts"
+  add_foreign_key "sda_restrictive_practices", "properties"
+  add_foreign_key "sda_restrictive_practices", "sda_incidents"
+  add_foreign_key "sda_restrictive_practices", "tenants"
+  add_foreign_key "sda_restrictive_practices", "users", column: "approved_by_user_id"
+  add_foreign_key "sda_restrictive_practices", "users", column: "recorded_by_user_id"
+  add_foreign_key "sda_sil_providers", "contacts"
+  add_foreign_key "sda_sil_providers", "properties"
+  add_foreign_key "sda_sil_providers", "storage_blobs", column: "agreement_blob_id"
+  add_foreign_key "sda_sil_providers", "tenants"
+  add_foreign_key "sda_vacancies", "properties"
+  add_foreign_key "sda_vacancies", "tenancies"
+  add_foreign_key "sda_vacancies", "tenants"
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
   add_foreign_key "share_transfers", "corporates", column: "company_id"
