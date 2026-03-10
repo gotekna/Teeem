@@ -804,6 +804,8 @@ module Api
             errors: record.errors.full_messages
           }, status: :unprocessable_entity
         end
+      rescue ActiveRecord::ReadOnlyRecord
+        render_error("Cannot edit shared records. These are managed by TEEEM and shared across all tenants.", status: :forbidden)
       rescue ActiveRecord::RecordNotFound
         render_error("Record not found", status: :not_found)
       rescue => e
@@ -839,6 +841,8 @@ module Api
         end
 
         render json: { success: true }
+      rescue ActiveRecord::ReadOnlyRecord
+        render_error("Cannot delete shared records. These are managed by TEEEM and shared across all tenants.", status: :forbidden)
       rescue ActiveRecord::RecordNotFound
         render_error("Record not found", status: :not_found)
       end
@@ -1086,6 +1090,8 @@ module Api
           total_requested: ids.size,
           errors: errors
         }
+      rescue ActiveRecord::ReadOnlyRecord => e
+        render_error("Cannot delete shared records. These are managed by TEEEM and shared across all tenants.", status: :forbidden)
       rescue => e
         render_error(e.message, status: :internal_server_error)
       end
@@ -1380,6 +1386,11 @@ module Api
           created_at: record.created_at,
           updated_at: record.updated_at
         }
+
+        # Add is_shared flag for global config records (tenant_id = NULL)
+        if record.respond_to?(:shared_record?)
+          json[:is_shared] = record.shared_record?
+        end
 
         # For system foundations, return all model attributes directly
         if @foundation.table_type == "system"

@@ -12,8 +12,9 @@ require "dentaku"
 # - computed: Calculated from other variables (wall_area = perimeter * height)
 #
 class QuantityVariable < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :variable_name
 
   # Constants

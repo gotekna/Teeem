@@ -518,7 +518,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       <Popover>
         <PopoverTrigger asChild>
           <button
-            className="flex items-center gap-1 text-right w-full hover:text-primary transition-colors group"
+            className="flex items-center gap-1 text-right w-full hover:text-primary transition-colors group text-[11px]"
             onClick={(e) => e.stopPropagation()}
           >
             <span className="flex-1 text-right tabular-nums">{formatCurrency(price)}</span>

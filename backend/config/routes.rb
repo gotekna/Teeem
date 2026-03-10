@@ -231,13 +231,6 @@ Rails.application.routes.draw do
         end
       end
 
-      # Batch Operations - Global routes for folder_scan, folder_process
-      # (Job-scoped routes are also nested under /jobs/:job_id/batch_operations)
-      resources :batch_operations, only: [ :create, :show ] do
-        collection do
-          get :active  # GET /api/v1/batch_operations/active
-        end
-      end
 
       # Document Standardization (Admin: batch rename documents to match naming conventions)
       # SSoT: DocumentType.naming_format defines the naming pattern
@@ -278,17 +271,7 @@ Rails.application.routes.draw do
         end
       end
 
-      # Plan Folder Scans (for Revit plan import workflow)
-      resources :plan_folder_scans, only: [:index, :destroy] do
-        collection do
-          get :pending_count  # GET /api/v1/plan_folder_scans/pending_count - for nav badge
-          post :scan_all      # POST /api/v1/plan_folder_scans/scan_all - scan all job folders
-        end
-        member do
-          post :process_scan  # POST /api/v1/plan_folder_scans/:id/process
-          post :skip          # POST /api/v1/plan_folder_scans/:id/skip
-        end
-      end
+      # Plan Folder Scans removed - legacy plan system deleted
 
       # Notifications
       resources :notifications, only: [ :index ] do
@@ -423,6 +406,7 @@ Rails.application.routes.draw do
 
       # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
       get "geocode/search", to: "geocode#search"
+      get "geocode/reverse", to: "geocode#reverse"
 
       # Job setup (types, statuses, and stages)
       resources :job_types do
@@ -501,8 +485,17 @@ Rails.application.routes.draw do
           post :toggle_template_sync  # Toggle SM template between synced/independent
           post :toggle_record_sync    # Toggle any ConfigSyncable record between synced/independent
           post :reconcile             # Verify/report/fix sync discrepancies across all tenants
+          post :promote_to_global     # TEEEM only — set tenant_id=NULL on a record to share globally
         end
       end
+      # Shared Config Dashboard
+      # GET /api/v1/shared_config/tables -> List all shared config tables with counts
+      resource :shared_config, only: [], controller: "shared_config" do
+        collection do
+          get :tables
+        end
+      end
+
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
 
       # User files from S3 (must be before resources :documents to avoid :id match)
@@ -543,6 +536,8 @@ Rails.application.routes.draw do
           patch :link_to_task  # Re-link orphaned document to a task
           patch :set_expiry  # Set or clear expiry date
           post :verify   # Mark document as verified/validated
+          post :unverify # Remove verification from document
+          patch :change_document_type # Change document type assignment
           post :share_link  # Generate shareable link (presigned URL)
         end
         collection do
@@ -621,8 +616,6 @@ Rails.application.routes.draw do
           post :merge
           # Plan set management
           get :plan_set
-          post :upload_plan_set
-          post :rename_plans
           # Contract generation
           post :generate_contract
           post :save_contract
@@ -713,9 +706,6 @@ Rails.application.routes.draw do
             get :tabs                 # GET /api/v1/jobs/:job_id/job_plans/tabs
             get :suggested_recipients # GET /api/v1/jobs/:job_id/job_plans/suggested_recipients
             post :email               # POST /api/v1/jobs/:job_id/job_plans/email
-            post :upload_plan_set     # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set - AI split (legacy)
-            post :fix_categories      # POST /api/v1/jobs/:job_id/job_plans/fix_categories - Reassign to correct tabs
-            post :rerun_ai            # POST /api/v1/jobs/:job_id/job_plans/rerun_ai - Re-run AI analysis
           end
           member do
             post :add_revision    # POST /api/v1/jobs/:job_id/job_plans/:id/add_revision
@@ -725,26 +715,6 @@ Rails.application.routes.draw do
           resources :revisions, controller: "job_plan_revisions", only: [ :index, :show, :create, :update, :destroy ]
         end
 
-        # Plan uploads - Progress-tracked plan set uploads (SSoT for plan uploads)
-        resources :plan_uploads, only: [ :index, :show, :create ] do
-          collection do
-            get :active               # GET /api/v1/jobs/:job_id/plan_uploads/active
-          end
-          member do
-            post :resume              # POST /api/v1/jobs/:job_id/plan_uploads/:id/resume
-          end
-        end
-
-        # Plan reextractions - Batch re-extraction with progress tracking
-        resources :plan_reextractions, only: [ :create, :show ]
-
-        # Batch operations - THE SSoT for all batch operation progress tracking
-        # Replaces: plan_uploads, plan_reextractions (backward compatible routes kept above)
-        resources :batch_operations, only: [ :create, :show ] do
-          collection do
-            get :active  # GET /api/v1/jobs/:job_id/batch_operations/active
-          end
-        end
 
         # Meetings (nested under jobs)
         resources :meetings, only: [ :index, :create ]
@@ -1413,6 +1383,232 @@ Rails.application.routes.draw do
       post "sms/status", to: "sms_messages#status_webhook"
 
       # ============================================
+      # Property Management
+      # ============================================
+      resource :property_settings, only: [:show, :update]
+
+      # SDA Price Guide
+      resource :sda_price_guide, only: [:show] do
+        get :rates
+        get :calculate
+        get :location_factors
+      end
+
+      # SDA Management
+      namespace :sda do
+        resources :vacancies do
+          member do
+            post :notify_ndia
+            get :matches
+            post :add_match
+            patch :update_match
+          end
+        end
+
+        resources :agreements do
+          collection do
+            get :expiring_soon
+          end
+        end
+
+        resources :claims do
+          collection do
+            get :stats
+          end
+          member do
+            post :submit
+          end
+        end
+
+        resources :sil_providers
+
+        resources :compliance, controller: "compliance" do
+          collection do
+            get :overdue
+            get :due_soon
+            get :dashboard
+          end
+        end
+
+        resources :incidents do
+          collection do
+            get :overdue_reports
+          end
+          member do
+            post :report_to_ndis
+          end
+        end
+
+        resources :outcomes do
+          collection do
+            get :summary
+          end
+        end
+
+        resources :design_assessments
+
+        # Rent Ledger & Trust Accounting
+        scope :rent_ledger do
+          get "/", to: "rent_ledger#entries"
+          post "/", to: "rent_ledger#create_entry"
+          patch "/:id", to: "rent_ledger#update_entry"
+          delete "/:id", to: "rent_ledger#destroy_entry"
+          get :balance, to: "rent_ledger#balance"
+          post :reconcile, to: "rent_ledger#reconcile"
+          get :arrears, to: "rent_ledger#arrears"
+          post :arrears, to: "rent_ledger#create_arrears"
+          patch "arrears/:id", to: "rent_ledger#update_arrears"
+        end
+
+        resources :restrictive_practices do
+          collection do
+            get :overdue
+          end
+          member do
+            post :report_to_ndis
+          end
+        end
+
+        resources :conflict_of_interests do
+          collection do
+            get :needs_review
+          end
+          member do
+            post :review
+          end
+        end
+
+        resources :policies do
+          collection do
+            get :due_for_review
+            get :dashboard
+          end
+          member do
+            post :approve
+          end
+        end
+
+        resources :notifications, controller: "notifications" do
+          collection do
+            get :overdue
+            get :dashboard
+          end
+          member do
+            post :acknowledge
+            post :retry_send
+          end
+        end
+
+        resources :owner_statements do
+          member do
+            post :generate
+            post :send_statement
+          end
+        end
+      end
+
+      resources :properties do
+        collection do
+          get :for_select
+          get :lookups
+          get :stats
+          post :from_job
+        end
+        member do
+          get :tenancies
+          get :bills
+          get :inspections
+          get :contacts
+          post :add_contact
+          delete :remove_contact
+          get :financials
+        end
+      end
+
+      resources :tenancies do
+        member do
+          patch :activate
+          patch :terminate
+        end
+      end
+
+      resources :property_bills do
+        member do
+          patch :approve
+        end
+      end
+
+      resources :property_inspections do
+        member do
+          patch :complete
+          patch :start
+          post :generate_report
+          post :send_report
+          post :generate_portal_link
+          post :sign
+        end
+
+        resources :inspection_rooms do
+          member do
+            post :duplicate
+          end
+
+          resources :inspection_items do
+            collection do
+              patch :bulk_update
+            end
+
+            resources :inspection_photos, only: [:index, :create, :destroy] do
+              member do
+                post :annotate
+              end
+            end
+          end
+        end
+      end
+
+      resources :inspection_room_templates do
+        collection do
+          post :seed_defaults
+        end
+      end
+
+      # ============================================
+      # SDA Management Hub
+      # ============================================
+
+      namespace :sda do
+        get "dashboard", to: "dashboard#show"
+        get "properties", to: "properties#index"
+
+        resources :enrolments, only: [:index] do
+          collection do
+            post :quick_enrol
+          end
+          member do
+            patch :update_status
+            get  :preflight
+          end
+        end
+
+        get "compliance", to: "compliance#index"
+      end
+
+      resources :ndis_claims do
+        collection do
+          post :generate_monthly
+          post :bulk_submit
+          get  :summary
+        end
+      end
+
+      resources :ndis_price_guides, only: [:index] do
+        collection do
+          get :rate
+        end
+      end
+
+      # ============================================
       # SaaS Customer Management
       # ============================================
 
@@ -1983,6 +2179,10 @@ Rails.application.routes.draw do
           post "brand/apply", action: :apply_brand
           get :po_template
           put :po_template, action: :update_po_template
+          get :modules
+          patch :modules, action: :update_modules
+          get :sda_config
+          patch :sda_config, action: :update_sda_config
         end
       end
 
@@ -1999,23 +2199,7 @@ Rails.application.routes.draw do
       # NOTE: Documentation Categories removed - SSoT: DocumentType with SmScheduleMasterDocumentType
       # The documentation_categories routes have been removed. Use document_types instead.
 
-      # Plan Categories and Types (Admin settings for Plans tab)
-      resources :plan_categories do
-        collection do
-          post :reorder
-        end
-      end
-      # Plan Types - independent of categories (many-to-many relationship)
-      resources :plan_types do
-        collection do
-          post :reorder
-          get :defaults
-          patch :defaults, action: :update_defaults
-        end
-        member do
-          post :assign_categories
-        end
-      end
+      # Plan Categories and Types removed - legacy plan system deleted, use DocumentTypes
       resources :revision_formats
 
       # TEEEM_DOCS Documentation Viewer
@@ -2065,7 +2249,13 @@ Rails.application.routes.draw do
       resources :user_roles, only: [ :index, :create, :destroy ]
 
       # User groups
-      resources :groups, only: [ :index, :create, :update, :destroy ], controller: 'user_groups'
+      resources :groups, only: [ :index, :create, :update, :destroy ], controller: 'user_groups' do
+        member do
+          get :members
+          post :add_member
+          delete :remove_member
+        end
+      end
 
       # Permissions management
       get "permissions", to: "permissions#index"
@@ -2076,6 +2266,12 @@ Rails.application.routes.draw do
       get "permissions/roles/:id/users", to: "permissions#role_users"
       get "permissions/user/:id", to: "permissions#user_permissions"
       post "permissions/grant", to: "permissions#grant"
+
+      # Section-level permissions (Mar 2026)
+      get "permissions/sections", to: "permissions#sections"
+      get "permissions/roles/:id/section_permissions", to: "permissions#role_section_permissions"
+      put "permissions/roles/:id/section_permissions", to: "permissions#update_section_permissions"
+      post "permissions/roles/:id/copy_from", to: "permissions#copy_from"
 
       # Contact types (full CRUD for admin management)
       resources :contact_types do
@@ -3292,6 +3488,13 @@ Rails.application.routes.draw do
           get :warehouse_health   # Data warehouse health checks for this company
           get :health   # Single company health score (fast - loads only this company)
           post :reveal_sensitive  # Returns TFN/ASIC credentials after password verification
+
+          # ASIC Portal Credentials (multi-user)
+          get :asic_credentials, action: :asic_credentials_index
+          post :asic_credentials, action: :asic_credentials_create
+          put "asic_credentials/:credential_id", action: :asic_credentials_update
+          delete "asic_credentials/:credential_id", action: :asic_credentials_destroy
+          post "asic_credentials/:credential_id/reveal", action: :asic_credentials_reveal
         end
 
         # Bank Accounts (nested under companies)
@@ -3552,6 +3755,7 @@ Rails.application.routes.draw do
         member do
           post :duplicate
           post :detect_signature_fields  # AI detection of signature positions in PDF
+          post :rematerialize_names      # Re-expand ui_name/download_name templates for all linked docs
         end
       end
 
@@ -3565,6 +3769,7 @@ Rails.application.routes.draw do
           get :scoped_tree          # FK-driven: folder counts for Job/Contact/Corporate tabs
           get :scoped_folder_files  # FK-driven: files + sub-folders for a specific folder
           get :context_records      # Returns related record IDs across warehouse types for an entity
+          get :document_counts     # Generic document counts per folder tab_key for any entity
         end
         member do
           patch :update_warehouse_folders  # Batch update warehouse folder assignments
@@ -3591,6 +3796,7 @@ Rails.application.routes.draw do
         end
         member do
           post :toggle
+          post :toggle_global
         end
       end
 
@@ -4636,6 +4842,7 @@ Rails.application.routes.draw do
         post "auth/validate_reset_token", to: "authentication#validate_reset_token"
         get "auth/me", to: "authentication#me"
         post "auth/impersonate/:contact_id", to: "authentication#impersonate"
+        post "auth/admin_preview", to: "authentication#admin_preview"
 
         # Quote requests (subcontractor view)
         resources :quote_requests, only: [ :index, :show ] do
@@ -4726,6 +4933,33 @@ Rails.application.routes.draw do
           end
           collection do
             get :eligible_purchase_orders
+          end
+        end
+
+        # Property Management Portal (tenant/owner access)
+        scope :property do
+          get "dashboard", to: "property_dashboard#show"
+          get "payments", to: "property_dashboard#payments"
+
+          resources :inspections, controller: "property_inspections", only: [:index, :show] do
+            member do
+              post :sign
+              post :comment
+              get :download_report
+            end
+          end
+
+          resources :maintenance, controller: "maintenance_requests", only: [:index, :create]
+
+          # Documents
+          get "documents", to: "property_documents#index"
+          get "documents/:id/download", to: "property_documents#download"
+
+          # Owner-only: Property valuations
+          resources :valuations, controller: "property_valuations", only: [:index, :show] do
+            member do
+              post :calculate
+            end
           end
         end
       end
@@ -4937,6 +5171,23 @@ Rails.application.routes.draw do
         # Documents
         get "openclaw/documents", to: "openclaw#documents_list"
         get "openclaw/documents/:id", to: "openclaw#documents_show"
+      end
+    end
+  end
+
+  # Public API (no authentication required)
+  namespace :api do
+    namespace :v1 do
+      namespace :public do
+        resources :sda_listings, only: [:index, :show], param: :slug do
+          collection do
+            get :featured
+            get :filters
+          end
+          member do
+            post :enquire
+          end
+        end
       end
     end
   end

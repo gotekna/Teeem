@@ -17,10 +17,15 @@ class NavigationItem < ApplicationRecord
     where("visible_to_roles = '{}' OR ? = ANY(visible_to_roles)", role)
   }
 
-  def visible_to?(user)
+  def visible_to?(user, enabled_modules: nil)
     # Check tenant visibility first (if restricted)
     if visible_to_tenant_ids.present?
       return false unless visible_to_tenant_ids.include?(user.tenant_id)
+    end
+
+    # Check module visibility (if item belongs to a module)
+    if module_key.present? && enabled_modules.present?
+      return false if enabled_modules[module_key] == false
     end
 
     # Then check role visibility (if restricted)

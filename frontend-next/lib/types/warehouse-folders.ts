@@ -10,7 +10,7 @@ import type { TabType } from '@/lib/constants/tab-types';
 
 // SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
-export type WarehouseFolderScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero' | 'library';
+export type WarehouseFolderScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero' | 'library' | 'property';
 
 // Tab groups - matches backend WarehouseFolder::TAB_GROUPS
 // 'system' is for system-managed tabs (email storage, warehousing) - read-only in UI
@@ -79,6 +79,7 @@ export interface WarehouseFolder {
     completedAt: string | null;
     status: string; // "not_started" | "started" | "waiting_for_response" | "waiting_for_info" | "completed"
   };
+  is_global?: boolean;  // SSoT: true = global (tenant_id=NULL), false = tenant-specific
   /** @deprecated Use tab_type === 'photo' instead */
   is_photo_category: boolean;
   /** @deprecated Use tab_type === 'revit' instead */
@@ -186,6 +187,7 @@ export const SCOPE_LABELS: Record<WarehouseFolderScope, string> = {
   task: 'Task',
   xero: 'Xero',
   library: 'Library',
+  property: 'Property Management',
 };
 
 // Tab group display names for UI

@@ -153,6 +153,9 @@ export function ScheduleMasterSyncTab() {
   // Expandable template breakdown rows
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
 
+  // Tables using global shared records (no sync needed)
+  const [globalRecordTables, setGlobalRecordTables] = useState<Set<string>>(new Set());
+
   // Sync coverage: linked vs local-only vs master-only per table
   // Non-master: { table: { linked, local_only, master_only } }
   // Master: { table: { tenantSlug: { linked, local_only, master_only } } }
@@ -215,6 +218,7 @@ export function ScheduleMasterSyncTab() {
         last_config_sync_at?: string | null;
         last_config_sync_by?: string | null;
         sync_coverage?: Record<string, CoverageEntry | Record<string, CoverageEntry>>;
+        tables?: { key: string; uses_global_records?: boolean }[];
       }>("/api/v1/config_sync/tables");
 
       // Also fetch saved table modes
@@ -229,6 +233,15 @@ export function ScheduleMasterSyncTab() {
         setIsMasterTenant(response.is_master_tenant || false);
         if (response.sync_coverage) {
           setSyncCoverage(response.sync_coverage);
+        }
+
+        // Identify tables using global shared records (no sync needed)
+        if (response.tables) {
+          const globalSet = new Set<string>();
+          for (const t of response.tables) {
+            if (t.uses_global_records) globalSet.add(t.key);
+          }
+          setGlobalRecordTables(globalSet);
         }
 
         if (response.is_master_tenant && response.all_tenants && response.all_tenant_counts) {
@@ -606,6 +619,12 @@ export function ScheduleMasterSyncTab() {
       setCurrentTableIndex(i);
       setBatchProgress(null);
 
+      // Skip tables using global shared records (no sync needed)
+      if (globalRecordTables.has(table.key)) {
+        setTableStatus((prev) => ({ ...prev, [table.key]: "skipped" }));
+        continue;
+      }
+
       // Skip tables set to "independent" - they should not be synced
       const mode = getTableMode(table.key, table.defaultMode);
       if (mode === "independent") {
@@ -698,6 +717,12 @@ export function ScheduleMasterSyncTab() {
       const table = SM_SYNC_TABLES[i];
       setCurrentTableIndex(i);
       setBatchProgress(null);
+
+      // Skip tables using global shared records (no sync needed)
+      if (globalRecordTables.has(table.key)) {
+        setTableStatus((prev) => ({ ...prev, [table.key]: "skipped" }));
+        continue;
+      }
 
       const mode = getTableMode(table.key, table.defaultMode);
       if (mode === "independent") {
@@ -1159,571 +1184,367 @@ export function ScheduleMasterSyncTab() {
             </div>
           )}
 
-          {/* Table list */}
-          <div className="border rounded-md overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px] text-center">#</TableHead>
-                  <TableHead>Table</TableHead>
-                  {/* Show per-tenant counts for master tenant */}
-                  {isMasterTenant && allTenants.length > 0 ? (
-                    allTenants.map((t) => (
-                      <TableHead key={t.slug} className="text-right w-[70px]">
-                        {t.name.length > 8 ? t.slug : t.name}
-                      </TableHead>
-                    ))
-                  ) : (
-                    <>
-                      <TableHead className="text-right w-[70px]">{sourceLabel}</TableHead>
-                      <TableHead className="text-right w-[70px]">{localLabel}</TableHead>
-                    </>
-                  )}
-                  <TableHead className="w-[80px] text-center">Sync</TableHead>
-                  <TableHead className="w-[180px] text-right">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {SM_SYNC_TABLES.map((table, index) => {
-                  const status = tableStatus[table.key];
-                  const result = tableResults[table.key];
-                  const sourceCount = getSourceCount(table.key);
-                  const localCount = getLocalCount(table.key);
-                  const isComparing = diffTable === table.key;
+          {/* Table list — 2-column layout to avoid scrolling */}
+          {(() => {
+            const mid = Math.ceil(SM_SYNC_TABLES.length / 2);
+            const halves = [SM_SYNC_TABLES.slice(0, mid), SM_SYNC_TABLES.slice(mid)] as const;
 
-                  // Check if counts differ across tenants (for master mode)
-                  let countsDiffer = false;
-                  if (isMasterTenant && allTenants.length > 0) {
-                    const counts = allTenants.map((t) => allTenantCounts[table.key]?.[t.slug] || 0);
-                    countsDiffer = new Set(counts).size > 1;
-                  } else {
-                    countsDiffer = sourceCount !== localCount && sourceCount > 0;
-                  }
+            const renderTableHalf = (tables: readonly typeof SM_SYNC_TABLES[number][], startIdx: number) => (
+              <div className="border rounded-md overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[28px] text-center text-xs py-1.5">#</TableHead>
+                      <TableHead className="text-xs py-1.5">Table</TableHead>
+                      {isMasterTenant && allTenants.length > 0 ? (
+                        allTenants.map((t) => (
+                          <TableHead key={t.slug} className="text-right w-[50px] text-xs py-1.5 px-1">
+                            {t.slug.charAt(0).toUpperCase() + t.slug.slice(1, 4)}
+                          </TableHead>
+                        ))
+                      ) : (
+                        <>
+                          <TableHead className="text-right w-[50px] text-xs py-1.5 px-1">{sourceLabel.length > 5 ? sourceLabel.slice(0, 5) : sourceLabel}</TableHead>
+                          <TableHead className="text-right w-[50px] text-xs py-1.5 px-1">{localLabel.length > 5 ? localLabel.slice(0, 5) : localLabel}</TableHead>
+                        </>
+                      )}
+                      <TableHead className="w-[60px] text-center text-xs py-1.5">Sync</TableHead>
+                      <TableHead className="w-[40px] text-right text-xs py-1.5"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tables.map((table, localIdx) => {
+                      const globalIdx = startIdx + localIdx;
+                      const status = tableStatus[table.key];
+                      const result = tableResults[table.key];
+                      const sourceCount = getSourceCount(table.key);
+                      const localCount = getLocalCount(table.key);
+                      const isComparing = diffTable === table.key;
 
-                  return (
-                    <React.Fragment key={table.key}>
-                      <TableRow
-                        className={cn(
-                          status === "syncing" && "bg-blue-50/50 dark:bg-blue-950/20",
-                          status === "done" && "bg-green-50/30 dark:bg-green-950/10",
-                          status === "error" && "bg-red-50/30 dark:bg-red-950/10",
-                          isComparing && "bg-blue-50/30 dark:bg-blue-950/10",
-                        )}
-                      >
-                        <TableCell className="text-center text-xs text-muted-foreground tabular-nums py-2">
-                          {index + 1}
-                        </TableCell>
-                        <TableCell className="py-2">
-                          <div className="flex items-center gap-2">
-                            {/* Expandable chevron for tables with template breakdown */}
-                            {(() => {
-                              // Non-master: use own coverage; master: use source tenant's coverage
-                              const cov = isMasterTenant
-                                ? (() => {
-                                    const perTenant = syncCoverage[table.key] as Record<string, CoverageEntry> | undefined;
-                                    return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
-                                  })()
-                                : (syncCoverage[table.key] as CoverageEntry | undefined);
-                              const teeemTemplates = cov && "templates" in cov && cov.templates ? cov.templates.filter((t) => t.name.toLowerCase().startsWith("teeem")) : [];
-                              const hasTemplates = teeemTemplates.length > 1;
-                              const teeemRecords = cov && "records" in cov && cov.records ? cov.records.filter((r) => r.name.toLowerCase().startsWith("teeem")) : [];
-                              const hasRecords = teeemRecords.length > 0;
-                              if (hasTemplates || hasRecords) {
-                                const isExpanded = expandedTables.has(table.key);
-                                return (
+                      let countsDiffer = false;
+                      if (isMasterTenant && allTenants.length > 0) {
+                        const counts = allTenants.map((t) => allTenantCounts[table.key]?.[t.slug] || 0);
+                        countsDiffer = new Set(counts).size > 1;
+                      } else {
+                        countsDiffer = sourceCount !== localCount && sourceCount > 0;
+                      }
+
+                      return (
+                        <React.Fragment key={table.key}>
+                          <TableRow
+                            className={cn(
+                              "group",
+                              status === "syncing" && "bg-blue-50/50 dark:bg-blue-950/20",
+                              status === "done" && "bg-green-50/30 dark:bg-green-950/10",
+                              status === "error" && "bg-red-50/30 dark:bg-red-950/10",
+                              isComparing && "bg-blue-50/30 dark:bg-blue-950/10",
+                            )}
+                          >
+                            <TableCell className="text-center text-[11px] text-muted-foreground tabular-nums py-1.5 px-1">
+                              {globalIdx + 1}
+                            </TableCell>
+                            <TableCell className="py-1.5 px-1">
+                              <div className="flex items-center gap-1">
+                                {/* Expandable chevron */}
+                                {(() => {
+                                  const cov = isMasterTenant
+                                    ? (() => {
+                                        const perTenant = syncCoverage[table.key] as Record<string, CoverageEntry> | undefined;
+                                        return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
+                                      })()
+                                    : (syncCoverage[table.key] as CoverageEntry | undefined);
+                                  const teeemTemplates = cov && "templates" in cov && cov.templates ? cov.templates.filter((t) => t.name.toLowerCase().startsWith("teeem")) : [];
+                                  const teeemRecords = cov && "records" in cov && cov.records ? cov.records.filter((r) => r.name.toLowerCase().startsWith("teeem")) : [];
+                                  if (teeemTemplates.length > 1 || teeemRecords.length > 0) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        className="text-muted-foreground hover:text-foreground transition-colors -ml-0.5 shrink-0"
+                                        onClick={() => {
+                                          setExpandedTables(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(table.key)) next.delete(table.key);
+                                            else next.add(table.key);
+                                            return next;
+                                          });
+                                        }}
+                                      >
+                                        {expandedTables.has(table.key) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                      </button>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                                <span className="text-xs font-medium truncate">{table.label}</span>
+                                {globalRecordTables.has(table.key) && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800 shrink-0">
+                                    Shared
+                                  </Badge>
+                                )}
+                                {isMasterTenant && !syncing && !cascading && (
                                   <button
                                     type="button"
-                                    className="text-muted-foreground hover:text-foreground transition-colors -ml-1"
-                                    onClick={() => {
-                                      setExpandedTables(prev => {
-                                        const next = new Set(prev);
-                                        if (next.has(table.key)) next.delete(table.key);
-                                        else next.add(table.key);
-                                        return next;
-                                      });
-                                    }}
+                                    className={cn(
+                                      "shrink-0 opacity-0 group-hover:opacity-100 transition-opacity",
+                                      isComparing && "opacity-100",
+                                    )}
+                                    onClick={() => handleCompare(table.key)}
+                                    disabled={diffLoading && diffTable === table.key}
+                                    title="Compare"
                                   >
-                                    {isExpanded
-                                      ? <ChevronDown className="h-4 w-4" />
-                                      : <ChevronRight className="h-4 w-4" />
-                                    }
+                                    {diffLoading && diffTable === table.key ? (
+                                      <Spinner className="h-3 w-3" />
+                                    ) : isComparing ? (
+                                      <X className="h-3 w-3 text-muted-foreground" />
+                                    ) : (
+                                      <GitCompare className="h-3 w-3 text-muted-foreground" />
+                                    )}
                                   </button>
-                                );
-                              }
-                              return null;
-                            })()}
-                            <span className="text-sm font-medium">{table.label}</span>
-                            {isMasterTenant && !syncing && (
-                              <Button
-                                variant={isComparing ? "secondary" : "ghost"}
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => handleCompare(table.key)}
-                                disabled={diffLoading && diffTable === table.key}
-                              >
-                                {diffLoading && diffTable === table.key ? (
-                                  <Spinner className="h-3 w-3" />
-                                ) : isComparing ? (
-                                  <X className="h-3 w-3" />
-                                ) : (
-                                  <GitCompare className="h-3 w-3" />
                                 )}
-                                <span className="ml-1">{isComparing ? "Close" : "Compare"}</span>
-                              </Button>
-                            )}
-                          </div>
-                          {status === "error" && result?.error && (
-                            <div className="text-xs text-red-500 dark:text-red-400 mt-0.5 truncate max-w-[250px]" title={result.error}>
-                              {result.error}
-                            </div>
-                          )}
-                        </TableCell>
-                        {/* Per-tenant counts */}
-                        {isMasterTenant && allTenants.length > 0 ? (
-                          allTenants.map((t) => {
-                            const count = allTenantCounts[table.key]?.[t.slug] || 0;
-                            // For non-master tenants, show linked+unlinked breakdown
-                            const tenantCov = !t.is_master
-                              ? (syncCoverage[table.key] as Record<string, CoverageEntry> | undefined)?.[t.slug]
-                              : undefined;
-                            return (
-                              <TableCell key={t.slug} className={cn(
-                                "text-right tabular-nums text-sm py-2",
-                                countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
-                              )}>
-                                {count.toLocaleString()}
-                              </TableCell>
-                            );
-                          })
-                        ) : (
-                          <>
-                            <TableCell className="text-right tabular-nums text-sm py-2">
-                              {sourceCount.toLocaleString()}
+                              </div>
+                              {status === "error" && result?.error && (
+                                <div className="text-[10px] text-red-500 dark:text-red-400 mt-0.5 truncate" title={result.error}>
+                                  {result.error}
+                                </div>
+                              )}
                             </TableCell>
-                            <TableCell className={cn(
-                              "text-right tabular-nums text-sm py-2",
-                              countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
-                            )}>
-                              {(() => {
-                                const cov = syncCoverage[table.key] as CoverageEntry | undefined;
-                                if (cov && "local_only" in cov && cov.local_only > 0) {
-                                  return (
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span>{cov.linked.toLocaleString()}</span>
-                                      <span
-                                        className="text-amber-600 dark:text-amber-400"
-                                        title={`${cov.local_only} local-only record${cov.local_only !== 1 ? "s" : ""} (not in source)`}
+                            {/* Counts */}
+                            {isMasterTenant && allTenants.length > 0 ? (
+                              allTenants.map((t) => {
+                                const count = allTenantCounts[table.key]?.[t.slug] || 0;
+                                return (
+                                  <TableCell key={t.slug} className={cn(
+                                    "text-right tabular-nums text-xs py-1.5 px-1",
+                                    countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
+                                  )}>
+                                    {count.toLocaleString()}
+                                  </TableCell>
+                                );
+                              })
+                            ) : (
+                              <>
+                                <TableCell className="text-right tabular-nums text-xs py-1.5 px-1">
+                                  {sourceCount.toLocaleString()}
+                                </TableCell>
+                                <TableCell className={cn(
+                                  "text-right tabular-nums text-xs py-1.5 px-1",
+                                  countsDiffer && !hasResults && "text-amber-600 dark:text-amber-400 font-medium"
+                                )}>
+                                  {localCount.toLocaleString()}
+                                </TableCell>
+                              </>
+                            )}
+                            {/* Sync mode */}
+                            <TableCell className="text-center py-1.5 px-0.5">
+                              {globalRecordTables.has(table.key) ? (
+                                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">Shared</span>
+                              ) : isMasterTenant && nonMasterTenants.length > 0 ? (
+                                <div className="flex flex-col items-center">
+                                  {nonMasterTenants.map((t) => {
+                                    const mode = getTenantTableMode(t.slug, table.key, table.defaultMode);
+                                    const st = SYNC_MODE_LABELS[mode];
+                                    return (
+                                      <button
+                                        key={t.slug}
+                                        type="button"
+                                        className={cn("text-[9px] font-medium whitespace-nowrap cursor-pointer hover:underline transition-colors leading-tight", st.color)}
+                                        onClick={() => handleCycleTenantMode(t, table.key, mode)}
+                                        title={`${t.name}: click to change sync direction`}
                                       >
-                                        +{cov.local_only}
-                                      </span>
-                                    </div>
-                                  );
-                                }
-                                // Show delta when local has more than source (e.g. tasks pending propagation)
-                                const localDelta = localCount - sourceCount;
-                                if (localDelta > 0) {
+                                        {t.name.split(" ")[0].slice(0, 3)}: {st.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                (() => {
+                                  const mode = getTableMode(table.key, table.defaultMode);
+                                  const st = SYNC_MODE_LABELS[mode];
+                                  if (!st) return null;
                                   return (
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span>{localCount.toLocaleString()}</span>
-                                      <span
-                                        className="text-muted-foreground text-[10px]"
-                                        title={`${localDelta} local record${localDelta !== 1 ? "s" : ""} not yet in source (propagating to other tenants)`}
-                                      >
-                                        +{localDelta}
-                                      </span>
-                                    </div>
+                                    <button
+                                      type="button"
+                                      className={cn("text-[10px] font-medium cursor-pointer hover:underline transition-colors", st.color)}
+                                      onClick={() => handleCycleSyncMode(table.key, mode)}
+                                      title="Click to change sync direction"
+                                    >
+                                      {st.label}
+                                    </button>
                                   );
-                                }
-                                return localCount.toLocaleString();
+                                })()
+                              )}
+                            </TableCell>
+                            {/* Status */}
+                            <TableCell className="text-right py-1.5 px-1">
+                              <div className="flex items-center justify-end gap-1">
+                                {renderStatusIcon(status)}
+                                {status === "done" && result && (result.imported > 0 || result.updated > 0) && (
+                                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                                    {result.imported > 0 && <span className="text-green-600 dark:text-green-400">+{result.imported}</span>}
+                                    {result.imported > 0 && result.updated > 0 && "/"}
+                                    {result.updated > 0 && <span className="text-blue-600 dark:text-blue-400">{result.updated}u</span>}
+                                  </span>
+                                )}
+                              </div>
+                              {isMasterTenant && cascadeResults[table.key] && (() => {
+                                const totalPromoted = Object.values(cascadeResults[table.key]).reduce((sum, r) => sum + (r.promoted_to_master || 0), 0);
+                                if (totalPromoted === 0) return null;
+                                return <span className="text-[9px] text-blue-600 dark:text-blue-400 cursor-help block" title="Promoted to TEEEM">{"\u2191"}{totalPromoted}</span>;
                               })()}
                             </TableCell>
-                          </>
-                        )}
-                        <TableCell className="text-center py-2">
-                          {isMasterTenant && nonMasterTenants.length > 0 ? (
-                            // Master view: each tenant's mode — clickable to change that tenant's setting
-                            <div className="flex flex-col items-center gap-0.5">
-                              {nonMasterTenants.map((t) => {
-                                const mode = getTenantTableMode(t.slug, table.key, table.defaultMode);
-                                const st = SYNC_MODE_LABELS[mode];
-                                return (
-                                  <button
-                                    key={t.slug}
-                                    type="button"
-                                    className={cn("text-[10px] font-medium whitespace-nowrap cursor-pointer hover:underline transition-colors", st.color)}
-                                    onClick={() => handleCycleTenantMode(t, table.key, mode)}
-                                    title={`${t.name}: click to change sync direction`}
-                                  >
-                                    {t.name.split(" ")[0]}: {st.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            (() => {
-                              const mode = getTableMode(table.key, table.defaultMode);
-                              const st = SYNC_MODE_LABELS[mode];
-                              if (!st) return null;
+                          </TableRow>
+
+                          {/* Template breakdown sub-rows */}
+                          {expandedTables.has(table.key) && (() => {
+                            const cov = isMasterTenant
+                              ? (() => {
+                                  const perTenant = syncCoverage[table.key] as Record<string, CoverageEntry> | undefined;
+                                  return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
+                                })()
+                              : (syncCoverage[table.key] as CoverageEntry | undefined);
+                            const allTemplates = cov && "templates" in cov ? cov.templates : undefined;
+                            const templates = allTemplates?.filter((t) => t.name.toLowerCase().startsWith("teeem"));
+                            if (!templates || templates.length === 0) return null;
+
+                            return templates.map((tmpl) => {
+                              const recMode = getRecordMode(table.key, tmpl.id, table.defaultMode);
                               return (
-                                <button
-                                  type="button"
-                                  className={cn(
-                                    "text-xs font-medium cursor-pointer hover:underline transition-colors",
-                                    st.color,
-                                  )}
-                                  onClick={() => handleCycleSyncMode(table.key, mode)}
-                                  title={`Click to change sync direction (${SYNC_MODES.map(m => SYNC_MODE_LABELS[m].label).join(" → ")})`}
-                                >
-                                  {st.label}
-                                </button>
-                              );
-                            })()
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right py-2">
-                          <div className="flex flex-col items-end gap-1">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {renderStatusIcon(status)}
-                              {status === "syncing" && batchProgress && currentTableIndex === index && (
-                                <span className="text-xs text-muted-foreground tabular-nums">
-                                  {batchProgress.processed.toLocaleString()}/{batchProgress.total.toLocaleString()}
-                                </span>
-                              )}
-                              {status === "done" && result && (
-                                <span className="text-xs text-muted-foreground">
-                                  {result.imported > 0 && <span className="text-green-600 dark:text-green-400">+{result.imported}</span>}
-                                  {result.imported > 0 && result.updated > 0 && ", "}
-                                  {result.updated > 0 && (
-                                    <span
-                                      className="text-blue-600 dark:text-blue-400"
-                                      title={[
-                                        `${result.updated} record${result.updated !== 1 ? "s" : ""} updated`,
-                                        result.skipped > 0 ? `${result.skipped} already up to date` : null,
-                                        result.imported > 0 ? `${result.imported} created` : null,
-                                      ].filter(Boolean).join(" · ")}
+                                <TableRow key={`${table.key}-tmpl-${tmpl.id}`} className="bg-muted/30">
+                                  <TableCell className="py-1" />
+                                  <TableCell className="py-1 pl-8">
+                                    <span className="text-[10px] text-muted-foreground truncate block">{tmpl.name}</span>
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-[10px] text-muted-foreground py-1 px-1">
+                                    {tmpl.master_tasks != null ? tmpl.master_tasks.toLocaleString() : ""}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-[10px] text-muted-foreground py-1 px-1">
+                                    {tmpl.tasks.toLocaleString()}
+                                  </TableCell>
+                                  <TableCell className="text-center py-1">
+                                    <button className={cn("text-[10px] font-medium cursor-pointer hover:underline", SYNC_MODE_LABELS[recMode].color)}
+                                      onClick={() => handleCycleRecordMode(table.key, tmpl.id, recMode)}
                                     >
-                                      {result.updated} upd
-                                    </span>
-                                  )}
-                                  {result.imported === 0 && result.updated === 0 && "up to date"}
-                                </span>
-                              )}
-                              {status === "skipped" && (
-                                <span className="text-xs text-muted-foreground">no changes</span>
-                              )}
-                              {status === "error" && result && (
-                                <span className="text-xs text-destructive" title={result.error || "Unknown error"}>
-                                  {result.imported > 0 || result.updated > 0
-                                    ? `${result.imported + result.updated} ok, failed`
-                                    : (result.error || "failed")}
-                                </span>
-                              )}
-                            </div>
-                            {/* Promoted-to-master: orphaned records that are in-use, so we sync them up to TEEEM */}
-                            {isMasterTenant && cascadeResults[table.key] && (() => {
-                              const totalPromoted = Object.values(cascadeResults[table.key]).reduce((sum, r) => sum + (r.promoted_to_master || 0), 0);
-                              if (totalPromoted === 0) return null;
+                                      {SYNC_MODE_LABELS[recMode].label}
+                                    </button>
+                                  </TableCell>
+                                  <TableCell className="py-1" />
+                                </TableRow>
+                              );
+                            });
+                          })()}
+
+                          {/* Records breakdown sub-rows */}
+                          {expandedTables.has(table.key) && (() => {
+                            const cov = isMasterTenant
+                              ? (() => {
+                                  const perTenant = syncCoverage[table.key] as Record<string, CoverageEntry> | undefined;
+                                  return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
+                                })()
+                              : (syncCoverage[table.key] as CoverageEntry | undefined);
+                            const allRecords = cov && "records" in cov ? cov.records : undefined;
+                            const records = allRecords?.filter((r) => r.name.toLowerCase().startsWith("teeem"));
+                            if (!records || records.length === 0) return null;
+
+                            return records.map((rec) => {
+                              const isMasterOnly = rec.id < 0;
+                              const recMode = getRecordMode(table.key, rec.id, table.defaultMode, isMasterOnly ? rec.name : undefined);
+                              const rowKey = isMasterOnly ? `${table.key}-master-${rec.name}` : `${table.key}-rec-${rec.id}`;
                               return (
-                                <span
-                                  className="text-[10px] text-blue-600 dark:text-blue-400 cursor-help"
-                                  title="Tenant-only records promoted to TEEEM — will be distributed to all tenants on the next cascade sync"
-                                >
-                                  ↑ {totalPromoted} promoted to TEEEM
-                                </span>
+                                <TableRow key={rowKey} className="bg-muted/30">
+                                  <TableCell className="py-1" />
+                                  <TableCell className="py-1 pl-8">
+                                    <span className="text-[10px] text-muted-foreground truncate block">{rec.name}</span>
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-[10px] text-muted-foreground py-1 px-1">
+                                    {rec.master_count != null && rec.master_count > 0 ? rec.master_count.toLocaleString() : ""}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-[10px] text-muted-foreground py-1 px-1">
+                                    {rec.count != null && rec.count > 0 ? rec.count.toLocaleString() : "0"}
+                                  </TableCell>
+                                  <TableCell className="text-center py-1">
+                                    <button className={cn("text-[10px] font-medium cursor-pointer hover:underline", SYNC_MODE_LABELS[recMode].color)}
+                                      onClick={() => handleCycleRecordMode(table.key, rec.id, recMode, isMasterOnly ? rec.name : undefined)}
+                                    >
+                                      {SYNC_MODE_LABELS[recMode].label}
+                                    </button>
+                                  </TableCell>
+                                  <TableCell className="py-1" />
+                                </TableRow>
                               );
-                            })()}
-                            {/* Skipped orphans warning — records that couldn't be deleted because they're still referenced */}
-                            {isMasterTenant && cascadeResults[table.key] && (() => {
-                              const allSkipped = Object.entries(cascadeResults[table.key]).flatMap(([tenantSlug, r]) =>
-                                (r.skipped_orphans || []).map((o) => ({ ...o, tenantSlug }))
-                              );
-                              if (allSkipped.length === 0) return null;
-                              const tooltip = allSkipped
-                                .map((o) => `${o.tenantSlug}: "${o.name}" still used by ${o.referenced_by} — remove that reference first`)
-                                .join("\n");
-                              return (
-                                <span
-                                  className="text-[10px] text-amber-600 dark:text-amber-400 cursor-help"
-                                  title={tooltip}
-                                >
-                                  ⚠ {allSkipped.length} can&apos;t delete (hover)
-                                </span>
-                              );
-                            })()}
-                            {/* Phase 0 failed — records that failed to pull into TEEEM (FK remap failures) */}
-                            {isMasterTenant && phase0Results[table.key] && (() => {
-                              const allFailed = Object.entries(phase0Results[table.key]).flatMap(([tenantSlug, r]) =>
-                                (r.failed || []).map((s) => ({ ...s, tenantSlug }))
-                              );
-                              if (allFailed.length === 0) return null;
-                              const tooltip = allFailed
-                                .map((s) => `${s.tenantSlug}: "${s.name}" — ${s.reason}`)
-                                .join("\n");
-                              return (
-                                <span
-                                  className="text-[10px] text-red-600 dark:text-red-400 cursor-help"
-                                  title={tooltip}
-                                >
-                                  ⚠ {allFailed.length} failed to pull (hover)
-                                </span>
-                              );
-                            })()}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                            });
+                          })()}
 
-                      {/* Template breakdown sub-rows */}
-                      {expandedTables.has(table.key) && (() => {
-                        const cov = isMasterTenant
-                          ? (() => {
-                              const perTenant = syncCoverage[table.key] as Record<string, CoverageEntry> | undefined;
-                              return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
-                            })()
-                          : (syncCoverage[table.key] as CoverageEntry | undefined);
-                        const allTemplates = cov && "templates" in cov ? cov.templates : undefined;
-                        // Only show Teeem-prefixed templates (others are tenant-specific/independent)
-                        const templates = allTemplates?.filter((t) => t.name.toLowerCase().startsWith("teeem"));
-                        if (!templates || templates.length === 0) return null;
-
-                        return templates.map((tmpl) => {
-                          const recMode = getRecordMode(table.key, tmpl.id, table.defaultMode);
-                          return (
-                            <TableRow key={`${table.key}-tmpl-${tmpl.id}`} className="bg-muted/30">
-                              <TableCell className="py-1.5" />
-                              <TableCell className="py-1.5 pl-10">
-                                <span className="text-xs text-muted-foreground">{tmpl.name}</span>
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
-                                {tmpl.master_tasks != null ? tmpl.master_tasks.toLocaleString() : ""}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
-                                {tmpl.tasks.toLocaleString()}
-                              </TableCell>
-                              <TableCell className="text-center py-1.5">
-                                {isMasterTenant && nonMasterTenants.length > 0 ? (
-                                  <div className="flex flex-col items-center gap-0">
-                                    {nonMasterTenants.map((t) => {
-                                      const mode = getTenantRecordMode(t.slug, table.key, tmpl.id, table.defaultMode);
-                                      const st = SYNC_MODE_LABELS[mode];
-                                      return (
-                                        <button
-                                          key={t.slug}
-                                          type="button"
-                                          className={cn("text-[10px] font-medium whitespace-nowrap cursor-pointer hover:underline transition-colors", st.color)}
-                                          onClick={() => handleCycleTenantRecordMode(t, table.key, tmpl.id, mode)}
-                                          title={`${t.name}: click to change sync direction`}
-                                        >
-                                          {t.name.split(" ")[0]}: {st.label}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <button
-                                    className={cn(
-                                      "text-[11px] font-medium cursor-pointer hover:underline",
-                                      SYNC_MODE_LABELS[recMode].color,
-                                    )}
-                                    title="Click to change sync direction for this record"
-                                    onClick={() => handleCycleRecordMode(table.key, tmpl.id, recMode)}
-                                  >
-                                    {SYNC_MODE_LABELS[recMode].label}
-                                  </button>
-                                )}
-                              </TableCell>
-                              <TableCell className="py-1.5" />
-                            </TableRow>
-                          );
-                        });
-                      })()}
-
-                      {/* Records breakdown sub-rows (Quote Templates, PO Packs, PO Items, PO Line Items) */}
-                      {expandedTables.has(table.key) && (() => {
-                        const cov = isMasterTenant
-                          ? (() => {
-                              const perTenant = syncCoverage[table.key] as Record<string, CoverageEntry> | undefined;
-                              return sourceTenant ? perTenant?.[sourceTenant.slug] : undefined;
-                            })()
-                          : (syncCoverage[table.key] as CoverageEntry | undefined);
-                        const allRecords = cov && "records" in cov ? cov.records : undefined;
-                        // Only show Teeem-prefixed records (others are tenant-specific/independent)
-                        const records = allRecords?.filter((r) => r.name.toLowerCase().startsWith("teeem"));
-                        if (!records || records.length === 0) return null;
-
-                        return records.map((rec) => {
-                          // Master-only records have negative IDs (exist in TEEEM but not locally)
-                          const isMasterOnly = rec.id < 0;
-                          // Master-only records use name-based mode keys to survive ID changes
-                          const recMode = getRecordMode(table.key, rec.id, table.defaultMode, isMasterOnly ? rec.name : undefined);
-                          // Use name-based key for master-only records to avoid collisions
-                          const rowKey = isMasterOnly
-                            ? `${table.key}-master-${rec.name}`
-                            : `${table.key}-rec-${rec.id}`;
-                          return (
-                            <TableRow key={rowKey} className="bg-muted/30">
-                              <TableCell className="py-1.5" />
-                              <TableCell className="py-1.5 pl-10">
-                                <span className="text-xs text-muted-foreground">{rec.name}</span>
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
-                                {rec.master_count != null && rec.master_count > 0 ? rec.master_count.toLocaleString() : ""}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-xs text-muted-foreground py-1.5">
-                                {rec.count != null && rec.count > 0 ? rec.count.toLocaleString() : "0"}
-                              </TableCell>
-                              <TableCell className="text-center py-1.5">
-                                {isMasterTenant && nonMasterTenants.length > 0 ? (
-                                  <div className="flex flex-col items-center gap-0">
-                                    {nonMasterTenants.map((t) => {
-                                      const mode = getTenantRecordMode(t.slug, table.key, rec.id, table.defaultMode, isMasterOnly ? rec.name : undefined);
-                                      const st = SYNC_MODE_LABELS[mode];
-                                      return (
-                                        <button
-                                          key={t.slug}
-                                          type="button"
-                                          className={cn("text-[10px] font-medium whitespace-nowrap cursor-pointer hover:underline transition-colors", st.color)}
-                                          onClick={() => handleCycleTenantRecordMode(t, table.key, rec.id, mode, isMasterOnly ? rec.name : undefined)}
-                                          title={`${t.name}: click to change sync direction`}
-                                        >
-                                          {t.name.split(" ")[0]}: {st.label}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <button
-                                    className={cn(
-                                      "text-[11px] font-medium cursor-pointer hover:underline",
-                                      SYNC_MODE_LABELS[recMode].color,
-                                    )}
-                                    title={isMasterOnly
-                                      ? "Click to change sync direction (not yet synced locally)"
-                                      : "Click to change sync direction for this record"}
-                                    onClick={() => handleCycleRecordMode(table.key, rec.id, recMode, isMasterOnly ? rec.name : undefined)}
-                                  >
-                                    {SYNC_MODE_LABELS[recMode].label}
-                                  </button>
-                                )}
-                              </TableCell>
-                              <TableCell className="py-1.5" />
-                            </TableRow>
-                          );
-                        });
-                      })()}
-
-                      {/* Skipped orphan sub-rows — tenant records that couldn't be deleted (FK violation) — now auto-promoted to TEEEM */}
-                      {expandedTables.has(table.key) && isMasterTenant && cascadeResults[table.key] && (() => {
-                        const allSkipped = Object.entries(cascadeResults[table.key]).flatMap(([tenantSlug, r]) =>
-                          (r.skipped_orphans || []).map((o) => ({ ...o, tenantSlug }))
-                        );
-                        if (allSkipped.length === 0) return null;
-                        const colSpan = allTenants.length > 0 ? allTenants.length + 4 : 6;
-                        return (
-                          <React.Fragment key={`${table.key}-orphans`}>
-                            <TableRow className="bg-blue-50/20 dark:bg-blue-950/10">
-                              <TableCell colSpan={colSpan} className="py-1 px-4">
-                                <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
-                                  ↑ {allSkipped.length} tenant-only record{allSkipped.length !== 1 ? "s" : ""} still referenced — promoted to TEEEM (run cascade again to distribute)
-                                </span>
-                              </TableCell>
-                            </TableRow>
-                            {allSkipped.map((o, i) => (
-                              <TableRow key={`${table.key}-orphan-${o.tenantSlug}-${o.id}-${i}`} className="bg-amber-50/10 dark:bg-amber-950/5">
-                                <TableCell className="py-1" />
-                                <TableCell className="py-1 pl-10">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">{o.name}</span>
-                                    <span className="text-[10px] text-muted-foreground">({o.tenantSlug})</span>
-                                  </div>
-                                </TableCell>
-                                {allTenants.map((t) => (
-                                  <TableCell key={t.slug} className="py-1" />
-                                ))}
-                                <TableCell className="py-1" />
-                                <TableCell className="py-1 text-right">
-                                  <span
-                                    className="text-[10px] text-amber-600 dark:text-amber-400"
-                                    title={`Remove the reference in ${o.referenced_by} first, then re-sync to clean this up`}
-                                  >
-                                    used by {o.referenced_by}
+                          {/* Compact orphan/phase0 indicators */}
+                          {expandedTables.has(table.key) && isMasterTenant && cascadeResults[table.key] && (() => {
+                            const allSkipped = Object.entries(cascadeResults[table.key]).flatMap(([, r]) =>
+                              (r.skipped_orphans || []).map((o) => ({ ...o }))
+                            );
+                            if (allSkipped.length === 0) return null;
+                            const colCount = isMasterTenant && allTenants.length > 0 ? allTenants.length + 4 : 6;
+                            return (
+                              <TableRow key={`${table.key}-orphans`} className="bg-blue-50/20 dark:bg-blue-950/10">
+                                <TableCell colSpan={colCount} className="py-1 px-2">
+                                  <span className="text-[9px] text-blue-600 dark:text-blue-400">
+                                    {"\u2191"} {allSkipped.length} promoted to TEEEM
                                   </span>
                                 </TableCell>
                               </TableRow>
-                            ))}
-                          </React.Fragment>
-                        );
-                      })()}
+                            );
+                          })()}
 
-                      {/* Phase 0 failed sub-rows — records that failed to pull into TEEEM (FK remap failures) */}
-                      {expandedTables.has(table.key) && isMasterTenant && phase0Results[table.key] && (() => {
-                        const allFailed = Object.entries(phase0Results[table.key]).flatMap(([tenantSlug, r]) =>
-                          (r.failed || []).map((s) => ({ ...s, tenantSlug }))
-                        );
-                        if (allFailed.length === 0) return null;
-                        const colSpan = allTenants.length > 0 ? allTenants.length + 4 : 6;
-                        return (
-                          <React.Fragment key={`${table.key}-phase0`}>
-                            <TableRow className="bg-red-50/20 dark:bg-red-950/10">
-                              <TableCell colSpan={colSpan} className="py-1 px-4">
-                                <span className="text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide">
-                                  ⚠ {allFailed.length} record{allFailed.length !== 1 ? "s" : ""} failed to pull into TEEEM (FK remap failures)
-                                </span>
-                              </TableCell>
-                            </TableRow>
-                            {allFailed.map((s, i) => (
-                              <TableRow key={`${table.key}-phase0-${s.tenantSlug}-${i}`} className="bg-red-50/10 dark:bg-red-950/5">
-                                <TableCell className="py-1" />
-                                <TableCell className="py-1 pl-10">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-red-600 dark:text-red-400 font-medium">{s.name}</span>
-                                    <span className="text-[10px] text-muted-foreground">({s.tenantSlug})</span>
-                                  </div>
-                                </TableCell>
-                                {allTenants.map((t) => (
-                                  <TableCell key={t.slug} className="py-1" />
-                                ))}
-                                <TableCell className="py-1" />
-                                <TableCell className="py-1 text-right">
-                                  <span
-                                    className="text-[10px] text-red-600 dark:text-red-400"
-                                    title={s.reason}
-                                  >
-                                    {s.reason.length > 60 ? s.reason.slice(0, 60) + "..." : s.reason}
+                          {expandedTables.has(table.key) && isMasterTenant && phase0Results[table.key] && (() => {
+                            const allFailed = Object.entries(phase0Results[table.key]).flatMap(([tenantSlug, r]) =>
+                              (r.failed || []).map((s) => ({ ...s, tenantSlug }))
+                            );
+                            if (allFailed.length === 0) return null;
+                            const colCount = isMasterTenant && allTenants.length > 0 ? allTenants.length + 4 : 6;
+                            return (
+                              <TableRow key={`${table.key}-phase0`} className="bg-red-50/20 dark:bg-red-950/10">
+                                <TableCell colSpan={colCount} className="py-1 px-2">
+                                  <span className="text-[9px] text-red-600 dark:text-red-400" title={allFailed.map(s => `${s.tenantSlug}: ${s.name} \u2014 ${s.reason}`).join("\n")}>
+                                    {"\u26a0"} {allFailed.length} failed to pull (hover)
                                   </span>
                                 </TableCell>
                               </TableRow>
-                            ))}
-                          </React.Fragment>
-                        );
-                      })()}
+                            );
+                          })()}
+                        </React.Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            );
 
-                      {/* Inline diff panel */}
-                      {isComparing && diffData && (
-                        <TableRow>
-                          <TableCell colSpan={isMasterTenant && allTenants.length > 0 ? allTenants.length + 4 : 6} className="p-0">
-                            <DiffPanel
-                              diffData={diffData}
-                              diffError={diffError}
-                              winners={winners}
-                              setWinners={setWinners}
-                              showIdentical={showIdentical}
-                              setShowIdentical={setShowIdentical}
-                              visibleRecords={visibleDiffRecords}
-                              selectedCount={selectedWinnerCount}
-                              applying={applying}
-                              applyResult={applyResult}
-                              onApply={handleApplyWinners}
-                              formatFieldValue={formatFieldValue}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+            return (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  {renderTableHalf(halves[0], 0)}
+                  {renderTableHalf(halves[1], mid)}
+                </div>
+
+                {/* Compare diff panel — full width below the grid */}
+                {diffTable && diffData && (
+                  <div className="border rounded-md overflow-hidden mt-3">
+                    <DiffPanel
+                      diffData={diffData}
+                      diffError={diffError}
+                      winners={winners}
+                      setWinners={setWinners}
+                      showIdentical={showIdentical}
+                      setShowIdentical={setShowIdentical}
+                      visibleRecords={visibleDiffRecords}
+                      selectedCount={selectedWinnerCount}
+                      applying={applying}
+                      applyResult={applyResult}
+                      onApply={handleApplyWinners}
+                      formatFieldValue={formatFieldValue}
+                    />
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Progress bar */}
           {syncing && (

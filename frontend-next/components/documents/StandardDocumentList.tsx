@@ -16,7 +16,7 @@
  */
 
 import * as React from "react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -56,6 +56,9 @@ import {
   Upload,
   ChevronRight,
   ChevronDown,
+  ShieldX,
+  RefreshCw,
+  Search,
 } from "lucide-react";
 import { formatFileSize } from "@/utils/formatters";
 import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
@@ -98,6 +101,8 @@ export interface LibraryDocument {
   isExpiringSoon: boolean;
   expiryStatus: string | null;
   daysUntilExpiry: number | null;
+  documentTypeId?: number | null;
+  documentTypeName?: string | null;
 }
 
 // SSoT: SmTaskInfo type defined in warehouse/types.ts, re-exported here
@@ -117,6 +122,10 @@ export interface StandardDocumentListProps {
   onEmail?: (docs: LibraryDocument[]) => void;
   /** Callback when a document is verified */
   onVerify?: (doc: LibraryDocument) => void;
+  /** Callback when a document's verification is removed */
+  onUnverify?: (doc: LibraryDocument) => void;
+  /** Callback when a document's document type is changed */
+  onChangeDocumentType?: (doc: LibraryDocument, documentTypeId: number | null) => void;
   /** Callback when a document's expiry date is set/changed */
   onSetExpiry?: (doc: LibraryDocument, date: Date | null) => void;
   /** SM Task info (optional - shows status bar above list) */
@@ -493,6 +502,8 @@ export function StandardDocumentList({
   canDrag = false,
   onEmail,
   onVerify,
+  onUnverify,
+  onChangeDocumentType,
   onSetExpiry,
   smTaskInfo,
   emptyMessage = "No documents yet",
@@ -533,10 +544,41 @@ export function StandardDocumentList({
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [validationGateDoc, setValidationGateDoc] = useState<LibraryDocument | null>(null);
 
+  // Keep previewDoc in sync with documents prop (e.g., after verify updates displayName)
+  useEffect(() => {
+    if (previewDoc) {
+      const updated = documents.find(d => d.id === previewDoc.id);
+      if (updated && updated !== previewDoc) {
+        setPreviewDoc(updated);
+      }
+    }
+  }, [documents]);
+
   // Version history
   const [versionHistory, setVersionHistory] = useState<LibraryDocument[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+
+  // Document type picker
+  const [docTypePickerOpen, setDocTypePickerOpen] = useState(false);
+  const [availableDocTypes, setAvailableDocTypes] = useState<{ id: number; name: string; display_name: string }[]>([]);
+  const [docTypesLoading, setDocTypesLoading] = useState(false);
+  const [docTypeSearch, setDocTypeSearch] = useState("");
+
+  const fetchDocumentTypes = useCallback(async () => {
+    if (availableDocTypes.length > 0) return; // Already loaded
+    setDocTypesLoading(true);
+    try {
+      const res = await api.get<{ success: boolean; data: { id: number; name: string; display_name: string }[] }>("/api/v1/document_types?for=select");
+      if (res?.success) {
+        setAvailableDocTypes(res.data);
+      }
+    } catch {
+      // Silently fail - picker will show empty
+    } finally {
+      setDocTypesLoading(false);
+    }
+  }, [availableDocTypes.length]);
 
   // DnD sensors
   const sensors = createDndSensors();
@@ -876,6 +918,19 @@ export function StandardDocumentList({
                 By validating, you confirm you have reviewed this document and it is correct.
               </p>
               <div className="flex items-center gap-2 shrink-0">
+                {validationGateDoc.documentTypeId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      window.open(`/admin/system/document-types/${validationGateDoc.documentTypeId}`, "_blank");
+                    }}
+                    title="Edit document type naming & settings"
+                  >
+                    <FileText className="h-4 w-4 mr-1.5" />
+                    Edit Document Type
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => setValidationGateDoc(null)}
@@ -911,7 +966,7 @@ export function StandardDocumentList({
 
       {/* Document preview sheet */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent side="right" className="w-[600px] sm:max-w-[600px] p-0 flex flex-col">
+        <SheetContent side="right-wide" className="p-0 flex flex-col">
           {previewDoc && (
             <>
               {/* Sheet header */}
@@ -958,11 +1013,18 @@ export function StandardDocumentList({
                       </Badge>
                     )}
                     {showVerifiedBadge && previewDoc.verified ? (
-                      <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+                      <Badge
+                        className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                      >
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Verified{previewDoc.verifiedBy ? ` by ${previewDoc.verifiedBy}` : ""}{previewDoc.verifiedAt ? ` on ${new Date(previewDoc.verifiedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}
                       </Badge>
                     ) : null}
+                    {previewDoc.documentTypeName && (
+                      <Badge variant="outline" className="text-xs">
+                        {previewDoc.documentTypeName}
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -1027,6 +1089,87 @@ export function StandardDocumentList({
                       <ShieldCheck className="h-3.5 w-3.5 mr-1" />
                       Validate
                     </Button>
+                  )}
+                  {showVerifyActions && onUnverify && previewDoc.verified && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
+                      onClick={() => onUnverify(previewDoc)}
+                    >
+                      <ShieldX className="h-3.5 w-3.5 mr-1" />
+                      Unvalidate
+                    </Button>
+                  )}
+                  {showVerifyActions && onChangeDocumentType && (
+                    <Popover open={docTypePickerOpen} onOpenChange={(open) => {
+                      setDocTypePickerOpen(open);
+                      if (open) fetchDocumentTypes();
+                    }}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-7"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                          {previewDoc.documentTypeName ? "Change Type" : "Set Type"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-0" align="end">
+                        <div className="p-2 border-b">
+                          <div className="flex items-center gap-1.5 px-2 py-1 bg-muted/50 rounded-md">
+                            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <input
+                              type="text"
+                              placeholder="Search document types..."
+                              className="text-xs bg-transparent outline-none w-full placeholder:text-muted-foreground"
+                              value={docTypeSearch}
+                              onChange={(e) => setDocTypeSearch(e.target.value)}
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-48 overflow-auto p-1">
+                          {docTypesLoading ? (
+                            <div className="flex items-center justify-center py-4">
+                              <Spinner className="h-4 w-4" />
+                            </div>
+                          ) : (
+                            <>
+                              {previewDoc.documentTypeId && (
+                                <button
+                                  className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted text-red-600 dark:text-red-400"
+                                  onClick={() => {
+                                    onChangeDocumentType(previewDoc, null);
+                                    setDocTypePickerOpen(false);
+                                    setDocTypeSearch("");
+                                  }}
+                                >
+                                  Remove document type
+                                </button>
+                              )}
+                              {availableDocTypes
+                                .filter(dt => !docTypeSearch || dt.display_name.toLowerCase().includes(docTypeSearch.toLowerCase()) || dt.name.toLowerCase().includes(docTypeSearch.toLowerCase()))
+                                .map(dt => (
+                                  <button
+                                    key={dt.id}
+                                    className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted ${dt.id === previewDoc.documentTypeId ? "bg-muted font-medium" : ""}`}
+                                    onClick={() => {
+                                      onChangeDocumentType(previewDoc, dt.id);
+                                      setDocTypePickerOpen(false);
+                                      setDocTypeSearch("");
+                                    }}
+                                  >
+                                    {dt.display_name}
+                                  </button>
+                                ))
+                              }
+                            </>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   )}
                   {onEmail && (
                     <Button

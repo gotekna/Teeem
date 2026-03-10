@@ -60,6 +60,21 @@ export interface BankAccount {
   last_transaction_date?: string;
 }
 
+export interface AsicPortalCredential {
+  id: number;
+  corporate_id: number;
+  contact_id?: number;
+  contact_name?: string;
+  username: string;
+  has_password: boolean;
+  recovery_question?: string;
+  has_recovery_answer: boolean;
+  status: "active" | "resigned" | "expired";
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Corporate {
   id: number;
   name: string;
@@ -118,6 +133,8 @@ export interface Corporate {
   has_tfn?: boolean;
   has_asic_password?: boolean;
   has_recovery_answer?: boolean;
+  // Multi-user ASIC portal credentials
+  asic_portal_credentials?: AsicPortalCredential[];
   bank_name?: string;
   bank_bsb?: string;
   bank_account_number?: string;

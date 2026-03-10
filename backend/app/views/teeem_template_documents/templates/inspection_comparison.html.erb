@@ -1,0 +1,265 @@
+<div class="comparison-report">
+  <style>
+    .comparison-report {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 11px;
+      color: #1a1a1a;
+      line-height: 1.4;
+    }
+    .report-header {
+      border-bottom: 3px solid #7c3aed;
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    .report-header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #4c1d95;
+      margin: 0 0 4px 0;
+    }
+    .report-header .meta {
+      font-size: 10px;
+      color: #6b7280;
+    }
+    .comparison-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .inspection-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px;
+    }
+    .inspection-card h3 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 0 0 6px 0;
+    }
+    .inspection-card.entry { border-left: 4px solid #3b82f6; }
+    .inspection-card.exit { border-left: 4px solid #7c3aed; }
+    .condition-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 9px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .comparison-table th,
+    .comparison-table td {
+      border: 1px solid #e2e8f0;
+      padding: 5px 8px;
+      font-size: 10px;
+    }
+    .comparison-table th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #475569;
+    }
+    .improved { background: #f0fdf4; }
+    .degraded { background: #fef2f2; }
+    .unchanged { background: #fefce8; }
+    .change-indicator {
+      font-size: 9px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 8px;
+    }
+    .change-improved { background: #dcfce7; color: #166534; }
+    .change-degraded { background: #fee2e2; color: #991b1b; }
+    .change-unchanged { color: #6b7280; }
+    .bond-claim {
+      margin-top: 24px;
+      border: 2px solid #dc2626;
+      border-radius: 6px;
+      padding: 16px;
+    }
+    .bond-claim h3 {
+      color: #dc2626;
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 12px 0;
+    }
+    .report-footer {
+      margin-top: 32px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 9px;
+      color: #9ca3af;
+      text-align: center;
+    }
+  </style>
+
+  <!-- Header -->
+  <div class="report-header">
+    <h1>Entry vs Exit Comparison Report</h1>
+    <div class="meta">
+      Property: <strong><%= exit[:property][:property_code] %> - <%= exit[:property][:name] || exit[:property][:address] %></strong>
+      | Generated: <%= generated_at.strftime("%d %B %Y") %>
+    </div>
+  </div>
+
+  <!-- Inspection Summaries -->
+  <div class="comparison-header">
+    <div class="inspection-card entry">
+      <h3>Entry Inspection</h3>
+      <div style="font-size: 10px; color: #6b7280;">
+        <div>Number: <%= entry[:summary][:inspection_number] %></div>
+        <div>Date: <%= entry[:summary][:inspection_date]&.strftime("%d %B %Y") %></div>
+        <div>Inspector: <%= entry[:summary][:inspector_name] || "N/A" %></div>
+        <div>
+          Overall:
+          <% if entry[:summary][:overall_condition] %>
+            <span class="condition-pill" style="background-color: <%= condition_colors[entry[:summary][:overall_condition]] %>;">
+              <%= condition_labels[entry[:summary][:overall_condition]] %>
+            </span>
+          <% else %>
+            Not assessed
+          <% end %>
+        </div>
+      </div>
+    </div>
+    <div class="inspection-card exit">
+      <h3>Exit Inspection</h3>
+      <div style="font-size: 10px; color: #6b7280;">
+        <div>Number: <%= exit[:summary][:inspection_number] %></div>
+        <div>Date: <%= exit[:summary][:inspection_date]&.strftime("%d %B %Y") %></div>
+        <div>Inspector: <%= exit[:summary][:inspector_name] || "N/A" %></div>
+        <div>
+          Overall:
+          <% if exit[:summary][:overall_condition] %>
+            <span class="condition-pill" style="background-color: <%= condition_colors[exit[:summary][:overall_condition]] %>;">
+              <%= condition_labels[exit[:summary][:overall_condition]] %>
+            </span>
+          <% else %>
+            Not assessed
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Room-by-Room Comparison -->
+  <% exit[:rooms].each do |exit_room| %>
+    <% entry_room = entry[:rooms].find { |r| r[:name] == exit_room[:name] } %>
+    <% next unless entry_room %>
+
+    <div style="margin-bottom: 16px; page-break-inside: avoid;">
+      <div style="background: #4c1d95; color: #fff; padding: 6px 12px; border-radius: 4px 4px 0 0; font-size: 12px; font-weight: 600;">
+        <%= exit_room[:name] %>
+      </div>
+
+      <table class="comparison-table" style="border-top: none;">
+        <thead>
+          <tr>
+            <th style="width: 25%;">Item</th>
+            <th style="width: 18%;">Entry Condition</th>
+            <th style="width: 18%;">Exit Condition</th>
+            <th style="width: 12%;">Change</th>
+            <th style="width: 27%;">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% exit_room[:items].each do |exit_item| %>
+            <% entry_item = entry_room[:items].find { |i| i[:name] == exit_item[:name] } %>
+            <%
+              change_class = ""
+              if entry_item && exit_item[:condition] && entry_item[:condition]
+                conditions = ["new", "good", "fair", "poor", "damaged"]
+                entry_idx = conditions.index(entry_item[:condition]) || 0
+                exit_idx = conditions.index(exit_item[:condition]) || 0
+                if exit_idx < entry_idx
+                  change_class = "improved"
+                elsif exit_idx > entry_idx
+                  change_class = "degraded"
+                end
+              end
+            %>
+            <tr class="<%= change_class %>">
+              <td><%= exit_item[:name] %></td>
+              <td>
+                <% ec = entry_item&.dig(:condition) %>
+                <% if ec %>
+                  <span class="condition-pill" style="background-color: <%= condition_colors[ec] %>;">
+                    <%= condition_labels[ec] %>
+                  </span>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td>
+                <% if exit_item[:condition] %>
+                  <span class="condition-pill" style="background-color: <%= condition_colors[exit_item[:condition]] %>;">
+                    <%= condition_labels[exit_item[:condition]] %>
+                  </span>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td>
+                <% if change_class == "improved" %>
+                  <span class="change-indicator change-improved">Improved</span>
+                <% elsif change_class == "degraded" %>
+                  <span class="change-indicator change-degraded">Degraded</span>
+                <% else %>
+                  <span class="change-indicator change-unchanged">—</span>
+                <% end %>
+              </td>
+              <td><%= exit_item[:notes] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <!-- Bond Claim Summary -->
+  <% if bond_claim_items.any? %>
+    <div class="bond-claim">
+      <h3>Bond Claim Summary — <%= bond_claim_items.count %> Degraded Item<%= bond_claim_items.count == 1 ? '' : 's' %></h3>
+      <p style="font-size: 10px; color: #6b7280; margin: 0 0 12px 0;">
+        The following items have degraded between entry and exit inspections and may be subject to bond deduction.
+      </p>
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Room</th>
+            <th>Item</th>
+            <th>Entry</th>
+            <th>Exit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% bond_claim_items.each do |diff| %>
+            <tr class="degraded">
+              <td><%= diff[:room] %></td>
+              <td><%= diff[:item] %></td>
+              <td>
+                <span class="condition-pill" style="background-color: <%= condition_colors[diff[:entry_condition]] %>;">
+                  <%= condition_labels[diff[:entry_condition]] %>
+                </span>
+              </td>
+              <td>
+                <span class="condition-pill" style="background-color: <%= condition_colors[diff[:exit_condition]] %>;">
+                  <%= condition_labels[diff[:exit_condition]] %>
+                </span>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <!-- Footer -->
+  <div class="report-footer">
+    Entry vs Exit Comparison Report | Generated on <%= generated_at.strftime("%d %B %Y at %I:%M %p") %> | Powered by TEEEM
+  </div>
+</div>

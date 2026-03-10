@@ -76,6 +76,7 @@ import type { Corporate } from "@/lib/types/corporate";
 
 // SSoT: Using unified WarehouseFolders API directly (Phase 5 - no adapter hooks)
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
+import { useDocumentCounts } from "@/lib/hooks/useDocumentCounts";
 import { getIcon } from "@/lib/icon-map";
 
 // =============================================================================
@@ -182,7 +183,6 @@ export default function CompanyDetailPage() {
     }
   };
 
-  const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
 
   // SSoT: Entity type normalization for tab filtering
@@ -202,6 +202,19 @@ export default function CompanyDetailPage() {
     scope: "corporate",
     entityType: normalizedEntityType,
   });
+
+  // SSoT: Document counts per folder tab (generic hook replaces company_documents/counts)
+  // Merge child counts + parent counts so both leaf-parent and child tabs get counts
+  const { counts: childDocCounts, parentCounts: parentDocCounts } = useDocumentCounts({
+    linkableType: "Corporate",
+    linkableId: companyId,
+    scope: "corporate",
+    entityType: normalizedEntityType,
+  });
+  const documentCounts = React.useMemo(
+    () => ({ ...childDocCounts, ...parentDocCounts }),
+    [childDocCounts, parentDocCounts]
+  );
 
   // Split tabs by group - SSoT: tab_group field from EntityTabs database
   // Overview sub-tabs are children of the "overview" main tab
@@ -296,19 +309,6 @@ export default function CompanyDetailPage() {
     await loadCompany();
   }, [loadCompany]);
 
-  // Load document counts for tabs
-  const loadDocumentCounts = React.useCallback(async () => {
-    try {
-      const response = await api.get<{ success: boolean; counts: Record<string, number> }>(
-        `/api/v1/company_documents/counts`,
-        { params: { company_id: companyId } }
-      );
-      setDocumentCounts(response.counts || {});
-    } catch (error) {
-      console.error("Failed to load document counts:", error);
-    }
-  }, [companyId]);
-
   // Load health score for header badge (fast endpoint - loads only this company)
   const loadHealthScore = React.useCallback(async () => {
     try {
@@ -341,10 +341,9 @@ export default function CompanyDetailPage() {
 
   React.useEffect(() => {
     loadCompany();
-    loadDocumentCounts();
     loadHealthScore();
-    // SSoT: Xero tabs now rendered via XeroTabRenderer (Phase 5)
-  }, [loadCompany, loadDocumentCounts, loadHealthScore]);
+    // SSoT: Document counts now handled by useDocumentCounts hook
+  }, [loadCompany, loadHealthScore]);
 
   // Navigate to a tab (URL is SSoT)
   const navigateToTab = React.useCallback((tabId: string) => {
@@ -513,20 +512,17 @@ export default function CompanyDetailPage() {
                   )}
                   {computedDocumentTabs.map((tab) => {
                     const Icon = tab.icon;
-                    const countKey = tab.id === "assets-docs" ? "assets-docs" :
-                                    tab.id === "dividends-docs" ? "dividends-docs" :
-                                    tab.id === "loans-docs" ? "loans-docs" :
-                                    tab.id === "minutes-docs" ? "minutes-docs" :
-                                    tab.id;
+                    // Map tab ID back to warehouse folder tab_key for count lookup
+                    const countKey = tab.id.endsWith("-docs") ? tab.id.replace(/-docs$/, "") : tab.id;
                     const count = documentCounts[countKey] || 0;
                     const showCount = !["documents-main", "data-main", "activity-main"].includes(tab.id);
                     return (
                       <TabsTrigger key={tab.id} value={tab.id}>
                         <Icon className="h-4 w-4 mr-1.5" />
                         {tab.name}
-                        {showCount && count > 0 && (
-                          <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-background/50">
-                            {count}
+                        {showCount && documentCounts[countKey] != null && (
+                          <span className="text-xs text-muted-foreground ml-0.5">
+                            ({count})
                           </span>
                         )}
                       </TabsTrigger>

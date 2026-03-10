@@ -461,8 +461,7 @@ module Api
           po_line_items: [ :pricebook_item_id, :qty ],
           # Document types for GET task spawning
           sm_schedule_master_document_types_attributes: [ :id, :document_type_id, :lag_days, :assigned_role, :_destroy ],
-          # Plan and document reference types (JSONB arrays)
-          plan_type_ids: [],
+          # Document reference types (JSONB array)
           document_ref_type_ids: []
         )
       end
@@ -565,9 +564,7 @@ module Api
           },
           tags: row.tags,
           color: row.color,
-          # Plan and document reference types (JSONB arrays of document_type IDs)
-          plan_type_ids: row.plan_type_ids || [],
-          plan_type_names: plan_type_names_for(row),
+          # Document reference types (JSONB array of document_type IDs)
           document_ref_type_ids: row.document_ref_type_ids || [],
           document_ref_type_names: document_ref_type_names_for(row),
           is_active: row.is_active,
@@ -722,14 +719,6 @@ module Api
 
           "#{task_name} (#{dep_string})"
         end.join(", ")
-      end
-
-      # SSoT: Resolve plan type IDs to names via DocumentType
-      # Memoized per request to avoid N+1 (batch all IDs across rows)
-      def plan_type_names_for(row)
-        ids = row.plan_type_ids || []
-        return [] if ids.empty?
-        ids.map { |id| document_type_names_map[id] }.compact
       end
 
       # SSoT: Resolve document reference type IDs to names via DocumentType

@@ -242,7 +242,6 @@ export const ROUTES = {
   DESIGN_SYSTEM: "/design-system",
   DESIGN_SYSTEM_KANBAN: "/design-system/kanban",
 
-  TASK_TEMPLATES: "/task-templates", // Redirects to /schedule-templates
   SCHEDULE_TEMPLATES: "/schedule-templates",
 
   // ===== Data & System =====
@@ -264,7 +263,7 @@ export const ROUTES = {
   JOB_COST_BUDGETS: "/job_cost_budgets",
   AI_TIMESHEET_SUGGESTIONS: "/ai_timesheet_suggestions",
 
-  // ===== Portal (Customer/Vendor) =====
+  // ===== Portal (Customer/Vendor/Tenant/Owner) =====
   PORTAL: {
     ROOT: "/portal",
     LOGIN: "/portal/login",
@@ -277,6 +276,13 @@ export const ROUTES = {
     SCHEDULE: "/portal/schedule",
     OFFLINE: "/portal?tab=offline",
     PREVIEW: "/portal/preview",
+    // Property management portal
+    PROPERTY_DASHBOARD: "/portal/property",
+    PROPERTY_INSPECTIONS: "/portal/property/inspections",
+    PROPERTY_MAINTENANCE: "/portal/property/maintenance",
+    PROPERTY_DOCUMENTS: "/portal/property/documents",
+    PROPERTY_PAYMENTS: "/portal/property/payments",
+    PROPERTY_VALUATIONS: "/portal/property/valuations",
   },
 
   // ===== Onboarding =====

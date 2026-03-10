@@ -4,7 +4,6 @@
 # Users can adjust these settings in Admin > System > AI Processing
 class AiServiceConfig < ApplicationRecord
   SERVICE_TYPES = {
-    "plan_identification" => { display: "Plan Identification", default_threshold: 80, ocr_enabled: true },
     "document_verification" => { display: "Document Verification", default_threshold: 74, ocr_enabled: true },
     "invoice_parsing" => { display: "Invoice Parsing", default_threshold: 0, ai_always: true, ocr_enabled: false },
     "email_extraction" => { display: "Email Processing", default_threshold: 85, ocr_enabled: true },

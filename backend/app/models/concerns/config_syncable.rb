@@ -62,7 +62,10 @@ module ConfigSyncable
 
   # Write a tombstone so cascade sync can propagate this deletion to TEEEM and all tenants.
   # Without this, cascade sync would re-import the deleted record from TEEEM.
+  # Skipped for models using global records — shared records don't need sync tombstones.
   def record_sync_deletion_tombstone
+    return if self.class.respond_to?(:uses_global_records?) && self.class.uses_global_records?
+
     current = ActsAsTenant.current_tenant
     return unless current
 

@@ -11,8 +11,9 @@
 # from a template use the same invoice style for that claim stage.
 #
 class ClaimInvoiceTemplate < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
 
   # Style keys for the different template designs
   STYLE_KEYS = %w[classic modern bold minimal compact construction].freeze

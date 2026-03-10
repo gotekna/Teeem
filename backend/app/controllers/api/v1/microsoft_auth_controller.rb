@@ -674,27 +674,45 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     display_name = "#{company_name} SharePoint"
     return { connected: false, name: display_name, auth_type: "organization" } unless org_credential
 
-    # Get the actual authenticated user from Graph API
+    # Get the actual authenticated user and SharePoint root site from Graph API
+    # ⚠️ /me only works with delegated auth (user tokens), NOT app credentials.
+    # /sites/root works with both. Keep them in SEPARATE begin/rescue blocks
+    # so a /me failure doesn't prevent getting the site URL.
     authenticated_as = nil
+    graph_site_url = nil
+    client = MicrosoftGraphClient.new(org_credential)
+
+    # Try /me for authenticated user info (delegated credentials only)
     begin
-      client = MicrosoftGraphClient.new(org_credential)
       me = client.get("/me")
       authenticated_as = me["mail"] || me["userPrincipalName"]
     rescue StandardError => e
-      Rails.logger.warn "[Connections] Failed to get SharePoint auth user: #{e.message}"
+      Rails.logger.info "[Connections] /me not available (app credential): #{e.message}"
     end
 
-    # SSoT: Get SharePoint config from WarehouseProvider
-    storage_config = WarehouseProvider.instance
-    site_url = storage_config&.site_url.presence
-    # SSoT: drive_name comes from WarehouseProvider - no hardcoded fallback
+    # Get SharePoint root site URL (works with both app and delegated credentials)
+    begin
+      root_site = client.get("/sites/root")
+      graph_site_url = root_site["webUrl"] if root_site
+    rescue StandardError => e
+      Rails.logger.warn "[Connections] Failed to get SharePoint site URL: #{e.message}"
+    end
+
+    # URL priority: 1) TenantSetting default URL (admin-configured),
+    # 2) WarehouseProvider doc library, 3) Graph API root site
+    configured_url = TenantSetting.instance.sharepoint_default_url.presence
+
+    storage_config = WarehouseProvider.instance rescue nil
+    wp_site_url = storage_config&.site_url.presence
     drive_name = storage_config&.drive_name.presence
-    documents_url = (site_url && drive_name) ? "#{site_url}/#{drive_name.gsub(' ', '%20')}" : nil
+
+    site_url = wp_site_url || graph_site_url
+    documents_url = (wp_site_url && drive_name) ? "#{wp_site_url}/#{drive_name.gsub(' ', '%20')}" : nil
 
     {
       connected: true,
-      name: display_name,  # SSoT: Dynamic from company settings (Jan 2026)
-      url: documents_url,
+      name: display_name,
+      url: configured_url || documents_url || site_url,
       document_library: drive_name,
       root_folder: storage_config&.root_path,
       authenticated_as: authenticated_as,
@@ -704,17 +722,37 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def build_onedrive_connection_info(microsoft_token, user_email)
-    connected = microsoft_token&.status == "connected"
+    personal_connected = microsoft_token&.status == "connected"
+
+    # OneDrive URL can be derived from org credential + user email,
+    # even if user hasn't personally connected M365
+    org_credential = MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
+                     MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first
+    org_connected = org_credential.present?
+
+    # Consider OneDrive "connected" if either personal or org credential works
+    connected = personal_connected || org_connected
 
     # Build personal OneDrive URL from email
-    # SSoT: Derive OneDrive domain from SharePoint site URL
     # Format: gotekna-my.sharepoint.com/personal/robert_tekna_com_au
     onedrive_url = nil
 
-    if user_email.present?
-      # Get the tenant prefix from SharePoint site URL (e.g., "gotekna" from "gotekna.sharepoint.com")
-      # SSoT: Use WarehouseProvider for site URL
-      site_url = WarehouseProvider.instance.site_url
+    if user_email.present? && connected
+      # Get tenant prefix from WarehouseProvider site_url or Graph API
+      site_url = (WarehouseProvider.instance.site_url rescue nil)
+
+      # If no site_url in WarehouseProvider (e.g., using S3/Wasabi),
+      # try to get it from Graph API root site
+      if site_url.blank? && org_credential
+        begin
+          client = MicrosoftGraphClient.new(org_credential)
+          root_site = client.get("/sites/root")
+          site_url = root_site["webUrl"] if root_site
+        rescue StandardError => e
+          Rails.logger.warn "[Connections] Failed to get root site for OneDrive URL: #{e.message}"
+        end
+      end
+
       tenant_prefix = site_url&.match(/https?:\/\/([^.]+)\.sharepoint\.com/)&.[](1)
 
       if tenant_prefix.present?
@@ -728,7 +766,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       connected: connected,
       name: "Personal OneDrive",
       url: onedrive_url,
-      authenticated_as: connected ? user_email : nil,
+      authenticated_as: user_email,
       auth_type: "personal"
     }
   end

@@ -17,8 +17,9 @@
 # SSoT: Settings > Operations > Quote Templates
 #
 class QuoteTemplate < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
 
   # Associations
   belongs_to :po_template_pack, optional: true

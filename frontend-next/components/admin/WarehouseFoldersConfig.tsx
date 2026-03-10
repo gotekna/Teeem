@@ -27,13 +27,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Table,
   TableBody,
   TableCell,
@@ -41,12 +34,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-// Plan configuration components (SSoT: Plans config moved from separate tab)
-import {
-  CategoriesSection as PlanCategoriesSection,
-  TypesSection as PlanTypesSection,
-  RevisionFormatsSection as PlanRevisionFormatsSection,
-} from "@/app/(app)/admin/system/components/PlansTab";
 import {
   Accordion,
   AccordionContent,
@@ -369,7 +356,6 @@ export function WarehouseFoldersConfig({
   const [activeGroup, setActiveGroup] = React.useState("overview");
   const [editingTabKey, setEditingTabKey] = React.useState<string | null>(null);
   const [dialogAction, setDialogAction] = React.useState<"edit" | "create" | null>(null);
-  const [configPanelName, setConfigPanelName] = React.useState<string | null>(null);
 
   // Local state for expanded items
   const [expandedItems, setExpandedItemsState] = React.useState<Set<string>>(new Set());
@@ -400,14 +386,6 @@ export function WarehouseFoldersConfig({
     return findTab(tabs);
   }, [editingTabKey, dialogAction, tabs]);
 
-  // Look up configTab from tabs array using local state
-  const configTab = React.useMemo(() => {
-    if (!configPanelName) return null;
-    // Find the plans tab and add the component_name
-    const plansTab = tabs.find(t => t.tab_key === "plans");
-    if (!plansTab) return null;
-    return { ...plansTab, component_name: configPanelName } as WarehouseFolder & { component_name: string };
-  }, [configPanelName, tabs]);
 
   // Use tab_key (slug) for expanded state - Set<string> instead of Set<number>
   const setExpandedItems = React.useCallback((updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
@@ -449,9 +427,6 @@ export function WarehouseFoldersConfig({
     setEditingTabKey(null);
   }, []);
 
-  const setConfigTab = React.useCallback((tab: WarehouseFolder | null, componentName?: string) => {
-    setConfigPanelName(componentName || null);
-  }, []);
 
   const [deleteConfirmTab, setDeleteConfirmTab] = React.useState<WarehouseFolder | null>(null);
   const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
@@ -1344,6 +1319,20 @@ export function WarehouseFoldersConfig({
               <Badge variant="outline" className="text-xs">
                 {tab.tab_key}
               </Badge>
+              {/* Global/Tenant scope indicator */}
+              {tab.is_global !== undefined && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-xs",
+                    tab.is_global
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300"
+                      : "bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300"
+                  )}
+                >
+                  {tab.is_global ? "Global" : "Tenant"}
+                </Badge>
+              )}
               {/* SSoT: Show folder path badge if tab has folder OR has children (children inherit parent path) */}
               {(tab.warehouse_enabled || hasChildren) && (
                 <TooltipProvider>
@@ -1546,36 +1535,6 @@ export function WarehouseFoldersConfig({
 
           {/* Actions */}
           <div className="flex items-center gap-1">
-            {/* Plan configuration buttons (only for Plans tab) */}
-            {tab.tab_key === "plans" && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setConfigTab(tab, "PlanCategories")}
-                >
-                  Categories
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setConfigTab(tab, "PlanTypes")}
-                >
-                  Types
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setConfigTab(tab, "RevisionFormats")}
-                >
-                  Revisions
-                </Button>
-              </>
-            )}
-
             {/* Edit button - hidden in readOnly mode (managed via Warehouse Types) */}
             {!readOnly && (
               <TooltipProvider>
@@ -2343,6 +2302,44 @@ export function WarehouseFoldersConfig({
                 showInheritedBadge={!!(formData.parent_id || editingTab?.parent_id) && !formData.icon_name}
               />
 
+              {/* Global/Tenant Scope Toggle (only in edit mode, only for root tabs) */}
+              {editingTab && !editingTab.parent_id && (
+                <div className="space-y-2">
+                  <Label>Scope</Label>
+                  <Select
+                    value={editingTab.is_global ? "global" : "tenant"}
+                    onValueChange={async (value) => {
+                      const makeGlobal = value === "global";
+                      if (makeGlobal === editingTab.is_global) return;
+                      try {
+                        const json = await api.post<{ success: boolean; message: string }>(
+                          `/api/v1/warehouse_folders/${editingTab.id}/toggle_global`
+                        );
+                        if (json?.success) {
+                          toast.success(json.message);
+                          refetch();  // Tabs re-derive editingTab from refreshed data
+                        }
+                      } catch {
+                        toast.error("Failed to change scope");
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="global">Global (all tenants)</SelectItem>
+                      <SelectItem value="tenant">This tenant only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {editingTab.is_global
+                      ? "This tab is shared across all tenants"
+                      : "This tab is only visible to the current tenant"}
+                  </p>
+                </div>
+              )}
+
               {/* Display Mode - SSoT: How tab renders (icon_only disabled for child tabs) */}
               <div className="space-y-2">
                 <Label>Display Mode</Label>
@@ -2757,22 +2754,6 @@ export function WarehouseFoldersConfig({
         </div>
       )}
 
-      {/* Plan Configuration Sheet (SSoT: Plans config integrated from separate tab) */}
-      <Sheet open={!!configTab} onOpenChange={() => setConfigTab(null, undefined)}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{configTab?.display_name} Configuration</SheetTitle>
-            <SheetDescription>
-              Configure {configTab?.display_name?.toLowerCase()} for the Plans document tab
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-6">
-            {configTab?.component_name === "PlanCategories" && <PlanCategoriesSection />}
-            {configTab?.component_name === "PlanTypes" && <PlanTypesSection />}
-            {configTab?.component_name === "RevisionFormats" && <PlanRevisionFormatsSection />}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

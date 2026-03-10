@@ -104,27 +104,12 @@ export function PermissionsTab() {
 
   const togglePermission = async (permissionName: string) => {
     if (!selectedUser) return;
-    setToggling(permissionName);
-    try {
-      await api.post("/api/v1/permissions/grant", {
-        user_id: selectedUser.id,
-        permission: permissionName,
-      });
 
-      // Toggle permission in local state
-      if (userPermissions.includes(permissionName)) {
-        setUserPermissions(userPermissions.filter((p) => p !== permissionName));
-      } else {
-        setUserPermissions([...userPermissions, permissionName]);
-      }
-
-      toast({ title: "Success", description: "Permission updated" });
-    } catch (error) {
-      console.error("Failed to toggle permission:", error);
-      toast({ title: "Error", description: "Failed to update permission", variant: "destructive" });
-    } finally {
-      setToggling(null);
-    }
+    // Permissions are currently role-based only — individual overrides not yet implemented
+    toast({
+      title: "Role-Based Permissions",
+      description: "Permissions are managed through roles. Change the user's role to update their permissions.",
+    });
   };
 
   const getPermissionStatus = (permissionName: string) => {

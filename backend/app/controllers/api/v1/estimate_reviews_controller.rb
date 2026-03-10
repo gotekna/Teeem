@@ -22,18 +22,8 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Create review record
-        review = @estimate.estimate_reviews.create!(status: "pending")
-
-        # Enqueue background job
-        AiReviewJob.perform_later(@estimate.id)
-
-        render json: {
-          success: true,
-          review_id: review.id,
-          status: "processing",
-          message: "AI review started. This may take 30-60 seconds."
-        }, status: :accepted
+        # AI review feature is currently unavailable (legacy plan review service removed)
+        render_error("AI review is currently unavailable", status: :service_unavailable)
       rescue StandardError => e
         Rails.logger.error "Failed to start AI review: #{e.message}"
         render_error("Failed to start AI review: #{e.message}", status: :internal_server_error)

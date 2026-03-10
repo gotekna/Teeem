@@ -1,9 +1,9 @@
 class FoundationView < ApplicationRecord
   include ConfigSyncable
 
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true, optional: true
+  include GlobalConfigRecord  # Must be AFTER acts_as_tenant (overrides belongs_to :tenant to optional)
 
-  belongs_to :tenant
   belongs_to :user, optional: true  # optional for global views (is_global = true)
   belongs_to :foundation, optional: true  # optional because foundation_id might reference dynamic foundations
 
@@ -14,9 +14,6 @@ class FoundationView < ApplicationRecord
 
   # Ensure only one default view per user per foundation per tenant
   validates :is_default, uniqueness: { scope: [ :tenant_id, :user_id, :foundation_id ] }, if: :is_default?
-
-  # Protect the "Setup" view from being renamed
-  validate :prevent_setup_view_rename, on: :update
 
   # CRITICAL: foundation_id is IMMUTABLE after creation
   # This prevents views from being "orphaned" when foundation_id is accidentally cleared
@@ -69,6 +66,11 @@ class FoundationView < ApplicationRecord
   # Before saving, deduplicate column order to prevent React duplicate key errors
   before_save :deduplicate_column_order
 
+  # Required by CascadePushTableJob to skip globalized tables
+  def self.uses_global_records?
+    true
+  end
+
   # Override ConfigSyncable — sync_key must include foundation slug
   # because view names aren't unique across foundations (e.g. "Setup" on jobs AND contacts).
   # Key format: "jobs--setup", "sm-tasks--my-custom-view"
@@ -81,6 +83,14 @@ class FoundationView < ApplicationRecord
   end
 
   private
+
+  # Override GlobalConfigRecord — only globalize SHARED views, not personal ones.
+  # Personal views (user_id set) must stay tenant-scoped so each user keeps their own.
+  # Shared views (is_global=true, user_id=nil) become truly global (tenant_id=NULL).
+  def auto_globalize_master_record
+    return unless is_global? && user_id.nil?
+    super
+  end
 
   # Generate a URL-friendly slug from the view name
   def generate_slug
@@ -151,13 +161,6 @@ class FoundationView < ApplicationRecord
                .where.not(id: first_view.id)
                .where(is_default: true)
                .update_all(is_default: false)
-    end
-  end
-
-  # Prevent renaming the "Setup" view (it's the standard template)
-  def prevent_setup_view_rename
-    if name_was == "Setup" && name_changed? && name != "Setup"
-      errors.add(:name, "The 'Setup' view cannot be renamed as it's the default template for new views")
     end
   end
 

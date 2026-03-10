@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 80" fill="none">
+  <!-- House icon with accessibility symbol -->
+  <g transform="translate(10, 8)">
+    <!-- House shape -->
+    <path d="M32 6L6 28V62H24V44H40V62H58V28L32 6Z" fill="#22D3EE" stroke="#22D3EE" stroke-width="2" stroke-linejoin="round"/>
+    <!-- Roof accent -->
+    <path d="M32 6L6 28H58L32 6Z" fill="#67E8F9"/>
+    <!-- Door -->
+    <rect x="26" y="44" width="12" height="18" rx="1" fill="#0F172A" opacity="0.8"/>
+    <!-- Windows -->
+    <rect x="38" y="30" width="10" height="10" rx="1" fill="#0F172A" opacity="0.6"/>
+    <rect x="16" y="30" width="10" height="10" rx="1" fill="#0F172A" opacity="0.6"/>
+    <!-- Accessibility circle -->
+    <circle cx="32" cy="50" r="3.5" fill="#22D3EE" stroke="#0F172A" stroke-width="1.5"/>
+    <path d="M31 48.5V51.5H33.5L34.5 53" stroke="#0F172A" stroke-width="1" stroke-linecap="round" fill="none"/>
+  </g>
+  <!-- Text (white for dark backgrounds) -->
+  <text x="78" y="36" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="700" fill="white" letter-spacing="-0.5">
+    <tspan>SDA</tspan>
+    <tspan fill="#22D3EE"> Property</tspan>
+    <tspan fill="#22D3EE"> Hub</tspan>
+  </text>
+  <text x="78" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#94A3B8" letter-spacing="0.5">
+    Specialist Disability Accommodation
+  </text>
+  <!-- Accent bar -->
+  <rect x="78" y="62" width="40" height="3" rx="1.5" fill="#22D3EE"/>
+  <rect x="122" y="62" width="20" height="3" rx="1.5" fill="#F59E0B"/>
+  <rect x="146" y="62" width="20" height="3" rx="1.5" fill="#22D3EE" opacity="0.4"/>
+</svg>

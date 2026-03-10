@@ -1,7 +1,6 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      include DocumentProviderAware
       include AsyncPdfGeneration
 
       before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :finance_counts, :activities, :budget_tracking, :boq, :price_analysis, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders, :markup, :update_markup, :target_margin ]
@@ -161,7 +160,8 @@ module Api
           success: true,
           default_preview_job_id: default_preview_job,
           jobs: jobs.map do |job|
-            client = job.job_contacts.find { |jc| jc.role == "client" }&.contact
+            clients = job.job_contacts.select { |jc| jc.role == "client" }.filter_map(&:contact)
+            client = clients.first
             employees = job.job_contacts
                           .select { |jc| %w[coordinator estimator internal_sales site_coordinator supervisor].include?(jc.role) }
                           .map { |jc| jc.contact&.display_name || "#{jc.contact&.first_name} #{jc.contact&.last_name}".strip }
@@ -206,6 +206,7 @@ module Api
               id: job.id,
               name: job.name,
               client_name: client&.display_name || "#{client&.first_name} #{client&.last_name}".strip.presence,
+              client_names: clients.map { |c| c.display_name.presence || "#{c.first_name} #{c.last_name}".strip }.reject(&:blank?),
               employee_names: employees,
               matched_contact: matched_contact
             }
@@ -541,14 +542,10 @@ module Api
       def finance_counts
         invoices = @job.external_invoices.where.not(status: [ "draft", "voided" ])
 
-        # Look up actual finance tab_keys from WarehouseFolder for this tenant
+        # Look up actual finance tab_keys from WarehouseFolder
+        # FRC: Folders may be global (tenant_id=nil) or tenant-specific — check both
         job_type_ids = WarehouseType.where(code: "job").pluck(:id)
-        finance_tab = WarehouseFolder.find_by(
-          warehouse_type_id: job_type_ids,
-          tab_key: "finance",
-          parent_id: nil,
-          tenant_id: @job.tenant_id
-        )
+        tenant_scope = [ @job.tenant_id, nil ]
 
         # Map component_name OR tab_key to the correct count query
         # Uses JOB_TAB_COMPONENTS mapping (same as frontend) to identify tab purpose
@@ -572,10 +569,11 @@ module Api
         counts = {}
 
         # Resolve counts for all parent tabs with children (Finance, Estimating/Jobs, etc.)
+        # FRC: Folders may be global (tenant_id=nil) or tenant-specific — check both
         parent_tabs = WarehouseFolder.where(
           warehouse_type_id: job_type_ids,
           parent_id: nil,
-          tenant_id: @job.tenant_id
+          tenant_id: tenant_scope
         ).includes(:children)
 
         parent_tabs.each do |parent_tab|
@@ -585,7 +583,64 @@ module Api
           end
         end
 
-        render json: { success: true, counts: counts }
+        # Parent-level badge counts (e.g., total photos across all photo sub-tabs)
+        # Also computes per-child counts for sub-tab badges
+        #
+        # FRC (Mar 2026): All job documents are 100% migrated to warehouse_folder_id FK.
+        # Legacy folder_path LIKE fallback removed — single batched COUNT query instead of N+1.
+        parent_counts = {}
+
+        # Collect all child folder IDs across all parent tabs (photo + document children)
+        all_child_folders = []
+        parent_tabs.each do |parent_tab|
+          photo_children = parent_tab.children.where(enabled: true, tab_type: "photo")
+          doc_children = parent_tab.children.where(enabled: true, tab_type: "document")
+          all_child_folders.concat(photo_children.to_a)
+          all_child_folders.concat(doc_children.to_a)
+        end
+
+        if all_child_folders.any?
+          # Batch: collect all folder IDs (children + their sub-folders) in one query
+          child_ids = all_child_folders.map(&:id)
+          sub_folder_ids = WarehouseFolder.where(parent_id: child_ids).pluck(:id)
+          all_folder_ids = child_ids + sub_folder_ids
+
+          # Single batched COUNT query for all folders at once
+          folder_counts = WarehouseDocument
+            .where(linkable_type: "Job", linkable_id: @job.id)
+            .where(warehouse_folder_id: all_folder_ids)
+            .group(:warehouse_folder_id)
+            .count
+
+          # Map folder counts back to tab_keys
+          # Build lookup: sub_folder_id → parent child folder (single query, no N+1)
+          sub_to_parent = WarehouseFolder.where(parent_id: child_ids)
+            .pluck(:id, :parent_id)
+            .to_h
+
+          # Aggregate counts per child folder (including sub-folder counts)
+          child_totals = Hash.new(0)
+          folder_counts.each do |folder_id, count|
+            parent_id = sub_to_parent[folder_id] || folder_id
+            child_totals[parent_id] += count
+          end
+
+          # Assign to tab_keys and compute parent totals
+          parent_tabs.each do |parent_tab|
+            photo_children = parent_tab.children.where(enabled: true, tab_type: "photo")
+            doc_children = parent_tab.children.where(enabled: true, tab_type: "document")
+
+            tab_total = 0
+            (photo_children.to_a + doc_children.to_a).each do |child|
+              count = child_totals[child.id]
+              counts[child.tab_key] = count  # Always include (even 0) so UI shows it's working
+              tab_total += count
+            end
+            parent_counts[parent_tab.tab_key] = tab_total
+          end
+        end
+
+        render json: { success: true, counts: counts, parentCounts: parent_counts }
       end
 
       #   to_date: end date (default: today)
@@ -1319,108 +1374,43 @@ module Api
         render_error(e.message, status: :internal_server_error)
       end
 
-      # POST /api/v1/jobs/:id/upload_plan_set
-      # Upload a PDF plan set, split into individual pages named by PDF page labels
-      def upload_plan_set
-        unless params[:file].present?
-          return render_error("No file provided", status: :unprocessable_entity)
-        end
-
-        service = PlanSetService.new(@job, params[:file])
-        result = service.process!
-
-        if result[:success]
-          render json: {
-            success: true,
-            data: {
-              all_plans: result[:all_plans],
-              pages: result[:pages],
-              total_pages: result[:total_pages]
-            }
-          }
-        else
-          render_error(result[:error], status: :unprocessable_entity)
-        end
-      end
-
       # GET /api/v1/jobs/:id/plan_set
-      # Get the list of plans in the 04 Plans folder
-      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
+      # Get the list of plans from WarehouseDocument (blob storage SSoT)
       def plan_set
-        begin
-          setup_default_provider!
-        rescue DocumentProviders::NotConnectedError => e
-          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
-        end
+        plans_folder = WarehouseFolder.where(warehouse_type: "job", tab_key: "plans").enabled.first
 
-        # Build job folder path
-        job_folder_path = build_job_folder_path(@job)
+        documents = WarehouseDocument
+          .where(linkable: @job, source_type: "job")
+          .where(warehouse_folder_id: plans_folder&.id)
+          .where.not(storage_blob_id: nil)
+          .includes(:storage_blob)
+          .order(created_at: :desc)
 
-        # Check if job folder exists
-        unless folder_exists_in_provider?(job_folder_path)
-          return render json: { success: true, data: { plans: [], folder_exists: false } }
-        end
-
-        # SSoT (Feb 2026): Get plans folder name from WarehouseFolder
-        plans_folder_name = WarehouseFolder.folder_name_for("job", "plans", "04 Plans")
-        plans_folder_path = "#{job_folder_path}/#{plans_folder_name}"
-
-        # Check if plans folder exists
-        unless folder_exists_in_provider?(plans_folder_path)
-          return render json: { success: true, data: { plans: [], folder_exists: false } }
-        end
-
-        # List files in 04 Plans
-        items = list_folder_in_provider(plans_folder_path, recursive: false)
-        pdf_files = items.select { |f| f[:type] == :file && f[:name]&.end_with?(".pdf") }
-
-        plans = pdf_files.map do |f|
+        plans = documents.map do |doc|
+          blob = doc.storage_blob
           {
-            id: f[:id],
-            name: f[:name],
-            web_url: f[:web_url] || f[:path],
-            size: f[:size],
-            modified: f[:modified_at]&.iso8601,
-            is_all_plans: f[:name] == "All Plans.pdf"
+            id: doc.id,
+            name: doc.ui_name || doc.original_filename,
+            size: blob&.file_size || doc.file_size,
+            created_at: doc.created_at,
+            type: :file,
+            content_type: blob&.content_type || "application/pdf",
+            is_all_plans: (doc.ui_name || doc.original_filename)&.start_with?("All Plans")
           }
         end
 
         # Sort: All Plans first, then alphabetically
-        plans.sort_by! { |p| [ p[:is_all_plans] ? 0 : 1, p[:name] ] }
+        plans.sort_by! { |p| [p[:is_all_plans] ? 0 : 1, p[:name].to_s] }
 
         render json: {
           success: true,
           data: {
             plans: plans,
-            folder_exists: true,
-            folder_path: plans_folder_path,
-            provider: current_provider_type.to_s
+            folder_exists: plans.any?
           }
         }
       rescue => e
         Rails.logger.error("plan_set error: #{e.message}")
-        render_error(e.message, status: :internal_server_error)
-      end
-
-      # POST /api/v1/jobs/:id/rename_plans
-      # Use AI to rename existing plans in 04 Plans folder
-      def rename_plans
-        result = PlanSetService.new(@job, nil).rename_existing_plans!
-
-        if result[:success]
-          render json: {
-            success: true,
-            data: {
-              renamed: result[:renamed],
-              skipped: result[:skipped],
-              errors: result[:errors]
-            }
-          }
-        else
-          render_error(result[:error], status: :unprocessable_entity)
-        end
-      rescue => e
-        Rails.logger.error("rename_plans error: #{e.message}")
         render_error(e.message, status: :internal_server_error)
       end
 
@@ -1455,8 +1445,8 @@ module Api
       end
 
       # POST /api/v1/jobs/:id/send_contract_for_signing
-      # Generate QBCC contract PDF, save to storage, and send for e-signing
-      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
+      # Generate QBCC contract PDF, save to blob storage, and send for e-signing
+      # Blob-only (Mar 2026): No legacy S3 folder upload
       def send_contract_for_signing
         # Step 1: Generate the QBCC contract PDF
         engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
@@ -1464,25 +1454,17 @@ module Api
 
         filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
 
-        # Step 2: Upload to storage provider
-        begin
-          setup_default_provider!
-        rescue DocumentProviders::NotConnectedError => e
-          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
-        end
+        # Step 2: Store as blob + WarehouseDocument
+        blob = StorageBlob.find_or_create_for_content!(
+          pdf_content, filename: filename, content_type: "application/pdf"
+        )
 
-        # Build folder path using SSoT pattern
-        job_folder_path = build_job_folder_path(@job)
-        contracts_folder_name = WarehouseFolder.folder_name_for("job", "contracts", "01 Contract Documents")
-        folder_path = "#{job_folder_path}/#{contracts_folder_name}"
-
-        # Ensure folder exists and upload
-        get_or_create_folder_path(folder_path)
-        uploaded = upload_to_provider(folder_path, pdf_content, filename, content_type: "application/pdf")
-
-        unless uploaded
-          return render_error("Failed to upload to storage", status: :internal_server_error)
-        end
+        contracts_folder = WarehouseFolder.where(warehouse_type: "job", tab_key: "contracts").enabled.first
+        WarehouseDocumentCreator.create!(
+          filename: filename, source_type: "job", linkable: @job,
+          storage_blob: blob, warehouse_folder_id: contracts_folder&.id,
+          file_size: pdf_content.bytesize, content_type: "application/pdf"
+        )
 
         # Step 3: Get signers from job contacts (clients only)
         client_contacts = @job.job_contacts
@@ -1502,8 +1484,7 @@ module Api
           return render_error("Missing email for: #{missing_emails.join(', ')}", status: :unprocessable_entity)
         end
 
-        # Step 4: Create e-signature request
-        # Storage reference fields work across providers (sharepoint_ prefix is legacy naming)
+        # Step 4: Create e-signature request (blob ID as storage reference)
         request = ESignatureRequest.new(
           title: "QBCC Contract - #{@job.name}",
           description: "Building Contract for #{@job.address || @job.name}",
@@ -1512,9 +1493,7 @@ module Api
           signing_order: 0, # Parallel signing
           expires_at: 30.days.from_now,
           send_reminders: true,
-          original_storage_file_id: uploaded[:id],
-          storage_site_id: storage_config&.site_id,
-          storage_drive_id: storage_config&.drive_id
+          original_storage_file_id: blob.id.to_s
         )
 
         # Add client contacts as signers
@@ -1898,10 +1877,6 @@ module Api
         render json: { success: false, errors: [e.message] }, status: :unprocessable_entity
       end
 
-      # SSoT: Use WarehouseProvider.job_path for consistent folder naming
-      def build_job_folder_path(job)
-        storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
-      end
 
       def set_job
         # Support lookup by ID or slug (title-based)

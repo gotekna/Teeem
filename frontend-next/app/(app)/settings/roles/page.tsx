@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePathTabs } from "@/hooks/usePathTabs";
@@ -31,25 +31,27 @@ import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { API } from "@/lib/constants/api-endpoints";
 import {
-  UserGroupIcon,
   ShieldCheckIcon,
-  MagnifyingGlassIcon,
-  CheckIcon,
 } from "@heroicons/react/24/outline";
 import {
   Shield,
   UsersRound,
   MoreHorizontal,
   Plus,
-  Search,
   Pencil,
   Trash2,
   Users,
-  KeyRound,
   LayoutGrid,
   List,
   GanttChart,
+  ToggleLeft,
+  Save,
+  ChevronDown,
+  ChevronRight,
+  Copy,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import TeeemTableView from "@/components/table/TeeemTableView";
 import {
   Select,
   SelectContent,
@@ -58,13 +60,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { User } from "@/lib/types";
+import {
+  ALL_LEVELS,
+  PERMISSION_LEVEL_LABELS,
+  type PermissionLevel,
+  type PermissionSectionData,
+  type PermissionSectionGroup,
+} from "@/lib/constants/permission-levels";
 
 /**
- * Roles & Permissions Page - Organization Settings
+ * Access Control Page - Organization Settings
  *
  * SSoT: This is THE ONE location for managing:
- * - User Permissions (assign permissions to users)
- * - User Roles (define role types like Admin, Supervisor)
+ * - Permissions (define what each role can do via role cards + permission matrix)
+ * - Users (assign roles to users via TeeemTableView)
+ * - Features (enable/disable company modules)
  * - Groups (user groups)
  *
  * Part of the Settings/Admin merge - Organization section.
@@ -75,9 +85,10 @@ import type { User } from "@/lib/types";
 
 // Tab definitions
 const ROLES_TABS = [
-  { id: "permissions", label: "Permissions", icon: KeyRound },
-  { id: "roles", label: "User Roles", icon: Shield },
-  { id: "groups", label: "Groups", icon: UsersRound },
+  { id: "permissions", label: "Permissions", icon: Shield },
+  { id: "users", label: "Users", icon: UsersRound },
+  { id: "features", label: "Features", icon: ToggleLeft },
+  { id: "groups", label: "Groups", icon: Users },
 ];
 
 const DEFAULT_TAB = "permissions";
@@ -86,20 +97,6 @@ const DEFAULT_TAB = "permissions";
 // Types
 // ============================================
 
-interface Permission {
-  id: number;
-  name: string;
-  description: string;
-}
-
-interface PermissionsMap {
-  [category: string]: Permission[];
-}
-
-interface CategoriesMap {
-  [key: string]: string;
-}
-
 interface Role {
   id: number;
   name: string;
@@ -107,7 +104,6 @@ interface Role {
   description: string;
   users_count: number;
   tasks_count?: number;
-  // Role settings (Jan 2026) - Task view only, theme is user-based
   settings?: {
     default_task_view?: "list" | "board" | "gantt";
   };
@@ -122,322 +118,169 @@ interface Group {
 }
 
 // ============================================
-// Permissions Sub-Tab
+// Permissions Sub-Tab (Role Cards + Permission Matrix)
 // ============================================
 
-function PermissionsSubTab() {
-  const { toast } = useToast();
-  const [users, setUsers] = useState<User[]>([]);
-  const [permissions, setPermissions] = useState<PermissionsMap>({});
-  const [categories, setCategories] = useState<CategoriesMap>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [userPermissions, setUserPermissions] = useState<string[]>([]);
-  const [rolePermissions, setRolePermissions] = useState<string[]>([]);
-  const [updatingPermission, setUpdatingPermission] = useState<string | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+// ============================================
+// Permission Matrix Row Component (inline)
+// ============================================
 
-  const selectedUser = selectedUserId
-    ? users.find((u) => u.id === selectedUserId) || null
-    : null;
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const [usersRes, permissionsRes] = await Promise.all([
-        api.get<{ users: User[] }>(API.users.list),
-        api.get<{
-          success: boolean;
-          permissions: PermissionsMap;
-          categories: CategoriesMap;
-        }>("/api/v1/permissions"),
-      ]);
-
-      setUsers(usersRes?.users || []);
-
-      if (permissionsRes.success) {
-        setPermissions(permissionsRes.permissions || {});
-        setCategories(permissionsRes.categories || {});
-      }
-    } catch (err) {
-      console.error("Failed to load permissions data:", err);
-      setError("Failed to load permissions data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadUserPermissions = useCallback(async (userId: number) => {
-    try {
-      const response = await api.get<{
-        success: boolean;
-        user: User;
-        permissions: string[];
-        role_permissions: string[];
-      }>(`/api/v1/permissions/user/${userId}`);
-      if (response?.success) {
-        setUserPermissions(response.permissions || []);
-        setRolePermissions(response.role_permissions || []);
-      }
-    } catch (err) {
-      console.error("Failed to load user permissions:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedUser) {
-      loadUserPermissions(selectedUser.id);
-    } else {
-      setUserPermissions([]);
-      setRolePermissions([]);
-    }
-  }, [selectedUser, loadUserPermissions]);
-
-  const togglePermission = async (
-    permissionName: string,
-    currentlyGranted: boolean
-  ) => {
-    if (!selectedUser) return;
-
-    try {
-      setUpdatingPermission(permissionName);
-
-      const response = await api.post<{ success: boolean }>(
-        "/api/v1/permissions/grant",
-        {
-          user_id: selectedUser.id,
-          permission_name: permissionName,
-          granted: !currentlyGranted,
-        }
-      );
-
-      if (response?.success) {
-        await loadUserPermissions(selectedUser.id);
-      }
-    } catch (err) {
-      console.error("Failed to update permission:", err);
-      toast({ title: "Error", description: "Failed to update permission", variant: "destructive" });
-    } finally {
-      setUpdatingPermission(null);
-    }
-  };
-
-  const hasPermission = (permissionName: string): boolean => {
-    return userPermissions.includes(permissionName);
-  };
-
-  const isFromRole = (permissionName: string): boolean => {
-    return rolePermissions.includes(permissionName);
-  };
-
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.role?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  if (loading) {
-    return <LoadingOverlay height="py-12" />;
-  }
-
-  if (error) {
-    return (
-      <div className="py-12">
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-          <p className="text-destructive">{error}</p>
+function InlinePermissionRow({
+  section,
+  level,
+  onChange,
+  isSubFeature,
+}: {
+  section: PermissionSectionData;
+  level: PermissionLevel;
+  onChange: (key: string, level: PermissionLevel) => void;
+  isSubFeature: boolean;
+}) {
+  return (
+    <tr className={isSubFeature ? "bg-muted/30 dark:bg-muted/10" : ""}>
+      <td className="py-2 px-3">
+        <div className={isSubFeature ? "pl-6" : "font-medium"}>
+          <span className={isSubFeature ? "text-sm text-muted-foreground" : ""}>
+            {section.displayName}
+          </span>
         </div>
-      </div>
-    );
-  }
+      </td>
+      {ALL_LEVELS.map((lvl) => (
+        <td key={lvl} className="py-2 px-2 text-center">
+          {section.availableLevels.includes(lvl) ? (
+            <button
+              type="button"
+              onClick={() => onChange(section.key, lvl)}
+              className={`w-5 h-5 rounded-full border-2 inline-flex items-center justify-center transition-colors ${
+                level === lvl
+                  ? "border-primary bg-primary"
+                  : "border-muted-foreground/40 hover:border-primary/60 dark:border-muted-foreground/30"
+              }`}
+              aria-label={`Set ${section.displayName} to ${PERMISSION_LEVEL_LABELS[lvl]}`}
+            >
+              {level === lvl && (
+                <div className="w-2 h-2 rounded-full bg-primary-foreground" />
+              )}
+            </button>
+          ) : (
+            <span className="text-muted-foreground/30 select-none">—</span>
+          )}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+function InlineSectionGroup({
+  group,
+  permissions,
+  onChange,
+  onBulkChange,
+}: {
+  group: PermissionSectionGroup;
+  permissions: Record<string, number>;
+  onChange: (key: string, level: PermissionLevel) => void;
+  onBulkChange: (changes: Record<string, PermissionLevel>) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const hasSubFeatures = group.subFeatures.length > 0;
+
+  // When header is clicked, cascade to all children that support this level
+  const handleHeaderChange = (lvl: PermissionLevel) => {
+    const changes: Record<string, PermissionLevel> = {
+      [group.header.key]: lvl,
+    };
+    // Set children to the closest available level
+    for (const sf of group.subFeatures) {
+      if (sf.availableLevels.includes(lvl)) {
+        changes[sf.key] = lvl;
+      } else {
+        // Find the closest available level that doesn't exceed the header level
+        const closest = [...sf.availableLevels]
+          .filter((l) => l <= lvl)
+          .sort((a, b) => b - a)[0];
+        if (closest !== undefined) {
+          changes[sf.key] = closest as PermissionLevel;
+        }
+      }
+    }
+    onBulkChange(changes);
+  };
 
   return (
-    <div className="grid grid-cols-12 gap-6">
-      {/* User List */}
-      <div className="col-span-4 bg-card rounded-lg border border-border">
-        <div className="p-4 border-b border-border">
-          <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
-            />
+    <>
+      <tr
+        className={`border-t dark:border-border ${hasSubFeatures ? "cursor-pointer hover:bg-muted/50 dark:hover:bg-muted/20" : ""}`}
+        onClick={hasSubFeatures ? () => setCollapsed(!collapsed) : undefined}
+      >
+        <td className="py-2.5 px-3">
+          <div className="flex items-center gap-1.5 font-medium">
+            {hasSubFeatures && (
+              collapsed ? (
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              )
+            )}
+            {!hasSubFeatures && <div className="w-4" />}
+            {group.header.displayName}
           </div>
-        </div>
-
-        <div className="divide-y divide-border max-h-[600px] overflow-y-auto">
-          {filteredUsers.map((user) => (
-            <button
-              key={user.id}
-              onClick={() => setSelectedUserId(user.id)}
-              className={`w-full p-4 text-left hover:bg-muted transition-colors ${
-                selectedUser?.id === user.id
-                  ? "bg-primary/10 border-l-4 border-primary"
-                  : ""
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground">
-                    {user.name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
-                  <span className="inline-block mt-2 px-2 py-1 text-xs font-medium bg-muted text-foreground rounded">
-                    {user.role}
-                  </span>
-                </div>
-                {selectedUser?.id === user.id && (
-                  <CheckIcon className="h-5 w-5 text-primary flex-shrink-0 ml-2" />
+        </td>
+        {ALL_LEVELS.map((lvl) => (
+          <td key={lvl} className="py-2.5 px-2 text-center">
+            {group.header.availableLevels.includes(lvl) ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  hasSubFeatures ? handleHeaderChange(lvl) : onChange(group.header.key, lvl);
+                }}
+                className={`w-5 h-5 rounded-full border-2 inline-flex items-center justify-center transition-colors ${
+                  (permissions[group.header.key] ?? 0) === lvl
+                    ? "border-primary bg-primary"
+                    : "border-muted-foreground/40 hover:border-primary/60 dark:border-muted-foreground/30"
+                }`}
+                aria-label={`Set ${group.header.displayName} to ${PERMISSION_LEVEL_LABELS[lvl]}`}
+              >
+                {(permissions[group.header.key] ?? 0) === lvl && (
+                  <div className="w-2 h-2 rounded-full bg-primary-foreground" />
                 )}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Permissions Panel */}
-      <div className="col-span-8 bg-card rounded-lg border border-border">
-        {!selectedUser ? (
-          <div className="p-12">
-            <EmptyState
-              title="Select a user to manage their permissions"
-              icon={<UserGroupIcon className="h-16 w-16" />}
-            />
-          </div>
-        ) : (
-          <div>
-            <div className="p-6 border-b border-border bg-muted/50">
-              <h2 className="text-xl font-bold text-foreground">
-                {selectedUser.name}
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                {selectedUser.email}
-              </p>
-              <div className="mt-3">
-                <span className="inline-block px-3 py-1 text-sm font-medium bg-primary/20 text-primary rounded">
-                  Role: {selectedUser.role}
-                </span>
-              </div>
-            </div>
-
-            <div className="p-6 max-h-[600px] overflow-y-auto">
-              <div className="mb-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                <h4 className="font-semibold text-foreground mb-2">
-                  Permission Legend
-                </h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-500 rounded"></div>
-                    <span className="text-foreground">
-                      Permission granted (from role or user override)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-muted rounded"></div>
-                    <span className="text-foreground">
-                      Permission not granted
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                    <span className="text-foreground">
-                      User override (custom permission)
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {Object.entries(permissions).map(([category, perms]) => (
-                <div key={category} className="mb-6">
-                  <h3 className="text-lg font-semibold text-foreground mb-3 pb-2 border-b border-border">
-                    {categories[category] || category}
-                  </h3>
-                  <div className="space-y-2">
-                    {perms.map((perm) => {
-                      const granted = hasPermission(perm.name);
-                      const fromRole = isFromRole(perm.name);
-                      const isOverride = granted !== fromRole;
-
-                      return (
-                        <div
-                          key={perm.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg border ${
-                            granted
-                              ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
-                              : "bg-muted border-border"
-                          } ${isOverride ? "ring-2 ring-blue-400" : ""}`}
-                        >
-                          <button
-                            onClick={() =>
-                              togglePermission(perm.name, granted)
-                            }
-                            disabled={updatingPermission === perm.name}
-                            className={`flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-                              granted
-                                ? isOverride
-                                  ? "bg-blue-600 border-blue-600"
-                                  : "bg-green-600 border-green-600"
-                                : "bg-background border-border hover:border-primary"
-                            } ${
-                              updatingPermission === perm.name
-                                ? "opacity-50 cursor-wait"
-                                : "cursor-pointer"
-                            }`}
-                          >
-                            {granted && (
-                              <CheckIcon className="h-4 w-4 text-white" />
-                            )}
-                          </button>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium text-foreground">
-                                {perm.name}
-                              </h4>
-                              {fromRole && !isOverride && (
-                                <span className="text-xs px-2 py-0.5 bg-muted text-foreground rounded">
-                                  from role
-                                </span>
-                              )}
-                              {isOverride && (
-                                <span className="text-xs px-2 py-0.5 bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded">
-                                  override
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {perm.description}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+              </button>
+            ) : (
+              <span className="text-muted-foreground/30 select-none">—</span>
+            )}
+          </td>
+        ))}
+      </tr>
+      {!collapsed &&
+        group.subFeatures.map((sf) => (
+          <InlinePermissionRow
+            key={sf.key}
+            section={sf}
+            level={(permissions[sf.key] ?? 0) as PermissionLevel}
+            onChange={onChange}
+            isSubFeature
+          />
+        ))}
+    </>
   );
 }
 
 // ============================================
-// User Roles Sub-Tab
+// Permissions Sub-Tab (Inline Role Selector + Permission Matrix)
 // ============================================
 
-function UserRolesSubTab() {
+interface RoleDetail {
+  id: number;
+  name: string;
+  displayName: string;
+  description: string;
+  godViewAccess: boolean;
+  canApprovePayments: boolean;
+  canViewConfidentialFields: boolean;
+}
+
+function PermissionsSubTab() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [roles, setRoles] = useState<Role[]>([]);
@@ -449,30 +292,184 @@ function UserRolesSubTab() {
   const [newRoleDescription, setNewRoleDescription] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editDescription, setEditDescription] = useState("");
-  // Role settings state (Jan 2026)
   const [editDefaultTaskView, setEditDefaultTaskView] = useState<"list" | "board" | "gantt">("board");
   const [saving, setSaving] = useState(false);
-  // View users in role
   const [showUsersDialog, setShowUsersDialog] = useState(false);
   const [selectedRoleForUsers, setSelectedRoleForUsers] = useState<Role | null>(null);
   const [roleUsers, setRoleUsers] = useState<Array<{ id: number; name: string; email: string }>>([]);
   const [loadingRoleUsers, setLoadingRoleUsers] = useState(false);
 
+  // Inline permission matrix state
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
+  const [roleDetail, setRoleDetail] = useState<RoleDetail | null>(null);
+  const [sections, setSections] = useState<PermissionSectionData[]>([]);
+  const [permissions, setPermissions] = useState<Record<string, number>>({});
+  const [originalPermissions, setOriginalPermissions] = useState<Record<string, number>>({});
+  const [originalSpecialFlags, setOriginalSpecialFlags] = useState({
+    godViewAccess: false,
+    canApprovePayments: false,
+    canViewConfidentialFields: false,
+  });
+  const [godViewAccess, setGodViewAccess] = useState(false);
+  const [canApprovePayments, setCanApprovePayments] = useState(false);
+  const [canViewConfidentialFields, setCanViewConfidentialFields] = useState(false);
+  const [loadingPerms, setLoadingPerms] = useState(false);
+  const [savingPerms, setSavingPerms] = useState(false);
+
   useEffect(() => {
     loadRoles();
   }, []);
+
+  // Load permissions when a role is selected
+  useEffect(() => {
+    if (selectedRoleId) {
+      loadRolePermissions(selectedRoleId);
+    }
+  }, [selectedRoleId]);
 
   const loadRoles = async () => {
     try {
       const data = await api.get<Role[] | { roles: Role[] }>("/api/v1/permissions/roles");
       const rolesArray = Array.isArray(data) ? data : (data?.roles || []);
       setRoles(rolesArray);
+      // Auto-select first role if none selected
+      if (!selectedRoleId && rolesArray.length > 0) {
+        setSelectedRoleId(rolesArray[0].id);
+      }
     } catch (error) {
       console.error("Failed to load roles:", error);
       toast({ title: "Error", description: "Failed to load roles", variant: "destructive" });
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadRolePermissions = async (roleId: number) => {
+    setLoadingPerms(true);
+    try {
+      const [sectionsRes, rolePermsRes] = await Promise.all([
+        sections.length === 0
+          ? api.get<{ success: boolean; sections: PermissionSectionData[] }>("/api/v1/permissions/sections")
+          : Promise.resolve(null),
+        api.get<{
+          success: boolean;
+          role: RoleDetail;
+          permissions: Record<string, number>;
+        }>(`/api/v1/permissions/roles/${roleId}/section_permissions`),
+      ]);
+
+      if (sectionsRes?.sections) {
+        setSections(sectionsRes.sections);
+      }
+
+      if (rolePermsRes?.role) {
+        setRoleDetail(rolePermsRes.role);
+        setGodViewAccess(rolePermsRes.role.godViewAccess);
+        setCanApprovePayments(rolePermsRes.role.canApprovePayments);
+        setCanViewConfidentialFields(rolePermsRes.role.canViewConfidentialFields);
+        setOriginalSpecialFlags({
+          godViewAccess: rolePermsRes.role.godViewAccess,
+          canApprovePayments: rolePermsRes.role.canApprovePayments,
+          canViewConfidentialFields: rolePermsRes.role.canViewConfidentialFields,
+        });
+      }
+
+      const perms = rolePermsRes?.permissions || {};
+      setPermissions(perms);
+      setOriginalPermissions(perms);
+    } catch (err) {
+      console.error("Failed to load role permissions:", err);
+      toast({ title: "Error", description: "Failed to load role permissions", variant: "destructive" });
+    } finally {
+      setLoadingPerms(false);
+    }
+  };
+
+  // Group sections for display
+  const groupedSections = React.useMemo((): PermissionSectionGroup[] => {
+    const groups: Record<string, PermissionSectionGroup> = {};
+    for (const s of sections) {
+      if (!groups[s.section]) {
+        groups[s.section] = { header: s, subFeatures: [] };
+      }
+      if (s.isSectionHeader) {
+        groups[s.section].header = s;
+      } else {
+        groups[s.section].subFeatures.push(s);
+      }
+    }
+    return Object.values(groups);
+  }, [sections]);
+
+  // Check for unsaved changes
+  const hasChanges = React.useMemo(() => {
+    const permsChanged = JSON.stringify(permissions) !== JSON.stringify(originalPermissions);
+    const flagsChanged =
+      godViewAccess !== originalSpecialFlags.godViewAccess ||
+      canApprovePayments !== originalSpecialFlags.canApprovePayments ||
+      canViewConfidentialFields !== originalSpecialFlags.canViewConfidentialFields;
+    return permsChanged || flagsChanged;
+  }, [permissions, originalPermissions, godViewAccess, canApprovePayments, canViewConfidentialFields, originalSpecialFlags]);
+
+  const handlePermissionChange = React.useCallback(
+    (key: string, level: PermissionLevel) => {
+      setPermissions((prev) => ({ ...prev, [key]: level }));
+    },
+    []
+  );
+
+  const handleBulkPermissionChange = React.useCallback(
+    (changes: Record<string, PermissionLevel>) => {
+      setPermissions((prev) => ({ ...prev, ...changes }));
+    },
+    []
+  );
+
+  // Save permissions
+  const handleSavePermissions = async () => {
+    if (!roleDetail) return;
+    setSavingPerms(true);
+    try {
+      await api.put(`/api/v1/permissions/roles/${roleDetail.id}/section_permissions`, {
+        permissions,
+        godViewAccess,
+        canApprovePayments,
+        canViewConfidentialFields,
+      });
+      setOriginalPermissions({ ...permissions });
+      setOriginalSpecialFlags({ godViewAccess, canApprovePayments, canViewConfidentialFields });
+      toast({ title: "Saved", description: "Permissions updated successfully" });
+    } catch (err) {
+      console.error("Failed to save permissions:", err);
+      toast({ title: "Error", description: "Failed to save permissions", variant: "destructive" });
+    } finally {
+      setSavingPerms(false);
+    }
+  };
+
+  // Copy from another role
+  const handleCopyFrom = async (sourceRoleId: string) => {
+    if (!roleDetail) return;
+    try {
+      await api.post(`/api/v1/permissions/roles/${roleDetail.id}/copy_from`, {
+        sourceRoleId: Number(sourceRoleId),
+      });
+      toast({ title: "Copied", description: "Permissions copied. Click Save to confirm." });
+      await loadRolePermissions(roleDetail.id);
+    } catch (err) {
+      console.error("Failed to copy permissions:", err);
+      toast({ title: "Error", description: "Failed to copy permissions", variant: "destructive" });
+    }
+  };
+
+  // Switch role with unsaved changes check
+  const handleSelectRole = async (roleId: number) => {
+    if (roleId === selectedRoleId) return;
+    if (hasChanges) {
+      const proceed = await confirm("You have unsaved changes. Discard and switch roles?");
+      if (!proceed) return;
+    }
+    setSelectedRoleId(roleId);
   };
 
   const handleViewRoleUsers = async (role: Role) => {
@@ -488,9 +485,7 @@ function UserRolesSubTab() {
       console.error("Failed to load role users:", error);
       try {
         const allUsers = await api.get<{ users: User[] }>(API.users.list);
-        const filtered = (allUsers?.users || []).filter(u =>
-          u.role === role.name
-        );
+        const filtered = (allUsers?.users || []).filter(u => u.role === role.name);
         setRoleUsers(filtered.map(u => ({ id: u.id, name: u.name, email: u.email })));
       } catch (err) {
         console.error("[RolesPage] Failed to load role users (fallback):", err);
@@ -530,7 +525,6 @@ function UserRolesSubTab() {
     setEditingRole(role);
     setEditDisplayName(role.display_name || role.name);
     setEditDescription(role.description || "");
-    // Initialize settings (Jan 2026)
     setEditDefaultTaskView(role.default_task_view || role.settings?.default_task_view || "board");
     setShowEditDialog(true);
   };
@@ -543,7 +537,6 @@ function UserRolesSubTab() {
         role: {
           display_name: editDisplayName,
           description: editDescription,
-          // Include settings (Jan 2026)
           default_task_view: editDefaultTaskView,
         },
       });
@@ -570,6 +563,10 @@ function UserRolesSubTab() {
         toast({ title: "Error", description: response.error, variant: "destructive" });
       } else {
         toast({ title: "Success", description: "Role deleted successfully" });
+        if (selectedRoleId === role.id) {
+          setSelectedRoleId(null);
+          setRoleDetail(null);
+        }
         loadRoles();
       }
     } catch (error: any) {
@@ -579,69 +576,185 @@ function UserRolesSubTab() {
     }
   };
 
+  // Other roles for copy-from dropdown (exclude current)
+  const copyFromRoles = roles.filter((r) => r.id !== selectedRoleId);
+
   if (loading) {
     return <LoadingOverlay />;
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <Button onClick={() => setShowAddDialog(true)}>
-          <Plus className="h-4 w-4 mr-2" />
+      {/* Role selector bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap flex-1">
+          {roles.map((role) => (
+            <button
+              key={role.id}
+              onClick={() => handleSelectRole(role.id)}
+              className={`
+                relative group flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all
+                ${selectedRoleId === role.id
+                  ? "border-primary bg-primary/5 dark:bg-primary/10 text-primary font-medium shadow-sm"
+                  : "border-border bg-card hover:border-primary/40 hover:bg-muted/50 text-foreground"
+                }
+              `}
+            >
+              <span>{role.display_name || role.name}</span>
+              <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                {role.users_count || 0}
+              </Badge>
+              {/* Context menu trigger */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 cursor-pointer">
+                    <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+                  </span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditRole(role); }}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit Role
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewRoleUsers(role); }}>
+                    <Users className="h-4 w-4 mr-2" />
+                    View Users
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteRole(role); }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </button>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
+          <Plus className="h-4 w-4 mr-1.5" />
           Add Role
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {roles.map((role) => (
-          <Card
-            key={role.id}
-            className="cursor-pointer hover:shadow-md transition-shadow"
-            onDoubleClick={() => handleViewRoleUsers(role)}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{role.display_name || role.name}</CardTitle>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEditRole(role)}>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() => handleDeleteRole(role)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+      {/* Inline permission matrix for selected role */}
+      {selectedRoleId && (
+        <>
+          {loadingPerms ? (
+            <div className="flex items-center justify-center py-12">
+              <Spinner size={24} />
+            </div>
+          ) : roleDetail ? (
+            <div className="space-y-4">
+              {/* Toolbar: Copy from + Save */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Copy className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm whitespace-nowrap">Copy from:</Label>
+                  <Select onValueChange={handleCopyFrom}>
+                    <SelectTrigger className="w-[200px] h-9">
+                      <SelectValue placeholder="Select a role..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {copyFromRoles.map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.display_name || r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={handleSavePermissions}
+                  disabled={!hasChanges || savingPerms}
+                  size="sm"
+                  className={hasChanges ? "" : "opacity-50"}
+                >
+                  {savingPerms ? (
+                    <Spinner className="h-4 w-4 mr-1.5" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-1.5" />
+                  )}
+                  Save
+                  {hasChanges && (
+                    <span className="ml-1.5 w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+                  )}
+                </Button>
               </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-2">
-                {role.description || "No description"}
-              </p>
-              <div className="flex gap-2 flex-wrap">
-                <Badge variant="secondary">
-                  {role.users_count || 0} users
-                </Badge>
-                {(role.tasks_count ?? 0) > 0 && (
-                  <Badge variant="outline">
-                    {role.tasks_count} tasks
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+
+              {/* Special Permissions */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Special Permissions</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label className="text-sm font-medium">God View</Label>
+                      <p className="text-xs text-muted-foreground">See all records</p>
+                    </div>
+                    <Switch checked={godViewAccess} onCheckedChange={setGodViewAccess} />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label className="text-sm font-medium">Approve Payments</Label>
+                      <p className="text-xs text-muted-foreground">Approve invoices</p>
+                    </div>
+                    <Switch checked={canApprovePayments} onCheckedChange={setCanApprovePayments} />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label className="text-sm font-medium">Confidential Fields</Label>
+                      <p className="text-xs text-muted-foreground">TFN, bank details</p>
+                    </div>
+                    <Switch checked={canViewConfidentialFields} onCheckedChange={setCanViewConfidentialFields} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Permission Matrix */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Permission Matrix</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b dark:border-border bg-muted/50 dark:bg-muted/20">
+                          <th className="text-left py-2.5 px-3 text-sm font-medium text-muted-foreground w-[240px]">
+                            Feature
+                          </th>
+                          {ALL_LEVELS.map((lvl) => (
+                            <th
+                              key={lvl}
+                              className="py-2.5 px-2 text-center text-xs font-medium text-muted-foreground w-[90px]"
+                            >
+                              {PERMISSION_LEVEL_LABELS[lvl]}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupedSections.map((group) => (
+                          <InlineSectionGroup
+                            key={group.header.key}
+                            group={group}
+                            permissions={permissions}
+                            onChange={handlePermissionChange}
+                            onBulkChange={handleBulkPermissionChange}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+        </>
+      )}
 
       {/* Add Role Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -722,15 +835,13 @@ function UserRolesSubTab() {
               />
             </div>
 
-            {/* Role Settings Section (Jan 2026) */}
+            {/* Role Settings Section */}
             <div className="pt-4 border-t">
               <h4 className="font-medium text-sm mb-3">Default Settings</h4>
               <p className="text-xs text-muted-foreground mb-4">
                 These settings apply to users with this role as their primary role.
               </p>
-
               <div className="space-y-4">
-                {/* Default Task View */}
                 <div className="space-y-2">
                   <Label>Default Task View</Label>
                   <Select
@@ -836,17 +947,167 @@ function UserRolesSubTab() {
 }
 
 // ============================================
+// Users Sub-Tab (TeeemTableView)
+// ============================================
+
+function UsersSubTab() {
+  return (
+    <div className="flex flex-col h-full -mx-4">
+      <TeeemTableView
+        foundationId="user-management"
+        autoFetchRecords={true}
+      />
+    </div>
+  );
+}
+
+// ============================================
+// Features Sub-Tab (Module Toggles)
+// ============================================
+
+interface ModuleConfig {
+  key: string;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const AVAILABLE_MODULES: ModuleConfig[] = [
+  { key: "finance", label: "Finance", description: "Invoices, Purchase Orders, Estimates, Bill Inbox", icon: LayoutGrid },
+  { key: "warehouse", label: "File Warehouse", description: "Document storage and management", icon: LayoutGrid },
+  { key: "corporate", label: "Corporate", description: "Corporate companies, groups, cases", icon: LayoutGrid },
+  { key: "properties", label: "Properties", description: "Property management", icon: LayoutGrid },
+  { key: "calendar", label: "Calendar", description: "Calendar and scheduling", icon: LayoutGrid },
+  { key: "meetings", label: "Meetings", description: "Meeting management", icon: LayoutGrid },
+  { key: "docsort", label: "DocSort", description: "AI document sorting", icon: LayoutGrid },
+  { key: "esignature", label: "E-Signatures", description: "Digital signature workflows", icon: LayoutGrid },
+  { key: "library", label: "Library", description: "Templates and resources", icon: LayoutGrid },
+  { key: "portal", label: "Portal", description: "Client portal", icon: LayoutGrid },
+  { key: "schedule_master", label: "Schedule Master", description: "Gantt charts and scheduling", icon: LayoutGrid },
+  { key: "leads", label: "Leads", description: "Lead management", icon: LayoutGrid },
+];
+
+function FeaturesSubTab() {
+  const { toast } = useToast();
+  const [modules, setModules] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadModules();
+  }, []);
+
+  const loadModules = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; modules: Record<string, boolean> }>(
+        "/api/v1/tenant_settings/modules"
+      );
+      if (response?.success) {
+        setModules(response.modules || {});
+      }
+    } catch (err) {
+      console.error("Failed to load modules:", err);
+      // Default: all enabled
+      const defaults: Record<string, boolean> = {};
+      AVAILABLE_MODULES.forEach(m => { defaults[m.key] = true; });
+      setModules(defaults);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggle = async (moduleKey: string, enabled: boolean) => {
+    setSaving(moduleKey);
+    // Optimistic update
+    setModules(prev => ({ ...prev, [moduleKey]: enabled }));
+    try {
+      await api.patch("/api/v1/tenant_settings/modules", {
+        modules: { [moduleKey]: enabled },
+      });
+      toast({
+        title: enabled ? "Module enabled" : "Module disabled",
+        description: `${AVAILABLE_MODULES.find(m => m.key === moduleKey)?.label} has been ${enabled ? "enabled" : "disabled"}.`,
+      });
+    } catch (err) {
+      console.error("Failed to toggle module:", err);
+      // Revert on error
+      setModules(prev => ({ ...prev, [moduleKey]: !enabled }));
+      toast({
+        title: "Error",
+        description: "Failed to update module setting",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (loading) {
+    return <LoadingOverlay height="py-12" />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-foreground">Features</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Enable or disable modules for your company. Disabled modules are hidden from navigation.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {AVAILABLE_MODULES.map((mod) => {
+          const isEnabled = modules[mod.key] !== false; // Default: enabled
+          return (
+            <Card key={mod.key} className={!isEnabled ? "opacity-60" : ""}>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-foreground">{mod.label}</h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {mod.description}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={isEnabled}
+                    onCheckedChange={(checked) => handleToggle(mod.key, checked)}
+                    disabled={saving === mod.key}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // Groups Sub-Tab
 // ============================================
 
 function GroupsSubTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showMembersDialog, setShowMembersDialog] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDescription, setNewGroupDescription] = useState("");
+  const [editGroupName, setEditGroupName] = useState("");
+  const [editGroupDescription, setEditGroupDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  // Members management
+  const [selectedGroupForMembers, setSelectedGroupForMembers] = useState<Group | null>(null);
+  const [members, setMembers] = useState<Array<{ id: number; name: string; email: string }>>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
 
   useEffect(() => {
     loadGroups();
@@ -854,15 +1115,13 @@ function GroupsSubTab() {
 
   const loadGroups = async () => {
     try {
-      const data = await api.get<Group[]>("/api/v1/groups");
-      setGroups(data);
+      const data = await api.get<Group[] | { groups: Group[] }>("/api/v1/groups");
+      // Backend returns flat array, handle both formats
+      const groupsArray = Array.isArray(data) ? data : (data?.groups || []);
+      setGroups(groupsArray);
     } catch (error) {
       console.error("Failed to load groups:", error);
-      // Mock data for development
-      setGroups([
-        { id: 1, name: "Supervisors", description: "Site supervisors", members_count: 5 },
-        { id: 2, name: "Office Staff", description: "Office administration", members_count: 8 },
-      ]);
+      toast({ title: "Error", description: "Failed to load groups", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -888,6 +1147,105 @@ function GroupsSubTab() {
     }
   };
 
+  const handleEditGroup = (group: Group) => {
+    setEditingGroup(group);
+    setEditGroupName(group.name);
+    setEditGroupDescription(group.description || "");
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingGroup || !editGroupName) return;
+    setSaving(true);
+    try {
+      await api.patch(`/api/v1/groups/${editingGroup.id}`, {
+        name: editGroupName,
+        description: editGroupDescription,
+      });
+      toast({ title: "Success", description: "Group updated successfully" });
+      setShowEditDialog(false);
+      setEditingGroup(null);
+      loadGroups();
+    } catch (error) {
+      console.error("Failed to update group:", error);
+      toast({ title: "Error", description: "Failed to update group", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteGroup = async (group: Group) => {
+    if (!(await confirm(`Delete group "${group.name}"? Users in this group will be unassigned.`))) return;
+    try {
+      const response = await api.delete<{ success: boolean; error?: string }>(`/api/v1/groups/${group.id}`);
+      if (response?.success === false && response?.error) {
+        toast({ title: "Error", description: response.error, variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: "Group deleted" });
+        loadGroups();
+      }
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error || "Failed to delete group";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    }
+  };
+
+  const handleManageMembers = async (group: Group) => {
+    setSelectedGroupForMembers(group);
+    setShowMembersDialog(true);
+    setLoadingMembers(true);
+    try {
+      const [membersRes, usersRes] = await Promise.all([
+        api.get<{ success: boolean; members: Array<{ id: number; name: string; email: string }> }>(
+          `/api/v1/groups/${group.id}/members`
+        ),
+        api.get<{ users: User[] }>(API.users.list),
+      ]);
+      setMembers(membersRes?.members || []);
+      setAllUsers(usersRes?.users || []);
+    } catch (err) {
+      console.error("Failed to load members:", err);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const handleAddMember = async (userId: number) => {
+    if (!selectedGroupForMembers) return;
+    setAddingMember(true);
+    try {
+      await api.post(`/api/v1/groups/${selectedGroupForMembers.id}/add_member`, { user_id: userId });
+      // Refresh members
+      const res = await api.get<{ success: boolean; members: Array<{ id: number; name: string; email: string }> }>(
+        `/api/v1/groups/${selectedGroupForMembers.id}/members`
+      );
+      setMembers(res?.members || []);
+      loadGroups(); // Refresh counts
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || "Failed to add member";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (userId: number) => {
+    if (!selectedGroupForMembers) return;
+    try {
+      await api.delete(`/api/v1/groups/${selectedGroupForMembers.id}/remove_member?user_id=${userId}`);
+      setMembers((prev) => prev.filter((m) => m.id !== userId));
+      loadGroups();
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || "Failed to remove member";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  };
+
+  // Users not already in this group
+  const availableUsers = allUsers.filter(
+    (u) => !members.some((m) => m.id === u.id)
+  );
+
   if (loading) {
     return <LoadingOverlay />;
   }
@@ -901,89 +1259,165 @@ function GroupsSubTab() {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {groups.map((group) => (
-          <Card key={group.id}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{group.name}</CardTitle>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Users className="h-4 w-4 mr-2" />
-                      Manage Members
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-2">
-                {group.description || "No description"}
-              </p>
-              <Badge variant="secondary">
-                {group.members_count || 0} members
-              </Badge>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {groups.length === 0 ? (
+        <EmptyState title="No groups created yet" icon={<UsersRound className="h-12 w-12" />} />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {groups.map((group) => (
+            <Card key={group.id}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{group.name}</CardTitle>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleManageMembers(group)}>
+                        <Users className="h-4 w-4 mr-2" />
+                        Manage Members
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleEditGroup(group)}>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGroup(group)}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-2">
+                  {group.description || "No description"}
+                </p>
+                <Badge variant="secondary">
+                  {group.members_count || 0} members
+                </Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
+      {/* Add Group Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Group</DialogTitle>
-            <DialogDescription>
-              Create a new group to organize users.
-            </DialogDescription>
+            <DialogDescription>Create a new group to organize users.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="groupName">Group Name</Label>
-              <Input
-                id="groupName"
-                placeholder="e.g., Site Team A"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-              />
+              <Input id="groupName" placeholder="e.g., Site Team A" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="groupDescription">Description</Label>
-              <Input
-                id="groupDescription"
-                placeholder="Brief description of this group"
-                value={newGroupDescription}
-                onChange={(e) => setNewGroupDescription(e.target.value)}
-              />
+              <Input id="groupDescription" placeholder="Brief description" value={newGroupDescription} onChange={(e) => setNewGroupDescription(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
             <Button onClick={handleAddGroup} disabled={saving || !newGroupName}>
-              {saving ? (
-                <>
-                  <Spinner size={16} className="mr-2" />
-                  Creating...
-                </>
-              ) : (
-                "Create Group"
-              )}
+              {saving ? <><Spinner size={16} className="mr-2" />Creating...</> : "Create Group"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Group Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Group</DialogTitle>
+            <DialogDescription>Update group details.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Group Name</Label>
+              <Input value={editGroupName} onChange={(e) => setEditGroupName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input value={editGroupDescription} onChange={(e) => setEditGroupDescription(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={saving || !editGroupName}>
+              {saving ? <><Spinner size={16} className="mr-2" />Saving...</> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Members Dialog */}
+      <Dialog open={showMembersDialog} onOpenChange={setShowMembersDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {selectedGroupForMembers?.name} — Members
+            </DialogTitle>
+            <DialogDescription>Add or remove users from this group.</DialogDescription>
+          </DialogHeader>
+
+          {loadingMembers ? (
+            <div className="flex justify-center py-8"><Spinner size={24} /></div>
+          ) : (
+            <div className="space-y-4">
+              {/* Current members */}
+              <div>
+                <h4 className="text-sm font-medium mb-2">Current Members ({members.length})</h4>
+                {members.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No members yet.</p>
+                ) : (
+                  <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                    {members.map((m) => (
+                      <div key={m.id} className="flex items-center justify-between p-2 rounded border bg-card">
+                        <div>
+                          <div className="text-sm font-medium">{m.name}</div>
+                          <div className="text-xs text-muted-foreground">{m.email}</div>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveMember(m.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Add member */}
+              {availableUsers.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Add Member</h4>
+                  <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                    {availableUsers.map((u) => (
+                      <div key={u.id} className="flex items-center justify-between p-2 rounded border bg-card hover:bg-muted/50">
+                        <div>
+                          <div className="text-sm font-medium">{u.name}</div>
+                          <div className="text-xs text-muted-foreground">{u.email}</div>
+                        </div>
+                        <Button variant="outline" size="sm" disabled={addingMember} onClick={() => handleAddMember(u.id)}>
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMembersDialog(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1013,7 +1447,7 @@ export default function RolesSettingsPage() {
           Access Control
         </h2>
         <p className="text-muted-foreground mt-1">
-          Manage permissions, roles, and groups
+          Manage permissions, roles, features, and groups
         </p>
       </div>
 
@@ -1038,8 +1472,11 @@ export default function RolesSettingsPage() {
           <TabsContent value="permissions">
             <PermissionsSubTab />
           </TabsContent>
-          <TabsContent value="roles">
-            <UserRolesSubTab />
+          <TabsContent value="users">
+            <UsersSubTab />
+          </TabsContent>
+          <TabsContent value="features">
+            <FeaturesSubTab />
           </TabsContent>
           <TabsContent value="groups">
             <GroupsSubTab />

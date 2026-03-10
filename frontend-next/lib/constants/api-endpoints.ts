@@ -217,6 +217,14 @@ export const API = {
     delete: (id: number | string) => `/api/v1/roles/${id}`,
   },
 
+  // Section-Level Permissions (Mar 2026)
+  permissions: {
+    sections: "/api/v1/permissions/sections",
+    rolePermissions: (roleId: number | string) => `/api/v1/permissions/roles/${roleId}/section_permissions`,
+    updateRolePermissions: (roleId: number | string) => `/api/v1/permissions/roles/${roleId}/section_permissions`,
+    copyFrom: (roleId: number | string) => `/api/v1/permissions/roles/${roleId}/copy_from`,
+  },
+
   // Admin / System
   admin: {
     health: "/api/v1/health",

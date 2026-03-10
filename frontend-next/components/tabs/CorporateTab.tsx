@@ -3,9 +3,9 @@
 /**
  * CorporateTab - Editable sensitive corporate information
  *
- * Extracted from corporate page for unified tab system.
- * Contains TFN, business names, ASIC credentials.
- * Sensitive fields (TFN, password, recovery answer) require password to reveal.
+ * Contains TFN, business names, ASIC credentials (multi-user).
+ * Corporate Key is shared per company. Each user has their own username/password/recovery.
+ * Sensitive fields (TFN, credential passwords) require password to reveal.
  */
 
 import * as React from "react";
@@ -14,9 +14,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
-import { Edit, Save, Eye, EyeOff } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Edit, Save, Eye, EyeOff, Plus, Pencil, Trash2, Lock, UserPlus } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Corporate } from "@/lib/types/corporate";
+import type { Corporate, AsicPortalCredential } from "@/lib/types/corporate";
 import { PasswordRevealDialog } from "@/components/corporate/PasswordRevealDialog";
 
 interface CorporateTabProps {
@@ -26,22 +41,25 @@ interface CorporateTabProps {
   onUpdate?: () => void;
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  resigned: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+  expired: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+};
+
 export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = React.useState(false);
 
-  // Sensitive data fetched after password verification
+  // Sensitive data fetched after password verification (for TFN)
   const [sensitiveData, setSensitiveData] = React.useState<{
     tfn?: string;
     encrypted_asic_password?: string;
     encrypted_recovery_answer?: string;
   } | null>(null);
 
-  // Which fields are currently revealed
   const [showTfn, setShowTfn] = React.useState(false);
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [showAnswer, setShowAnswer] = React.useState(false);
 
   const [formData, setFormData] = React.useState({
     tfn: "",
@@ -49,20 +67,46 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
     previous_names: company.previous_names || "",
     registered_office_address: company.registered_office_address || "",
     corporate_key: company.corporate_key || "",
-    asic_username: company.asic_username || "",
-    asic_password: "",
-    recovery_question: company.recovery_question || "",
-    recovery_answer: "",
   });
+
+  // ASIC credential management
+  const [credentials, setCredentials] = React.useState<AsicPortalCredential[]>(
+    company.asic_portal_credentials || []
+  );
+  const [showCredentialDialog, setShowCredentialDialog] = React.useState(false);
+  const [editingCredential, setEditingCredential] = React.useState<AsicPortalCredential | null>(null);
+  const [credentialSaving, setCredentialSaving] = React.useState(false);
+  const [credentialForm, setCredentialForm] = React.useState({
+    username: "",
+    encrypted_password: "",
+    recovery_question: "",
+    encrypted_recovery_answer: "",
+    status: "active" as string,
+    notes: "",
+    contact_id: "" as string,
+  });
+
+  // Contact search for credential dialog
+  const [contactSearch, setContactSearch] = React.useState("");
+  const [contactResults, setContactResults] = React.useState<Array<{ id: number; display_name: string }>>([]);
+  const [contactSearching, setContactSearching] = React.useState(false);
+
+  // Per-credential password reveal
+  const [revealCredentialId, setRevealCredentialId] = React.useState<number | null>(null);
+  const [showCredRevealDialog, setShowCredRevealDialog] = React.useState(false);
+  const [revealedCredentials, setRevealedCredentials] = React.useState<Record<number, { password?: string; answer?: string }>>({});
+  const [visibleFields, setVisibleFields] = React.useState<Record<string, boolean>>({});
+
+  // Sync credentials when company data changes
+  React.useEffect(() => {
+    setCredentials(company.asic_portal_credentials || []);
+  }, [company.asic_portal_credentials]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const dataToSend: Record<string, unknown> = { ...formData };
-      if (!dataToSend.asic_password) delete dataToSend.asic_password;
-      if (!dataToSend.recovery_answer) delete dataToSend.recovery_answer;
       if (!dataToSend.tfn) delete dataToSend.tfn;
-      // Convert previous_names string to array (comma-separated)
       if (typeof dataToSend.previous_names === "string") {
         const names = (dataToSend.previous_names as string)
           .split(",")
@@ -89,35 +133,154 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
     return tfn;
   };
 
-  // Request password verification to unlock sensitive fields
+  // TFN reveal
   const handleRevealClick = () => {
-    if (sensitiveData) {
-      // Already verified - just toggle visibility
-      return;
-    }
+    if (sensitiveData) return;
     setShowPasswordDialog(true);
   };
 
   const handleRevealed = (data: { tfn?: string; encrypted_asic_password?: string; encrypted_recovery_answer?: string }) => {
     setSensitiveData(data);
-    // Pre-fill edit form with TFN if entering edit mode later
     if (data.tfn) {
       setFormData(prev => ({ ...prev, tfn: data.tfn || "" }));
     }
   };
 
-  // Toggle individual field visibility (only works after password verification)
   const toggleTfn = () => {
     if (!sensitiveData) { handleRevealClick(); return; }
     setShowTfn(!showTfn);
   };
-  const togglePassword = () => {
-    if (!sensitiveData) { handleRevealClick(); return; }
-    setShowPassword(!showPassword);
+
+  // ---- Credential CRUD ----
+
+  const openAddCredential = () => {
+    setEditingCredential(null);
+    setCredentialForm({ username: "", encrypted_password: "", recovery_question: "", encrypted_recovery_answer: "", status: "active", notes: "", contact_id: "" });
+    setContactSearch("");
+    setContactResults([]);
+    setShowCredentialDialog(true);
   };
-  const toggleAnswer = () => {
-    if (!sensitiveData) { handleRevealClick(); return; }
-    setShowAnswer(!showAnswer);
+
+  const openEditCredential = (cred: AsicPortalCredential) => {
+    setEditingCredential(cred);
+    setCredentialForm({
+      username: cred.username,
+      encrypted_password: "",
+      recovery_question: cred.recovery_question || "",
+      encrypted_recovery_answer: "",
+      status: cred.status,
+      notes: cred.notes || "",
+      contact_id: cred.contact_id ? String(cred.contact_id) : "",
+    });
+    setContactSearch(cred.contact_name || "");
+    setContactResults([]);
+    setShowCredentialDialog(true);
+  };
+
+  const handleCredentialSave = async () => {
+    setCredentialSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        username: credentialForm.username,
+        recovery_question: credentialForm.recovery_question,
+        status: credentialForm.status,
+        notes: credentialForm.notes,
+        contact_id: credentialForm.contact_id || null,
+      };
+      if (credentialForm.encrypted_password) payload.encrypted_password = credentialForm.encrypted_password;
+      if (credentialForm.encrypted_recovery_answer) payload.encrypted_recovery_answer = credentialForm.encrypted_recovery_answer;
+
+      if (editingCredential) {
+        const res = await api.put<{ success: boolean; credential: AsicPortalCredential }>(
+          `/api/v1/companies/${company.id}/asic_credentials/${editingCredential.id}`,
+          { credential: payload }
+        );
+        if (res?.success) {
+          setCredentials(prev => prev.map(c => c.id === editingCredential.id ? res.credential : c));
+        }
+      } else {
+        const res = await api.post<{ success: boolean; credential: AsicPortalCredential }>(
+          `/api/v1/companies/${company.id}/asic_credentials`,
+          { credential: payload }
+        );
+        if (res?.success) {
+          setCredentials(prev => [...prev, res.credential]);
+        }
+      }
+      setShowCredentialDialog(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error("Failed to save credential:", error);
+    } finally {
+      setCredentialSaving(false);
+    }
+  };
+
+  const handleDeleteCredential = async (cred: AsicPortalCredential) => {
+    try {
+      await api.delete(`/api/v1/companies/${company.id}/asic_credentials/${cred.id}`);
+      setCredentials(prev => prev.map(c => c.id === cred.id ? { ...c, status: "resigned" as const } : c));
+      onUpdate?.();
+    } catch (error) {
+      console.error("Failed to delete credential:", error);
+    }
+  };
+
+  // Contact search debounce
+  React.useEffect(() => {
+    if (contactSearch.length < 2) { setContactResults([]); return; }
+    const timer = setTimeout(async () => {
+      setContactSearching(true);
+      try {
+        const res = await api.get<{ contacts: Array<{ id: number; display_name: string }> }>(
+          `/api/v1/contacts?search=${encodeURIComponent(contactSearch)}&per_page=10`
+        );
+        setContactResults(res.contacts || []);
+      } catch { setContactResults([]); }
+      finally { setContactSearching(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contactSearch]);
+
+  // Per-credential reveal
+  const handleCredReveal = (credId: number) => {
+    if (revealedCredentials[credId]) {
+      // Already revealed - just toggle visibility
+      return;
+    }
+    setRevealCredentialId(credId);
+    setShowCredRevealDialog(true);
+  };
+
+  const handleCredRevealVerified = async (password: string) => {
+    if (!revealCredentialId) return;
+    try {
+      const res = await api.post<{ success: boolean; data: { encrypted_password?: string; encrypted_recovery_answer?: string }; error?: string }>(
+        `/api/v1/companies/${company.id}/asic_credentials/${revealCredentialId}/reveal`,
+        { password },
+        { skipAuthRedirect: true }
+      );
+      if (res?.success) {
+        setRevealedCredentials(prev => ({
+          ...prev,
+          [revealCredentialId]: { password: res.data.encrypted_password, answer: res.data.encrypted_recovery_answer }
+        }));
+        setShowCredRevealDialog(false);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  const toggleCredField = (credId: number, field: "password" | "answer") => {
+    const key = `${credId}-${field}`;
+    if (!revealedCredentials[credId]) {
+      handleCredReveal(credId);
+      return;
+    }
+    setVisibleFields(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
@@ -164,7 +327,7 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
             ) : (
               <div className="flex items-center gap-1.5 mt-1">
                 <p className="text-sm font-mono">
-                  {!company.has_tfn ? "-" : showTfn && sensitiveData?.tfn ? formatTFN(sensitiveData.tfn) : "••• ••• •••"}
+                  {!company.has_tfn ? "-" : showTfn && sensitiveData?.tfn ? formatTFN(sensitiveData.tfn) : "... ... ..."}
                 </p>
                 {company.has_tfn && (
                   <button type="button" onClick={toggleTfn} className="text-muted-foreground hover:text-foreground p-0.5">
@@ -220,97 +383,319 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
       {/* ASIC Portal Access */}
       <div className="border-t pt-6">
         <h4 className="text-sm font-semibold mb-4">ASIC Portal Access</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div>
-            <Label className="text-muted-foreground">Corporate Key</Label>
-            {isEditing ? (
-              <Input
-                value={formData.corporate_key}
-                onChange={(e) => setFormData({ ...formData, corporate_key: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm font-mono mt-1">{company.corporate_key || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">User Name</Label>
-            {isEditing ? (
-              <Input
-                value={formData.asic_username}
-                onChange={(e) => setFormData({ ...formData, asic_username: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">{company.asic_username || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Password</Label>
-            {isEditing ? (
-              <Input
-                value={formData.asic_password}
-                onChange={(e) => setFormData({ ...formData, asic_password: e.target.value })}
-                placeholder="Enter to change"
-                className="mt-1"
-              />
-            ) : (
-              <div className="flex items-center gap-1.5 mt-1">
-                <p className="text-sm">
-                  {!company.has_asic_password ? "-" : showPassword && sensitiveData?.encrypted_asic_password ? sensitiveData.encrypted_asic_password : "••••••••"}
-                </p>
-                {company.has_asic_password && (
-                  <button type="button" onClick={togglePassword} className="text-muted-foreground hover:text-foreground p-0.5">
-                    {showPassword && sensitiveData ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Recovery Question</Label>
-            {isEditing ? (
-              <Input
-                value={formData.recovery_question}
-                onChange={(e) => setFormData({ ...formData, recovery_question: e.target.value })}
-                className="mt-1"
-              />
-            ) : (
-              <p className="text-sm mt-1">{company.recovery_question || "-"}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Answer</Label>
-            {isEditing ? (
-              <Input
-                value={formData.recovery_answer}
-                onChange={(e) => setFormData({ ...formData, recovery_answer: e.target.value })}
-                placeholder="Enter to change"
-                className="mt-1"
-              />
-            ) : (
-              <div className="flex items-center gap-1.5 mt-1">
-                <p className="text-sm">
-                  {!company.has_recovery_answer ? "-" : showAnswer && sensitiveData?.encrypted_recovery_answer ? sensitiveData.encrypted_recovery_answer : "••••••••"}
-                </p>
-                {company.has_recovery_answer && (
-                  <button type="button" onClick={toggleAnswer} className="text-muted-foreground hover:text-foreground p-0.5">
-                    {showAnswer && sensitiveData ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+
+        {/* Corporate Key - shared per company */}
+        <div className="mb-6">
+          <Label className="text-muted-foreground">Corporate Key (shared)</Label>
+          {isEditing ? (
+            <Input
+              value={formData.corporate_key}
+              onChange={(e) => setFormData({ ...formData, corporate_key: e.target.value })}
+              className="mt-1 max-w-xs"
+            />
+          ) : (
+            <p className="text-sm font-mono mt-1">{company.corporate_key || "-"}</p>
+          )}
         </div>
+
+        {/* ASIC Portal Users */}
+        <div className="flex items-center justify-between mb-3">
+          <h5 className="text-sm font-medium text-muted-foreground">Portal Users</h5>
+          <Button variant="outline" size="sm" onClick={openAddCredential}>
+            <UserPlus className="h-4 w-4 mr-1.5" />
+            Add User
+          </Button>
+        </div>
+
+        {credentials.length === 0 ? (
+          <div className="border border-dashed rounded-lg p-6 text-center text-sm text-muted-foreground">
+            No ASIC portal users configured. Click &quot;Add User&quot; to add credentials.
+          </div>
+        ) : (
+          <div className="border rounded-lg divide-y dark:divide-border">
+            {credentials.map((cred) => (
+              <div key={cred.id} className="p-4 flex flex-col sm:flex-row sm:items-start gap-3">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {/* Contact */}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Contact</p>
+                    <p className="text-sm">{cred.contact_name || "-"}</p>
+                  </div>
+                  {/* Username */}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Username</p>
+                    <p className="text-sm font-mono">{cred.username}</p>
+                  </div>
+                  {/* Password */}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Password</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-mono">
+                        {!cred.has_password
+                          ? "-"
+                          : visibleFields[`${cred.id}-password`] && revealedCredentials[cred.id]?.password
+                            ? revealedCredentials[cred.id].password
+                            : "........"}
+                      </p>
+                      {cred.has_password && (
+                        <button type="button" onClick={() => toggleCredField(cred.id, "password")} className="text-muted-foreground hover:text-foreground p-0.5">
+                          {visibleFields[`${cred.id}-password`] && revealedCredentials[cred.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {/* Recovery Q */}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Recovery Q</p>
+                    <p className="text-sm truncate">{cred.recovery_question || "-"}</p>
+                  </div>
+                  {/* Recovery A */}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Answer</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-mono">
+                        {!cred.has_recovery_answer
+                          ? "-"
+                          : visibleFields[`${cred.id}-answer`] && revealedCredentials[cred.id]?.answer
+                            ? revealedCredentials[cred.id].answer
+                            : "........"}
+                      </p>
+                      {cred.has_recovery_answer && (
+                        <button type="button" onClick={() => toggleCredField(cred.id, "answer")} className="text-muted-foreground hover:text-foreground p-0.5">
+                          {visibleFields[`${cred.id}-answer`] && revealedCredentials[cred.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {/* Status + Actions */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[cred.status] || ""}`}>
+                    {cred.status}
+                  </span>
+                  <button type="button" onClick={() => openEditCredential(cred)} className="text-muted-foreground hover:text-foreground p-1" title="Edit">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  {cred.status === "active" && (
+                    <button type="button" onClick={() => handleDeleteCredential(cred)} className="text-muted-foreground hover:text-destructive p-1" title="Mark as resigned">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
+      {/* TFN Password Reveal Dialog */}
       <PasswordRevealDialog
         open={showPasswordDialog}
         onOpenChange={setShowPasswordDialog}
         companyId={company.id}
         onRevealed={handleRevealed}
       />
+
+      {/* Per-Credential Password Reveal Dialog */}
+      <CredentialRevealDialog
+        open={showCredRevealDialog}
+        onOpenChange={setShowCredRevealDialog}
+        onVerify={handleCredRevealVerified}
+      />
+
+      {/* Add/Edit Credential Dialog */}
+      <Dialog open={showCredentialDialog} onOpenChange={setShowCredentialDialog}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editingCredential ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {editingCredential ? "Edit ASIC Credential" : "Add ASIC Credential"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingCredential ? "Update portal user credentials." : "Add a new ASIC portal user for this company."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Contact search */}
+            <div>
+              <Label>Contact (optional)</Label>
+              <div className="relative mt-1">
+                <Input
+                  value={contactSearch}
+                  onChange={(e) => {
+                    setContactSearch(e.target.value);
+                    if (!e.target.value) setCredentialForm(f => ({ ...f, contact_id: "" }));
+                  }}
+                  placeholder="Search contacts..."
+                />
+                {contactSearching && <Spinner size={14} className="absolute right-3 top-3" />}
+                {contactResults.length > 0 && contactSearch.length >= 2 && (
+                  <div className="absolute z-10 w-full bg-popover border rounded-md shadow-md mt-1 max-h-40 overflow-y-auto">
+                    {contactResults.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                        onClick={() => {
+                          setCredentialForm(f => ({ ...f, contact_id: String(c.id) }));
+                          setContactSearch(c.display_name);
+                          setContactResults([]);
+                        }}
+                      >
+                        {c.display_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div>
+              <Label>Username *</Label>
+              <Input
+                value={credentialForm.username}
+                onChange={(e) => setCredentialForm(f => ({ ...f, username: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Password</Label>
+              <Input
+                value={credentialForm.encrypted_password}
+                onChange={(e) => setCredentialForm(f => ({ ...f, encrypted_password: e.target.value }))}
+                placeholder={editingCredential ? "Leave blank to keep current" : "Enter password"}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Recovery Question</Label>
+              <Input
+                value={credentialForm.recovery_question}
+                onChange={(e) => setCredentialForm(f => ({ ...f, recovery_question: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Recovery Answer</Label>
+              <Input
+                value={credentialForm.encrypted_recovery_answer}
+                onChange={(e) => setCredentialForm(f => ({ ...f, encrypted_recovery_answer: e.target.value }))}
+                placeholder={editingCredential ? "Leave blank to keep current" : "Enter answer"}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <Select value={credentialForm.status} onValueChange={(v) => setCredentialForm(f => ({ ...f, status: v }))}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="resigned">Resigned</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                value={credentialForm.notes}
+                onChange={(e) => setCredentialForm(f => ({ ...f, notes: e.target.value }))}
+                rows={2}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCredentialDialog(false)}>Cancel</Button>
+            <Button onClick={handleCredentialSave} disabled={credentialSaving || !credentialForm.username.trim()}>
+              {credentialSaving && <Spinner size={16} className="mr-2" />}
+              {editingCredential ? "Update" : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+/**
+ * Inline credential reveal dialog - verifies user password then returns decrypted values.
+ */
+function CredentialRevealDialog({
+  open,
+  onOpenChange,
+  onVerify,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onVerify: (password: string) => Promise<boolean | undefined>;
+}) {
+  const [password, setPassword] = React.useState("");
+  const [error, setError] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      setPassword("");
+      setError("");
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [open]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password.trim()) { setError("Please enter your password"); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const success = await onVerify(password);
+      if (!success) setError("Invalid password");
+    } catch {
+      setError("Invalid password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[400px]">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              Password Required
+            </DialogTitle>
+            <DialogDescription>
+              Enter your login password to reveal credential details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="cred-reveal-password">Password</Label>
+            <Input
+              ref={inputRef}
+              id="cred-reveal-password"
+              type="password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError(""); }}
+              placeholder="Enter your password"
+              className="mt-1.5"
+              autoComplete="current-password"
+            />
+            {error && <p className="text-sm text-destructive mt-2">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Spinner size={16} className="mr-2" />}
+              Verify
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

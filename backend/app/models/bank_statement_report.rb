@@ -6,7 +6,6 @@
 # Example: Corporate/Tekna/THS/XERO/Bank/THS XB NAB 083-052 305422840 Dec24.pdf
 # PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
-  include StorageUploadable
 
   belongs_to :corporate, foreign_key: "company_id", optional: true
   belongs_to :bank_account, primary_key: "xero_account_id", foreign_key: "bank_account_id", optional: true
@@ -361,79 +360,34 @@ class BankStatementReport < ApplicationRecord
     self[:display_name] = computed_display_name
   end
 
-  # Upload file content to storage using SSoT folder structure from DocumentType system
-  # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/XERO/Bank/{filename}
-  # SSoT (Feb 2026): Uses WarehouseFolder.full_folder_path for path resolution
+  # Upload file content to blob storage and create WarehouseDocument
+  # Blob-only (Mar 2026): No legacy S3 folder upload
   def upload_to_storage(content, filename)
-    # SSoT: WarehouseFolder (bank_statement) → full_folder_path is THE ONE source
-    # Path defined in Admin > Warehouse Config > Bank Statement folder
-    base_folder = WarehouseFolder.find_by(tab_key: 'bank_statement')
+    blob = StorageBlob.find_or_create_for_content!(
+      content, filename: filename, content_type: "application/pdf"
+    )
 
-    # Fallback: Use WarehouseProvider template if WarehouseFolder not found or has no path
-    path_template = base_folder&.full_folder_path
-    if path_template.blank?
-      # SSoT fallback: WarehouseProvider warehouse_folders['bank_statement']
-      path_template = WarehouseProvider.instance.warehouse_folders['bank_statement']
-      Rails.logger.info("[BankStatementReport] Using WarehouseProvider fallback path: #{path_template}")
-    end
-
-    unless path_template.present?
-      Rails.logger.error("[BankStatementReport] SSoT missing: No bank_statement path in WarehouseFolder or WarehouseProvider")
-      return nil
-    end
-
-    # SSoT: Resolve placeholders in path template
-    company_group = corporate&.group_name || "Other"
-    resolved_path = path_template
-      .gsub("{CompanyGroup}", company_group)
-      .gsub("{CompanyCode}", company_code || "UNKNOWN")
-      .gsub("{company_code}", company_code || "UNKNOWN")
-
-    Rails.logger.info("[BankStatementReport] SSoT path from WarehouseFolder: #{resolved_path}/#{filename}")
-
-    # Use StorageUploadable for provider-agnostic upload
-    result = upload_to_storage_path(resolved_path, content, filename, content_type: "application/pdf")
-
-    unless result[:success]
-      Rails.logger.error("[BankStatementReport] Storage upload failed: #{result[:error]}")
-      return nil
-    end
-
-    Rails.logger.info("[BankStatementReport] Uploaded to storage: #{resolved_path}/#{filename}")
-
-    # SSoT: Create WarehouseDocument so it appears in document warehouse
+    # Create/update WarehouseDocument (idempotent — re-generate should update, not duplicate)
     if corporate.present?
-      create_warehouse_document_record(
-        filename: filename,
-        storage_path: result[:path] || resolved_path,
-        storage_file_id: result[:id],
-        storage_url: result[:url],
-        file_size: content.bytesize
-      )
+      create_warehouse_document_record(blob: blob, filename: filename, file_size: content.bytesize)
     end
 
-    result[:raw] || { id: result[:id], web_url: result[:url], path: result[:path] }
+    { id: blob.id, url: blob.presigned_url, path: blob.storage_path }
   rescue StandardError => e
     Rails.logger.error("[BankStatementReport] Storage error: #{e.message}")
     nil
   end
 
   # Create a WarehouseDocument record for the warehouse
-  # SSoT: WarehouseDocument is THE ONE table for all document metadata (Jan 2026)
-  def create_warehouse_document_record(filename:, storage_path:, storage_file_id:, storage_url:, file_size:)
-    # Find or create storage blob first
-    blob = StorageBlob.find_or_create_by!(storage_path: "#{storage_path}/#{filename}") do |b|
-      b.original_filename = filename
-      b.file_size = file_size
-      b.content_type = "application/pdf"
-    end
-
-    # Create/update WarehouseDocument via find_or_initialize pattern
-    # (bank statements are idempotent — re-generate should update, not duplicate)
+  # SSoT: WarehouseDocument is THE ONE table for all document metadata
+  def create_warehouse_document_record(blob:, filename:, file_size:)
+    # Find or initialize for idempotent re-generation
     doc = WarehouseDocument.find_or_initialize_by(
       documentable_type: "BankStatementReport",
       documentable_id: id
     )
+
+    bank_statement_folder = WarehouseFolder.find_by(tab_key: "bank_statement")
 
     doc.assign_attributes(
       source_type: "xero",
@@ -441,12 +395,11 @@ class BankStatementReport < ApplicationRecord
       original_filename: filename,
       storage_blob: blob,
       linkable: corporate,
+      warehouse_folder_id: bank_statement_folder&.id,
       metadata: {
         "document_type" => "Bank Statement",
         "document_date" => period_end&.iso8601,
-        "company_id" => company_id,
-        "storage_file_id" => storage_file_id,
-        "storage_url" => storage_url
+        "company_id" => company_id
       }
     )
 

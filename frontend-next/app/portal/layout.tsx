@@ -15,6 +15,11 @@ import {
   Bars3Icon,
   XMarkIcon,
   CalendarDaysIcon,
+  BuildingOfficeIcon,
+  WrenchScrewdriverIcon,
+  ClipboardDocumentCheckIcon,
+  ChartBarIcon,
+  CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
 import { getStorageItem, removeStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { ROUTES } from "@/lib/constants/route-paths";
@@ -24,6 +29,7 @@ import { ConfirmationProvider } from "@/contexts/ConfirmationContext";
 interface PortalUser {
   contact_name?: string;
   company_name?: string;
+  portal_type?: string;
 }
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -32,6 +38,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [portalUser, setPortalUser] = useState<PortalUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEmbedMode, setIsEmbedMode] = useState(false);
+
+  useEffect(() => {
+    // Check for embed mode from URL param or sessionStorage
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("embed") === "1") {
+      setIsEmbedMode(true);
+      try { sessionStorage.setItem("portal_embed", "1"); } catch {}
+    } else {
+      try {
+        setIsEmbedMode(sessionStorage.getItem("portal_embed") === "1");
+      } catch {}
+    }
+  }, [pathname]);
 
   useEffect(() => {
     // Load portal user from localStorage
@@ -45,7 +65,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     }
   }, [pathname, router]);
 
-  const navigation = [
+  const isPropertyPortal = portalUser?.portal_type === "tenant" || portalUser?.portal_type === "owner";
+  const isOwner = portalUser?.portal_type === "owner";
+
+  const supplierNavigation = [
     { name: "Dashboard", href: ROUTES.PORTAL.DASHBOARD, icon: HomeIcon },
     { name: "Quotes", href: ROUTES.PORTAL.QUOTES, icon: DocumentTextIcon },
     { name: "Jobs", href: ROUTES.PORTAL.JOBS, icon: BriefcaseIcon },
@@ -54,6 +77,19 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     { name: "Kudos", href: ROUTES.PORTAL.KUDOS, icon: TrophyIcon },
     { name: "Settings", href: "/portal/settings", icon: Cog6ToothIcon },
   ];
+
+  const propertyNavigation = [
+    { name: "Dashboard", href: ROUTES.PORTAL.PROPERTY_DASHBOARD, icon: HomeIcon },
+    { name: "Rent", href: ROUTES.PORTAL.PROPERTY_PAYMENTS, icon: CurrencyDollarIcon },
+    { name: "Inspections", href: ROUTES.PORTAL.PROPERTY_INSPECTIONS, icon: ClipboardDocumentCheckIcon },
+    { name: "Maintenance", href: ROUTES.PORTAL.PROPERTY_MAINTENANCE, icon: WrenchScrewdriverIcon },
+    { name: "Documents", href: ROUTES.PORTAL.PROPERTY_DOCUMENTS, icon: DocumentTextIcon },
+    ...(isOwner ? [
+      { name: "Valuations", href: ROUTES.PORTAL.PROPERTY_VALUATIONS, icon: ChartBarIcon },
+    ] : []),
+  ];
+
+  const navigation = isPropertyPortal ? propertyNavigation : supplierNavigation;
 
   const handleLogout = () => {
     removeStorageItem(STORAGE_KEYS.PORTAL_TOKEN);
@@ -69,6 +105,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   // Show loading state while checking auth
   if (isLoading || !portalUser) {
     return null;
+  }
+
+  // Embed mode: no sidebar/header, just content
+  if (isEmbedMode) {
+    return (
+      <ConfirmationProvider>
+        <div className="min-h-screen bg-muted dark:bg-background">
+          <main className="py-4 px-4 sm:px-6">
+            {children}
+          </main>
+          <Toaster />
+        </div>
+      </ConfirmationProvider>
+    );
   }
 
   return (

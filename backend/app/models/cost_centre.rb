@@ -15,8 +15,9 @@
 # - Employee/subcontractor assignment to primary cost centre
 #
 class CostCentre < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :code
 
   # Centre types
@@ -51,6 +52,7 @@ class CostCentre < ApplicationRecord
   scope :inactive, -> { where(active: false) }
   scope :roots, -> { where(parent_id: nil) }
   scope :by_type, ->(type) { where(centre_type: type) }
+  scope :by_template, ->(template_id) { where("sm_schedule_master_template_ids @> ?", "[#{template_id.to_i}]") }
   scope :ordered, -> { order(:code) }
 
   # Instance methods

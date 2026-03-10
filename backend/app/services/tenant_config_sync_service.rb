@@ -714,27 +714,6 @@ class TenantConfigSyncService
     },
 
     # ============================================================================
-    # Plans Group
-    # ============================================================================
-    plan_types: {
-      model: "PlanType",
-      name_field: :name,
-      match_fields: [:code],
-      sync_fields: [:name, :code, :allows_variants, :notes, :sequence_order, :is_active,
-                    :short_name_template, :long_name_template],
-      description: "Plan/drawing type definitions",
-      group: "plans"
-    },
-    plan_categories: {
-      model: "PlanCategory",
-      name_field: :name,
-      match_fields: [:code],
-      sync_fields: [:name, :code, :is_active, :sequence_order],
-      description: "Plan category groupings",
-      group: "plans"
-    },
-
-    # ============================================================================
     # Views Group
     # ============================================================================
     foundation_views: {
@@ -806,7 +785,6 @@ class TenantConfigSyncService
     "warehouse" => "Warehouse",
     "whs" => "WHS",
     "email" => "Email",
-    "plans" => "Plans",
     "views" => "Views"
   }.freeze
 
@@ -836,12 +814,15 @@ class TenantConfigSyncService
   # List all available config tables with counts
   def available_tables
     CONFIG_TABLES.map do |key, config|
+      model_class = config[:model].constantize rescue nil
+      uses_global = model_class&.respond_to?(:uses_global_records?) && model_class.uses_global_records?
       {
         key: key.to_s,
         model: config[:model],
         description: config[:description],
         name_field: config[:name_field].to_s,
-        group: config[:group]
+        group: config[:group],
+        uses_global_records: uses_global
       }
     end
   end
@@ -952,19 +933,21 @@ class TenantConfigSyncService
 
   # Fix children whose parent_id points to a record in another tenant.
   # This happens when config sync creates children before the parent exists locally.
+  #
+  # ⚠️ DO NOT SIMPLIFY - Global records have tenant_id=NULL (Mar 2026)
+  # ════════════════════════════════════════════════════════════════
+  # Why: Global records (tenant_id=NULL) are valid parents for ALL tenants.
+  # ❌ WRONG: `current_parent.tenant_id != tenant.id` — nil != 2 is true, re-points children
+  # ✅ CORRECT: Skip global parents (tenant_id=NULL) — they're shared, not orphaned
+  # ════════════════════════════════════════════════════════════════
   def self.fix_orphaned_children(parent_folder, tenant)
     fixed = 0
 
-    # Find all folders in this tenant that SHOULD be children of this parent
-    # (same warehouse_type, matching parent sync_key pattern)
-    # Strategy: look for folders whose parent_id is non-nil but points to a record
-    # not in this tenant, AND whose tab_key suggests they belong under this parent.
     WarehouseFolder.where(warehouse_type_id: parent_folder.warehouse_type_id)
                    .where.not(parent_id: [nil, parent_folder.id])
                    .each do |candidate|
-      # Check if the candidate's current parent belongs to a different tenant
       current_parent = WarehouseFolder.unscoped.find_by(id: candidate.parent_id)
-      if current_parent.nil? || current_parent.tenant_id != tenant.id
+      if current_parent.nil? || (current_parent.tenant_id.present? && current_parent.tenant_id != tenant.id)
         candidate.update_columns(parent_id: parent_folder.id)
         fixed += 1
         Rails.logger.info "[ConfigSync] Fixed orphan: #{candidate.tab_key} parent_id -> #{parent_folder.id} (tenant #{tenant.name})"

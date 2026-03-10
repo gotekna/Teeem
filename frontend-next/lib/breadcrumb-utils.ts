@@ -72,6 +72,7 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/settings/preferences": "Preferences",
   "/settings/users": "Users",
   "/settings/roles": "Access Control",
+  "/settings/roles/roles": "User Roles",
   "/settings/corporate": "Corporate",
   "/settings/company": "Company",
   "/settings/connections": "Connections",
@@ -94,6 +95,19 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/xero": "Xero",
   "/data-warehouse": "Data Warehouse",
   "/training": "Training",
+
+  // Properties
+  "/properties": "Property Management",
+  "/properties/list": "All Properties",
+  "/properties/setup": "Setup",
+
+  // SDA Management
+  "/properties/sda": "SDA Management",
+  "/properties/sda/properties": "Properties",
+  "/properties/sda/enrolments": "Enrolments",
+  "/properties/sda/claims": "Claims",
+  "/properties/sda/compliance": "Compliance",
+  "/properties/sda/setup": "Setup",
 };
 
 /**
@@ -120,6 +134,7 @@ const ROUTE_ICONS: Record<string, string> = {
   "/xero": "Link",
   "/data-warehouse": "Database",
   "/training": "GraduationCap",
+  "/properties/sda": "Accessibility",
 };
 
 /**
@@ -134,6 +149,7 @@ const ENTITY_LABELS: Record<string, string> = {
   estimates: "Estimate",
   bills: "Bill",
   invoices: "Invoice",
+  roles: "Role",
   // Warehouse views - document ID shown as "Document #123"
   tree: "Document",
   "doc-tree": "Document",
@@ -214,6 +230,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   // Settings > Tables tabs (top-level)
   "pricebook": "Pricebook",
   "accounts": "Accounts",
+  "shared": "Shared Config",
 
   // Settings > Tables > Pricebook sub-tabs
   "brands": "Brands",
@@ -295,6 +312,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "tender-documents": "Tender Documents",
   "profit-centres": "Profit Centres",
   "cost-centres": "Cost Centres",
+  "properties": "Property Management",
 
   // Settings > System sub-tabs
   "navigation": "Navigation",
@@ -312,6 +330,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   // Settings > Access Control sub-tabs
   "users": "Users",
   "roles": "User Roles",
+  "features": "Features",
   // "groups" already defined above
   // "permissions" already defined above
 
@@ -328,6 +347,10 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "job-types": "Job Types",
   "categories": "Categories",
   "statuses": "Statuses",
+
+  // SDA tabs
+  "enrolments": "Enrolments",
+  "compliance": "Compliance",
 };
 
 /**
@@ -499,7 +522,8 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "data-health": ["overview", "contacts"],
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
   "corporate": ["groups", "companies", "company-tabs"],
-  "tables": ["pricebook", "purchase-orders", "accounts"],
+  "tables": ["pricebook", "purchase-orders", "accounts", "shared"],
+  "properties": ["types", "statuses"],
 };
 
 /**

@@ -1,6 +1,7 @@
 class WHSInductionTemplate < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
 
   # Associations
   # Prevent deletion if inductions exist using this template (data integrity)

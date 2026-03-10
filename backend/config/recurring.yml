@@ -474,12 +474,6 @@ check_yesterday_rain:
 # PLAN UPLOADS MAINTENANCE
 # ============================================
 
-# Clean up orphaned staging files from failed plan uploads
-# Runs daily at 4am to delete staging files older than 24 hours
-plan_staging_cleanup:
-  class: PlanStagingCleanupJob
-  queue: low
-  schedule: at 4am every day
 
 # ============================================
 # STORAGE TEMP FILES MAINTENANCE
@@ -497,13 +491,13 @@ cleanup_temp_files:
 # CONFIG SYNC (Nightly Two-Way Auto-Sync)
 # ============================================
 
-# Auto-sync tables set to "two_way" mode from TEEEM master
-# Iterates non-master tenants, syncs tables where mode == "two_way"
-# Runs at 3am Brisbane time (off-peak, after backups)
-config_auto_sync:
-  class: ConfigAutoSyncJob
-  queue: low
-  schedule: at 3am every day
+# DISABLED (Mar 2026): Config sync replaced by global shared records (tenant_id=NULL).
+# The sync was re-corrupting warehouse_folder parent_ids after every run.
+# All config tables now use has_global_records: true — no sync needed.
+# config_auto_sync:
+#   class: ConfigAutoSyncJob
+#   queue: low
+#   schedule: at 3am every day
 
 # Weekly reconciliation of system warehouse tabs across all tenants
 # FRC (Mar 2026): Defence layer 2 (layer 1 = deploy:release).
@@ -682,6 +676,16 @@ daily_digest:
   class: DailyDigestJob
   queue: default
   schedule: every day at 6:30am Australia/Brisbane
+
+# ============================================
+# SDA PRICE GUIDE
+# ============================================
+# Daily check if the current SDA Price Guide has expired.
+# Logs warning and broadcasts to admin notifications channel.
+sda_price_guide_expiry:
+  class: SdaPriceGuideExpiryCheckJob
+  queue: default
+  schedule: every day at 7am Australia/Brisbane
 
 # FRC (Feb 2026): Disabled - Signal not configured on production (no SIGNAL_CLI_PATH).
 # Was running every 30s for nothing, wasting a job slot on 1-thread worker.

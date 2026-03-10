@@ -24,9 +24,21 @@
 #
 class WarehouseFolder < ApplicationRecord
   # Multi-tenancy - REQUIRED for all warehouse_folders
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = [:warehouse_type_code, :tab_key]
+
+  # WarehouseFolder is per-tenant config that every tenant needs to customize.
+  # Override GlobalConfigRecord's write protection so any tenant can edit shared folders.
+  private def prevent_non_master_edit_of_global_record; end
+  private def prevent_non_master_destroy_of_global_record; end
+
+  # Override: ALL warehouse folders should be global (tenant_id=NULL) regardless of which
+  # tenant creates them. The write protection overrides above already allow any tenant to edit.
+  private def auto_globalize_master_record
+    self.tenant_id = nil
+  end
 
   # Dynamic tokens that generate virtual folder structure from database
   DYNAMIC_TOKENS = {
@@ -578,6 +590,7 @@ class WarehouseFolder < ApplicationRecord
       uses_custom_path: uses_custom_path,
       warehouse_type_override: warehouse_type_override,
       path_preview: path_preview,
+      is_global: tenant_id.nil?,
       is_photo_category: is_photo_category,
       is_cad_category: is_cad_category,
       can_delete: can_delete?,

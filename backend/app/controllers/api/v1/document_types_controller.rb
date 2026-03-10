@@ -3,7 +3,7 @@ module Api
     class DocumentTypesController < ApplicationController
       include WarehouseFolderPathLookup
 
-      before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields ]
+      before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields, :rematerialize_names ]
 
       # GET /api/v1/document_types
       # PERFORMANCE: Eager load warehouse_folders to prevent N+1 queries in serialize_document_type
@@ -314,6 +314,32 @@ module Api
         end
       end
 
+      # POST /api/v1/document_types/:id/rematerialize_names
+      # Re-materializes ui_name and download_name for all warehouse documents
+      # linked to this document type via WFDTs.
+      # Use after changing ui_name/download_name templates.
+      def rematerialize_names
+        wfdts = @document_type.warehouse_folder_document_types
+        total_docs = 0
+        queued_wfdts = 0
+
+        wfdts.find_each do |wfdt|
+          count = wfdt.warehouse_documents.count
+          next if count == 0
+
+          total_docs += count
+          queued_wfdts += 1
+          UpdateWarehouseDocumentNamesJob.perform_later(wfdt.id)
+        end
+
+        render json: {
+          success: true,
+          message: "Queued name refresh for #{total_docs} documents across #{queued_wfdts} folder(s)",
+          documents_count: total_docs,
+          folders_count: queued_wfdts
+        }
+      end
+
       # GET /api/v1/document_types/suggest
       # Returns suggested DocumentTypes for a given filename with confidence scores
       #
@@ -400,6 +426,10 @@ module Api
           :tracks_signing_status,
           :generates_certificate,     # Auto-generate certificate on task completion
           :certificate_template,      # Template to use (e.g., "form_43")
+          :updates_corporate_key,     # Prompt to update corporate key when scanning this doc type
+          :updates_tax_file_number,   # Prompt to update tax file number when scanning this doc type
+          :updates_abn,               # Prompt to update ABN when scanning this doc type
+          :updates_acn,               # Prompt to update ACN when scanning this doc type
           :signature_field_config,    # JSONB: Signature field positions for Word→PDF conversion
           file_extensions: [],
           aliases: [],                # JSONB: Alternative names for document matching
@@ -453,6 +483,7 @@ module Api
           when 'job' then 'job'
           when 'contact' then 'contacts'
           when 'library' then 'library'
+          when 'property' then 'property'
           else 'company'
           end
         else
@@ -519,6 +550,10 @@ module Api
           tracks_signing_status: document_type.tracks_signing_status,
           generates_certificate: document_type.generates_certificate || false,
           certificate_template: document_type.certificate_template,
+          updates_corporate_key: document_type.updates_corporate_key || false,
+          updates_tax_file_number: document_type.updates_tax_file_number || false,
+          updates_abn: document_type.updates_abn || false,
+          updates_acn: document_type.updates_acn || false,
           signature_field_config: document_type.signature_field_config || [],
           documents_count: 0,  # Table dropped (Jan 2026) - use WarehouseDocument
           created_at: document_type.created_at,

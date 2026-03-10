@@ -1,6 +1,7 @@
 class SupervisorChecklistTemplate < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
 
   RESPONSE_TYPES = %w[checkbox photo note photo_and_note].freeze
 

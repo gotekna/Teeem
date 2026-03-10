@@ -71,9 +71,6 @@ class BadgeCountsChannel < ApplicationCable::Channel
                                (bill_status_counts["error"] || 0) +
                                (bill_status_counts["approval_pending"] || 0)
 
-      # 6. Pending plan scans (was: GET /api/v1/plan_folder_scans/pending_count)
-      counts[:pending_plan_scans] = PlanFolderScan.pending.count rescue 0
-
       # 7. Unread emails with per-account breakdown (was: GET /api/v1/synced_emails/unread_counts)
       email_data = compute_email_unread(user)
       counts[:unread_emails] = email_data[:total]

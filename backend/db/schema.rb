@@ -1789,9 +1789,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "role_ids", default: [], array: true
     t.index ["is_active"], name: "index_contact_relationships_on_is_active"
     t.index ["related_contact_id", "display_order"], name: "index_contact_relationships_on_company_and_order"
+    t.index ["related_contact_id", "is_active"], name: "idx_contact_rels_related_active"
     t.index ["related_contact_id"], name: "index_contact_relationships_on_related_contact_id"
     t.index ["relationship_type"], name: "index_contact_relationships_on_relationship_type"
     t.index ["role_ids"], name: "index_contact_relationships_on_role_ids", using: :gin
+    t.index ["source_contact_id", "is_active"], name: "idx_contact_rels_source_active"
     t.index ["source_contact_id", "related_contact_id", "relationship_type"], name: "index_contact_relationships_unique_by_type", unique: true
     t.index ["source_contact_id"], name: "index_contact_relationships_on_source_contact_id"
   end
@@ -1945,6 +1947,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["searchable"], name: "idx_contacts_searchable_gin", using: :gin
     t.index ["stripe_customer_id"], name: "index_contacts_on_stripe_customer_id", unique: true, where: "(stripe_customer_id IS NOT NULL)"
     t.index ["support_contact_id"], name: "index_contacts_on_support_contact_id"
+    t.index ["tenant_id", "is_active"], name: "idx_contacts_tenant_is_active"
     t.index ["tenant_id", "sync_key"], name: "idx_contacts_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_contacts_on_tenant_id"
     t.index ["upline_contact_id"], name: "index_contacts_on_upline_contact_id"
@@ -2238,9 +2241,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.bigint "tenant_id"
     t.string "sync_key"
     t.datetime "record_updated_at"
+    t.jsonb "sm_schedule_master_template_ids", default: [], null: false
     t.index ["active"], name: "index_cost_centres_on_active"
     t.index ["centre_type"], name: "index_cost_centres_on_centre_type"
     t.index ["parent_id"], name: "index_cost_centres_on_parent_id"
+    t.index ["sm_schedule_master_template_ids"], name: "index_cost_centres_on_sm_schedule_master_template_ids", using: :gin
     t.index ["tenant_id", "code"], name: "index_cost_centres_on_tenant_id_and_code", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_cost_centres_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_cost_centres_on_tenant_id"
@@ -3382,6 +3387,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["sync_conflict"], name: "idx_external_invoices_conflicts", where: "(sync_conflict = true)"
     t.index ["sync_enabled"], name: "index_external_invoices_on_sync_enabled"
     t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_external_invoices_pending_sync"
+    t.index ["tenant_id", "status"], name: "idx_ext_inv_tenant_status"
     t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
     t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
     t.index ["xero_org_id", "invoice_type", "status"], name: "idx_ext_inv_xero_org_type_status"
@@ -6076,6 +6082,73 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["status"], name: "index_import_sessions_on_status"
   end
 
+  create_table "inspection_items", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "inspection_room_id", null: false
+    t.string "name", null: false
+    t.string "condition"
+    t.string "entry_condition"
+    t.text "notes"
+    t.boolean "is_clean", default: true
+    t.boolean "is_working", default: true
+    t.boolean "action_required", default: false
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_required"], name: "idx_inspection_items_action_required", where: "(action_required = true)"
+    t.index ["inspection_room_id", "sort_order"], name: "idx_inspection_items_on_room_and_order"
+    t.index ["inspection_room_id"], name: "index_inspection_items_on_inspection_room_id"
+    t.index ["tenant_id"], name: "index_inspection_items_on_tenant_id"
+  end
+
+  create_table "inspection_photos", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "inspection_item_id", null: false
+    t.bigint "storage_blob_id", null: false
+    t.bigint "annotated_blob_id"
+    t.string "caption"
+    t.jsonb "annotations_json", default: {}
+    t.datetime "taken_at"
+    t.decimal "latitude", precision: 10, scale: 7
+    t.decimal "longitude", precision: 10, scale: 7
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["inspection_item_id", "sort_order"], name: "idx_inspection_photos_on_item_and_order"
+    t.index ["inspection_item_id"], name: "index_inspection_photos_on_inspection_item_id"
+    t.index ["storage_blob_id"], name: "index_inspection_photos_on_storage_blob_id"
+    t.index ["tenant_id"], name: "index_inspection_photos_on_tenant_id"
+  end
+
+  create_table "inspection_room_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "property_type_name", null: false
+    t.string "name", null: false
+    t.jsonb "rooms", default: [], null: false
+    t.boolean "is_default", default: false
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "name"], name: "idx_inspection_templates_on_tenant_and_name", unique: true
+    t.index ["tenant_id", "property_type_name"], name: "idx_inspection_templates_on_tenant_and_type"
+    t.index ["tenant_id"], name: "index_inspection_room_templates_on_tenant_id"
+  end
+
+  create_table "inspection_rooms", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "property_inspection_id", null: false
+    t.string "name", null: false
+    t.string "room_type", default: "other", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.string "overall_condition"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["property_inspection_id", "sort_order"], name: "idx_inspection_rooms_on_inspection_and_order"
+    t.index ["property_inspection_id"], name: "index_inspection_rooms_on_property_inspection_id"
+    t.index ["tenant_id"], name: "index_inspection_rooms_on_tenant_id"
+  end
+
   create_table "inspiring_quotes", force: :cascade do |t|
     t.text "quote", null: false
     t.string "author"
@@ -6402,7 +6475,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
 
   create_table "job_plan_tabs", force: :cascade do |t|
     t.bigint "job_id", null: false
-    t.bigint "plan_category_id"
     t.bigint "parent_id"
     t.string "name", null: false
     t.string "code"
@@ -6412,17 +6484,14 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
     t.integer "plans_count", default: 0, null: false
     t.integer "on_issue_plans_count", default: 0, null: false
-    t.index ["job_id", "plan_category_id"], name: "index_job_plan_tabs_on_job_id_and_plan_category_id"
     t.index ["job_id", "plans_count"], name: "idx_job_plan_tabs_count"
     t.index ["job_id"], name: "index_job_plan_tabs_on_job_id"
     t.index ["parent_id"], name: "index_job_plan_tabs_on_parent_id"
-    t.index ["plan_category_id"], name: "index_job_plan_tabs_on_plan_category_id"
   end
 
   create_table "job_plans", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "job_plan_tab_id"
-    t.bigint "plan_type_id"
     t.string "variant_suffix"
     t.string "display_name"
     t.datetime "created_at", null: false
@@ -6432,10 +6501,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.integer "revisions_count", default: 0, null: false
     t.integer "sort_order", default: 0, null: false
     t.index ["current_revision_id"], name: "index_job_plans_on_current_revision_id"
-    t.index ["job_id", "plan_type_id", "variant_suffix"], name: "idx_job_plans_unique_per_job", unique: true
     t.index ["job_id"], name: "index_job_plans_on_job_id"
     t.index ["job_plan_tab_id"], name: "index_job_plans_on_job_plan_tab_id"
-    t.index ["plan_type_id"], name: "index_job_plans_on_plan_type_id"
   end
 
   create_table "job_quantity_variables", force: :cascade do |t|
@@ -7098,6 +7165,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", default: -> { "now()" }, null: false
     t.datetime "updated_at", default: -> { "now()" }, null: false
     t.bigint "visible_to_tenant_ids", default: [], array: true
+    t.string "module_key"
     t.index ["visible_to_tenant_ids"], name: "index_navigation_items_on_visible_to_tenant_ids", using: :gin
   end
 
@@ -7450,7 +7518,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", force: :cascade do |t|
+  create_table "performance_requests", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -7528,7 +7597,8 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", force: :cascade do |t|
+  create_table "performance_vitals", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -7547,182 +7617,20 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["user_id"], name: "index_performance_vitals_on_user_id"
   end
 
-  create_table "permissions", force: :cascade do |t|
-    t.string "name", null: false
+  create_table "permission_sections", force: :cascade do |t|
+    t.string "key", null: false
+    t.string "section", null: false
+    t.string "sub_feature"
+    t.string "display_name", null: false
     t.text "description"
-    t.string "category"
-    t.boolean "enabled", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "is_section_header", default: false, null: false
+    t.integer "available_levels", default: [], null: false, array: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["category"], name: "index_permissions_on_category"
-    t.index ["name"], name: "index_permissions_on_name", unique: true
-  end
-
-  create_table "plan_categories", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "code"
-    t.integer "sequence_order", default: 0
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "tenant_id"
-    t.string "sync_key"
-    t.datetime "record_updated_at"
-    t.index ["sequence_order"], name: "index_plan_categories_on_sequence_order"
-    t.index ["tenant_id", "code"], name: "index_plan_categories_on_tenant_id_and_code", unique: true
-    t.index ["tenant_id", "sync_key"], name: "idx_plan_categories_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
-    t.index ["tenant_id"], name: "index_plan_categories_on_tenant_id"
-  end
-
-  create_table "plan_category_plan_types", force: :cascade do |t|
-    t.bigint "plan_category_id", null: false
-    t.bigint "plan_type_id", null: false
-    t.integer "sequence_order", default: 0
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["plan_category_id", "plan_type_id"], name: "idx_plan_cat_type_unique", unique: true
-    t.index ["plan_category_id"], name: "index_plan_category_plan_types_on_plan_category_id"
-    t.index ["plan_type_id"], name: "index_plan_category_plan_types_on_plan_type_id"
-  end
-
-  create_table "plan_folder_scans", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.string "storage_file_id", null: false
-    t.string "file_name"
-    t.datetime "file_modified_at"
-    t.integer "file_size"
-    t.string "status", default: "pending"
-    t.bigint "job_plan_id"
-    t.text "error_message"
-    t.datetime "processed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "storage_item_id"
-    t.index ["job_id", "status"], name: "index_plan_folder_scans_on_job_id_and_status"
-    t.index ["job_id"], name: "index_plan_folder_scans_on_job_id"
-    t.index ["job_plan_id"], name: "index_plan_folder_scans_on_job_plan_id"
-    t.index ["status"], name: "index_plan_folder_scans_on_status"
-    t.index ["storage_file_id"], name: "index_plan_folder_scans_on_storage_file_id", unique: true
-    t.index ["storage_item_id"], name: "index_plan_folder_scans_on_storage_item_id"
-  end
-
-  create_table "plan_identification_rules", force: :cascade do |t|
-    t.string "rule_type", null: false
-    t.string "match_text", null: false
-    t.bigint "plan_type_id", null: false
-    t.integer "priority", default: 0
-    t.integer "success_count", default: 0
-    t.integer "failure_count", default: 0
-    t.boolean "is_active", default: true
-    t.bigint "created_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["created_by_id"], name: "index_plan_identification_rules_on_created_by_id"
-    t.index ["is_active", "priority"], name: "index_plan_identification_rules_on_is_active_and_priority", order: { priority: :desc }
-    t.index ["plan_type_id", "match_text"], name: "index_plan_identification_rules_on_plan_type_id_and_match_text", unique: true
-    t.index ["plan_type_id"], name: "index_plan_identification_rules_on_plan_type_id"
-    t.index ["rule_type"], name: "index_plan_identification_rules_on_rule_type"
-  end
-
-  create_table "plan_identifications", force: :cascade do |t|
-    t.bigint "job_plan_id", null: false
-    t.bigint "identified_plan_type_id"
-    t.bigint "identified_plan_category_id"
-    t.text "ocr_raw_text"
-    t.integer "ocr_confidence"
-    t.integer "pattern_match_plan_type_id"
-    t.integer "pattern_match_confidence"
-    t.string "pattern_match_reason"
-    t.integer "ai_plan_type_id"
-    t.integer "ai_confidence"
-    t.text "ai_reasoning"
-    t.boolean "ai_invoked", default: false
-    t.string "sheet_number"
-    t.string "sheet_name"
-    t.string "sheet_date"
-    t.string "sheet_issue"
-    t.integer "final_confidence"
-    t.string "decision_status"
-    t.boolean "human_reviewed", default: false
-    t.bigint "reviewed_by_id"
-    t.datetime "reviewed_at"
-    t.integer "human_override_plan_type_id"
-    t.text "human_override_reason"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["decision_status"], name: "index_plan_identifications_on_decision_status"
-    t.index ["human_reviewed"], name: "index_plan_identifications_on_human_reviewed"
-    t.index ["identified_plan_category_id"], name: "index_plan_identifications_on_identified_plan_category_id"
-    t.index ["identified_plan_type_id"], name: "index_plan_identifications_on_identified_plan_type_id"
-    t.index ["job_plan_id", "created_at"], name: "index_plan_identifications_on_job_plan_id_and_created_at", order: { created_at: :desc }
-    t.index ["job_plan_id"], name: "index_plan_identifications_on_job_plan_id"
-    t.index ["reviewed_by_id"], name: "index_plan_identifications_on_reviewed_by_id"
-  end
-
-  create_table "plan_reextractions", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.string "status", default: "pending"
-    t.string "current_step"
-    t.integer "total_plans"
-    t.integer "processed_plans"
-    t.string "current_plan_name"
-    t.jsonb "plans_updated", default: []
-    t.jsonb "rename_errors", default: []
-    t.text "error_message"
-    t.datetime "started_at"
-    t.datetime "completed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["job_id"], name: "index_plan_reextractions_on_job_id"
-    t.index ["status"], name: "index_plan_reextractions_on_status"
-  end
-
-  create_table "plan_types", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "code", null: false
-    t.boolean "allows_variants", default: true
-    t.text "notes"
-    t.integer "sequence_order", default: 0
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "short_name_template", default: "{Code}-{Name}"
-    t.string "long_name_template", default: "{JobCode}-{Code}-{Name}-Rev{Rev}"
-    t.bigint "tenant_id"
-    t.string "sync_key"
-    t.datetime "record_updated_at"
-    t.index ["sequence_order"], name: "index_plan_types_on_sequence_order"
-    t.index ["tenant_id", "code"], name: "index_plan_types_on_tenant_id_and_code", unique: true
-    t.index ["tenant_id", "name"], name: "index_plan_types_on_tenant_id_and_name", unique: true
-    t.index ["tenant_id", "sync_key"], name: "idx_plan_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
-    t.index ["tenant_id"], name: "index_plan_types_on_tenant_id"
-  end
-
-  create_table "plan_uploads", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.bigint "uploaded_by_id"
-    t.bigint "job_plan_tab_id"
-    t.string "status", default: "pending", null: false
-    t.string "current_step"
-    t.text "error_message"
-    t.string "original_filename", null: false
-    t.string "staging_file_id"
-    t.bigint "file_size"
-    t.integer "total_pages"
-    t.integer "processed_pages", default: 0
-    t.jsonb "plans_created", default: []
-    t.integer "retry_count", default: 0
-    t.datetime "last_retry_at"
-    t.datetime "started_at"
-    t.datetime "completed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["job_id", "status"], name: "index_plan_uploads_on_job_id_and_status"
-    t.index ["job_id"], name: "index_plan_uploads_on_job_id"
-    t.index ["job_plan_tab_id"], name: "index_plan_uploads_on_job_plan_tab_id"
-    t.index ["staging_file_id"], name: "index_plan_uploads_on_staging_file_id"
-    t.index ["status"], name: "index_plan_uploads_on_status"
-    t.index ["uploaded_by_id"], name: "index_plan_uploads_on_uploaded_by_id"
+    t.index ["key"], name: "index_permission_sections_on_key", unique: true
+    t.index ["section", "position"], name: "index_permission_sections_on_section_and_position"
+    t.index ["section"], name: "index_permission_sections_on_section"
   end
 
   create_table "po_statuses", force: :cascade do |t|
@@ -8088,6 +7996,24 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "job_id"
+    t.decimal "purchase_price", precision: 12, scale: 2
+    t.date "purchase_date"
+    t.decimal "current_valuation", precision: 12, scale: 2
+    t.date "valuation_date"
+    t.decimal "land_value", precision: 12, scale: 2
+    t.decimal "building_replacement_cost", precision: 12, scale: 2
+    t.string "construction_type"
+    t.decimal "management_fee_pct", precision: 5, scale: 2, default: "0.0"
+    t.decimal "vacancy_rate_pct", precision: 5, scale: 2, default: "0.0"
+    t.decimal "annual_insurance", precision: 10, scale: 2, default: "0.0"
+    t.decimal "annual_council_rates", precision: 10, scale: 2, default: "0.0"
+    t.decimal "annual_water_rates", precision: 10, scale: 2, default: "0.0"
+    t.decimal "annual_body_corporate", precision: 10, scale: 2, default: "0.0"
+    t.decimal "annual_other_expenses", precision: 10, scale: 2, default: "0.0"
+    t.decimal "cost_base_stamp_duty", precision: 10, scale: 2, default: "0.0"
+    t.decimal "cost_base_legal_fees", precision: 10, scale: 2, default: "0.0"
+    t.decimal "cost_base_other", precision: 10, scale: 2, default: "0.0"
+    t.decimal "capital_improvements_total", precision: 12, scale: 2, default: "0.0"
     t.index ["job_id"], name: "index_properties_on_job_id"
     t.index ["managing_agent_contact_id"], name: "index_properties_on_managing_agent_contact_id"
     t.index ["owner_contact_id"], name: "index_properties_on_owner_contact_id"
@@ -8161,6 +8087,18 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "inspector_signature_blob_id"
+    t.bigint "tenant_signature_blob_id"
+    t.bigint "report_blob_id"
+    t.string "access_token"
+    t.datetime "access_token_expires_at"
+    t.decimal "gps_latitude", precision: 10, scale: 7
+    t.decimal "gps_longitude", precision: 10, scale: 7
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.string "inspection_number"
+    t.index ["access_token"], name: "idx_property_inspections_access_token", unique: true, where: "(access_token IS NOT NULL)"
+    t.index ["inspection_number"], name: "idx_property_inspections_number", unique: true, where: "(inspection_number IS NOT NULL)"
     t.index ["inspection_type"], name: "index_property_inspections_on_inspection_type"
     t.index ["inspector_contact_id"], name: "index_property_inspections_on_inspector_contact_id"
     t.index ["property_id", "status"], name: "index_property_inspections_on_property_id_and_status"
@@ -8169,6 +8107,16 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["status"], name: "index_property_inspections_on_status"
     t.index ["tenancy_id"], name: "index_property_inspections_on_tenancy_id"
     t.index ["tenant_id"], name: "index_property_inspections_on_tenant_id"
+  end
+
+  create_table "property_settings", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "xero_credential_id"
+    t.string "trading_name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id"], name: "index_property_settings_on_tenant_id", unique: true
+    t.index ["xero_credential_id"], name: "index_property_settings_on_xero_credential_id"
   end
 
   create_table "property_statuses", force: :cascade do |t|
@@ -8706,13 +8654,14 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.datetime "updated_at", null: false
   end
 
-  create_table "role_permissions", force: :cascade do |t|
-    t.string "role", null: false
-    t.bigint "permission_id", null: false
+  create_table "role_section_permissions", force: :cascade do |t|
+    t.bigint "role_id", null: false
+    t.string "permission_key", null: false
+    t.integer "level", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["permission_id"], name: "index_role_permissions_on_permission_id"
-    t.index ["role", "permission_id"], name: "index_role_permissions_on_role_and_permission_id", unique: true
+    t.index ["role_id", "permission_key"], name: "idx_role_section_perms_unique", unique: true
+    t.index ["role_id"], name: "index_role_section_permissions_on_role_id"
   end
 
   create_table "roles", force: :cascade do |t|
@@ -8726,6 +8675,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "god_view_access", default: false, null: false
     t.boolean "can_approve_payments", default: false, null: false
     t.jsonb "settings", default: {}, null: false
+    t.boolean "can_view_confidential_fields", default: false, null: false
     t.index ["name"], name: "index_roles_on_name", unique: true
     t.index ["position"], name: "index_roles_on_position"
   end
@@ -9304,7 +9254,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "sync_key"
     t.string "task_code", limit: 50
     t.integer "tender_id"
-    t.jsonb "plan_type_ids", default: []
     t.jsonb "document_ref_type_ids", default: []
     t.bigint "canonical_record_id"
     t.text "field_overrides", default: [], array: true
@@ -9645,7 +9594,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.string "task_code", limit: 50
     t.integer "tender_id"
     t.bigint "warehouse_folder_id"
-    t.jsonb "plan_type_ids", default: "[]"
     t.jsonb "document_ref_type_ids", default: "[]"
     t.decimal "escalation_percent", precision: 5, scale: 2, default: "0.0"
     t.decimal "markup_percent", precision: 5, scale: 2, default: "0.0"
@@ -10312,6 +10260,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["searchable"], name: "idx_email_warehouse_searchable_gin", using: :gin
     t.index ["storage_path"], name: "index_synced_emails_on_storage_path"
     t.index ["synced_by_user_id"], name: "idx_email_warehouse_synced_by_user"
+    t.index ["tenant_id", "content_unavailable"], name: "idx_synced_emails_tenant_content_unavail"
     t.index ["tenant_id"], name: "index_synced_emails_on_tenant_id"
     t.index ["to_emails"], name: "idx_email_warehouse_to_emails_gin", using: :gin
   end
@@ -10792,6 +10741,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.boolean "assistant_enabled", default: false
     t.jsonb "po_conditions", comment: "Custom PO Conditions of Acceptance (array of strings)"
     t.jsonb "config_sync_table_modes", default: {}
+    t.jsonb "enabled_modules", default: {}, null: false
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
@@ -11183,17 +11133,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["user_id", "navigation_item_id"], name: "idx_user_nav_config_unique", unique: true
   end
 
-  create_table "user_permissions", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.bigint "permission_id", null: false
-    t.boolean "granted", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["permission_id"], name: "index_user_permissions_on_permission_id"
-    t.index ["user_id", "permission_id"], name: "index_user_permissions_on_user_id_and_permission_id", unique: true
-    t.index ["user_id"], name: "index_user_permissions_on_user_id"
-  end
-
   create_table "user_roles", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "role_id", null: false
@@ -11324,6 +11263,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
     t.index ["tenant_id", "expiry_date"], name: "idx_warehouse_docs_tenant_expiry", where: "(expiry_date IS NOT NULL)"
     t.index ["tenant_id", "folder_path"], name: "idx_wd_tenant_folder_path"
+    t.index ["tenant_id", "source_type", "documentable_type"], name: "idx_warehouse_docs_tenant_source_doctype"
     t.index ["tenant_id", "warehouse_type"], name: "idx_wd_tenant_warehouse_type"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
@@ -12666,6 +12606,11 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "imap_credentials", "users"
   add_foreign_key "import_audit_logs", "tenants"
   add_foreign_key "import_audit_logs", "users"
+  add_foreign_key "inspection_items", "inspection_rooms"
+  add_foreign_key "inspection_photos", "inspection_items"
+  add_foreign_key "inspection_photos", "storage_blobs"
+  add_foreign_key "inspection_photos", "storage_blobs", column: "annotated_blob_id"
+  add_foreign_key "inspection_rooms", "property_inspections"
   add_foreign_key "insurance_policies", "corporates", column: "company_id"
   add_foreign_key "intercompany_balances", "corporates", column: "company_id"
   add_foreign_key "intercompany_balances", "corporates", column: "related_company_id"
@@ -12698,11 +12643,9 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "job_plan_revisions", "users", column: "issued_by_id"
   add_foreign_key "job_plan_tabs", "job_plan_tabs", column: "parent_id"
   add_foreign_key "job_plan_tabs", "jobs"
-  add_foreign_key "job_plan_tabs", "plan_categories"
   add_foreign_key "job_plans", "job_plan_revisions", column: "current_revision_id"
   add_foreign_key "job_plans", "job_plan_tabs"
   add_foreign_key "job_plans", "jobs"
-  add_foreign_key "job_plans", "plan_types"
   add_foreign_key "job_quantity_variables", "jobs"
   add_foreign_key "job_quantity_variables", "quantity_variables"
   add_foreign_key "job_quantity_variables", "users", column: "updated_by_id"
@@ -12817,22 +12760,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "performance_slo_snapshots", "performance_slos"
   add_foreign_key "performance_slow_queries", "users"
   add_foreign_key "performance_vitals", "users"
-  add_foreign_key "plan_categories", "tenants", on_delete: :cascade
-  add_foreign_key "plan_category_plan_types", "plan_categories"
-  add_foreign_key "plan_category_plan_types", "plan_types"
-  add_foreign_key "plan_folder_scans", "job_plans"
-  add_foreign_key "plan_folder_scans", "jobs"
-  add_foreign_key "plan_identification_rules", "plan_types"
-  add_foreign_key "plan_identification_rules", "users", column: "created_by_id"
-  add_foreign_key "plan_identifications", "job_plans"
-  add_foreign_key "plan_identifications", "plan_categories", column: "identified_plan_category_id"
-  add_foreign_key "plan_identifications", "plan_types", column: "identified_plan_type_id"
-  add_foreign_key "plan_identifications", "users", column: "reviewed_by_id"
-  add_foreign_key "plan_reextractions", "jobs"
-  add_foreign_key "plan_types", "tenants", on_delete: :cascade
-  add_foreign_key "plan_uploads", "job_plan_tabs"
-  add_foreign_key "plan_uploads", "jobs"
-  add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
   add_foreign_key "po_statuses", "tenants"
   add_foreign_key "po_template_items", "po_template_packs"
   add_foreign_key "po_template_items", "profit_centres", on_delete: :nullify
@@ -12872,7 +12799,12 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "property_contacts", "properties"
   add_foreign_key "property_inspections", "contacts", column: "inspector_contact_id"
   add_foreign_key "property_inspections", "properties"
+  add_foreign_key "property_inspections", "storage_blobs", column: "inspector_signature_blob_id"
+  add_foreign_key "property_inspections", "storage_blobs", column: "report_blob_id"
+  add_foreign_key "property_inspections", "storage_blobs", column: "tenant_signature_blob_id"
   add_foreign_key "property_inspections", "tenancies"
+  add_foreign_key "property_settings", "tenants"
+  add_foreign_key "property_settings", "xero_credentials"
   add_foreign_key "public_holidays", "tenants"
   add_foreign_key "purchase_order_documents", "document_tasks"
   add_foreign_key "purchase_order_documents", "purchase_orders"
@@ -12936,7 +12868,7 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "referral_commissions", "contacts", column: "customer_contact_id"
   add_foreign_key "referral_commissions", "contacts", column: "referrer_contact_id"
   add_foreign_key "referral_commissions", "saas_billing_records"
-  add_foreign_key "role_permissions", "permissions"
+  add_foreign_key "role_section_permissions", "roles"
   add_foreign_key "s3_compatible_credentials", "organizations"
   add_foreign_key "s3_compatible_credentials", "tenants", on_delete: :cascade
   add_foreign_key "saas_billing_records", "contacts"
@@ -13181,8 +13113,6 @@ ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   add_foreign_key "user_folders", "users"
   add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
   add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
-  add_foreign_key "user_permissions", "permissions"
-  add_foreign_key "user_permissions", "users"
   add_foreign_key "user_roles", "roles"
   add_foreign_key "user_roles", "users"
   add_foreign_key "user_warehouse_folder_preferences", "users"

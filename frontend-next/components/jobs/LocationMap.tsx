@@ -218,6 +218,34 @@ export function LocationMap({
   const suburbInputRef = useRef<HTMLInputElement>(null);
   const suburbDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Reverse geocode - look up address when pin is moved
+  const reverseGeocode = async (lat: number, lng: number) => {
+    try {
+      setGeocoding(true);
+      const res = await api.get<{ success: boolean; address: { houseNumber: string; streetName: string; streetType: string; suburb: string; state: string; postcode: string; resultType: string } | null }>(
+        `/api/v1/geocode/reverse?lat=${lat}&lng=${lng}`
+      );
+      if (res?.success && res.address) {
+        const addr = res.address;
+        if (addr.houseNumber) setFormStreetNumber(addr.houseNumber);
+        if (addr.streetName) setFormStreetName(addr.streetName);
+        if (addr.streetType) setFormStreetType(addr.streetType);
+        if (addr.suburb) {
+          setFormSuburb(addr.suburb);
+          setSuburbSearchQuery(addr.suburb);
+        }
+        if (addr.state) setFormState(addr.state);
+        if (addr.postcode) setFormPostcode(addr.postcode);
+        // Show the address form so user can see/edit the populated fields
+        setShowAddressForm(true);
+      }
+    } catch {
+      // Silently fail - user can still manually enter address
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   // Default to Brisbane if no location
   const DEFAULT_POSITION: [number, number] = [-27.4698, 153.0251];
 
@@ -692,7 +720,8 @@ export function LocationMap({
     try {
       const newTitle = getPreviewTitle();
 
-      await api.patch(`/api/v1/jobs/${jobId}`, {
+      // Capture response — backend auto-generates job name from address components
+      const response = await api.patch<{ success: boolean; data: Record<string, unknown> }>(`/api/v1/jobs/${jobId}`, {
         job: {
           latitude: tempPosition[0],
           longitude: tempPosition[1],
@@ -719,7 +748,10 @@ export function LocationMap({
       resetForm();
 
       if (onLocationUpdate) {
+        // Use backend response (includes auto-generated name) instead of local fields
+        const jobData = response?.data || {};
         onLocationUpdate({
+          ...jobData,
           latitude: savedPosition[0],
           longitude: savedPosition[1],
           location: originalLocation || newTitle,
@@ -1062,9 +1094,9 @@ export function LocationMap({
                     />
                     <DraggableMarker
                       position={displayPosition}
-                      onDragEnd={(pos) => setTempPosition(pos)}
+                      onDragEnd={(pos) => { setTempPosition(pos); reverseGeocode(pos[0], pos[1]); }}
                     />
-                    <MapClickHandler onMapClick={(pos) => setTempPosition(pos)} />
+                    <MapClickHandler onMapClick={(pos) => { setTempPosition(pos); reverseGeocode(pos[0], pos[1]); }} />
                   </MapContainer>
                   <div className="bg-muted px-4 py-2 flex items-center justify-between shrink-0">
                     <p className="text-xs text-muted-foreground">
@@ -1091,6 +1123,7 @@ export function LocationMap({
                   <MapClickHandler onMapClick={(pos) => {
                     setTempPosition(pos);
                     setShowAddressForm(true);
+                    reverseGeocode(pos[0], pos[1]);
                   }} />
                 </MapContainer>
               )}

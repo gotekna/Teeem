@@ -41,7 +41,8 @@ module Api
             email: dev_user.email,
             name: dev_user.name,
             role_names: dev_user.role_names,
-            permissions: dev_user.permissions
+            permissions: dev_user.permissions,
+            section_permissions: dev_user.section_permissions_hash
           }
         }
       end
@@ -69,7 +70,8 @@ module Api
               email: user.email,
               name: user.name,
               role_names: user.role_names,  # SSoT: Return role names array
-              permissions: user.permissions
+              permissions: user.permissions,
+              section_permissions: user.section_permissions_hash
             }
           }, status: :created
         else
@@ -118,6 +120,7 @@ module Api
               name: user.name,
               role_names: user.role_names,  # SSoT: Return role names array
               permissions: user.permissions,
+              section_permissions: user.section_permissions_hash,
               # Primary role settings (Jan 2026)
               primary_role_id: user.primary_role_id,
               default_task_view: user.default_task_view,
@@ -194,7 +197,8 @@ module Api
             email: user.email,
             name: user.name,
             role_names: user.role_names,  # SSoT: Return role names array
-            permissions: user.permissions
+            permissions: user.permissions,
+            section_permissions: user.section_permissions_hash
           }
         }
       end
@@ -249,6 +253,7 @@ module Api
             job_title: @current_user.job_title,
             role_names: @current_user.role_names,  # SSoT: Return role names array
             permissions: @current_user.permissions,
+            section_permissions: @current_user.section_permissions_hash,
             preload_price_books: @current_user.preload_price_books,
             preferred_theme: @current_user.preferred_theme,
             photo_url: nil,      # ActiveStorage removed (Jan 2026) - photos stored in File Warehouse
@@ -398,7 +403,8 @@ module Api
               email: user.email,
               name: user.name,
               role_names: user.role_names,
-              permissions: user.permissions
+              permissions: user.permissions,
+              section_permissions: user.section_permissions_hash
             }
           }
         else

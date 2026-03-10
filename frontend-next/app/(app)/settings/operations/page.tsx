@@ -25,6 +25,8 @@ import { TenderDocumentTemplatesTab } from "./components/TenderDocumentTemplates
 import { MarkupDefaultsTab } from "./components/MarkupDefaultsTab";
 import { QbccBracketsTab } from "./components/QbccBracketsTab";
 import { MarkupTemplatesTab } from "./components/MarkupTemplatesTab";
+import { PropertySettingsTab } from "./components/PropertySettingsTab";
+import { InspectionTemplatesTab } from "./components/InspectionTemplatesTab";
 
 
 /**
@@ -55,6 +57,8 @@ const OPERATIONS_TABS = [
   { id: "tender-sections", label: "Tender Sections" },
   { id: "tender-documents", label: "Tender Documents" },
   { id: "markup", label: "Markup" },
+  { id: "properties", label: "Properties" },
+  { id: "inspection-templates", label: "Inspection Templates" },
 ];
 
 const DEFAULT_TAB = "schedule-master";
@@ -200,6 +204,12 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="markup" className="absolute inset-0 overflow-auto">
             <MarkupWrapper />
+          </TabsContent>
+          <TabsContent value="properties" className="absolute inset-0 overflow-auto">
+            <PropertySettingsTab />
+          </TabsContent>
+          <TabsContent value="inspection-templates" className="absolute inset-0 overflow-auto">
+            <InspectionTemplatesTab />
           </TabsContent>
         </div>
       </Tabs>

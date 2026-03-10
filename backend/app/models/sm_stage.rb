@@ -5,8 +5,9 @@
 # Simple lookup table for stage names used in schedule master tasks.
 #
 class SmStage < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   include CanonicalLinkable
 
   validates :name, presence: true

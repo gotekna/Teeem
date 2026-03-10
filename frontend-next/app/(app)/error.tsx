@@ -15,6 +15,11 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
+    // ChunkLoadError = stale deployment chunks. Auto-reload to fetch fresh ones.
+    if (error.name === "ChunkLoadError") {
+      window.location.reload();
+      return;
+    }
     // React internally logs this error using a saved console.error reference
     // that bypasses our monkey-patch (React saves the reference before our
     // interceptor runs). Capture it explicitly so the sidebar counter matches DevTools.

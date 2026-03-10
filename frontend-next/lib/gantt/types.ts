@@ -215,9 +215,7 @@ export interface SmScheduleMaster {
   related_po_task_names?: string[];
   // Completion linked tasks (cascade complete together)
   completion_linked_task_ids?: number[];
-  // Plan and document reference types
-  plan_type_ids?: number[];
-  plan_type_names?: string[];
+  // Document reference types
   document_ref_type_ids?: number[];
   document_ref_type_names?: string[];
   // PO/Quote SSoT fields

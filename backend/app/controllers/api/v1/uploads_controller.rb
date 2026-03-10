@@ -237,6 +237,8 @@ module Api
           user: current_user
         )
 
+        maybe_queue_pdf_optimization(blob, doc)
+
         { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name, versionLetter: doc.version_letter } }
       end
 
@@ -253,6 +255,8 @@ module Api
           category: metadata[:category] || metadata["category"] || "my_docs",
           folder: metadata[:folder] || metadata["folder"]
         )
+
+        maybe_queue_pdf_optimization(blob)
 
         { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.ui_name } }
       end
@@ -297,6 +301,8 @@ module Api
           user: current_user
         )
 
+        maybe_queue_pdf_optimization(blob, doc)
+
         { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name, versionLetter: doc.version_letter } }
       end
 
@@ -334,6 +340,8 @@ module Api
           },
           user: current_user
         )
+
+        maybe_queue_pdf_optimization(blob, doc)
 
         { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name, versionLetter: doc.version_letter } }
       end
@@ -426,6 +434,17 @@ module Api
 
       def sanitize_filename(filename)
         filename.to_s.gsub(/[^a-zA-Z0-9._-]/, "_").strip
+      end
+
+      # Queue PDF optimization for large scanned PDFs (>10 MB)
+      # Ghostscript recompresses raster images for ~90-96% size reduction
+      def maybe_queue_pdf_optimization(blob, warehouse_document = nil)
+        return unless blob.content_type&.include?("pdf")
+        return unless blob.file_size.to_i >= OptimizePdfJob::MINIMUM_SIZE
+
+        OptimizePdfJob.perform_later(blob.id, warehouse_document_id: warehouse_document&.id)
+      rescue StandardError => e
+        Rails.logger.warn "[Uploads] Failed to queue PDF optimization: #{e.message}"
       end
 
       # SSoT: ContentTypeDetector (lib/utils/content_type_detector.rb)

@@ -6,8 +6,9 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.5
 #
 class SmHoldReason < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   include CanonicalLinkable
 
   # Associations

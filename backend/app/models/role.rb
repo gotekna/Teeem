@@ -4,6 +4,7 @@ class Role < ApplicationRecord
   # Associations
   has_many :user_roles, dependent: :destroy
   has_many :users, through: :user_roles
+  has_many :role_section_permissions, dependent: :destroy
 
   # Validations
   validates :name, presence: true, uniqueness: true
@@ -85,6 +86,16 @@ class Role < ApplicationRecord
     end
 
     self.settings = current
+  end
+
+  # Get the permission level for a specific key
+  def permission_level(key)
+    role_section_permissions.find_by(permission_key: key)&.level || 0
+  end
+
+  # Get all permissions as a hash { key => level }
+  def permissions_hash
+    role_section_permissions.pluck(:permission_key, :level).to_h
   end
 
   # Class methods

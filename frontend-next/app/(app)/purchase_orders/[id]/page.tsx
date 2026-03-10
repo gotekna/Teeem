@@ -1520,9 +1520,23 @@ export default function PurchaseOrderDetailPage() {
         {/* Supplier Card */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-              <Building2 className="h-4 w-4" />
-              Supplier
+            <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Supplier
+              </div>
+              {selectedSupplier && (
+                <a
+                  href={`/contacts/${selectedSupplier.id}/pricebook`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  title="View supplier price history"
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Prices
+                </a>
+              )}
             </div>
             <SupplierPicker
               value={selectedSupplier}

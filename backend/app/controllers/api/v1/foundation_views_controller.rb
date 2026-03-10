@@ -134,18 +134,12 @@ module Api
         begin
           ActiveRecord::Base.transaction do
             orders.each do |item|
-              # Try to find the view - check user's views first, then global views
-              view = current_user.foundation_views.find_by(id: item[:id])
-              view ||= FoundationView.global_views.find_by(id: item[:id])
-
-              raise ActiveRecord::RecordNotFound, "View #{item[:id]} not found" unless view
-
-              Rails.logger.info "[Reorder] Updating view #{view.id} (#{view.name}) from display_order #{view.display_order} to #{item[:display_order]}"
-              view.update!(display_order: item[:display_order])
-              Rails.logger.info "[Reorder] Successfully updated view #{view.id}"
+              # Use update_all to bypass GlobalConfigRecord guards — reorder is safe
+              # for global views (only changes display_order, not content).
+              updated = FoundationView.where(id: item[:id])
+                                      .update_all(display_order: item[:display_order])
+              raise ActiveRecord::RecordNotFound, "View #{item[:id]} not found" if updated == 0
             end
-            # Note: The view at display_order = 0 will automatically be set as default
-            # by the FoundationView model's ensure_first_view_is_default callback
           end
 
           render json: {

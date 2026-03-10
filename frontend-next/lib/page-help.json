@@ -2,7 +2,7 @@
   "_meta": {
     "description": "SSoT for contextual page help. Claude updates this when screens change.",
     "lastUpdated": "2026-02-14",
-    "totalPages": 188,
+    "totalPages": 197,
     "format": "Each page has: title, description, tips (array), tasks (array)"
   },
   "pages": {
@@ -365,12 +365,6 @@
       "description": "View and edit a specific Schedule Master task.",
       "tips": ["Update task details", "Set dependencies", "Track progress"],
       "tasks": ["Edit task details", "Set dates", "Assign resources", "Update status"]
-    },
-    "/task-templates": {
-      "title": "Task Templates",
-      "description": "Create reusable task templates for common workflows.",
-      "tips": ["Build templates for recurring tasks", "Include default assignees", "Set standard durations"],
-      "tasks": ["Create task template", "Edit template details", "Apply to tasks", "Manage templates"]
     },
     "/calendar": {
       "title": "Calendar",
@@ -769,10 +763,10 @@
       "tasks": ["View account balances", "Search accounts", "View transactions", "Export report"]
     },
     "/xero": {
-      "title": "Xero Dashboard",
-      "description": "View Xero sync status and manage integration.",
-      "tips": ["Sync runs automatically via webhooks", "Review pending contacts before syncing", "Check sync logs for errors"],
-      "tasks": ["View sync status", "Review pending contacts", "Trigger manual sync", "View sync history"]
+      "title": "Xero",
+      "description": "View invoices, payments, reports, and manage Xero sync from one place.",
+      "tips": ["Sync runs automatically via webhooks", "Use the Sync tab for manual sync and history", "Review pending contacts before syncing", "Check sync logs for errors"],
+      "tasks": ["View invoices and bills", "Check payment status", "View reports", "Trigger manual sync", "View sync history"]
     },
     "/xero/callback": {
       "title": "Xero Callback",
@@ -793,10 +787,10 @@
       "tasks": ["Connect Outlook", "Sync emails", "Manage settings", "View sync status"]
     },
     "/sharepoint": {
-      "title": "SharePoint",
-      "description": "SharePoint integration for document management.",
-      "tips": ["Connect to SharePoint sites", "Sync document libraries", "Access files in TEEEM"],
-      "tasks": ["Connect SharePoint", "Select libraries", "Sync documents", "Manage connection"]
+      "title": "SharePoint & OneDrive",
+      "description": "Access your organization's SharePoint and personal OneDrive storage.",
+      "tips": ["SharePoint tab opens your company document library", "OneDrive tab opens your personal cloud storage", "Requires Microsoft 365 connection"],
+      "tasks": ["Open SharePoint", "Open OneDrive", "View connection status", "Access File Warehouse"]
     },
     "/whs": {
       "title": "WHS (Work Health & Safety)",
@@ -870,12 +864,6 @@
       "tips": ["Green indicators mean healthy", "Yellow indicates warnings", "Red requires immediate attention", "The Sentry tab shows live production errors from Sentry"],
       "tasks": ["Check overall system status", "View background job queue", "Monitor API performance", "Check storage usage", "Review and resolve Sentry errors"]
     },
-    "/system-performance": {
-      "title": "System Performance",
-      "description": "Monitor system performance metrics.",
-      "tips": ["View response times", "Track resource usage", "Identify bottlenecks"],
-      "tasks": ["View performance metrics", "Check response times", "Monitor resources", "View trends"]
-    },
     "/brand-guidelines": {
       "title": "Brand Guidelines",
       "description": "Company brand guidelines and design standards.",
@@ -935,12 +923,6 @@
       "description": "View and edit your personal profile.",
       "tips": ["Keep your contact details current", "Set your timezone for accurate scheduling", "Add a profile photo for team recognition"],
       "tasks": ["Update personal info", "Change password", "Set preferences", "Upload photo"]
-    },
-    "/public-holidays": {
-      "title": "Public Holidays",
-      "description": "Manage public holidays that affect scheduling.",
-      "tips": ["Holidays exclude dates from schedule calculations", "Set by region for multi-location teams", "Import standard holiday lists"],
-      "tasks": ["Add public holiday", "Import holiday list", "Set holiday region", "Remove holiday"]
     },
     "/missing": {
       "title": "Missing Items",
@@ -1022,9 +1004,15 @@
     },
     "/settings/roles": {
       "title": "Access Control",
-      "description": "Configure roles, permissions, and access groups.",
-      "tips": ["Roles define what users can see and do", "Groups allow bulk permission assignment", "Test permissions with the preview feature"],
-      "tasks": ["Create custom role", "Assign permissions", "Add users to groups", "Test role access"]
+      "description": "Configure roles, permissions, features, and user access.",
+      "tips": ["Permissions tab: Click a role card to configure what each role can do", "Users tab: Assign roles to users with inline editing", "Features tab: Toggle entire modules on/off for your company", "Groups tab: Organize users into teams for bulk operations"],
+      "tasks": ["Create custom role", "Configure role permissions", "Assign roles to users", "Toggle company features", "Add users to groups"]
+    },
+    "/settings/roles/roles/[id]": {
+      "title": "Role Permissions",
+      "description": "Configure what this role can access and do across the application.",
+      "tips": ["Use the permission matrix to set access levels per feature", "Special permissions like God View and Approve Payments are separate toggles", "Copy From lets you start with another role's permissions", "Changes are not saved until you click Save"],
+      "tasks": ["Set feature access levels", "Configure special permissions", "Copy permissions from another role", "Save changes"]
     },
     "/settings/company": {
       "title": "Company Settings",
@@ -1061,6 +1049,12 @@
       "description": "Define reusable progress claim templates with percentage-based stages. Apply templates to jobs to auto-generate claim stages.",
       "tips": ["Each template defines stages with percentage splits that should total 100%", "Templates are applied on a job's Claims tab when no stages exist", "Duplicate templates to create variations for different project types", "Default retainage % applies to all stages unless overridden per stage"],
       "tasks": ["Create a claim template", "Edit template stages", "Duplicate a template", "Apply template to a job from the Claims tab"]
+    },
+    "/settings/operations/properties": {
+      "title": "Property Settings",
+      "description": "Configure property types and statuses used across the Property Management module.",
+      "tips": ["Property Types categorize dwellings (House, Unit, SDA Dwelling, etc.)", "Property Statuses track occupancy (Vacant, Occupied, Under Maintenance)", "Status colors appear as badges on the property list page"],
+      "tasks": ["Add a new property type", "Configure property statuses with colors", "Reorder types and statuses"]
     },
     "/settings/tables": {
       "title": "Tables",
@@ -1355,6 +1349,132 @@
       "description": "Congratulations on completing setup!",
       "tips": ["Explore your new workspace", "Check out training resources", "Invite team members"],
       "tasks": ["Access dashboard", "Start training", "Invite team", "Begin using TEEEM"]
+    },
+    "/properties": {
+      "title": "Property Management",
+      "description": "Dashboard overview of your property portfolio with stats, breakdowns, and quick actions.",
+      "tips": ["View total properties, active tenancies, and upcoming inspections at a glance", "Use 'View All' to access the full property table with filters and sorting", "Click a recent property to jump to its detail page", "Create properties from existing jobs for quick setup"],
+      "tasks": ["Review portfolio overview", "Add a new property", "View all properties", "Create property from job"]
+    },
+    "/properties/setup": {
+      "title": "Property Management Setup",
+      "description": "Setup checklist showing what needs to be configured before the property management module is fully operational.",
+      "tips": ["Each item shows whether it is complete or still needs attention", "Items link to the relevant settings page for configuration", "You can create your first property directly from an existing job", "Return to the dashboard once all items are complete"],
+      "tasks": ["Configure property types and statuses", "Set a trading name", "Connect a Xero organisation", "Create your first property"]
+    },
+    "/properties/list": {
+      "title": "All Properties",
+      "description": "Full table of all properties with filtering, sorting, and saved views.",
+      "tips": ["Use 'Create from Job' to quickly set up a property with address and client pre-filled", "Use filters to find properties by status, type, or suburb", "Click a property to view full details and tenancy history", "SDA-enrolled properties are highlighted with a purple badge"],
+      "tasks": ["Create a property from an existing job", "Add a new property", "Filter by status or type", "Export property data"]
+    },
+    "/properties/[id]": {
+      "title": "Property Detail",
+      "description": "Full detail view for a property including tenancy, financials, documents, and inspections.",
+      "tips": ["Switch tabs to access tenancy, financial, and inspection information", "SDA tenancies show participant contribution and NDIA payment breakdown", "The financials tab shows rent income vs bills summary", "Documents tab holds lease agreements and compliance files"],
+      "tasks": ["Edit property details", "View current tenancy", "Review bills and payments", "Schedule an inspection", "Upload documents"]
+    },
+    "/properties/sda": {
+      "title": "SDA Management",
+      "description": "Specialist Disability Accommodation portfolio management hub showing key metrics, revenue breakdown, and enrolment pipeline.",
+      "tips": ["Stats cards link to the relevant sub-sections for quick navigation", "Revenue by SDA Category shows the breakdown across HPS, FA, IL, and Robust dwellings", "The enrolment pipeline shows how many properties are at each stage", "Use Quick Enrol to start a new SDA enrolment in under 2 minutes"],
+      "tasks": ["Review portfolio stats", "Quick enrol a property", "Submit monthly claims", "Download portfolio report"]
+    },
+    "/properties/sda/properties": {
+      "title": "SDA Properties",
+      "description": "All SDA properties grouped by design category with occupancy, weekly rate, and enrolment status.",
+      "tips": ["Properties are grouped by SDA design category (HPS, FA, IL, Robust)", "Occupancy percentage shows how full each dwelling is", "Green badge means the property is enrolled with the NDIA", "Weekly rate shown is the SDA rental income per dwelling"],
+      "tasks": ["Browse SDA properties by category", "Check occupancy rates", "View enrolled vs pending properties", "Access property details"]
+    },
+    "/properties/sda/enrolments": {
+      "title": "SDA Enrolments",
+      "description": "Kanban pipeline view showing properties at each stage of the NDIS SDA enrolment process.",
+      "tips": ["Each column represents a stage in the enrolment journey", "The completeness bar shows how much of the enrolment form is filled in", "Orange warnings indicate missing fields or documents", "Use Quick Enrol to add a new property to the pipeline"],
+      "tasks": ["Check enrolment progress for each property", "Quick enrol a new property", "Identify properties with missing documents", "Track days spent in each stage"]
+    },
+    "/properties/sda/claims": {
+      "title": "SDA Claims",
+      "description": "NDIS SDA claim management with status tracking, bulk submission, and monthly claim generation.",
+      "tips": ["Filter claims by status to focus on what needs action", "Select draft claims and use Bulk Submit to submit multiple at once", "Generate Monthly creates claims for all eligible enrolled properties", "Summary cards at the top show total claimed, approved, pending, and paid amounts"],
+      "tasks": ["Generate monthly claims", "Review draft claims", "Bulk submit selected claims", "Filter by claim status", "Track payment status"]
+    },
+    "/properties/sda/compliance": {
+      "title": "SDA Compliance",
+      "description": "Compliance matrix showing document status across all SDA properties for assessment, fire safety, building certs, occupancy, insurance, and photos.",
+      "tips": ["Green = valid, Amber = expiring soon, Red = expired, Grey = missing", "The portfolio score averages all property compliance scores", "Hover over a badge to see expiry or upload date", "Export the matrix for reporting or audit purposes"],
+      "tasks": ["Review portfolio compliance score", "Identify expired or missing documents", "Export compliance report", "Track document expiry dates"]
+    },
+    "/properties/sda/setup": {
+      "title": "SDA Setup",
+      "description": "NDIS integration setup with email templates to request API access, dwelling enrolment guides, and useful SDA resources.",
+      "tips": ["Copy email templates to request NDIS API credentials", "Check API status badges to see what's available vs coming soon", "Use the resource links for official NDIS pricing and design standards", "PRODA registration is required for bulk claim API access"],
+      "tasks": ["Request NDIS API access", "Submit dwelling enrolment application", "Register for PRODA digital access", "Review current SDA price guide"]
+    },
+    "/properties/sda/vacancies": {
+      "title": "SDA Vacancies",
+      "description": "Track vacant SDA dwellings, notify NDIA within 5 business days via SDA Finder, and match eligible participants to vacancies.",
+      "tips": ["NDIA must be notified within 5 business days of a vacancy - overdue notifications are highlighted in red", "Daily lost income is calculated automatically based on the property's SDA rate", "Use Match Participants to find eligible NDIS participants for vacant properties", "SDA Finder listing IDs link directly to the NDIA vacancy register"],
+      "tasks": ["Report new vacancy", "Notify NDIA via SDA Finder", "Match participants to vacancies", "Track lost income from vacant dwellings"]
+    },
+    "/properties/sda/agreements": {
+      "title": "SDA Agreements",
+      "description": "Manage SDA accommodation agreements, service agreements, and SIL agreements with expiry tracking and renewal reminders.",
+      "tips": ["Agreements expiring within 30 days are highlighted with an amber warning", "Three agreement types: SDA Accommodation, Service Agreement, and SIL Agreement", "Attach signed agreement documents via the document blob reference", "Set renewal reminder dates to get notified before agreements expire"],
+      "tasks": ["Create new agreement", "Review expiring agreements", "Renew expired agreements", "Track agreement status across portfolio"]
+    },
+    "/properties/sda/incidents": {
+      "title": "SDA Incidents",
+      "description": "SDA incident management with NDIS Commission reporting compliance. Serious incidents must be reported within 24 hours.",
+      "tips": ["Red alert banner appears when incidents are overdue for NDIS Commission reporting", "Serious and critical incidents, plus specific types (restraint, abuse, death, injury) are auto-flagged as NDIS reportable", "The 24-hour reporting deadline starts from the incident time, not when it was logged", "Expand a row to see full details including root cause analysis and corrective actions"],
+      "tasks": ["Log new incident", "Report incident to NDIS Commission", "Review overdue reports", "Document corrective actions", "Track incident trends by type and severity"]
+    },
+    "/properties/sda/restrictive-practices": {
+      "title": "Restrictive Practices Register",
+      "description": "Track authorized and unauthorized use of restrictive practices on NDIS participants. Unauthorized practices must be reported to NDIS within 5 business days.",
+      "tips": ["Red overdue banner appears when unauthorized practices have passed the 5 business day NDIS reporting deadline", "Unauthorized practices are highlighted in red — authorized practices backed by a Behaviour Support Plan are shown in green", "Expand a row to see reason, description, participant response, debrief notes, and BSP details", "Filter by practice type (chemical, mechanical, physical, seclusion, environmental) or authorization status"],
+      "tasks": ["Record new restrictive practice", "Report unauthorized practice to NDIS", "Review overdue NDIS reports", "Check BSP reference and review dates", "Track authorized vs unauthorized practice counts"]
+    },
+    "/properties/sda/participants": {
+      "title": "Participant Outcomes",
+      "description": "Track SDA participant satisfaction, wellbeing, and goal progress through regular assessments across 6 rating dimensions.",
+      "tips": ["Six rating dimensions: Overall Satisfaction, Housing Quality, Maintenance Response, Safety, Independence, Community Access", "Goals status shows whether participants are on track, at risk, or behind on their NDIS plan goals", "Use the Needs Attention filter to quickly find participants requiring follow-up", "Average scores help identify properties or areas needing improvement"],
+      "tasks": ["Record new assessment", "Review participant goals", "Identify participants needing attention", "Track satisfaction trends", "Document action items from assessments"]
+    },
+    "/properties/sda/finance": {
+      "title": "SDA Finance",
+      "description": "Complete SDA financial management with rent ledger, trust accounting, arrears tracking, and owner statement generation.",
+      "tips": ["Rent Ledger tracks all money in (rent, NDIA payments, participant contributions) and money out (disbursements, fees)", "Trust account entries are separated for regulatory compliance", "Arrears automatically escalate through stages: current, reminder, notice, breach, referred", "Owner statements can be auto-generated from ledger data for any period"],
+      "tasks": ["Record rent payment", "Reconcile ledger entries", "Generate owner statement", "Review arrears", "Disburse funds to owner", "Track trust account balance"]
+    },
+    "/properties/sda/sil": {
+      "title": "SIL Providers",
+      "description": "Manage Supported Independent Living providers linked to SDA properties, including service agreements, satisfaction ratings, and review schedules.",
+      "tips": ["Three service types: SIL, In-Home Support, and Respite", "Satisfaction ratings (1-5 stars) help track provider performance", "Incident counts link to the Incidents tab for detailed investigation", "Set review dates to ensure regular provider performance reviews"],
+      "tasks": ["Add new SIL provider", "Review provider agreements", "Track satisfaction ratings", "Schedule provider reviews", "Monitor incident counts"]
+    },
+    "/properties/sda/restrictive-practices": {
+      "title": "Restrictive Practices Register",
+      "description": "Track authorized and unauthorized use of restrictive practices on NDIS participants. Unauthorized practices must be reported to the NDIS Commission within 5 business days.",
+      "tips": ["Five practice types: Chemical, Mechanical, Physical, Seclusion, Environmental", "Unauthorized practices are auto-flagged as NDIS reportable", "The 5 business day reporting deadline is tracked automatically", "Link practices to Behaviour Support Plans (BSP) with practitioner details", "Red banner appears when any practices are overdue for NDIS reporting"],
+      "tasks": ["Record restrictive practice use", "Report unauthorized practice to NDIS", "Review overdue reports", "Link to Behaviour Support Plan", "Track authorized vs unauthorized usage"]
+    },
+    "/properties/sda/conflict-of-interest": {
+      "title": "Conflict of Interest Register",
+      "description": "Track COI declarations for staff, SIL providers, contractors, and board members with management plans and review schedules.",
+      "tips": ["Four declarant types: Staff, SIL Provider, Contractor, Board Member", "Severity levels (Low, Medium, High, Critical) help prioritize management", "Set review dates to ensure regular re-assessment of managed conflicts", "Yellow banner appears when any COIs are overdue for review"],
+      "tasks": ["Record new COI declaration", "Review declared conflicts", "Create management plan", "Schedule COI reviews", "Resolve managed conflicts"]
+    },
+    "/properties/sda/policies": {
+      "title": "Policies & Procedures",
+      "description": "Policy and procedure register tracking document versions, review dates, and NDIS Practice Standards compliance.",
+      "tips": ["14 policy categories covering all NDIS Practice Standards", "Review intervals auto-calculate next review dates", "NDIS Required badge shows which policies are mandatory for compliance", "Approve workflow moves policies from Draft to Active with proper audit trail", "Amber banner appears when policies are due for review"],
+      "tasks": ["Create new policy", "Approve draft policies", "Review due policies", "Track NDIS compliance", "Update policy versions"]
+    },
+    "/properties/sda/notifications": {
+      "title": "SDA Notification Log",
+      "description": "Track all NDIS-related notifications sent and received across the SDA system including vacancy notices, incident reports, and compliance alerts.",
+      "tips": ["12 notification types covering all NDIS compliance requirements", "Five channels: Email, SMS, In-App, NDIS Portal, SDA Finder", "Overdue notifications highlight compliance risks", "Failed notifications can be retried with one click", "Priority levels help triage urgent compliance notifications"],
+      "tasks": ["Review pending notifications", "Retry failed notifications", "Acknowledge received notifications", "Track overdue compliance notifications", "Monitor notification delivery status"]
     }
   }
 }

@@ -1022,6 +1022,72 @@ module Api
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
+      # POST /api/v1/config_sync/promote_to_global
+      # TEEEM only — set tenant_id=NULL on a record to make it globally shared.
+      # Also re-points FK references from customer copies to this record and deletes copies.
+      def promote_to_global
+        return render json: { error: "Master tenant only" }, status: :forbidden unless current_tenant&.is_master_tenant?
+
+        table_key = params[:table].to_s.to_sym
+        record_id = params[:record_id].to_i
+        config = TenantConfigSyncService::CONFIG_TABLES[table_key]
+        return render json: { error: "Unknown table: #{table_key}" }, status: :bad_request unless config
+
+        model = config[:model].constantize
+        return render json: { error: "#{model.name} does not support global records" }, status: :bad_request unless model.respond_to?(:uses_global_records?) && model.uses_global_records?
+
+        record = ActsAsTenant.with_tenant(current_tenant) { model.find(record_id) }
+
+        if record.tenant_id.nil?
+          return render json: { success: true, already_global: true, message: "Record is already global" }
+        end
+
+        ActiveRecord::Base.transaction do
+          # Re-point FK references from customer copies to this record
+          customer_tenants = Tenant.where(is_master_tenant: false).to_a
+          sync_key = record.respond_to?(:sync_key) ? record.sync_key : nil
+          repointed = 0
+
+          if sync_key.present?
+            customer_tenants.each do |t|
+              copy = ActsAsTenant.without_tenant { model.find_by(tenant_id: t.id, sync_key: sync_key) }
+              next unless copy
+
+              # Re-point FKs from copy to master record
+              Rails.application.eager_load!
+              ApplicationRecord.descendants.each do |ref_model|
+                next unless ref_model.table_name.present?
+                ref_model.reflect_on_all_associations(:belongs_to).each do |assoc|
+                  next unless assoc.klass == model rescue next
+                  fk = assoc.foreign_key.to_s
+                  count = ActsAsTenant.without_tenant { ref_model.where(fk => copy.id).update_all(fk => record.id) }
+                  repointed += count if count > 0
+                end
+              end
+
+              # Delete the customer copy
+              ActsAsTenant.without_tenant { copy.delete }
+            end
+          end
+
+          # Set tenant_id to NULL to make it globally visible
+          ActsAsTenant.without_tenant do
+            record.class.where(id: record.id).update_all(tenant_id: nil)
+          end
+
+          render json: {
+            success: true,
+            record_id: record.id,
+            repointed_references: repointed,
+            message: "Record promoted to global. #{repointed} FK references re-pointed."
+          }
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: "Record not found" }, status: :not_found
+      rescue => e
+        render json: { error: e.message }, status: :unprocessable_entity
+      end
+
       private
 
       # FRC: Frontend may send record_ids as plain integers OR as objects [{id:1},{id:2}]

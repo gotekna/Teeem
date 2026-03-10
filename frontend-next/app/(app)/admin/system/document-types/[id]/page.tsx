@@ -214,6 +214,10 @@ interface DocumentType {
   form_number_mapping?: Record<string, string>; // Dwelling type -> Form number mapping
   generates_certificate?: boolean; // Auto-generate certificate on task completion
   certificate_template?: string; // Template to use (e.g., "form_43")
+  updates_corporate_key?: boolean; // Prompt to update corporate key when scanning
+  updates_tax_file_number?: boolean; // Prompt to update tax file number when scanning
+  updates_abn?: boolean; // Prompt to update ABN when scanning
+  updates_acn?: boolean; // Prompt to update ACN when scanning
 }
 
 // Type definitions for tab/folder hierarchy
@@ -818,6 +822,12 @@ export default function DocumentTypeDetailPage() {
           setDocumentType(response.data);
         }
 
+        // Auto-rematerialize document names when templates change
+        // This updates ui_name/download_name on all linked warehouse documents
+        const remat = await api.post<{ success: boolean; message: string; documents_count: number }>(
+          `/api/v1/document_types/${documentTypeId}/rematerialize_names`
+        );
+
         // SSoT: Check if naming format changed and prompt for document rename
         if (response?.naming_format_change && response.naming_format_change.affected_documents_count > 0) {
           setRenameConfirmDialog({
@@ -831,9 +841,11 @@ export default function DocumentTypeDetailPage() {
             description: response.naming_format_change.message,
           });
         } else {
+          const rematCount = remat?.documents_count ?? 0;
+          const rematMsg = rematCount > 0 ? ` Refreshing names for ${rematCount} document(s).` : "";
           toast({
             title: "Success",
-            description: "Document type saved successfully",
+            description: `Document type saved successfully.${rematMsg}`,
           });
         }
       }
@@ -991,8 +1003,16 @@ export default function DocumentTypeDetailPage() {
     // Get base placeholders from SSoT
     const basePlaceholders = getBasePlaceholders(scope);
 
-    // Add DocType placeholder and sort alphabetically by code
+    // Conditional placeholders: only show when their checkbox is ticked
+    const conditionalCodes = new Set<string>();
+    if (!documentType?.updates_corporate_key) conditionalCodes.add("{CorporateKey}");
+    if (!documentType?.updates_tax_file_number) conditionalCodes.add("{TFN}");
+    if (!documentType?.updates_abn) conditionalCodes.add("{ABN}");
+    if (!documentType?.updates_acn) conditionalCodes.add("{ACN}");
+
+    // Add DocType placeholder, filter conditional ones, and sort alphabetically
     let placeholders: PlaceholderToken[] = [docTypePlaceholder, ...basePlaceholders]
+      .filter((p) => !conditionalCodes.has(p.code))
       .sort((a, b) => a.code.replace(/[{}]/g, '').localeCompare(b.code.replace(/[{}]/g, '')));
 
     // Filter by category (SSoT: Feb 2026)
@@ -2079,6 +2099,78 @@ export default function DocumentTypeDetailPage() {
               )}
               <p className="text-[10px] text-muted-foreground">
                 Auto-generate signed PDF certificate when task completes (uses job supervisor's signature)
+              </p>
+            </div>
+
+            {/* Update Corporate Key */}
+            <div className="space-y-2">
+              <Label>Corporate Key</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="updates_corporate_key"
+                  checked={documentType.updates_corporate_key || false}
+                  onCheckedChange={(checked) => updateField("updates_corporate_key", checked)}
+                />
+                <Label htmlFor="updates_corporate_key" className="text-xs cursor-pointer">
+                  Update Corporate Key
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                When scanning this document type, prompt to view and update the company&apos;s corporate key
+              </p>
+            </div>
+
+            {/* Update Tax File Number */}
+            <div className="space-y-2">
+              <Label>Tax File Number</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="updates_tax_file_number"
+                  checked={documentType.updates_tax_file_number || false}
+                  onCheckedChange={(checked) => updateField("updates_tax_file_number", checked)}
+                />
+                <Label htmlFor="updates_tax_file_number" className="text-xs cursor-pointer">
+                  Update Tax File Number
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                When scanning this document type, prompt to view and update the company&apos;s tax file number
+              </p>
+            </div>
+
+            {/* Update ABN */}
+            <div className="space-y-2">
+              <Label>ABN</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="updates_abn"
+                  checked={documentType.updates_abn || false}
+                  onCheckedChange={(checked) => updateField("updates_abn", checked)}
+                />
+                <Label htmlFor="updates_abn" className="text-xs cursor-pointer">
+                  Update ABN
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                When scanning this document type, prompt to view and update the company&apos;s ABN
+              </p>
+            </div>
+
+            {/* Update ACN */}
+            <div className="space-y-2">
+              <Label>ACN</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="updates_acn"
+                  checked={documentType.updates_acn || false}
+                  onCheckedChange={(checked) => updateField("updates_acn", checked)}
+                />
+                <Label htmlFor="updates_acn" className="text-xs cursor-pointer">
+                  Update ACN
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                When scanning this document type, prompt to view and update the company&apos;s ACN
               </p>
             </div>
 

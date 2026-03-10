@@ -2,7 +2,7 @@
 # Uses Google Images + Claude AI for image search and selection
 # Uploads to "Warehousing/Photo Test" folder for review
 #
-# SSoT: Uses StorageUploadable for provider-agnostic storage (Wasabi/S3/SharePoint)
+# SSoT: Uses StorageBlob for blob storage, DocumentProviderAware for folder ops
 
 require "mini_magick"
 require "httparty"
@@ -13,7 +13,7 @@ require "tempfile"
 
 class PricebookImageFetcherService
   include HTTParty
-  include StorageUploadable
+  include DocumentProviderAware
 
   GOOGLE_SEARCH_API_KEY = ENV["GOOGLE_SEARCH_API_KEY"]
   GOOGLE_CX = ENV["GOOGLE_CX"]
@@ -30,7 +30,7 @@ class PricebookImageFetcherService
   class FetchError < StandardError; end
 
   def initialize
-    # SSoT: Uses StorageUploadable - no direct client initialization needed
+    # SSoT: Uses DocumentProviderAware for storage connectivity checks
   end
 
   # Fetch images for multiple items
@@ -398,20 +398,20 @@ class PricebookImageFetcherService
     false
   end
 
-  # Upload file to storage test folder
-  # SSoT: Uses StorageUploadable for provider-agnostic upload
+  def storage_connected?
+    setup_default_provider!
+    true
+  rescue DocumentProviders::NotConnectedError
+    false
+  end
+
+  # Upload file to blob storage (test images, no WarehouseDocument needed)
   def upload_to_storage(file_path, filename)
     content = File.read(file_path)
-    folder_path = self.class.storage_test_folder
-
-    result = upload_to_storage_path(folder_path, content, filename, content_type: "image/png")
-
-    if result[:success]
-      result[:url]
-    else
-      Rails.logger.error "[ImageFetcher] Storage upload failed: #{result[:error]}"
-      nil
-    end
+    blob = StorageBlob.find_or_create_for_content!(
+      content, filename: filename, content_type: "image/png"
+    )
+    blob.presigned_url
   rescue StandardError => e
     Rails.logger.error "[ImageFetcher] Storage upload failed: #{e.message}"
     nil
@@ -419,6 +419,6 @@ class PricebookImageFetcherService
 
   # SSoT: Use centralized filename sanitization
   def sanitize_filename(filename)
-    sanitize_storage_path(filename)
+    Warehouse::FilenameSanitizer.sanitize_path_segment(filename.to_s)
   end
 end

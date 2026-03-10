@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 class ColourSelectionTemplate < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
 
   belongs_to :job_type, optional: true
 

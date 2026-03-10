@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 80" fill="none">
+  <!-- House icon with accessibility symbol -->
+  <g transform="translate(10, 8)">
+    <!-- House shape -->
+    <path d="M32 6L6 28V62H24V44H40V62H58V28L32 6Z" fill="#0E7490" stroke="#0E7490" stroke-width="2" stroke-linejoin="round"/>
+    <!-- Roof accent -->
+    <path d="M32 6L6 28H58L32 6Z" fill="#0891B2"/>
+    <!-- Door -->
+    <rect x="26" y="44" width="12" height="18" rx="1" fill="white" opacity="0.9"/>
+    <!-- Window -->
+    <rect x="38" y="30" width="10" height="10" rx="1" fill="white" opacity="0.7"/>
+    <rect x="16" y="30" width="10" height="10" rx="1" fill="white" opacity="0.7"/>
+    <!-- Accessibility circle -->
+    <circle cx="32" cy="50" r="3.5" fill="#0E7490" stroke="white" stroke-width="1.5"/>
+    <!-- Wheelchair symbol simplified -->
+    <path d="M31 48.5V51.5H33.5L34.5 53" stroke="white" stroke-width="1" stroke-linecap="round" fill="none"/>
+  </g>
+  <!-- Text -->
+  <text x="78" y="36" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="700" fill="#0F172A" letter-spacing="-0.5">
+    <tspan>SDA</tspan>
+    <tspan fill="#0E7490"> Property</tspan>
+    <tspan fill="#0E7490"> Hub</tspan>
+  </text>
+  <text x="78" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#64748B" letter-spacing="0.5">
+    Specialist Disability Accommodation
+  </text>
+  <!-- Australian flag colours accent bar -->
+  <rect x="78" y="62" width="40" height="3" rx="1.5" fill="#0E7490"/>
+  <rect x="122" y="62" width="20" height="3" rx="1.5" fill="#F59E0B"/>
+  <rect x="146" y="62" width="20" height="3" rx="1.5" fill="#0E7490" opacity="0.4"/>
+</svg>

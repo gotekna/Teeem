@@ -29,6 +29,9 @@ export interface ActionsButtonsProps<T = unknown> {
   /** Whether the table is in view-only mode (disables edit/delete) */
   viewOnly?: boolean;
 
+  /** Whether this specific row is read-only (e.g., shared/global config record) */
+  isRowReadOnly?: boolean;
+
   /** Callback to view the row */
   onView?: (entry: T) => void;
 
@@ -51,6 +54,7 @@ export interface ActionsButtonsProps<T = unknown> {
 export const ActionsButtons = memo(function ActionsButtons<T extends { id: string | number }>({
   entry,
   viewOnly,
+  isRowReadOnly,
   onView,
   onEdit,
   onRowUpdate,
@@ -58,6 +62,8 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
   onStartEditing,
   selectedRowsCount = 0,
 }: ActionsButtonsProps<T>) {
+  // Shared/global records are read-only for non-master tenants
+  const effectiveViewOnly = viewOnly || isRowReadOnly;
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -74,7 +80,7 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
     }
   };
 
-  const hasAnyAction = onView || (!viewOnly && (onRowUpdate || onEdit)) || (!viewOnly && onDelete);
+  const hasAnyAction = onView || (!effectiveViewOnly && (onRowUpdate || onEdit)) || (!effectiveViewOnly && onDelete);
 
   if (!hasAnyAction) {
     return null;
@@ -107,16 +113,16 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
             </DropdownMenuItem>
           )}
 
-          {/* Edit option - hidden when viewOnly=true */}
-          {!viewOnly && (onRowUpdate || onEdit) && (
+          {/* Edit option - hidden when viewOnly=true or row is read-only (shared record) */}
+          {!effectiveViewOnly && (onRowUpdate || onEdit) && (
             <DropdownMenuItem onClick={handleEditClick}>
               <Pencil className="h-4 w-4 mr-2" />
               Edit
             </DropdownMenuItem>
           )}
 
-          {/* Delete option - hidden when viewOnly=true */}
-          {!viewOnly && onDelete && (
+          {/* Delete option - hidden when viewOnly=true or row is read-only (shared record) */}
+          {!effectiveViewOnly && onDelete && (
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();

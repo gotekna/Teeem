@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { border-bottom: 3px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; }
+    .header h1 { font-size: 20px; color: #1e3a5f; margin: 0; }
+    .details { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 24px; }
+    .details table { width: 100%; }
+    .details td { padding: 4px 0; }
+    .details .label { color: #6b7280; font-weight: 500; width: 150px; }
+    .condition-badge { display: inline-block; padding: 2px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; color: #fff; }
+    .btn { display: inline-block; padding: 10px 24px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; }
+    .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Property Inspection Report</h1>
+    </div>
+
+    <p>A property inspection report has been completed and is attached to this email.</p>
+
+    <div class="details">
+      <table>
+        <tr>
+          <td class="label">Property:</td>
+          <td><strong><%= @property.property_code %> - <%= @property.name || @property.street_address %></strong></td>
+        </tr>
+        <tr>
+          <td class="label">Inspection Type:</td>
+          <td><%= @inspection.inspection_type.titleize %></td>
+        </tr>
+        <tr>
+          <td class="label">Inspection Number:</td>
+          <td><%= @inspection.inspection_number %></td>
+        </tr>
+        <tr>
+          <td class="label">Date:</td>
+          <td><%= (@inspection.completed_date || @inspection.scheduled_date).strftime("%d %B %Y") %></td>
+        </tr>
+        <% if @inspection.inspector_contact %>
+          <tr>
+            <td class="label">Inspector:</td>
+            <td><%= @inspection.inspector_contact.display_name %></td>
+          </tr>
+        <% end %>
+        <% if @inspection.overall_condition.present? %>
+          <tr>
+            <td class="label">Overall Condition:</td>
+            <td><%= @inspection.overall_condition.titleize %></td>
+          </tr>
+        <% end %>
+      </table>
+    </div>
+
+    <p>The full inspection report is attached as a PDF. You can also view it online:</p>
+
+    <% if @inspection.access_token.present? %>
+      <p style="text-align: center; margin: 24px 0;">
+        <a href="<%= InfrastructureUrls.frontend_url %>/portal/inspections/<%= @inspection.access_token %>" class="btn">
+          View Full Report
+        </a>
+      </p>
+    <% end %>
+
+    <div class="footer">
+      <p><%= @company&.company_name || "TEEEM" %></p>
+      <% if @company&.company_address.present? %>
+        <p><%= @company.company_address %></p>
+      <% end %>
+      <p>This email was sent automatically. Please do not reply directly.</p>
+    </div>
+  </div>
+</body>
+</html>

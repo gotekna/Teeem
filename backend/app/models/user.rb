@@ -388,6 +388,53 @@ class User < ApplicationRecord
   end
 
   # =============================================================================
+  # Section-Level Permissions (DB-driven, Mar 2026)
+  # SSoT: role_section_permissions table via RoleSectionPermission model
+  # Uses permission keys (e.g. "jobs", "contacts.create") with levels 0-4
+  # Multi-role: highest level across all user's roles wins
+  # =============================================================================
+
+  def section_permission_level(permission_key)
+    return 4 if admin?
+
+    role_ids = roles.pluck(:id)
+    return 0 if role_ids.empty?
+
+    RoleSectionPermission
+      .where(role_id: role_ids, permission_key: permission_key)
+      .maximum(:level) || 0
+  end
+
+  def has_section_permission?(permission_key, required_level)
+    return true if admin?
+
+    level_int = Permissible::LEVEL_MAP[required_level.to_sym] || required_level.to_i
+    section_permission_level(permission_key) >= level_int
+  end
+
+  # Returns all section permissions as a flat hash: { "jobs" => 4, "contacts" => 3, ... }
+  # Used by auth endpoints to send permissions to frontend in one shot
+  # Admin gets all keys at level 4; non-admins: highest level across all roles
+  def section_permissions_hash
+    all_keys = PermissionSection.pluck(:key)
+
+    if admin?
+      all_keys.index_with { 4 }
+    else
+      role_ids_arr = roles.pluck(:id)
+      return all_keys.index_with { 0 } if role_ids_arr.empty?
+
+      # One query: get max level per key across all user roles
+      levels = RoleSectionPermission
+        .where(role_id: role_ids_arr)
+        .group(:permission_key)
+        .maximum(:level)
+
+      all_keys.index_with { |key| levels[key] || 0 }
+    end
+  end
+
+  # =============================================================================
   # OpenClaw API Key Methods
   # SSoT: Per-user API key for OpenClaw AI assistant integration
   # =============================================================================

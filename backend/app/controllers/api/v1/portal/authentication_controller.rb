@@ -176,6 +176,77 @@ module Api
           }, status: :ok
         end
 
+        # POST /api/v1/portal/auth/admin_preview
+        # Admin-only: Generate a portal preview token without requiring a specific contact.
+        # Uses the current admin's contact, or any existing portal user of the requested type.
+        def admin_preview
+          unless current_user&.admin?
+            render_error("Admin access required", status: :forbidden)
+            return
+          end
+
+          portal_type = params[:portal_type].presence || "owner"
+
+          # Strategy 1: Find any active portal user of the requested type in this tenant
+          portal_user = PortalUser.joins(:contact)
+            .where(portal_type: portal_type, active: true)
+            .where(contacts: { tenant_id: current_user.tenant_id })
+            .first
+
+          # Strategy 2: Find any active portal user in this tenant
+          portal_user ||= PortalUser.joins(:contact)
+            .where(active: true)
+            .where(contacts: { tenant_id: current_user.tenant_id })
+            .first
+
+          # Strategy 3: Create a temporary portal user from the admin's own contact
+          unless portal_user
+            contact = current_user.contact
+            unless contact
+              render_error("No contact record found for current user", status: :unprocessable_entity)
+              return
+            end
+
+            # Generate dummy credentials for preview
+            chars = ("A".."Z").to_a + ("a".."z").to_a + ("0".."9").to_a
+            pwd = Array.new(14) { chars.sample }.join + "!1aA"
+
+            portal_user = PortalUser.create(
+              contact: contact,
+              email: contact.email || "#{current_user.id}-preview@portal.teeem.au",
+              password: pwd,
+              password_confirmation: pwd,
+              portal_type: portal_type,
+              active: true
+            )
+
+            unless portal_user.persisted?
+              # If email uniqueness fails, the user already has a portal account
+              portal_user = contact.portal_user
+            end
+          end
+
+          unless portal_user&.persisted?
+            render_error("Could not create preview session", status: :unprocessable_entity)
+            return
+          end
+
+          token = JsonWebToken.encode(portal_user_id: portal_user.id)
+
+          render json: {
+            success: true,
+            token: token,
+            preview: true,
+            user: {
+              id: portal_user.id,
+              email: portal_user.email,
+              contact_id: portal_user.contact_id,
+              contact_name: portal_user.contact.display_name,
+              portal_type: portal_user.portal_type
+            }
+          }
+        end
+
         # GET /api/v1/portal/auth/me
         def me
           # This uses the authorize_portal_user from BaseController

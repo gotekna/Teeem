@@ -27,7 +27,10 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
       /https:\/\/teeem-next-[a-z0-9]+-gotekna\.vercel\.app$/,
       /http:\/\/(localhost|127\.0\.0\.1):\d+$/,  # Local development (any port)
       "https://tekna.com.au",              # Tekna Homes website (embedded login widget)
-      "https://www.tekna.com.au"           # Tekna Homes www subdomain
+      "https://www.tekna.com.au",          # Tekna Homes www subdomain
+      "https://sdapropertyhub.com.au",     # SDA Property Hub public site
+      "https://www.sdapropertyhub.com.au", # SDA Property Hub www subdomain
+      /https:\/\/sda-property-hub[a-z0-9-]*\.vercel\.app$/ # SDA Hub Vercel previews
     )
 
     resource "*",

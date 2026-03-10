@@ -11,8 +11,9 @@
 #
 class SmScheduleMasterTemplate < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   include CanonicalLinkable
 
   # Associations

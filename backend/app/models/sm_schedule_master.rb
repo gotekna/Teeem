@@ -12,8 +12,9 @@
 #
 class SmScheduleMaster < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   include CanonicalLinkable
   self.sync_key_source = :name
 
@@ -187,11 +188,6 @@ class SmScheduleMaster < ApplicationRecord
   def claim_stage_name
     return name unless is_claim_task?
     name.sub(/^CLAIM\s*[-–—:]\s*/i, "").strip
-  end
-
-  # Plan types to attach to this task
-  def plan_type_list
-    plan_type_ids || []
   end
 
   # Document reference types to attach to this task

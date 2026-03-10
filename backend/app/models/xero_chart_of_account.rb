@@ -1,5 +1,5 @@
 class XeroChartOfAccount < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
 
   # Validations
   validates :account_code, presence: true
@@ -24,6 +24,7 @@ class XeroChartOfAccount < ApplicationRecord
   # Get the effective COA for a company (tenant-specific or global)
   # With acts_as_tenant, this returns tenant-scoped accounts automatically
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :account_code
   def self.for_company(company)
     tenant_accounts = active

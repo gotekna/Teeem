@@ -40,6 +40,10 @@ class Corporate < ApplicationRecord
   # Investments - what this company owns (as shareholder)
   has_many :investments, class_name: "CorporateShareholding", as: :shareholder, dependent: :destroy
 
+  has_many :asic_portal_credentials, foreign_key: "corporate_id", dependent: :destroy
+  has_many :active_asic_credentials, -> { where(status: "active") },
+           class_name: "AsicPortalCredential", foreign_key: "corporate_id"
+
   has_many :corporate_directors, foreign_key: "company_id", dependent: :destroy
   has_many :current_corporate_directors, -> { where(is_current: true) },
            class_name: "CorporateDirector", foreign_key: "company_id"
@@ -372,7 +376,7 @@ class Corporate < ApplicationRecord
     # Individuals and trusts don't need ASIC logins
     if acn.present?
       warnings << "Missing corporate key" if corporate_key.blank?
-      warnings << "Missing ASIC credentials" if asic_username.blank?
+      warnings << "Missing ASIC credentials" unless asic_portal_credentials.active.exists?
     end
 
     warnings << "No review date set" if review_date.blank?

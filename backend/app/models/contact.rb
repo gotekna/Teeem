@@ -1,10 +1,11 @@
 class Contact < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
 
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
   include Searchable
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :display_name
 
   # FRC (Feb 2026): Contacts page took 7 seconds due to N+1 queries in record_to_json.
@@ -94,6 +95,11 @@ class Contact < ApplicationRecord
   # Portal-related associations
   has_one :portal_user, dependent: :destroy
   has_many :maintenance_requests, foreign_key: :supplier_contact_id, dependent: :destroy
+
+  # SDA participant associations
+  has_many :sda_participant_matches, dependent: :destroy
+  has_many :sda_agreements, dependent: :destroy
+  has_many :sda_participant_outcomes, dependent: :destroy
 
   # Subcontractor-related associations
   has_one :subcontractor_account, through: :portal_user
@@ -558,6 +564,23 @@ class Contact < ApplicationRecord
   # Team/supplier configuration validations
   validates :team_size, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :daily_rate_per_person, numericality: { greater_than: 0 }, allow_nil: true
+
+  # SDA/NDIS participant eligibility
+  SDA_FUNDING_STATUSES = %w[not_funded pending approved expired].freeze
+  validates :sda_funding_status, inclusion: { in: SDA_FUNDING_STATUSES }, allow_nil: true
+  validates :sda_approved_category, inclusion: { in: Property::SDA_CATEGORIES }, allow_nil: true
+
+  def sda_participant?
+    sda_funding_status == "approved"
+  end
+
+  def ndis_plan_expiring_soon?(days: 30)
+    ndis_plan_review_date.present? && ndis_plan_review_date <= Date.current + days
+  end
+
+  def ndis_plan_expired?
+    ndis_plan_review_date.present? && ndis_plan_review_date < Date.current
+  end
 
   # Callbacks
   # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types

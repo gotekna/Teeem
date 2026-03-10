@@ -224,41 +224,6 @@ export function ToolbarSecondRow({
             Save All
           </Button>
         </>
-      ) : effectiveGroupByColumn && hasSelection ? (
-        <>
-          {/* Selection dropdown for grouped tables */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <div className="flex items-center cursor-pointer">
-                <Checkbox
-                  checked={isAllSelected}
-                  onCheckedChange={onToggleSelectAll}
-                />
-                <ChevronDown className="h-3 w-3 ml-1 text-muted-foreground" />
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => handleSelectAll?.(effectiveAllRowIds)}>
-                Select All ({effectiveFilteredRowsCount})
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleClearSelection}>
-                Clear Selection
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Selection count and clear - bulk action buttons are in the first toolbar row (SSoT) */}
-          <span className="text-[11px] font-medium ml-auto">{effectiveSelectedRowIds.size} selected</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleClearSelection}
-            className="h-7 px-2 text-xs"
-          >
-            Clear
-          </Button>
-        </>
       ) : (
         <>
           {/* Show all views as individual buttons */}
@@ -281,6 +246,42 @@ export function ToolbarSecondRow({
               <span className="truncate">{view.name}</span>
             </Button>
           ))}
+
+          {/* Selection controls for grouped tables - shown alongside views */}
+          {effectiveGroupByColumn && hasSelection && (
+            <>
+              <div className="flex-1" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center cursor-pointer">
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={onToggleSelectAll}
+                    />
+                    <ChevronDown className="h-3 w-3 ml-1 text-muted-foreground" />
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => handleSelectAll?.(effectiveAllRowIds)}>
+                    Select All ({effectiveFilteredRowsCount})
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleClearSelection}>
+                    Clear Selection
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <span className="text-[11px] font-medium">{effectiveSelectedRowIds.size} selected</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearSelection}
+                className="h-7 px-2 text-xs"
+              >
+                Clear
+              </Button>
+            </>
+          )}
         </>
       )}
     </div>

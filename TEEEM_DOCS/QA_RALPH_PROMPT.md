@@ -110,16 +110,20 @@ evaluate_script(async () => {
   const main = document.querySelector('main');
   const stillLoading = isStillLoading();
   // Table scroll check: detect tables where virtual scroll container can't scroll
-  // TeeemTableView renders [role="region"][aria-label*="table"] as scroll container
+  // TeeemTableView renders [role="region"][aria-label*="table"] as outer wrapper,
+  // but the ACTUAL scroll container is a nested div.overflow-auto inside it.
+  // The region itself often has overflow:hidden, so we must check the inner container.
   const tableRegion = document.querySelector('[role="region"][aria-label*="table"]');
   let tableScrollBroken = null;
   if (tableRegion) {
     const rowCount = tableRegion.querySelectorAll('tr').length;
-    const canScroll = tableRegion.scrollHeight > tableRegion.clientHeight + 10;
-    // If table has 20+ rows but container can't scroll, it's broken
+    // Find the actual scroll container (nested div.overflow-auto), fallback to region
+    const scrollContainer = tableRegion.querySelector('.overflow-auto, .overflow-y-auto') || tableRegion;
+    const canScroll = scrollContainer.scrollHeight > scrollContainer.clientHeight + 10;
+    // If table has 20+ rows but scroll container can't scroll, it's broken
     // (virtual scroll means not all rows are rendered, so check clientHeight > 0 too)
-    tableScrollBroken = (rowCount >= 20 && !canScroll && tableRegion.clientHeight > 0)
-      ? { rowCount, scrollHeight: tableRegion.scrollHeight, clientHeight: tableRegion.clientHeight }
+    tableScrollBroken = (rowCount >= 20 && !canScroll && scrollContainer.clientHeight > 0)
+      ? { rowCount, scrollHeight: scrollContainer.scrollHeight, clientHeight: scrollContainer.clientHeight }
       : false;
   }
   return ({

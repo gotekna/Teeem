@@ -17,6 +17,8 @@ module Api
 
       # Require admin for sensitive operations
       before_action :require_admin, only: [ :disconnect, :change_root_folder, :sync_corporate_documents ]
+      # Permission-gated write operations
+      before_action -> { require_permission("warehouse", :edit) }, only: [ :upload, :delete_file, :copy_files ]
 
       # SSoT: Setup document provider for provider-agnostic methods
       # Skip for SharePoint-specific admin actions (OAuth, site selection, etc.)

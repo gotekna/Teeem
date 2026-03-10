@@ -6,7 +6,7 @@ module Api
     #
     # Handles: company info, email config, brand colors, storage config
     class TenantSettingsController < ApplicationController
-      before_action :require_admin, only: %i[update update_sharepoint test_sharepoint update_brand apply_brand update_email_config update_po_template]
+      before_action :require_admin, only: %i[update update_sharepoint test_sharepoint update_brand apply_brand update_email_config update_po_template update_modules update_sda_config]
 
       # GET /api/v1/tenant_settings
       def show
@@ -79,6 +79,11 @@ module Api
         # NOTE (Feb 2026): download_name_templates column REMOVED - now per-tab in warehouse_folders.download_name
         if sp.key?(:config_links)
           update_attrs[:config_links] = (storage_config.config_links || {}).merge(sp[:config_links].to_h).compact_blank
+        end
+
+        # Also save sharepoint_default_url to TenantSetting if provided
+        if sp.key?(:sharepoint_default_url)
+          TenantSetting.instance.update(sharepoint_default_url: sp[:sharepoint_default_url].presence)
         end
 
         if storage_config.update(update_attrs)
@@ -229,6 +234,94 @@ module Api
         end
       end
 
+      # Available modules that can be toggled per tenant
+      AVAILABLE_MODULES = %w[
+        finance warehouse corporate properties calendar meetings
+        docsort esignature library portal schedule_master leads
+      ].freeze
+
+      # GET /api/v1/tenant_settings/modules
+      def modules
+        settings = TenantSetting.instance
+        enabled = settings.enabled_modules || {}
+
+        # Build module state: default is enabled (true) unless explicitly set to false
+        module_state = AVAILABLE_MODULES.each_with_object({}) do |key, hash|
+          hash[key] = enabled[key] != false
+        end
+
+        render json: { success: true, modules: module_state }
+      end
+
+      # GET /api/v1/tenant_settings/sda_config
+      def sda_config
+        settings = TenantSetting.instance
+        config = settings.sda_config || {}
+
+        # Resolve contact names for the assigned NDIS roles
+        contacts_data = {}
+        (config["contacts"] || {}).each do |role, contact_id|
+          next if contact_id.blank?
+          contact = Contact.find_by(id: contact_id)
+          contacts_data[role] = contact ? { id: contact.id, display_name: contact.display_name, email: contact.email } : nil
+        end
+
+        render json: {
+          success: true,
+          data: {
+            ndis_registration_number: config["ndis_registration_number"],
+            proda_ra_number: config["proda_ra_number"],
+            real_estate_licence_number: config["real_estate_licence_number"],
+            contacts: contacts_data
+          }
+        }
+      end
+
+      # PATCH /api/v1/tenant_settings/sda_config
+      def update_sda_config
+        settings = TenantSetting.instance
+        current = settings.sda_config || {}
+
+        current["ndis_registration_number"] = params[:ndis_registration_number] if params.key?(:ndis_registration_number)
+        current["proda_ra_number"] = params[:proda_ra_number] if params.key?(:proda_ra_number)
+        current["real_estate_licence_number"] = params[:real_estate_licence_number] if params.key?(:real_estate_licence_number)
+
+        if params[:contacts].present?
+          current["contacts"] ||= {}
+          params[:contacts].to_unsafe_h.each do |role, contact_id|
+            current["contacts"][role.to_s] = contact_id.present? ? contact_id.to_i : nil
+          end
+        end
+
+        if settings.update(sda_config: current)
+          render json: { success: true, data: current }
+        else
+          render_validation_errors(settings)
+        end
+      end
+
+      # PATCH /api/v1/tenant_settings/modules
+      def update_modules
+        settings = TenantSetting.instance
+        current = settings.enabled_modules || {}
+        updates = params[:modules]&.to_unsafe_h || {}
+
+        # Only allow known module keys
+        updates.each do |key, value|
+          next unless AVAILABLE_MODULES.include?(key.to_s)
+          current[key.to_s] = ActiveModel::Type::Boolean.new.cast(value)
+        end
+
+        if settings.update(enabled_modules: current)
+          module_state = AVAILABLE_MODULES.each_with_object({}) do |key, hash|
+            hash[key] = current[key] != false
+          end
+          render json: { success: true, modules: module_state }
+        else
+          render_validation_errors(settings)
+        end
+      end
+
       private
 
       def determine_status(provider_type, config)
@@ -259,7 +352,7 @@ module Api
           :provider_type,
           :sharepoint_site_url, :sharepoint_site_id, :sharepoint_drive_id, :sharepoint_drive_name,
           :s3_endpoint, :s3_bucket, :s3_region,
-          :sharepoint_root_path,
+          :sharepoint_root_path, :sharepoint_default_url,
           scope_folders: {},
           # NOTE (Feb 2026): download_name_templates REMOVED - now per-tab in warehouse_folders.download_name
           config_links: {}

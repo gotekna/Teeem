@@ -21,6 +21,8 @@ Sentry.init({
     "NEXT_REDIRECT",
     // ResizeObserver (browser quirk, not a real error)
     "ResizeObserver loop",
+    // Stale chunks after new deployment (auto-reloaded by error boundary)
+    "ChunkLoadError",
   ],
 
   // Set environment from build info

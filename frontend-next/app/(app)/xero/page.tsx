@@ -42,6 +42,7 @@ import {
   Zap,
   Database,
 } from "lucide-react";
+import { XeroSyncTab } from "./components/XeroSyncTab";
 import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 
@@ -356,6 +357,10 @@ export default function XeroPage() {
               <BarChart3 className="h-4 w-4 mr-2" />
               Reports
             </TabsTrigger>
+            <TabsTrigger value="sync">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Sync
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex items-center gap-4">
@@ -542,6 +547,13 @@ export default function XeroPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="sync" className="mt-4">
+          <XeroSyncTab
+            connected={status?.connected ?? false}
+            organizationName={status?.tenant_name ?? undefined}
+          />
         </TabsContent>
       </Tabs>
       </div>

@@ -1,4 +1,4 @@
-# Each job gets a copy of PlanCategories as tabs
+# Tabs for organizing plans within a job
 #
 # MASTERPIECE: Counter caches for O(1) count lookups
 # - plans_count: maintained by JobPlan counter_cache
@@ -6,7 +6,6 @@
 #
 class JobPlanTab < ApplicationRecord
   belongs_to :job
-  belongs_to :plan_category, optional: true
   belongs_to :parent, class_name: 'JobPlanTab', optional: true
   has_many :children, class_name: 'JobPlanTab', foreign_key: :parent_id, dependent: :destroy
   has_many :job_plans, dependent: :nullify

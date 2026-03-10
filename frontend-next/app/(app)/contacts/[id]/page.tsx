@@ -82,6 +82,7 @@ import MultipleSelector, { type Option } from "@/components/ui/multiple-selector
 import { ContactHeader, XeroLink } from "./components/ContactHeader";
 import { WarehouseTreeWithPreview } from "@/components/warehouse/WarehouseTreeWithPreview";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
+import { useDocumentCounts } from "@/lib/hooks/useDocumentCounts";
 import { getIcon } from "@/lib/icon-map";
 import {
   ContactOverviewTab,
@@ -244,6 +245,13 @@ export default function ContactDetailPage() {
 
   // SSoT: Tab configuration from WarehouseFolders API (Phase 5 - unified tabs)
   const { tabs: contactTabs, primaryXeroName } = useWarehouseFolders({ scope: "contact" });
+
+  // SSoT: Document counts per folder tab
+  const { counts: contactDocCounts, parentCounts: contactParentCounts } = useDocumentCounts({
+    linkableType: "Contact",
+    linkableId: id,
+    scope: "contact",
+  });
 
   // Create a map for quick tab config lookup
   const tabConfigMap = useMemo(() => {
@@ -1992,6 +2000,7 @@ export default function ContactDetailPage() {
           membershipsCount={memberships.length}
           caseRelationshipsCount={caseRelationships.length}
           emailsCount={emailsPagination?.total}
+          documentCounts={contactParentCounts}
         />
 
         {/* Overview Tab - Redesigned Property Panel */}

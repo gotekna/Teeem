@@ -11,8 +11,9 @@
 # - subcontract: Subcontractor package
 #
 class Recipe < ApplicationRecord
-  acts_as_tenant :tenant
+  acts_as_tenant :tenant, has_global_records: true
   include ConfigSyncable
+  include GlobalConfigRecord
   self.sync_key_source = :code
 
   # Constants

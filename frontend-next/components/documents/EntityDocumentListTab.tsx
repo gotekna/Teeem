@@ -551,7 +551,7 @@ export default function EntityDocumentListTab({
         toast({ title: "Verified", description: "Document has been validated" });
         setDocuments(prev => prev.map(d =>
           d.id === doc.id
-            ? { ...d, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() }
+            ? { ...d, ...res.document, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() }
             : d
         ));
       }
@@ -559,6 +559,39 @@ export default function EntityDocumentListTab({
       toast({ title: "Verify Failed", description: "Could not verify document", variant: "destructive" });
     }
   }, [toast]);
+
+  // Unverify
+  const handleUnverify = useCallback(async (doc: LibraryDocument) => {
+    try {
+      const res = await api.post<{ success: boolean; document: LibraryDocument }>(`/api/v1/documents/${doc.id}/unverify`);
+      if (res?.success) {
+        toast({ title: "Unvalidated", description: "Verification has been removed" });
+        setDocuments(prev => prev.map(d =>
+          d.id === doc.id
+            ? { ...d, verified: false, verifiedBy: null, verifiedAt: null }
+            : d
+        ));
+      }
+    } catch {
+      toast({ title: "Failed", description: "Could not remove verification", variant: "destructive" });
+    }
+  }, [toast]);
+
+  // Change document type
+  const handleChangeDocumentType = useCallback(async (doc: LibraryDocument, documentTypeId: number | null) => {
+    try {
+      const res = await api.patch<{ success: boolean; document: LibraryDocument & { documentTypeName?: string } }>(
+        `/api/v1/documents/${doc.id}/change_document_type`,
+        { document_type_id: documentTypeId }
+      );
+      if (res?.success) {
+        toast({ title: "Document Type Updated", description: documentTypeId ? "Document type has been changed" : "Document type has been removed" });
+        fetchDocuments();
+      }
+    } catch {
+      toast({ title: "Failed", description: "Could not change document type", variant: "destructive" });
+    }
+  }, [toast, fetchDocuments]);
 
   // Set expiry
   const handleSetExpiry = useCallback(async (doc: LibraryDocument, date: Date | null) => {
@@ -699,6 +732,8 @@ export default function EntityDocumentListTab({
           loading={loading}
           onDelete={handleDelete}
           onVerify={handleVerify}
+          onUnverify={handleUnverify}
+          onChangeDocumentType={handleChangeDocumentType}
           onSetExpiry={handleSetExpiry}
           onEmail={handleEmail}
           selectedDocs={controlledSelectedDocs}
