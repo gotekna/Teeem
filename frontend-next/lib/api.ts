@@ -20,7 +20,7 @@ const DEFAULT_API_URL = (process.env.NEXT_PUBLIC_API_URL || PRODUCTION_API_URL).
 
 // Check if running in dev mode (localhost or dev backends with "-dev" in URL)
 // Dev frontends skip the production router and login directly to their own backend
-const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev') || DEFAULT_API_URL.includes('localhost');
+const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev') || DEFAULT_API_URL.includes('localhost') || DEFAULT_API_URL.includes('127.0.0.1');
 
 /**
  * Get the current API base URL

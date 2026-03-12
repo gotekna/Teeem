@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
+ActiveRecord::Schema[8.0].define(version: 2202602271300002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1951,7 +1951,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.index ["appointment_date"], name: "index_corporate_directors_on_appointment_date"
-    t.index ["company_id", "contact_id"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
+    t.index ["company_id", "contact_id", "position"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
     t.index ["company_id"], name: "index_corporate_directors_on_company_id"
     t.index ["contact_id"], name: "index_corporate_directors_on_contact_id"
     t.index ["is_current"], name: "index_corporate_directors_on_is_current"
@@ -2590,7 +2590,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.string "file_extensions", default: [], array: true
     t.string "target_folder"
     t.boolean "skip_rename", default: false, null: false
-    t.boolean "supports_versioning", default: false, null: false
+    t.boolean "tracks_signing_status", default: false, null: false
     t.jsonb "form_number_mapping", default: {}
     t.boolean "generates_certificate", default: false
     t.string "certificate_template"
@@ -2605,9 +2605,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.index ["filename_patterns"], name: "index_document_types_on_filename_patterns", using: :gin
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["scope"], name: "index_document_types_on_scope"
-    t.index ["supports_versioning"], name: "index_document_types_on_supports_versioning"
     t.index ["tenant_id", "sync_key"], name: "idx_document_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_document_types_on_tenant_id"
+    t.index ["tracks_signing_status"], name: "index_document_types_on_tracks_signing_status"
     t.index ["warehouse_type_id"], name: "index_document_types_on_warehouse_type_id"
   end
 
@@ -2716,9 +2716,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.string "original_storage_item_id"
     t.string "signed_storage_item_id"
     t.bigint "document_type_id"
+    t.string "download_token"
     t.index ["created_by_id"], name: "index_e_signature_requests_on_created_by_id"
     t.index ["document_type_id"], name: "index_e_signature_requests_on_document_type_id"
     t.index ["documentable_type", "documentable_id"], name: "index_e_signature_requests_on_documentable"
+    t.index ["download_token"], name: "index_e_signature_requests_on_download_token", unique: true
     t.index ["expires_at"], name: "index_e_signature_requests_on_expires_at"
     t.index ["request_number"], name: "index_e_signature_requests_on_request_number", unique: true
     t.index ["status"], name: "index_e_signature_requests_on_status"
@@ -6489,7 +6491,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "name"
-    t.decimal "contract_value", precision: 15, scale: 2, comment: "DEPRECATED: Use contract_price instead. See TEEEM_DOCS/SSOT_CONTRACT_VALUE_MIGRATION.md"
     t.decimal "live_profit", precision: 15, scale: 2
     t.decimal "profit_percentage", precision: 10, scale: 2
     t.string "certifier_job_no"
@@ -6586,6 +6587,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.string "wind_classification"
     t.string "soil_classification"
     t.string "specification"
+    t.text "description"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -7158,6 +7160,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "document_inbox_id"
+    t.bigint "warehouse_document_id"
     t.index ["calibrated_by_id"], name: "index_page_scales_on_calibrated_by_id"
     t.index ["document_inbox_id"], name: "index_page_scales_on_document_inbox_id"
     t.index ["job_plan_id", "page_number"], name: "index_page_scales_on_job_plan_id_and_page_number", unique: true
@@ -7165,6 +7168,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.index ["job_plan_revision_id", "page_number"], name: "index_page_scales_on_job_plan_revision_id_and_page_number"
     t.index ["job_plan_revision_id"], name: "index_page_scales_on_job_plan_revision_id"
     t.index ["tenant_id"], name: "index_page_scales_on_tenant_id"
+    t.index ["warehouse_document_id", "page_number"], name: "index_page_scales_on_warehouse_doc_and_page", unique: true, where: "(warehouse_document_id IS NOT NULL)"
+    t.index ["warehouse_document_id"], name: "index_page_scales_on_warehouse_document_id"
   end
 
   create_table "pay_now_requests", force: :cascade do |t|
@@ -8067,7 +8072,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.index ["tenant_id"], name: "index_purchase_orders_on_tenant_id"
     t.index ["tender_id"], name: "index_purchase_orders_on_tender_id"
     t.index ["visible_to_supplier"], name: "index_purchase_orders_on_visible_to_supplier"
-    t.index ["xero_invoice_id"], name: "index_purchase_orders_on_xero_invoice_id"
+    t.index ["xero_invoice_id"], name: "index_purchase_orders_on_xero_invoice_id_unique", unique: true, where: "(xero_invoice_id IS NOT NULL)"
   end
 
   create_table "quantity_variables", force: :cascade do |t|
@@ -9250,6 +9255,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.string "task_code", limit: 50
     t.integer "tender_id"
     t.bigint "warehouse_folder_id"
+    t.jsonb "plan_type_ids", default: "[]"
+    t.jsonb "document_ref_type_ids", default: "[]"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
@@ -9933,6 +9940,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "document_inbox_id"
+    t.bigint "warehouse_document_id"
     t.index ["document_inbox_id", "display_order"], name: "index_takeoff_layers_on_docsort_item_id_and_order"
     t.index ["document_inbox_id", "name"], name: "index_takeoff_layers_on_document_inbox_id_and_name", unique: true, where: "(document_inbox_id IS NOT NULL)"
     t.index ["document_inbox_id"], name: "index_takeoff_layers_on_document_inbox_id"
@@ -9940,6 +9948,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.index ["job_id", "name"], name: "index_takeoff_layers_on_job_id_and_name", unique: true
     t.index ["job_id"], name: "index_takeoff_layers_on_job_id"
     t.index ["tenant_id"], name: "index_takeoff_layers_on_tenant_id"
+    t.index ["warehouse_document_id", "name"], name: "index_takeoff_layers_on_warehouse_doc_and_name", unique: true, where: "(warehouse_document_id IS NOT NULL)"
+    t.index ["warehouse_document_id"], name: "index_takeoff_layers_on_warehouse_document_id"
   end
 
   create_table "takeoff_measurements", force: :cascade do |t|
@@ -9968,6 +9978,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.string "color"
     t.bigint "document_inbox_id"
     t.bigint "takeoff_room_slot_id"
+    t.bigint "warehouse_document_id"
     t.index ["category"], name: "index_takeoff_measurements_on_category"
     t.index ["document_inbox_id"], name: "index_takeoff_measurements_on_document_inbox_id"
     t.index ["is_deduction"], name: "index_takeoff_measurements_on_is_deduction"
@@ -9985,6 +9996,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.index ["synced_to_po_id"], name: "index_takeoff_measurements_on_synced_to_po_id"
     t.index ["takeoff_layer_id"], name: "index_takeoff_measurements_on_takeoff_layer_id"
     t.index ["takeoff_room_slot_id"], name: "index_takeoff_measurements_on_takeoff_room_slot_id"
+    t.index ["warehouse_document_id"], name: "index_takeoff_measurements_on_warehouse_document_id"
   end
 
   create_table "takeoff_room_instances", force: :cascade do |t|
@@ -10843,6 +10855,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.string "warehouse_type"
     t.integer "sort_order", default: 0
     t.date "expiry_date"
+    t.string "version_letter", limit: 5
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["linkable_type", "linkable_id", "folder_path"], name: "idx_wd_linkable_folder_path"
@@ -10859,6 +10872,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
+    t.index ["version_group_id", "version_letter"], name: "idx_warehouse_docs_version_letter"
     t.index ["warehouse_folder_document_type_id"], name: "index_warehouse_documents_on_warehouse_folder_document_type_id"
     t.index ["warehouse_folder_id", "sort_order"], name: "idx_wd_folder_sort"
     t.index ["warehouse_folder_id"], name: "idx_wd_warehouse_folder"
@@ -11845,10 +11859,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
   add_foreign_key "document_types", "warehouse_types"
   add_foreign_key "e_signature_certificates", "e_signature_requests"
   add_foreign_key "e_signature_events", "e_signature_requests"
-  add_foreign_key "e_signature_events", "e_signature_signers"
+  add_foreign_key "e_signature_events", "e_signature_signers", on_delete: :nullify
   add_foreign_key "e_signature_events", "users", column: "actor_user_id"
   add_foreign_key "e_signature_fields", "e_signature_requests"
-  add_foreign_key "e_signature_fields", "e_signature_signers"
+  add_foreign_key "e_signature_fields", "e_signature_signers", on_delete: :cascade
   add_foreign_key "e_signature_requests", "document_types"
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
@@ -12310,6 +12324,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
   add_foreign_key "page_scales", "job_plans"
   add_foreign_key "page_scales", "tenants"
   add_foreign_key "page_scales", "users", column: "calibrated_by_id"
+  add_foreign_key "page_scales", "warehouse_documents"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
   add_foreign_key "pay_now_requests", "payments"
@@ -12589,6 +12604,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
   add_foreign_key "takeoff_layers", "document_inboxes"
   add_foreign_key "takeoff_layers", "jobs"
   add_foreign_key "takeoff_layers", "tenants"
+  add_foreign_key "takeoff_layers", "warehouse_documents"
   add_foreign_key "takeoff_measurements", "document_inboxes"
   add_foreign_key "takeoff_measurements", "job_colour_selections"
   add_foreign_key "takeoff_measurements", "job_plans"
@@ -12598,6 +12614,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_100000) do
   add_foreign_key "takeoff_measurements", "takeoff_layers"
   add_foreign_key "takeoff_measurements", "takeoff_measurements", column: "parent_measurement_id"
   add_foreign_key "takeoff_measurements", "takeoff_room_slots"
+  add_foreign_key "takeoff_measurements", "warehouse_documents"
   add_foreign_key "takeoff_room_instances", "document_inboxes"
   add_foreign_key "takeoff_room_instances", "job_plans"
   add_foreign_key "takeoff_room_instances", "jobs"

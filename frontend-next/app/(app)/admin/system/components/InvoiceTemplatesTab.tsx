@@ -214,6 +214,16 @@ export function InvoiceTemplatesTab() {
         return <Badge className="bg-orange-600 text-white">Bold</Badge>;
       case "minimal":
         return <Badge className="bg-muted-foreground text-white">Minimal</Badge>;
+      case "compact":
+        return <Badge className="bg-cyan-700 text-white">Compact</Badge>;
+      case "construction":
+        return <Badge className="bg-amber-600 text-white">Construction</Badge>;
+      case "executive":
+        return <Badge className="bg-yellow-700 text-white">Executive</Badge>;
+      case "skyline":
+        return <Badge className="bg-sky-600 text-white">Skyline</Badge>;
+      case "receipt":
+        return <Badge className="bg-green-700 text-white">Receipt</Badge>;
       default:
         return <Badge variant="secondary">{styleKey}</Badge>;
     }

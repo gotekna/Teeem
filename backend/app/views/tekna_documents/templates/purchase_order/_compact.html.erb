@@ -1,330 +1,325 @@
-<% # Compact Efficient — Small fonts, tight spacing. Fits max line items per page. %>
-
+<% # Compact Efficient — Small fonts, tight spacing. Professional density. Fits maximum line items per page. %>
+<%= "" -%>
 <style>
   .po-compact {
-    font-family: Arial, sans-serif;
-    font-size: 7.5pt;
-    line-height: 1.2;
-    color: #000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: 8pt;
+    line-height: 1.3;
+    color: #1f2937;
   }
 
-  .po-compact .po-header {
+  .po-compact p { margin: 1px 0; }
+
+  /* ── Header ── */
+  .po-compact .pc-hdr {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    padding-bottom: 6px;
-    border-bottom: 2px solid #000;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #374151;
   }
 
-  .po-compact .po-title {
-    font-size: 14pt;
-    font-weight: bold;
+  .po-compact .pc-co-name { font-size: 11pt; font-weight: 700; color: #111827; margin-bottom: 2px; }
+  .po-compact .pc-co-detail { font-size: 6.5pt; color: #9ca3af; }
+
+  .po-compact .pc-hdr-r { text-align: right; }
+  .po-compact .pc-doc-label {
+    font-size: 8.5pt;
+    font-weight: 400;
+    color: #9ca3af;
+    text-transform: uppercase;
     letter-spacing: 1px;
+    margin-bottom: 2px;
   }
+  .po-compact .pc-num { font-size: 12pt; font-weight: 700; color: #111827; }
+  .po-compact .pc-date { font-size: 6.5pt; color: #9ca3af; margin-top: 2px; }
 
-  .po-compact .po-header-right {
-    font-size: 8pt;
-    text-align: right;
-  }
-
-  .po-compact .po-header-right strong {
-    font-size: 10pt;
-  }
-
-  .po-compact .info-row {
+  /* ── Info row — compact three-column bordered grid ── */
+  .po-compact .pc-info {
     display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 0;
+    margin-bottom: 10px;
+    border: 1px solid #e5e7eb;
+  }
+
+  .po-compact .pc-info-col {
+    flex: 1;
+    padding: 6px 8px;
+    border-right: 1px solid #e5e7eb;
     font-size: 7pt;
   }
 
-  .po-compact .info-cell {
-    flex: 1;
-    border: 1px solid #bbb;
-    padding: 4px 6px;
-  }
+  .po-compact .pc-info-col:last-child { border-right: none; }
 
-  .po-compact .info-cell h4 {
-    font-size: 6.5pt;
-    font-weight: bold;
-    margin: 0 0 3px 0;
+  .po-compact .pc-info-hd {
+    font-size: 6pt;
+    font-weight: 700;
     text-transform: uppercase;
-    color: #555;
-    border-bottom: 1px solid #ddd;
+    letter-spacing: 0.7px;
+    color: #6b7280;
+    margin-bottom: 3px;
     padding-bottom: 2px;
+    border-bottom: 1px solid #f3f4f6;
   }
 
-  .po-compact .info-cell p {
-    margin: 1px 0;
-  }
+  .po-compact .pc-info-name { font-weight: 600; color: #111827; }
+  .po-compact .pc-info-dim { color: #9ca3af; font-size: 6.5pt; font-style: italic; }
 
-  .po-compact .info-label {
-    font-weight: bold;
-    display: inline-block;
-    width: 40px;
-    font-size: 6.5pt;
-  }
-
-  .po-compact .line-items-table {
+  /* ── Table ── */
+  .po-compact .pc-tbl {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 6px;
-    font-size: 7pt;
+    margin-bottom: 8px;
+    font-size: 7.5pt;
   }
 
-  .po-compact .line-items-table th {
-    background: #222;
+  .po-compact .pc-tbl th {
+    background: #374151;
     color: #fff;
-    padding: 3px 5px;
+    padding: 4px 6px;
+    font-size: 6.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
     text-align: left;
-    font-weight: bold;
-    font-size: 6.5pt;
   }
 
-  .po-compact .line-items-table th:nth-child(1) { width: 6%; text-align: center; }
-  .po-compact .line-items-table th:nth-child(2) { width: 44%; }
-  .po-compact .line-items-table th:nth-child(3) { width: 12%; }
-  .po-compact .line-items-table th:nth-child(4) { width: 12%; text-align: right; }
-  .po-compact .line-items-table th:nth-child(5) { width: 6%; text-align: center; }
-  .po-compact .line-items-table th:nth-child(6) { width: 16%; text-align: right; }
+  .po-compact .pc-tbl th:nth-child(1) { width: 36px; text-align: center; }
+  .po-compact .pc-tbl th:nth-child(4) { width: 70px; text-align: right; }
+  .po-compact .pc-tbl th:nth-child(5) { width: 30px; text-align: center; }
+  .po-compact .pc-tbl th:nth-child(6) { width: 80px; text-align: right; }
 
-  .po-compact .line-items-table td {
-    padding: 2px 5px;
-    border-bottom: 1px solid #e5e5e5;
+  .po-compact .pc-tbl td {
+    padding: 3px 6px;
+    border-bottom: 1px solid #f0f0f0;
     vertical-align: top;
+    color: #374151;
   }
 
-  .po-compact .line-items-table td:nth-child(1) { text-align: center; }
-  .po-compact .line-items-table td:nth-child(4) { text-align: right; }
-  .po-compact .line-items-table td:nth-child(5) { text-align: center; }
-  .po-compact .line-items-table td:nth-child(6) { text-align: right; }
+  .po-compact .pc-tbl td:nth-child(1) { text-align: center; color: #9ca3af; }
+  .po-compact .pc-tbl td:nth-child(4) { text-align: right; }
+  .po-compact .pc-tbl td:nth-child(5) { text-align: center; color: #9ca3af; }
+  .po-compact .pc-tbl td:nth-child(6) { text-align: right; font-weight: 600; }
 
-  .po-compact .line-items-table tr:nth-child(even) {
-    background: #fafafa;
-  }
+  .po-compact .pc-alt td { background: #fafafa; }
 
-  .po-compact .footer-row {
+  /* ── Bottom: Notes + Totals ── */
+  .po-compact .pc-bottom {
     display: flex;
-    gap: 10px;
-    margin-bottom: 6px;
-    font-size: 7pt;
+    gap: 12px;
+    margin-bottom: 8px;
+    align-items: flex-start;
   }
 
-  .po-compact .notes-col {
-    flex: 1;
-  }
+  .po-compact .pc-notes { flex: 1; }
+  .po-compact .pc-notes-label { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: #9ca3af; margin-bottom: 3px; }
+  .po-compact .pc-notes-body { font-size: 7.5pt; color: #4b5563; line-height: 1.4; }
 
-  .po-compact .notes-col h4 {
-    font-weight: bold;
-    font-size: 7pt;
-    margin: 0 0 2px 0;
-  }
+  .po-compact .pc-totals { width: 180px; flex-shrink: 0; }
 
-  .po-compact .totals-col {
-    width: 170px;
-  }
-
-  .po-compact .totals-col table { width: 100%; }
-
-  .po-compact .totals-col td {
+  .po-compact .pc-tot-row {
+    display: flex;
+    justify-content: space-between;
     padding: 2px 0;
+    font-size: 7.5pt;
+    color: #6b7280;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .po-compact .pc-tot-final {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0 3px;
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #111827;
+    border-top: 2px solid #374151;
+    margin-top: 1px;
+  }
+
+  /* ── Colour row ── */
+  .po-compact .pc-colour {
     font-size: 7pt;
-  }
-
-  .po-compact .totals-col td:first-child {
-    text-align: right;
-    padding-right: 8px;
-  }
-
-  .po-compact .totals-col td:last-child {
-    text-align: right;
-    font-weight: bold;
-  }
-
-  .po-compact .totals-col .total-row {
-    border-top: 2px solid #000;
-    font-size: 8pt;
-  }
-
-  .po-compact .colour-row {
-    background: #fffde7;
-    border: 1px solid #e6c200;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
     padding: 4px 8px;
-    margin-bottom: 6px;
-    font-size: 7pt;
+    margin-bottom: 7px;
   }
 
-  .po-compact .colour-row h4 {
-    font-weight: bold;
-    margin: 0 0 3px 0;
-    font-size: 7pt;
-    display: inline;
-  }
+  .po-compact .pc-colour-label { font-weight: 700; color: #374151; margin-right: 4px; }
 
-  .po-compact .colour-inline {
-    display: inline;
-  }
-
-  .po-compact .remittance-section {
+  /* ── Footer ── */
+  .po-compact .pc-remit {
     font-size: 6.5pt;
-    margin-bottom: 6px;
-    border-top: 1px solid #000;
-    padding-top: 4px;
+    color: #6b7280;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 5px;
+    margin-bottom: 7px;
   }
 
-  .po-compact .remittance-section h4 {
-    font-weight: bold;
-    margin: 0 0 2px 0;
-    font-size: 7pt;
+  .po-compact .pc-remit-label { font-weight: 700; color: #374151; margin-right: 4px; }
+
+  .po-compact .pc-warn {
+    font-size: 6.5pt;
+    color: #b91c1c;
+    font-weight: 600;
+    padding: 4px 8px;
+    background: #fff8f8;
+    border-left: 3px solid #dc2626;
+    margin-bottom: 7px;
   }
 
-  .po-compact .conditions-section {
+  .po-compact .pc-cond {
     font-size: 6pt;
-    background: #f5f5f5;
+    color: #9ca3af;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
     padding: 6px 8px;
-    border: 1px solid #ddd;
     column-count: 2;
-    column-gap: 16px;
+    column-gap: 14px;
   }
 
-  .po-compact .conditions-section h4 {
-    font-weight: bold;
-    margin: 0 0 3px 0;
-    font-size: 6.5pt;
+  .po-compact .pc-cond-label {
+    font-size: 6pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: #6b7280;
+    margin-bottom: 3px;
     column-span: all;
   }
 
-  .po-compact .conditions-section ol {
-    margin: 0;
-    padding-left: 12px;
-  }
-
-  .po-compact .conditions-section li {
-    margin-bottom: 1px;
-  }
-
-  .po-compact .delivery-note {
-    font-style: italic;
-    color: #777;
-    font-size: 6.5pt;
-  }
+  .po-compact .pc-cond ol { margin: 0; padding-left: 11px; }
+  .po-compact .pc-cond li { margin-bottom: 1px; }
 </style>
 
 <div class="po-compact">
-  <div class="po-header">
-    <span class="po-title">PURCHASE ORDER</span>
-    <div class="po-header-right">
-      <strong><%= purchase_order[:purchase_order_number] %></strong>
-      <% if purchase_order[:required_date].present? %>
-        <br>Delivery: <%= purchase_order[:required_date] %>
-      <% end %>
+
+  <!-- Header -->
+  <div class="pc-hdr">
+    <div>
+      <div class="pc-co-name"><%= company[:company_name] %></div>
+      <div class="pc-co-detail">ABN <%= company[:abn_formatted] %><% if company[:qbcc_license].present? %> · QBCC <%= company[:qbcc_license] %><% end %></div>
+      <div class="pc-co-detail"><%= company[:phone_formatted] %><% if company[:email].present? %> · <%= company[:email] %><% end %></div>
+    </div>
+    <div class="pc-hdr-r">
+      <div class="pc-doc-label">Purchase Order</div>
+      <div class="pc-num"><%= purchase_order[:purchase_order_number] %></div>
+      <% if purchase_order[:ted_task].present? %><div class="pc-date"><%= purchase_order[:ted_task] %></div><% end %>
+      <div class="pc-date">Required <%= purchase_order[:required_date] %></div>
     </div>
   </div>
 
-  <div class="info-row">
-    <div class="info-cell">
-      <h4>Delivery</h4>
-      <p><%= purchase_order[:delivery_address] || job[:full_address] %></p>
+  <!-- Compact info row -->
+  <div class="pc-info">
+    <div class="pc-info-col">
+      <div class="pc-info-hd">Deliver To</div>
+      <div class="pc-info-name"><%= purchase_order[:delivery_address] || job[:full_address] %></div>
       <% if job[:suburb].present? %><p><%= job[:suburb] %> <%= job[:state] %> <%= job[:postcode] %></p><% end %>
-      <% if job[:lot_number].present? || job[:plan_number].present? %>
-        <p class="delivery-note">Lot <%= job[:lot_number] %> Plan <%= job[:plan_number] %></p>
-      <% end %>
+      <% if job[:lot_number].present? || job[:plan_number].present? %><p class="pc-info-dim">Lot <%= job[:lot_number] %> · Plan <%= job[:plan_number] %></p><% end %>
     </div>
-    <div class="info-cell">
-      <h4>Supplier</h4>
-      <p><strong><%= purchase_order[:supplier][:name] %></strong></p>
+    <div class="pc-info-col">
+      <div class="pc-info-hd">Supplier</div>
+      <div class="pc-info-name"><%= purchase_order[:supplier][:name] %></div>
       <% if purchase_order[:supplier][:phone].present? %><p><%= purchase_order[:supplier][:phone] %></p><% end %>
       <% if purchase_order[:supplier][:email].present? %><p><%= purchase_order[:supplier][:email] %></p><% end %>
     </div>
-    <div class="info-cell">
-      <h4>Contact</h4>
-      <% if purchase_order[:site_supervisor][:name].present? %>
-        <p><span class="info-label">Sup:</span> <%= purchase_order[:site_supervisor][:name] %></p>
-      <% end %>
-      <% if purchase_order[:site_supervisor][:phone].present? %>
-        <p><span class="info-label">Ph:</span> <%= purchase_order[:site_supervisor][:phone] %></p>
-      <% end %>
-      <% if purchase_order[:site_supervisor][:email].present? %>
-        <p><span class="info-label">Em:</span> <%= purchase_order[:site_supervisor][:email] %></p>
-      <% end %>
+    <div class="pc-info-col">
+      <div class="pc-info-hd">Site Contact</div>
+      <% if purchase_order[:site_supervisor][:name].present? %><div class="pc-info-name"><%= purchase_order[:site_supervisor][:name] %></div><% end %>
+      <% if purchase_order[:site_supervisor][:phone].present? %><p><%= purchase_order[:site_supervisor][:phone] %></p><% end %>
+      <% if purchase_order[:site_supervisor][:email].present? %><p><%= purchase_order[:site_supervisor][:email] %></p><% end %>
+      <p class="pc-info-dim">Ring 3 days prior</p>
     </div>
   </div>
 
-  <table class="line-items-table">
+  <!-- Line Items -->
+  <table class="pc-tbl">
     <thead>
-      <tr><th>QTY</th><th>DESCRIPTION</th><th>CODE</th><th>RATE</th><th>TAX</th><th>AMOUNT</th></tr>
+      <tr>
+        <th>QTY</th>
+        <th>Description</th>
+        <th>Code</th>
+        <th>Rate</th>
+        <th>Tax</th>
+        <th>Amount</th>
+      </tr>
     </thead>
     <tbody>
-      <% purchase_order[:line_items].each do |item| %>
-        <tr>
+      <% purchase_order[:line_items].each_with_index do |item, index| %>
+        <tr class="<%= index.odd? ? 'pc-alt' : '' %>">
           <td><%= item[:quantity] %></td>
           <td><%= item[:description] %></td>
-          <td><%= item[:pricebook_code] %></td>
-          <td><%= item[:unit_price_formatted] %></td>
+          <td style="font-family:'SF Mono',Menlo,monospace;color:#9ca3af"><%= item[:pricebook_code] %></td>
+          <td style="font-family:'SF Mono',Menlo,monospace"><%= item[:unit_price_formatted] %></td>
           <td><%= item[:gst_code] %></td>
-          <td><%= item[:total_formatted] %></td>
+          <td style="font-family:'SF Mono',Menlo,monospace"><%= item[:total_formatted] %></td>
         </tr>
       <% end %>
     </tbody>
   </table>
 
-  <div class="footer-row">
-    <div class="notes-col">
+  <!-- Notes + Totals -->
+  <div class="pc-bottom">
+    <div class="pc-notes">
       <% if purchase_order[:special_instructions].present? %>
-        <h4>Notes:</h4>
-        <p><%= purchase_order[:special_instructions] %></p>
+        <div class="pc-notes-label">Notes</div>
+        <div class="pc-notes-body"><%= purchase_order[:special_instructions] %></div>
       <% end %>
     </div>
-    <div class="totals-col">
-      <table>
-        <tr><td>Sub Total:</td><td><%= purchase_order[:subtotal] %></td></tr>
-        <tr><td>GST:</td><td><%= purchase_order[:gst] %></td></tr>
-        <tr class="total-row"><td>Total:</td><td><%= purchase_order[:total] %></td></tr>
-      </table>
+    <div class="pc-totals">
+      <div class="pc-tot-row"><span>Sub Total</span><span style="font-family:'SF Mono',Menlo,monospace"><%= purchase_order[:subtotal] %></span></div>
+      <div class="pc-tot-row"><span>GST</span><span style="font-family:'SF Mono',Menlo,monospace"><%= purchase_order[:gst] %></span></div>
+      <div class="pc-tot-final"><span>Total (incl GST)</span><span style="font-family:'SF Mono',Menlo,monospace"><%= purchase_order[:total] %></span></div>
     </div>
   </div>
 
-  <div class="colour-row">
-    <h4>COLOUR:</h4>
-    <% if defined?(colour_selections) && colour_selections[:has_selections] %>
-      <span class="colour-inline">
-        <% colour_selections[:flat_list].each_with_index do |selection, i| %>
-          <strong><%= selection[:item].to_s.titleize %>:</strong> <%= selection[:colour] %><%= " (#{selection[:brand]})" if selection[:brand].present? %><%= i < colour_selections[:flat_list].size - 1 ? " | " : "" %>
+  <!-- Colour Selections -->
+  <% if defined?(colour_selections) && colour_selections[:has_selections] %>
+    <% filled = colour_selections[:flat_list].select { |s| s[:colour].present? } %>
+    <% if filled.any? %>
+      <div class="pc-colour">
+        <span class="pc-colour-label">Colours:</span>
+        <% filled.each_with_index do |s, i| %>
+          <strong><%= s[:item].to_s.titleize %></strong>: <%= s[:colour] %><% if s[:brand].present? %> (<%= s[:brand] %>)<% end %><%= i < filled.size - 1 ? " · " : "" %>
         <% end %>
-      </span>
-    <% else %>
-      <span class="colour-inline">As per colour selection</span>
+      </div>
     <% end %>
+  <% end %>
+
+  <!-- Remittance -->
+  <div class="pc-remit">
+    <span class="pc-remit-label">Remittance:</span>
+    Invoices to <%= company[:company_name] %> · <%= company[:email] %>
+    <% payment_days = purchase_order[:supplier][:payment_terms_days] %>
+    <% if payment_days.present? && payment_days.to_i <= 14 %>
+      <% if payment_days.to_i <= 7 %>
+        · <strong>7-day:</strong> paid following Thursday
+      <% else %>
+        · <strong>14-day:</strong> paid Thursday two weeks later
+      <% end %>
+    <% end %>
+    · PO number and job address MUST appear on invoice.
   </div>
 
-  <div class="remittance-section">
-    <h4>REMITTANCE:</h4>
-    <p>
-      <strong>Invoices to:</strong> <%= company[:company_name] %> |
-      <strong>Email:</strong> <%= company[:email] %> |
-      <strong>Phone:</strong> <%= company[:phone_formatted] %> |
-      <strong>Address:</strong> <%= company[:full_address] %>
-    </p>
-    <p>
-      <strong>Payment:</strong>
-      7-day: paid following Thursday |
-      14-day: paid Thursday two weeks later |
-      30-day: paid last day of following month.
-      PO number and job address MUST be on invoice.
-    </p>
+  <!-- Warning -->
+  <div class="pc-warn">
+    Purchase order number and job address MUST be on tax invoice. Invoices without these details will be returned. Invoices exceeding order total may delay payment.
   </div>
 
-  <div class="conditions-section">
-    <h4>CONDITIONS OF ACCEPTANCE</h4>
+  <!-- Conditions (2-column) -->
+  <div class="pc-cond">
+    <div class="pc-cond-label">Conditions of Acceptance</div>
     <ol>
       <li>If incorrect, contact our office immediately.</li>
       <li>Additional work requires a NEW order number.</li>
-      <li>PO number and job address MUST be on your tax invoice.</li>
-      <li>Processing acknowledges acceptance of these conditions.</li>
+      <li>PO number and job address MUST appear on your tax invoice.</li>
+      <li>Processing of order acknowledges acceptance of these conditions.</li>
       <li>'<%= company[:company_name] %>' reserves the right to engage another supplier if work is not completed in the specified timeframe.</li>
       <li>Invoice must be made out to <%= company[:company_name] %>.</li>
-      <li>This PO is pursuant to the subcontract agreement terms.</li>
+      <li>This PO is issued pursuant to the terms of the subcontract agreement.</li>
     </ol>
   </div>
+
 </div>

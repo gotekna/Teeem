@@ -30,8 +30,25 @@ const buildTime = new Date().toISOString();
 const nextConfig: NextConfig = {
   output: "standalone",
   devIndicators: false,
+  // Allow 127.0.0.1 as a dev origin (Claude Code preview pane uses 127.0.0.1 not localhost)
+  allowedDevOrigins: ["127.0.0.1"],
   // Empty turbopack config to silence warning (PDF viewer uses dynamic import with ssr: false)
   turbopack: {},
+  // Dev proxy: all /api/* calls from browser go to Next.js (:3000) which forwards to Rails (:3001)
+  // This lets the Claude Code preview browser (sandboxed to :3000) reach the Rails backend
+  async rewrites() {
+    if (process.env.NODE_ENV !== "development") return [];
+    const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:3001";
+    return {
+      // beforeFiles: run before Next.js API routes, so all /api/* is proxied to Rails
+      beforeFiles: [
+        {
+          source: "/api/:path*",
+          destination: `${backendUrl}/api/:path*`,
+        },
+      ],
+    };
+  },
   env: {
     NEXT_PUBLIC_GIT_COMMIT: gitCommitHash,
     NEXT_PUBLIC_BUILD_NUMBER: commitCount,

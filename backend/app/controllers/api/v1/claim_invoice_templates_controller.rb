@@ -167,6 +167,12 @@ module Api
           render_compact_template(template, data)
         when "construction"
           render_construction_template(template, data)
+        when "executive"
+          render_executive_template(template, data)
+        when "skyline"
+          render_skyline_template(template, data)
+        when "receipt"
+          render_receipt_template(template, data)
         else
           render_classic_template(template, data)
         end
@@ -527,6 +533,297 @@ module Api
 
               #{bank_details_html(template, data) if template.show_bank_details}
               #{footer_html(template)}
+            </div>
+          </div>
+        HTML
+      end
+
+      def render_executive_template(template, data)
+        # Xero Standard style — white background, accent top bar, clean professional layout
+        company_settings = TenantSetting.instance
+        logo_url = company_settings&.logo_url
+        logo_block = if template.show_logo && logo_url.present?
+          "<img src='#{logo_url}' alt='Logo' style='max-height:56px;max-width:180px;display:block;margin-bottom:8px;' />"
+        elsif template.show_logo
+          "<div style='width:48px;height:48px;background:#{template.primary_color};border-radius:6px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;'><span style='color:white;font-weight:700;font-size:20px;'>#{data[:company_name][0]}</span></div>"
+        else
+          ""
+        end
+        company_block = if template.show_company_details
+          "<p style='margin:0;font-size:14px;font-weight:600;color:#111827;'>#{data[:company_name]}</p><p style='margin:3px 0 0;font-size:12px;color:#6b7280;'>ABN #{data[:company_abn]}</p><p style='margin:2px 0 0;font-size:12px;color:#6b7280;'>#{data[:company_phone]}</p>"
+        else
+          ""
+        end
+        bank_block = if template.show_bank_details
+          "<div style='border-top:1px solid #f3f4f6;padding-top:24px;margin-top:8px;'><p style='margin:0 0 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;'>Payment Details</p><div style='display:flex;gap:48px;'><div><p style='margin:0;font-size:11px;color:#9ca3af;'>Bank</p><p style='margin:4px 0 0;font-size:13px;color:#111827;'>#{data[:bank_name]}</p></div><div><p style='margin:0;font-size:11px;color:#9ca3af;'>BSB</p><p style='margin:4px 0 0;font-size:13px;color:#111827;'>#{data[:bsb]}</p></div><div><p style='margin:0;font-size:11px;color:#9ca3af;'>Account</p><p style='margin:4px 0 0;font-size:13px;color:#111827;'>#{data[:account_number]}</p></div><div><p style='margin:0;font-size:11px;color:#9ca3af;'>Account Name</p><p style='margin:4px 0 0;font-size:13px;color:#111827;'>#{data[:account_name]}</p></div></div></div>"
+        else
+          ""
+        end
+        <<~HTML
+          <div style="font-family: #{template.font_family}, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; background: white;">
+            <!-- Accent top bar -->
+            <div style="height:5px;background:#{template.primary_color};"></div>
+
+            <!-- Header: logo/company left | invoice details right -->
+            <div style="padding:36px 40px 28px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e5e7eb;">
+              <div>
+                #{logo_block}
+                #{company_block}
+              </div>
+              <div style="text-align:right;">
+                <p style="margin:0;font-size:22px;font-weight:700;color:#{template.primary_color};letter-spacing:-0.3px;">Progress Claim</p>
+                <p style="margin:6px 0 0;font-size:18px;font-weight:500;color:#111827;">#{data[:invoice_number]}</p>
+                <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;">Date: #{data[:invoice_date]}</p>
+                <p style="margin:3px 0 0;font-size:12px;color:#6b7280;font-weight:500;">Due: #{data[:due_date]}</p>
+              </div>
+            </div>
+
+            <!-- Bill To / Project — light gray band -->
+            <div style="padding:20px 40px;display:flex;gap:60px;background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+              <div>
+                <p style="margin:0 0 6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#9ca3af;">Bill To</p>
+                <p style="margin:0;font-size:14px;font-weight:600;color:#111827;">#{data[:client_name]}</p>
+                <p style="margin:3px 0 0;font-size:12px;color:#6b7280;">#{data[:client_address]}</p>
+              </div>
+              <div>
+                <p style="margin:0 0 6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#9ca3af;">Project</p>
+                <p style="margin:0;font-size:14px;font-weight:600;color:#111827;">#{data[:job_name]}</p>
+                <p style="margin:3px 0 0;font-size:12px;color:#6b7280;">#{data[:job_address]}</p>
+              </div>
+            </div>
+
+            <div style="padding:32px 40px;">
+              <!-- Line items table -->
+              <table style="width:100%;border-collapse:collapse;margin-bottom:0;">
+                <thead>
+                  <tr style="background:#f9fafb;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;">
+                    <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#374151;">Description</th>
+                    <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#374151;">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid #f3f4f6;">
+                    <td style="padding:16px 12px;">
+                      <p style="margin:0;font-size:14px;font-weight:500;color:#111827;">#{data[:claim_stage]} Stage Claim</p>
+                      <p style="margin:4px 0 0;font-size:12px;color:#9ca3af;">#{data[:claim_percentage]}% of contract value — $#{number_with_delimiter(data[:contract_price])}</p>
+                    </td>
+                    <td style="padding:16px 12px;text-align:right;font-size:14px;color:#111827;">$#{number_with_delimiter(data[:claim_amount])}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Totals — right aligned, Xero style -->
+              <div style="display:flex;justify-content:flex-end;margin-top:0;border-top:1px solid #f3f4f6;">
+                <div style="width:260px;padding-top:16px;">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                    <span style="font-size:12px;color:#6b7280;">Subtotal</span>
+                    <span style="font-size:12px;color:#374151;">$#{number_with_delimiter(data[:claim_amount])}</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #e5e7eb;">
+                    <span style="font-size:12px;color:#6b7280;">GST (10%)</span>
+                    <span style="font-size:12px;color:#374151;">$#{number_with_delimiter(data[:gst_amount])}</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:2px solid #{template.primary_color};padding-top:12px;">
+                    <span style="font-size:15px;font-weight:700;color:#111827;">Total Due</span>
+                    <span style="font-size:20px;font-weight:700;color:#{template.primary_color};">$#{number_with_delimiter(data[:total_amount])}</span>
+                  </div>
+                  <p style="font-size:11px;color:#9ca3af;text-align:right;margin:6px 0 0;">Due #{data[:due_date]}</p>
+                </div>
+              </div>
+
+              #{bank_block}
+              #{footer_html(template)}
+            </div>
+          </div>
+        HTML
+      end
+
+      def render_skyline_template(template, data)
+        <<~HTML
+          <div style="font-family: #{template.font_family}, sans-serif; max-width: 800px; margin: 0 auto; background: white;">
+            <!-- Full-width gradient header -->
+            <div style="background: linear-gradient(135deg, #{template.primary_color} 0%, #{template.secondary_color} 100%); padding: 50px 40px 60px; position: relative; overflow: hidden;">
+              <!-- Decorative circles -->
+              <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,0.06);"></div>
+              <div style="position:absolute;bottom:-60px;right:80px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.06);"></div>
+
+              <div style="position:relative;display:flex;justify-content:space-between;align-items:flex-start;">
+                <div>
+                  #{if template.show_logo
+                      company_settings = TenantSetting.instance
+                      logo_url = company_settings&.logo_url
+                      if logo_url.present?
+                        "<img src='#{logo_url}' alt='Logo' style='max-height:50px;max-width:160px;filter:brightness(0) invert(1);margin-bottom:16px;display:block;' />"
+                      else
+                        "<div style='width:48px;height:48px;background:rgba(255,255,255,0.2);border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;'><span style='color:white;font-weight:bold;font-size:20px;'>#{data[:company_name][0]}</span></div>"
+                      end
+                    end}
+                  #{"<p style='margin:0;color:white;font-size:18px;font-weight:700;'>#{data[:company_name]}</p><p style='margin:4px 0 0;color:rgba(255,255,255,0.7);font-size:12px;'>ABN #{data[:company_abn]}</p>" if template.show_company_details}
+                </div>
+                <div style="text-align:right;">
+                  <p style="margin:0;color:rgba(255,255,255,0.7);font-size:11px;letter-spacing:2px;text-transform:uppercase;">Progress Claim</p>
+                  <p style="margin:8px 0 0;color:white;font-size:28px;font-weight:700;">#{data[:invoice_number]}</p>
+                  <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 14px;margin-top:8px;">
+                    <p style="margin:0;color:white;font-size:11px;">Due #{data[:due_date]}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- White info strip overlapping header -->
+            <div style="background:white;margin:0 40px;border-radius:10px 10px 0 0;margin-top:-24px;box-shadow:0 -4px 20px rgba(0,0,0,0.08);padding:24px 28px;display:flex;gap:0;border:1px solid #f0f0f0;border-bottom:none;">
+              <div style="flex:1;border-right:1px solid #f0f0f0;padding-right:24px;">
+                <p style="margin:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#{template.secondary_color};">Client</p>
+                <p style="margin:6px 0 0;font-size:14px;font-weight:600;">#{data[:client_name]}</p>
+              </div>
+              <div style="flex:2;padding:0 24px;border-right:1px solid #f0f0f0;">
+                <p style="margin:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#{template.secondary_color};">Project</p>
+                <p style="margin:6px 0 0;font-size:14px;font-weight:600;">#{data[:job_name]}</p>
+                <p style="margin:2px 0 0;font-size:11px;color:#{template.secondary_color};">#{data[:job_address]}</p>
+              </div>
+              <div style="padding-left:24px;text-align:right;">
+                <p style="margin:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#{template.secondary_color};">Issued</p>
+                <p style="margin:6px 0 0;font-size:13px;">#{data[:invoice_date]}</p>
+              </div>
+            </div>
+
+            <div style="margin:0 40px 40px;border:1px solid #f0f0f0;border-top:none;border-radius:0 0 10px 10px;padding:28px;">
+              <!-- Claim breakdown -->
+              <table style="width:100%;border-collapse:collapse;margin-bottom:28px;">
+                <thead>
+                  <tr style="border-bottom:2px solid #{template.primary_color};">
+                    <th style="padding:8px 0;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#{template.secondary_color};">Description</th>
+                    <th style="padding:8px 0;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#{template.secondary_color};">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid #f5f5f5;">
+                    <td style="padding:14px 0;">
+                      <p style="margin:0;font-weight:600;">#{data[:claim_stage]} Stage — #{data[:claim_percentage]}% of contract</p>
+                      <p style="margin:4px 0 0;font-size:12px;color:#{template.secondary_color};">Contract value: $#{number_with_delimiter(data[:contract_price])}</p>
+                    </td>
+                    <td style="padding:14px 0;text-align:right;font-weight:500;">$#{number_with_delimiter(data[:claim_amount])}</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #f5f5f5;">
+                    <td style="padding:10px 0;font-size:13px;color:#{template.secondary_color};">GST (10%)</td>
+                    <td style="padding:10px 0;text-align:right;font-size:13px;color:#{template.secondary_color};">$#{number_with_delimiter(data[:gst_amount])}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Big total -->
+              <div style="background:linear-gradient(135deg,#{template.primary_color},#{template.secondary_color});border-radius:10px;padding:28px;text-align:center;margin-bottom:28px;">
+                <p style="margin:0;color:rgba(255,255,255,0.75);font-size:11px;letter-spacing:2px;text-transform:uppercase;">Total Amount Due</p>
+                <p style="margin:12px 0 0;color:white;font-size:40px;font-weight:700;letter-spacing:-1px;">$#{number_with_delimiter(data[:total_amount])}</p>
+                <p style="margin:8px 0 0;color:rgba(255,255,255,0.65);font-size:12px;">Including GST of $#{number_with_delimiter(data[:gst_amount])}</p>
+              </div>
+
+              <!-- Progress bar -->
+              <div style="margin-bottom:28px;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                  <span style="font-size:11px;color:#{template.secondary_color};">Contract progress</span>
+                  <span style="font-size:11px;font-weight:600;">#{data[:claim_percentage]}%</span>
+                </div>
+                <div style="height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;">
+                  <div style="height:100%;width:#{data[:claim_percentage]}%;background:linear-gradient(to right,#{template.primary_color},#{template.secondary_color});border-radius:3px;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                  <span style="font-size:10px;color:#{template.secondary_color};">$0</span>
+                  <span style="font-size:10px;color:#{template.secondary_color};">$#{number_with_delimiter(data[:contract_price])}</span>
+                </div>
+              </div>
+
+              #{if template.show_bank_details
+                  "<div style='background:#f8fafc;border-radius:8px;padding:16px 20px;'><p style='margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#{template.secondary_color};'>Payment Details</p><div style='display:flex;gap:24px;flex-wrap:wrap;'><span style='font-size:13px;'><strong>#{data[:bank_name]}</strong></span><span style='font-size:13px;color:#{template.secondary_color};'>BSB #{data[:bsb]}</span><span style='font-size:13px;color:#{template.secondary_color};'>Acc #{data[:account_number]}</span><span style='font-size:13px;color:#{template.secondary_color};'>#{data[:account_name]}</span></div></div>"
+                end}
+              #{footer_html(template)}
+            </div>
+          </div>
+        HTML
+      end
+
+      def render_receipt_template(template, data)
+        <<~HTML
+          <div style="font-family: 'Courier New', Courier, monospace; max-width: 480px; margin: 0 auto; padding: 40px 32px; background: white; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
+            <!-- Receipt header -->
+            <div style="text-align:center;margin-bottom:28px;padding-bottom:20px;border-bottom:2px dashed #d1d5db;">
+              #{if template.show_logo
+                  company_settings = TenantSetting.instance
+                  logo_url = company_settings&.logo_url
+                  if logo_url.present?
+                    "<img src='#{logo_url}' alt='Logo' style='max-height:50px;max-width:160px;display:block;margin:0 auto 10px;' />"
+                  else
+                    "<div style='width:56px;height:56px;background:#{template.primary_color};border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;'><span style='color:white;font-weight:bold;font-size:22px;'>#{data[:company_name][0]}</span></div>"
+                  end
+                end}
+              <p style="margin:0;font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">#{data[:company_name]}</p>
+              #{"<p style='margin:4px 0 0;font-size:11px;color:#{template.secondary_color};'>ABN: #{data[:company_abn]}</p><p style='margin:2px 0 0;font-size:11px;color:#{template.secondary_color};'>#{data[:company_phone]} · #{data[:company_email]}</p>" if template.show_company_details}
+            </div>
+
+            <!-- Receipt meta -->
+            <div style="margin-bottom:20px;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+                <span style="color:#{template.secondary_color};">INVOICE</span>
+                <span style="font-weight:700;">#{data[:invoice_number]}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+                <span style="color:#{template.secondary_color};">DATE</span>
+                <span>#{data[:invoice_date]}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span style="color:#{template.secondary_color};">DUE</span>
+                <span style="font-weight:700;color:#{template.primary_color};">#{data[:due_date]}</span>
+              </div>
+            </div>
+
+            <div style="border-top:1px dashed #d1d5db;border-bottom:1px dashed #d1d5db;padding:14px 0;margin-bottom:20px;">
+              <div style="font-size:12px;margin-bottom:4px;">
+                <span style="color:#{template.secondary_color};">BILL TO:</span> #{data[:client_name]}
+              </div>
+              <div style="font-size:12px;">
+                <span style="color:#{template.secondary_color};">PROJECT:</span> #{data[:job_name]}
+              </div>
+            </div>
+
+            <!-- Line items -->
+            <div style="margin-bottom:20px;">
+              <p style="margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:2px;color:#{template.secondary_color};">ITEMS</p>
+
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;">
+                <div style="flex:1;padding-right:8px;">
+                  <p style="margin:0;font-weight:700;">#{data[:claim_stage]} Stage Claim</p>
+                  <p style="margin:2px 0 0;font-size:11px;color:#{template.secondary_color};">#{data[:claim_percentage]}% of $#{number_with_delimiter(data[:contract_price])}</p>
+                </div>
+                <div style="text-align:right;white-space:nowrap;">$#{number_with_delimiter(data[:claim_amount])}</div>
+              </div>
+
+              <div style="border-top:1px dotted #e5e7eb;padding-top:8px;">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+                  <span style="color:#{template.secondary_color};">Subtotal</span>
+                  <span>$#{number_with_delimiter(data[:claim_amount])}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+                  <span style="color:#{template.secondary_color};">GST (10%)</span>
+                  <span>$#{number_with_delimiter(data[:gst_amount])}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Total box -->
+            <div style="background:#{template.primary_color};padding:16px;text-align:center;margin-bottom:20px;border-radius:4px;">
+              <p style="margin:0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.75);">TOTAL DUE</p>
+              <p style="margin:8px 0 0;font-size:32px;font-weight:700;color:white;letter-spacing:-1px;">$#{number_with_delimiter(data[:total_amount])}</p>
+            </div>
+
+            #{if template.show_bank_details
+                "<div style='border-top:1px dashed #d1d5db;padding-top:16px;margin-bottom:16px;font-size:11px;'><p style='margin:0 0 8px;font-weight:700;letter-spacing:2px;'>PAYMENT</p><div style='display:flex;justify-content:space-between;margin-bottom:4px;'><span style='color:#{template.secondary_color};'>Bank</span><span>#{data[:bank_name]}</span></div><div style='display:flex;justify-content:space-between;margin-bottom:4px;'><span style='color:#{template.secondary_color};'>BSB</span><span>#{data[:bsb]}</span></div><div style='display:flex;justify-content:space-between;margin-bottom:4px;'><span style='color:#{template.secondary_color};'>Account</span><span>#{data[:account_number]}</span></div><div style='display:flex;justify-content:space-between;'><span style='color:#{template.secondary_color};'>Name</span><span>#{data[:account_name]}</span></div></div>"
+              end}
+
+            <!-- Receipt footer -->
+            <div style="text-align:center;padding-top:20px;border-top:2px dashed #d1d5db;">
+              <p style="margin:0;font-size:11px;color:#{template.secondary_color};">* * * THANK YOU * * *</p>
+              <p style="margin:8px 0 0;font-size:10px;color:#d1d5db;">#{data[:company_name]} · #{data[:company_email]}</p>
+              #{footer_html(template, centered: true)}
             </div>
           </div>
         HTML
