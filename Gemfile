@@ -119,7 +119,7 @@ group :development, :test do
   gem "factory_bot_rails", "~> 6.4"
   gem "faker", "~> 3.5"
   gem "shoulda-matchers", "~> 6.4"
-  gem "webmock", "~> 3.24"
+  gem "webmock", "~> 3.26"
   gem "vcr", "~> 6.3"
   gem "simplecov", "~> 0.22", require: false
 end
