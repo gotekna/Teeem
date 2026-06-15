@@ -80,7 +80,7 @@ gem "fuzzy_match", "~> 2.1"  # Fuzzy string matching for contact sync
 gem "rexml"  # XML parsing (required for ABN lookup service, removed from Ruby 3.0+ stdlib)
 
 # SMS integration
-gem "twilio-ruby", "~> 7.3"  # Twilio SDK for SMS messaging
+gem "twilio-ruby", "~> 7.10" # Twilio SDK for SMS messaging
 
 # Payment processing
 gem "stripe", "~> 13.0"  # Stripe SDK for payment portal
