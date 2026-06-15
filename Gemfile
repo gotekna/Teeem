@@ -115,7 +115,7 @@ group :development, :test do
   gem "ruby-lsp", require: false
 
   # Testing framework
-  gem "rspec-rails", "~> 7.1"
+  gem "rspec-rails", "~> 8.0"
   gem "factory_bot_rails", "~> 6.4"
   gem "faker", "~> 3.5"
   gem "shoulda-matchers", "~> 6.4"
