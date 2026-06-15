@@ -62,7 +62,7 @@ gem "docx", "~> 0.8"  # DOCX reading for Universal Document Reader
 gem "grover", "~> 1.1"  # HTML → PDF via Puppeteer (Tekna document templates)
 
 # Image management and scraping
-gem "cloudinary", "~> 2.1"  # Cloud image storage and CDN
+gem "cloudinary", "~> 2.4"  # Cloud image storage and CDN
 
 # S3-compatible cloud storage (AWS S3, Backblaze B2, MinIO, Wasabi)
 gem "aws-sdk-s3", "~> 1.170"  # S3 client for document providers

@@ -129,9 +129,9 @@ GEM
     caxlsx_rails (0.6.4)
       actionpack (>= 3.1)
       caxlsx (>= 3.0)
-    cloudinary (2.4.0)
+    cloudinary (2.4.5)
       faraday (>= 2.0.1, < 3.0.0)
-      faraday-follow_redirects (~> 0.3.0)
+      faraday-follow_redirects (~> 0.5)
       faraday-multipart (~> 1.0, >= 1.0.4)
       ostruct
     cmdparse (3.0.7)
@@ -176,15 +176,15 @@ GEM
       railties (>= 6.1.0)
     faker (3.5.2)
       i18n (>= 1.8.11, < 2)
-    faraday (2.14.0)
+    faraday (2.14.2)
       faraday-net_http (>= 2.0, < 3.5)
       json
       logger
-    faraday-follow_redirects (0.3.0)
+    faraday-follow_redirects (0.5.0)
       faraday (>= 1, < 3)
-    faraday-multipart (1.1.1)
+    faraday-multipart (1.2.0)
       multipart-post (~> 2.0)
-    faraday-net_http (3.4.2)
+    faraday-net_http (3.4.4)
       net-http (~> 0.5)
     ffi (1.17.2-aarch64-linux-gnu)
     ffi (1.17.2-aarch64-linux-musl)
@@ -234,7 +234,7 @@ GEM
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
     jmespath (1.6.2)
-    json (2.16.0)
+    json (2.19.9)
     jwt (2.10.2)
       base64
     kamal (2.8.2)
@@ -276,7 +276,7 @@ GEM
     multi_xml (0.7.2)
       bigdecimal (~> 3.1)
     multipart-post (2.4.1)
-    net-http (0.8.0)
+    net-http (0.9.1)
       uri (>= 0.11.1)
     net-imap (0.5.12)
       date
@@ -571,7 +571,7 @@ DEPENDENCIES
   business_time (~> 0.13)
   caxlsx (~> 4.1.0)
   caxlsx_rails (~> 0.6.3)
-  cloudinary (~> 2.1)
+  cloudinary (~> 2.4)
   creek (~> 2.6)
   debug
   dentaku
