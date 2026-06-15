@@ -117,7 +117,7 @@ group :development, :test do
   # Testing framework
   gem "rspec-rails", "~> 7.1"
   gem "factory_bot_rails", "~> 6.4"
-  gem "faker", "~> 3.5"
+  gem "faker", "~> 3.8"
   gem "shoulda-matchers", "~> 6.4"
   gem "webmock", "~> 3.24"
   gem "vcr", "~> 6.3"
