@@ -79,7 +79,7 @@ GEM
       securerandom (>= 0.3)
       tzinfo (~> 2.0, >= 2.0.5)
       uri (>= 0.13.1)
-    addressable (2.8.8)
+    addressable (2.9.0)
       public_suffix (>= 2.0.2, < 8.0)
     afm (1.0.0)
     anthropic (0.3.2)
@@ -343,7 +343,7 @@ GEM
     psych (5.2.6)
       date
       stringio
-    public_suffix (7.0.0)
+    public_suffix (7.0.5)
     puma (7.1.0)
       nio4r (~> 2.0)
     raabro (1.4.0)
@@ -538,7 +538,7 @@ GEM
     vcr (6.3.1)
       base64
     version_gem (1.1.9)
-    webmock (3.26.1)
+    webmock (3.26.2)
       addressable (>= 2.8.0)
       crack (>= 0.3.2)
       hashdiff (>= 0.4.0, < 2.0.0)
@@ -616,7 +616,7 @@ DEPENDENCIES
   twilio-ruby (~> 7.3)
   tzinfo-data
   vcr (~> 6.3)
-  webmock (~> 3.24)
+  webmock (~> 3.26)
 
 RUBY VERSION
    ruby 3.3.10p183
