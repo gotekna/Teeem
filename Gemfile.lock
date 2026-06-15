@@ -107,7 +107,7 @@ GEM
     aws-sigv4 (1.12.1)
       aws-eventstream (~> 1, >= 1.0.2)
     base64 (0.3.0)
-    bcrypt (3.1.20)
+    bcrypt (3.1.22)
     bcrypt_pbkdf (1.1.1)
     bcrypt_pbkdf (1.1.1-arm64-darwin)
     bcrypt_pbkdf (1.1.1-x86_64-darwin)
@@ -565,7 +565,7 @@ DEPENDENCIES
   active_storage_validations (~> 2.0)
   anthropic (~> 0.3.0)
   aws-sdk-s3 (~> 1.170)
-  bcrypt (~> 3.1.7)
+  bcrypt (~> 3.1.22)
   bootsnap
   brakeman
   business_time (~> 0.13)
